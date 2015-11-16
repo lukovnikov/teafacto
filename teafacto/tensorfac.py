@@ -7,16 +7,13 @@ from theano import tensor as T
 from math import ceil, floor
 from IPython import embed
 
-
-def issequence(x):
-    return isinstance(x, collections.Sequence) and not isinstance(x, basestring)
-
-
-def isnumber(x):
-    return isinstance(x, float) or isinstance(x, int)
+from utils import *
 
 
 class TFSGD(object):
+    '''
+    only for 3D tensors
+    '''
     def __init__(self, dims=10, maxiter=50, wregs=0.0, lr=0.0000001, negrate=1, numbats=100):
         self.dims = dims
         self.maxiter = maxiter
@@ -29,7 +26,6 @@ class TFSGD(object):
             self.wregs = [wregs]*3
         else:
             raise Exception("wrong type for regularization weights")
-        self.wregs = wregs
         self.lr = lr
         self.negrate = negrate
         self.numbats = numbats
@@ -44,6 +40,8 @@ class TFSGD(object):
         self.W = theano.shared(np.random.random((self.numrows, self.dims)) - offset)
         self.R = theano.shared(np.random.random((self.numslices, self.dims, self.dims)) - offset)
         self.H = theano.shared(np.random.random((self.dims, self.numcols)) - offset)
+
+        self.params = {"w": self.W, "r": self.R, "h": self.H}
 
         self.X = theano.shared(X)
 
@@ -207,6 +205,16 @@ class TFSGD(object):
         )
         return trainf
 
+    def save(self, filepath):
+        with open(filepath, "w") as f:
+            pickle.dump((self.W, self.R, self.H), f)
+
+    def load(self, filepath):
+        with open(filepath) as f:
+            self.W, self.R, self.H = pickle.load(f)
+
+
+
 
 class TFSGDC(TFSGD):
 
@@ -251,11 +259,3 @@ class TFSGDC(TFSGD):
             outputs=[dotp]
         )
         return pfun(*[idxs[:, i] for i in range(idxs.shape[1])])
-
-    def save(self, filepath):
-        with open(filepath, "w") as f:
-            pickle.dump((self.W, self.R, self.H), f)
-
-    def load(self, filepath):
-        with open(filepath) as f:
-            self.W, self.R, self.H = pickle.load(f)

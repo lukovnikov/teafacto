@@ -7,8 +7,6 @@ from matplotlib import pyplot as plt
 from IPython import embed
 
 from teafacto.mf import NMFSGDCL
-
-
 #from teafacto.mftf import NMFALS, NMFSGDC
 
 
