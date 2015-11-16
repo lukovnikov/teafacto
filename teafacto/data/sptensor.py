@@ -34,6 +34,12 @@ class SparseTensor(object):
     def shape(self):
         return tuple(self._maxes)
 
+    def nonzeros(self, tuples=False):
+        if tuples is True:
+            return self._dok.keys()
+        else:
+            return map(list, zip(*self._dok))
+
     def __getitem__(self, item):
         out = []
         if isinstance(item, tuple): # tuple of lists #TODO support slices
@@ -70,8 +76,9 @@ class SparseTensor(object):
 
 if __name__ == "__main__":
     t = SparseTensor.from_list([
-        (0,0,0,1.0),
-        (0,0,5,2.0)
+        (0, 0, 0, 1.0),
+        (0, 0, 5, 2.0)
     ])
-    print t[0,0,5]
-    print t[[0,0],[0,0],[0,5]]
+    print t[0, 0, 5]
+    print t[[0, 0], [0, 0], [0, 5]]
+    print t.nonzeros()
