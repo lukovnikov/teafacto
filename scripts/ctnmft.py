@@ -64,7 +64,7 @@ def run():
     print "training model"
     start = datetime.now()
     #model = NMFSGDC(dims=dims, maxiter=epochs, lr=lr, Lreg=wreg, Rreg=wreg, numbats=numbats)
-    model = NMFSGDCL(dims=dims, maxiter=epochs, lr=lr, Lreg=wreg, Rreg=wreg, numbats=numbats)
+    model = NMFSGDCL(dims=dims, maxiter=epochs, lr=lr, Lreg=wreg, Rreg=wreg*5, numbats=numbats)
     #model = NMFALS(dims=dims, maxiter=100)
     #model = NMFGD(dims=dims, maxiter=epochs, lr=lr, Lreg=wreg, Rreg=wreg)
     print "model defined in %f" % (datetime.now() - start).total_seconds()

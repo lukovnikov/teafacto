@@ -335,10 +335,17 @@ class NMFSGDC(NMFSGD):
             # decide which part to corrupt
             corruptaxis = 1 #np.random.randint(0, len(X))
             # corrupt
+            negsamples = []
+            for x in range(len(nonzeroidx)):
+                entry = [possamples[0][x], possamples[1][x]]
+                entry[corruptaxis] = np.random.randint(0, dims[corruptaxis])
+                negsamples.append(entry)
+            negsamples = map(lambda x: np.asarray(x, dtype="int32"), zip(*negsamples))
+            '''
             negsamples = [X[ax][nonzeroidx].astype("int32")
                             if ax is not corruptaxis
                             else np.random.randint(0, dims[corruptaxis], (batsize,)).astype("int32")
-                            for ax in range(len(X))]
+                            for ax in range(len(X))]'''
             return possamples + negsamples
         return samplegen
 
@@ -418,152 +425,6 @@ class NMFSGDCL(NMFSGDC):
             profile=True
         )
         return trainf
-
-class NMFSGDN(NMFSGD):
-    def __init__(self, dims, numbats = 1000, Lreg=0, Rreg=0, maxiter=200, lr=0.00001, negrate=1):
-        super(NMFSGDN, self).__init__(dims, numbats, Lreg, Rreg, maxiter, lr)
-        self.negrate = negrate
-
-    def train(self, X, numrows=None, numcols=None, evalinter=10):
-        self.initvars(X, numrows=numrows, numcols=numcols)
-        # define errors and costs
-        winp, hinp = T.ivectors("winp", "hinp")
-        outp = T.fvector("outp")
-        dotp = T.sum(self.W[winp, :] * self.H[:, hinp].T, axis=1)
-        # embed()
-        tErr = (1./2.) * T.sum((outp - dotp)**2) # MSE
-        tReg = (1./2.) * (T.sum(self.W[winp, :]**2) * self.Wreg + T.sum(self.H[:, hinp]**2) * self.Hreg)
-        tCost = tErr + tReg
-        # embed()
-        # get gradients
-        gW = T.grad(tCost, self.W)
-        gH = T.grad(tCost, self.H)
-
-        numsam = X.shape[0]
-        batsize = int(ceil(numsam*1./self.numbats))
-        numbats = self.numbats
-
-        # define updates and function
-        updW = (self.W, T.clip(self.W - self.lr * numbats * gW, 0, np.infty))
-        updH = (self.H, T.clip(self.H - self.lr * numbats * gH, 0, np.infty))
-        trainf = theano.function(
-            inputs=[winp, hinp, outp],
-            outputs=[tErr],
-            updates=[updW, updH],
-            profile=True
-        )
-
-        negrate = self.negrate
-
-        def batchloop():
-            c = 0
-            idxs = range(X.shape[0])
-            np.random.shuffle(idxs)
-            prevperc = -1.
-            maxc = numbats
-            ts = 0.
-            toterr = 0.
-            while c < maxc-1:
-                sliceidxs = idxs[c*batsize: min((c+1)*batsize, len(idxs))]
-                possamples = X[sliceidxs]
-                posouts = np.ones((possamples.shape[0],), dtype="float32")
-                negsamples = []
-                for i in range(possamples.shape[0]):
-                    for j in range(negrate):
-                        corruptdis = possamples[i, :]
-                        columntocorrupt = np.random.choice(len(corruptdis))
-                        corruptdis[columntocorrupt] = np.random.randint(0, numrows if columntocorrupt == 0 else numcols)
-                        negsamples.append(corruptdis)
-                negsamples = np.asarray(negsamples)
-                negouts = np.zeros((negsamples.shape[0],), dtype="float32")
-                if possamples.ndim != negsamples.ndim:
-                    embed()
-                samples = np.concatenate((possamples, negsamples), axis=0)
-                outs = np.concatenate((posouts, negouts))
-                #region Percentage counting
-                perc = round(c*100./maxc)
-                if perc > prevperc:
-                    print("iter progress %.0f" % perc + "% ", end='\r')
-                    prevperc = perc
-                #endregion
-
-                toterr += trainf(samples[:, 0].astype("int32"), samples[:, 1].astype("int32"), outs)[0]
-                c += 1
-            return toterr
-        err = self.trainloop(X, batchloop, evalinter=0)
-
-        return self.W.get_value(), self.H.get_value(), err
-
-class NMFSGDNC(NMFSGDN):
-    def __init__(self, *args, **kwargs):
-        super(NMFSGDNC, self).__init__(*args, **kwargs)
-
-    def train(self, X, numrows=None, numcols=None, evalinter=10):
-        self.initvars(X, numrows=numrows, numcols=numcols)
-        # define errors and costs
-        winp, hinp = T.ivectors("winp", "hinp")
-        nwinp, nhinp = T.ivectors("nwinp", "nhinp")
-        dotp = T.sum(self.W[winp, :] * self.H[:, hinp].T, axis=1)
-        ndotp = T.sum(self.W[nwinp, :] * self.H[:, nhinp].T, axis=1)
-        dotp = dotp.reshape((dotp.shape[0], 1))
-        ndotp = ndotp.reshape((ndotp.shape[0], 1))
-
-        #embed()
-
-        tErr = T.sum(T.max(T.concatenate([T.zeros_like(dotp), 1 - dotp + ndotp], axis=1), axis=1)) # hinge contrast
-        tReg = (1./2.) * (T.sum(self.W[winp, :]**2) * self.Wreg + T.sum(self.H[:, hinp]**2) * self.Hreg)
-        tCost = tErr + tReg
-        #embed()
-        # get gradients
-        gW = T.grad(tCost, self.W)
-        gH = T.grad(tCost, self.H)
-
-        numsam = X.shape[0]
-        batsize = int(ceil(numsam*1./self.numbats))
-        numbats = self.numbats
-
-        # define updates and function
-        updW = (self.W, T.clip(self.W - self.lr * numbats * gW, 0, np.infty))
-        updH = (self.H, T.clip(self.H - self.lr * numbats * gH, 0, np.infty))
-        trainf = theano.function(
-            inputs=[winp, hinp, nwinp, nhinp],
-            outputs=[tErr],
-            updates=[updW, updH],
-            profile=True
-        )
-
-        negrate = self.negrate
-
-        def batchloop():
-            c = 0
-            idxs = range(X.shape[0])
-            np.random.shuffle(idxs)
-            prevperc = -1.
-            maxc = numbats
-            ts = 0.
-            toterr = 0.
-            while c < maxc-1:
-                sliceidxs = idxs[c*batsize: min((c+1)*batsize, len(idxs))]
-                possamples = X[sliceidxs].copy()
-                samples = np.concatenate([possamples]*(negrate+1))
-                samples = np.concatenate([samples, samples], axis=1)
-                for i in range(samples.shape[0]):
-                    corruptcolumn = np.random.choice([2, 3])
-                    samples[i, corruptcolumn] = np.random.randint(0, numrows if corruptcolumn == 2 else numcols)
-                #region Percentage counting
-                perc = round(c*100./maxc)
-                if perc > prevperc:
-                    print("iter progress %.0f" % perc + "% ", end='\r')
-                    prevperc = perc
-                #endregion
-
-                toterr += trainf(samples[:, 0].astype("int32"), samples[:, 1].astype("int32"),
-                                 samples[:, 2].astype("int32"), samples[:, 3].astype("int32"))[0]
-                c += 1
-            return toterr
-        err = self.trainloop(X, batchloop, evalinter=0)
-
-        return self.W.get_value(), self.H.get_value(), err
 
 class NMFALS(MF):
     def __init__(self, dims, Lreg=0, Rreg=0, maxiter=200, eps=0.0000000001):

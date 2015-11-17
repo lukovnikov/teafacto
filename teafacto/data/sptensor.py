@@ -1,5 +1,6 @@
 __author__ = 'denis'
 from teafacto.utils import issequence
+import numpy as np
 
 class SparseTensor(object):
 
@@ -14,11 +15,11 @@ class SparseTensor(object):
         return self
 
     @staticmethod
-    def from_ssd(self, ssdfilepath, fill=0.0):
+    def from_ssd(ssdfilepath, fill=0.0):
         self = SparseTensor()
         self._fill = fill
         with open(ssdfilepath) as f:
-            for line in f:
+            for lc, line in enumerate(f, start=1):
                 ns = line.split(" ")
                 idxs = map(lambda x: int(x), ns[:-1])
                 val = float(ns[-1])
@@ -34,11 +35,17 @@ class SparseTensor(object):
     def shape(self):
         return tuple(self._maxes)
 
-    def nonzeros(self, tuples=False):
+    def nonzeros(self, tuples=False, withvals=False):
         if tuples is True:
-            return self._dok.keys()
+            if withvals is True:
+                return self._dok
+            else:
+                return self._dok.keys()
         else:
-            return map(list, zip(*self._dok))
+            if withvals is True:
+                return np.asarray(map(list, zip(*map(lambda (x, y): (x+(y,)), self._dok.items()))))
+            else:
+                return np.asarray(map(list, zip(*self._dok.keys())))
 
     def __getitem__(self, item):
         out = []
@@ -68,6 +75,7 @@ class SparseTensor(object):
         if len(self._maxes) == 0:
             self._maxes = list(idxs)
         if len(idxs) != len(self._maxes):
+            return
             raise Exception("wrong shape of entry")
         self._dok[tuple(idxs)] = val
         for i in range(len(idxs)):
@@ -81,4 +89,4 @@ if __name__ == "__main__":
     ])
     print t[0, 0, 5]
     print t[[0, 0], [0, 0], [0, 5]]
-    print t.nonzeros()
+    print t.nonzeros(withvals=True)
