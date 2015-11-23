@@ -35,6 +35,9 @@ class SparseTensor(object):
     def shape(self):
         return tuple(self._maxes)
 
+    def __len__(self):
+        return len(self._dok)
+
     def nonzeros(self, tuples=False, withvals=False):
         if tuples is True:
             if withvals is True:
@@ -81,6 +84,11 @@ class SparseTensor(object):
         for i in range(len(idxs)):
             self._maxes[i] = max(self._maxes[i], idxs[i])
 
+    def threshold(self, th):
+        for k, v in self._dok.items():
+            if v < th:
+                del self._dok[k]
+
 
 if __name__ == "__main__":
     t = SparseTensor.from_list([
@@ -89,4 +97,9 @@ if __name__ == "__main__":
     ])
     print t[0, 0, 5]
     print t[[0, 0], [0, 0], [0, 5]]
-    print t.nonzeros(withvals=True)
+    print t.nonzeros(withvals=True, tuples=True)
+    print len(t)
+
+    t.threshold(1.5)
+    print t.nonzeros(withvals=True, tuples=True)
+    print len(t)

@@ -31,10 +31,10 @@ class TFSGD(object):
         self.numbats = numbats
         self.wsplit = wsplit
 
-    def initvars(self, X, numcols=None, numrows=None, numslices=None, central=False):
+    def initvars(self, X, numcols=None, numrows=None, numslices=None, central=True):
         offset = 0.0
         if central is True:
-            offset = -0.5
+            offset = 0.5
         self.numslices = X.shape[0] if numslices is None else numslices
         self.numrows = X.shape[1] if numrows is None else numrows
         self.numcols = X.shape[2] if numcols is None else numcols
@@ -42,6 +42,11 @@ class TFSGD(object):
             pass #raise Exception("frontal slice must be square")
         self.W = theano.shared(np.random.random((self.numrows, self.dims)) - offset)
         self.R = theano.shared(np.random.random((self.numslices, self.dims, self.dims)) - offset)
+
+        '''
+        print("test W")
+        print(self.W[0, :].eval())
+        '''
 
         self.params = {"w": self.W, "r": self.R}
 
@@ -132,8 +137,16 @@ class TFSGD(object):
             else:
                 negsamples = [X[ax][nonzeroidx].astype("int32") for ax in range(len(X)-1)]
                 for i, x in enumerate(negsamples[1], start=0):
-                    corruptaxis = 2 if x < wsplit else 1
-                    negsamples[corruptaxis][i] = np.random.randint(wsplit, dims[corruptaxis])
+                    if x < wsplit:
+                        corruptaxis = 2
+                        if negsamples[2] < wsplit:
+                            corrupted = np.random.randint(0, min(wsplit, dims[corruptaxis]))
+                        else:
+                            corrupted = np.random.randint(wsplit, dims[corruptaxis])
+                    else:
+                        corruptaxis = 1
+                        corrupted = np.random.randint(wsplit, dims[corruptaxis])
+                    negsamples[corruptaxis][i] = corrupted
             return possamples + negsamples
         return samplegen
 
@@ -158,6 +171,7 @@ class TFSGD(object):
         trainf = self.gettrainf(inps, [tErr, tCost], tCost)
 
         batsize = self.getbatsize(X)
+        err = [0.]
 
         err = self.trainloop(X, self.getbatchloop(trainf, self.getsamplegen(X, batsize)), evalinter=evalinter)
 
@@ -229,7 +243,7 @@ class TFSGDC(TFSGD):
         wemb = self.W[winp, :]
         remb = self.R[rinp, :, :]
         hemb = self.W[hinp, :]
-        wrprod = wemb * remb
+        wrprod = T.batched_dot(wemb, remb)
         wrpdot = T.nnet.sigmoid(T.sum(wrprod * hemb, axis=1))
         return wrpdot
 
@@ -252,6 +266,16 @@ class TFSGDC(TFSGD):
         '''
         return T.sum(ndotp - dotp)
 
+    def getpredf(self):
+        winp, rinp, hinp = T.ivectors("winpp", "rinpp", "hinpp")
+        dotp = self.builddot(winp, rinp, hinp)
+        pfun = theano.function(
+            inputs=[winp, rinp, hinp],
+            outputs=[dotp]
+        )
+        return pfun
+
+
     def predict(self, idxs):
         '''
         :param win: vector of tuples of integer indexes for embeddings
@@ -259,10 +283,6 @@ class TFSGDC(TFSGD):
         '''
         idxs = np.asarray(idxs).astype("int32")
         print([idxs[:, i] for i in range(idxs.shape[1])])
-        winp, rinp, hinp = T.ivectors("winpp", "rinpp", "hinpp")
-        dotp = self.builddot(winp, rinp, hinp)
-        pfun = theano.function(
-            inputs=[winp, hinp],
-            outputs=[dotp]
-        )
+        pfun = self.getpredf()
+        #print(dotp.eval(*[idxs[:, i] for i in range(idxs.shape[1])]))
         return pfun(*[idxs[:, i] for i in range(idxs.shape[1])])
