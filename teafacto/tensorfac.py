@@ -66,7 +66,7 @@ class TFSGD(object):
         '''
         returns batch size for a given X (batsize)
         '''
-        numsam = np.count_nonzero(X)
+        numsam = X.count_nonzeros()
         batsize = ceil(numsam*1./self.numbats)
         return batsize
 
@@ -122,24 +122,25 @@ class TFSGD(object):
         wsplit = self.wsplit
 
         def samplegen():
+            xkeys = X.keys
             # sample positives
-            nonzeroidx = np.random.randint(0, len(X[0]), (batsize,)).astype("int32")
-            possamples = [X[ax][nonzeroidx].astype("int32") for ax in range(len(X)-1)]
+            nonzeroidx = np.random.randint(0, len(X), (batsize,)).astype("int32")
+            possamples = [xkeys[nonzeroidx][ax].astype("int32") for ax in range(X.numdims)]
             # decide which part to corrupt
             corruptaxis = 2 if len(corruptrange) < 2 else np.random.choice(corruptrange)
             # corrupt
             if len(corruptrange) > 1:
                 corrupted = np.random.randint(0, dims[corruptaxis], (batsize,)).astype("int32")
-                negsamples = [X[ax][nonzeroidx].astype("int32")
+                negsamples = [xkeys[nonzeroidx][ax].astype("int32")
                                 if ax is not corruptaxis
                                 else corrupted
-                                for ax in range(len(X))]
+                              for ax in range(len(X))]
             else:
-                negsamples = [X[ax][nonzeroidx].astype("int32") for ax in range(len(X)-1)]
+                negsamples = [xkeys[nonzeroidx][ax].astype("int32") for ax in range(X.numdims)]
                 for i, x in enumerate(negsamples[1], start=0):
                     if x < wsplit:
                         corruptaxis = 2
-                        if negsamples[2] < wsplit:
+                        if negsamples[2][i] < wsplit:
                             corrupted = np.random.randint(0, min(wsplit, dims[corruptaxis]))
                         else:
                             corrupted = np.random.randint(wsplit, dims[corruptaxis])
@@ -161,8 +162,8 @@ class TFSGD(object):
         call to train NMF with SGD on given matrix X
         '''
         self.initvars(X)
-        origX = X
-        X = self.transformX(X)
+        #self.origX = X
+        #X = self.transformX(X)
 
         outps, inps = self.defmodel()
         tErr = self.geterr(*outps)

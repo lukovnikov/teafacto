@@ -7,11 +7,9 @@ import pickle, pandas as pd, numpy as np
 
 from teafacto.tensorfac import TFSGDC
 
-# TODO:  - 1. check training
-#        - 2. threshold data
-#        - reverse trans ==> reverse triple
-#        - map to the same id space
-#        - reshape data
+# TODO:  - 1. do the training
+#           - first check if sampling works correctly
+#           - then check if training works correctly
 
 
 def loaddata(file):

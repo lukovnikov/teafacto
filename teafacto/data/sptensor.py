@@ -1,6 +1,7 @@
 __author__ = 'denis'
 from teafacto.utils import issequence
 import numpy as np
+from collections import OrderedDict
 
 class SparseTensor(object):
 
@@ -27,15 +28,26 @@ class SparseTensor(object):
         return self
 
     def __init__(self):
-        self._dok = {}
+        self._dok = OrderedDict()
         self._maxes = []
         self._fill = 0.0
 
     @property
     def shape(self):
-        return tuple(self._maxes)
+        return tuple(map(lambda x: x+1, self._maxes))
 
     def __len__(self):
+        return len(self._dok)
+
+    @property
+    def numdims(self):
+        ret = 0
+        for x in self._dok:
+            ret = len(x)
+            break
+        return ret
+
+    def count_nonzeros(self):
         return len(self._dok)
 
     def nonzeros(self, tuples=False, withvals=False):
@@ -51,6 +63,7 @@ class SparseTensor(object):
                 return np.asarray(map(list, zip(*self._dok.keys())))
 
     def __getitem__(self, item):
+        print "item " + str(item)
         out = []
         if isinstance(item, tuple): # tuple of lists #TODO support slices
             def mapper(s):
@@ -68,11 +81,15 @@ class SparseTensor(object):
                     out.append(self._dok[idx])
                 else:
                     out.append(self._fill)
-        else:
-            raise NotImplementedError
+        elif isinstance(item, list):
+            out = self._dok.values()[list]
         if len(out) == 1:
             out = out[0]
         return out
+
+    @property
+    def keys(self):
+        return SparseTensorKeys(self._dok.keys())
 
     def __setitem__(self, idxs, val):
         if len(self._maxes) == 0:
@@ -90,16 +107,18 @@ class SparseTensor(object):
                 del self._dok[k]
 
 
+class SparseTensorKeys(object):
+    def __init__(self, lok):
+        self.lok = np.asarray(lok)
+
+    def __getitem__(self, item):
+        return self.lok[item].T
+
 if __name__ == "__main__":
     t = SparseTensor.from_list([
         (0, 0, 0, 1.0),
-        (0, 0, 5, 2.0)
+        (0, 0, 5, 2.0),
+        (4, 3, 6, 3.0)
     ])
-    print t[0, 0, 5]
-    print t[[0, 0], [0, 0], [0, 5]]
-    print t.nonzeros(withvals=True, tuples=True)
-    print len(t)
 
-    t.threshold(1.5)
-    print t.nonzeros(withvals=True, tuples=True)
-    print len(t)
+    print "lok: \n" + str(t.keys[0, 1][0])
