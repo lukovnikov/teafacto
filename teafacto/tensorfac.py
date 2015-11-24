@@ -120,9 +120,9 @@ class TFSGD(object):
         dims = X.shape
         corruptrange = [2]
         wsplit = self.wsplit
+        xkeys = X.keys
 
         def samplegen():
-            xkeys = X.keys
             # sample positives
             nonzeroidx = np.random.randint(0, len(X), (batsize,)).astype("int32")
             possamples = [xkeys[nonzeroidx][ax].astype("int32") for ax in range(X.numdims)]

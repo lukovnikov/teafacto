@@ -3,7 +3,7 @@ __author__ = 'denis'
 from teafacto.data.sptensor import SparseTensor
 from datetime import datetime
 from matplotlib import pyplot as plt
-import pickle, pandas as pd, numpy as np
+import pickle, os, pkgutil, pandas as pd, numpy as np
 
 from teafacto.tensorfac import TFSGDC
 
@@ -13,10 +13,12 @@ from teafacto.tensorfac import TFSGDC
 
 
 def loaddata(file):
+    file = os.path.join(os.path.dirname(__file__), file)
     st = SparseTensor.from_ssd(file)
     return st
 
 def loadmeta(dfile):
+    dfile = os.path.join(os.path.dirname(__file__), dfile)
     meta = pickle.load(open(dfile))
     return meta
 
