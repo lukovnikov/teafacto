@@ -24,7 +24,7 @@ def loadmeta(dfile):
     return meta
 
 def getsavepath():
-    dfile = os.path.join(os.path.dirname(__file__), "../../models/%s.%s.model" %
+    dfile = os.path.join(os.path.dirname(__file__), "../../models/%s.%s" %
                          (os.path.splitext(os.path.basename(__file__))[0], datetime.now().strftime("%Y-%m-%d=%H:%M")))
     return dfile
 
@@ -33,7 +33,7 @@ def run():
     dims = 15
     negrate = 1
     numbats = 1000
-    epochs = 10 #20
+    epochs = 20 #20
     wreg = [0.3, 0.007, 0.07]
     lr = 0.0001 #0.0001
     evalinter = 1
@@ -142,7 +142,7 @@ def extend(instance, new_class):
             )
 
 def loadmodel(path):
-    model = TFSGDC.load(open(path))
+    model = TFSGDC.load(path)
     return model
 
 def loaddicts(path):

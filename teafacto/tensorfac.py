@@ -248,19 +248,19 @@ class TFSGD(object):
         with open(filepath) as f:
             W, R, settings, extra = pickle.load(f)
             ret = cls(**settings)
-            ret.W = W
-            ret.R = R
+            ret.W = theano.shared(W)
+            ret.R = theano.shared(R)
             ret.extra = extra
         return ret
 
     def embedXY(self, idx):
-        return self.W[idx, :]
+        return self.W.get_value()[idx, :]
 
     def normXY(self, idx):
         return np.linalg.norm(self.embedXY(idx))
 
     def embedZ(self, idx):
-        return self.R[idx, :, :]
+        return self.R.get_value()[idx, :, :]
 
     def normZ(self, idx):
         return np.linalg.norm(self.embedZ(idx))
