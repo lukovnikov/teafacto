@@ -2,6 +2,7 @@ from __future__ import print_function
 
 import theano, time, pickle, collections
 import numpy as np, pandas as pd
+import sys
 
 from theano import tensor as T
 from math import ceil, floor
@@ -196,7 +197,8 @@ class TFSGD(object):
                 #region Percentage counting
                 perc = round(c*100./maxc)
                 if perc > prevperc:
-                    print("iter progress %.0f" % perc + "% ", end='\r')
+                    sys.stdout.write("iter progress %.0f" % perc + "% \r")
+                    sys.stdout.flush()
                     prevperc = perc
                 #endregion
                 sampleinps = samplegen()
@@ -229,13 +231,39 @@ class TFSGD(object):
         )
         return trainf
 
-    def save(self, filepath):
+    def save(self, filepath, extra=None):
         with open(filepath, "w") as f:
-            pickle.dump((self.W.get_value(), self.R.get_value()), f)
+            pickle.dump((self.W.get_value(), self.R.get_value(), {"dims":       self.dims,
+                                                                  "maxiter":    self.maxiter,
+                                                                  "lr":         self.lr,
+                                                                  "numbats":    self.numbats,
+                                                                  "wregs":      self.wregs,
+                                                                  "negrate":    self.negrate,
+                                                                  "wsplit":     self.wsplit},
+                         extra), f)
 
-    def load(self, filepath):
+    @classmethod
+    def load(cls, filepath):
+        ret = None
         with open(filepath) as f:
-            self.W, self.R = pickle.load(f)
+            W, R, settings, extra = pickle.load(f)
+            ret = cls(**settings)
+            ret.W = W
+            ret.R = R
+            ret.extra = extra
+        return ret
+
+    def embedXY(self, idx):
+        return self.W[idx, :]
+
+    def normXY(self, idx):
+        return np.linalg.norm(self.embedXY(idx))
+
+    def embedZ(self, idx):
+        return self.R[idx, :, :]
+
+    def normZ(self, idx):
+        return np.linalg.norm(self.embedZ(idx))
 
 
 class TFSGDC(TFSGD):

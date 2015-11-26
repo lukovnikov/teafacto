@@ -1,4 +1,4 @@
-models/
+#models/
 venv/
 decomp/
 .idea/
@@ -16,7 +16,7 @@ __pycache__/
 
 # Distribution / packaging
 .Python
-/scripts/test.py
+/teafacto/scripts/test.py
 env/
 build/
 develop-eggs/

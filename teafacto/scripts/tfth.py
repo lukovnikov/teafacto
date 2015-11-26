@@ -24,7 +24,8 @@ def loadmeta(dfile):
     return meta
 
 def getsavepath():
-    dfile = os.path.join(os.path.dirname(__file__), "../models/tfth.wr")
+    dfile = os.path.join(os.path.dirname(__file__), "../../models/%s.%s.model" %
+                         (os.path.splitext(os.path.basename(__file__))[0], datetime.now().strftime("%Y-%m-%d=%H:%M")))
     return dfile
 
 def run():
@@ -32,14 +33,14 @@ def run():
     dims = 15
     negrate = 1
     numbats = 1000
-    epochs = 5 #20
-    wreg = [1, 0.01, 0.1]
+    epochs = 10 #20
+    wreg = [0.3, 0.007, 0.07]
     lr = 0.0001 #0.0001
     evalinter = 1
 
     threshold = 0.5
     #paths
-    datafileprefix = "../data/nycfilms/"
+    datafileprefix = "../../data/nycfilms/"
     tensorfile = "fulltensor.ssd"
     metafile = "fulltensor.apx.pkl"
 
@@ -129,6 +130,37 @@ def buildinspmat(relte, lhs, rhs, f):
     )[0] for x in lhs]
     datadf = pd.DataFrame(data)
     return datadf
+
+
+###################### FUNCTIONS FOR INSPECTION ##########################
+
+def extend(instance, new_class):
+    instance.__class__ = type(
+                '%s_extended_with_%s' % (instance.__class__.__name__, new_class.__name__),
+                (instance.__class__, new_class),
+                {}
+            )
+
+def loadmodel(path):
+    model = TFSGDC.load(open(path))
+    return model
+
+def loaddicts(path):
+    dicts = pickle.load(open(path))
+    fulldic = dicts["xydic"]
+    reldic = dicts["zdic"]
+
+def transform(vect, mat):
+    return np.dot(vect, mat)
+
+def getcompat(vectA, vectB):
+    return np.dot(vectA, vectB)
+
+def chaintransform(model, idx, *tidxs):
+    vect = model.embedXY(idx)
+    for id in tidxs:
+        vect = transform(vect, model.embedZ(id))
+    return vect
 
 
 if __name__ == "__main__":
