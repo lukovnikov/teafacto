@@ -241,12 +241,17 @@ class TFSGD(object):
 class TFSGDC(TFSGD):
 
     def builddot(self, winp, rinp, hinp):
+        wrhdot = self.builddotwos(winp, rinp, hinp)
+        wrpdot = T.nnet.sigmoid(wrhdot)
+        return wrpdot
+
+    def builddotwos(self, winp, rinp, hinp):
         wemb = self.W[winp, :]
         remb = self.R[rinp, :, :]
         hemb = self.W[hinp, :]
         wrprod = T.batched_dot(wemb, remb)
-        wrpdot = T.nnet.sigmoid(T.sum(wrprod * hemb, axis=1))
-        return wrpdot
+        wrhdot = T.sum(wrprod * hemb, axis=1)
+        return wrhdot
 
     def defmodel(self):
         '''
@@ -276,6 +281,14 @@ class TFSGDC(TFSGD):
         )
         return pfun
 
+    def getpredfdot(self):
+        winp, rinp, hinp = T.ivectors("winpp", "rinpp", "hinpp")
+        dotp = self.builddotwos(winp, rinp, hinp)
+        pfun = theano.function(
+            inputs=[winp, rinp, hinp],
+            outputs=[dotp]
+        )
+        return pfun
 
     def predict(self, idxs):
         '''
@@ -283,7 +296,10 @@ class TFSGDC(TFSGD):
         :return: vector of floats of predictions
         '''
         idxs = np.asarray(idxs).astype("int32")
-        print([idxs[:, i] for i in range(idxs.shape[1])])
         pfun = self.getpredf()
-        #print(dotp.eval(*[idxs[:, i] for i in range(idxs.shape[1])]))
+        return pfun(*[idxs[:, i] for i in range(idxs.shape[1])])
+
+    def predictdot(self, idxs):
+        idxs = np.asarray(idxs).astype("int32")
+        pfun = self.getpredfdot()
         return pfun(*[idxs[:, i] for i in range(idxs.shape[1])])

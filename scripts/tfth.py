@@ -4,6 +4,7 @@ from teafacto.data.sptensor import SparseTensor
 from datetime import datetime
 from matplotlib import pyplot as plt
 import pickle, os, pkgutil, pandas as pd, numpy as np
+from IPython import embed
 
 from teafacto.tensorfac import TFSGDC
 
@@ -22,13 +23,17 @@ def loadmeta(dfile):
     meta = pickle.load(open(dfile))
     return meta
 
+def getsavepath():
+    dfile = os.path.join(os.path.dirname(__file__), "../models/tfth.wr")
+    return dfile
+
 def run():
     # params
     dims = 15
     negrate = 1
     numbats = 1000
-    epochs = 50 #20
-    wreg = 0.001
+    epochs = 5 #20
+    wreg = [1, 0.01, 0.1]
     lr = 0.0001 #0.0001
     evalinter = 1
 
@@ -64,7 +69,13 @@ def run():
     plt.plot(err, "r")
     plt.show(block=False)
 
+    model.save(getsavepath())
+
     inspect(model, fulldic, reldic)
+
+    embed()
+    # todo inspect direct & experiment
+    # todo inspect chains
 
 def inspect(model, fulldic, reldic):
     dbr = "http://dbpedia.org/resource/"
@@ -100,7 +111,7 @@ def inspect(model, fulldic, reldic):
     reltcidx = map(lambda x: fulldic[x], reltx)
     reltx = map(lambda x: reldic[x], reltx)
     rhsx = map(lambda x: fulldic[x], rhsx)
-    pfun = model.getpredf()
+    pfun = model.getpredfdot()
     for i, relte in enumerate(reltx):
         print "\n-------------------------------------"
         print relt[i]
