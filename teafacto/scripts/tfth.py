@@ -149,6 +149,7 @@ def loaddicts(path):
     dicts = pickle.load(open(path))
     fulldic = dicts["xydic"]
     reldic = dicts["zdic"]
+    return fulldic, reldic
 
 def transform(vect, mat):
     return np.dot(vect, mat)
