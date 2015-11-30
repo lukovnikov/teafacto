@@ -265,6 +265,22 @@ class TFSGD(object):
     def normZ(self, idx):
         return np.linalg.norm(self.embedZ(idx))
 
+    def embedXYdot(self, iA, iB):
+        return np.dot(self.embedXY(iA), self.embedXY(iB))
+
+    def embedXYcos(self, iA, iB):
+        va = self.embedXY(iA)
+        vb = self.embedXY(iB)
+        return np.dot(va, vb) / (np.linalg.norm(va) * np.linalg.norm(vb))
+
+    def embedXYZdot(self, iT, iA, iB):
+        t = self.embedZ(iT)
+        a = self.embedXY(iA)
+        b = self.embedXY(iB)
+        at = np.dot(a, t)
+        atb = np.dot(at, b)
+        return atb
+
 
 class TFSGDC(TFSGD):
 

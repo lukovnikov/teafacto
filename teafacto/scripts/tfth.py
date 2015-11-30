@@ -157,6 +157,11 @@ def transform(vect, mat):
 def getcompat(vectA, vectB):
     return np.dot(vectA, vectB)
 
+def getcompati(idxA, idxB, m):
+    vectA = m.embedXY(idxA)
+    vectB = m.embedXY(idxB)
+    return getcompat(vectA, vectB)
+
 def chaintransform(model, idx, *tidxs):
     vect = model.embedXY(idx)
     for id in tidxs:
