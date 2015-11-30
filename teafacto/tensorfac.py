@@ -281,6 +281,14 @@ class TFSGD(object):
         atb = np.dot(at, b)
         return atb
 
+    def embedXYZcos(self, iT, iA, iB):
+        t = self.embedZ(iT)
+        a = self.embedXY(iA)
+        b = self.embedXY(iB)
+        at = np.dot(a, t)
+        atb = np.dot(at, b) / (np.linalg.norm(at) * np.linalg.norm(b))
+        return atb
+
 
 class TFSGDC(TFSGD):
 
