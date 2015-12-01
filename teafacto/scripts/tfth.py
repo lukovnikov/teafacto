@@ -6,7 +6,7 @@ from matplotlib import pyplot as plt
 import pickle, os, pkgutil, pandas as pd, numpy as np
 from IPython import embed
 
-from teafacto.tensorfac import TFSGDC
+from teafacto.tensorfac import TFSGDC, TFMF0SGDC
 
 # TODO:  - 1. do the training
 #           - first check if sampling works correctly
@@ -30,11 +30,11 @@ def getsavepath():
 
 def run():
     # params
-    dims = 15
+    dims = 6
     negrate = 1
     numbats = 1000
-    epochs = 20 #20
-    wreg = [0.3, 0.007, 0.07]
+    epochs = 10 #20
+    wreg = [0.2, 0.007, 0.07]
     lr = 0.0001 #0.0001
     evalinter = 1
 
@@ -53,6 +53,16 @@ def run():
     fulldic = meta["xydic"]
     reldic = meta["zdic"]
     splitid = meta["xyrelsplit"]
+    typsplitid = meta["xytypsplit"] # !!! types come after rels in y-dimension
+
+    # test some dick stuff
+    '''revfulldic = {v: k for k, v in fulldic.items()}
+    revreldic = {v: k for k, v in reldic.items()}
+    print revfulldic[27+splitid]
+    print revreldic[27]
+    return'''
+
+
     print "source data loaded in %f seconds" % (datetime.now() - start).total_seconds()
     start = datetime.now()
 
@@ -61,8 +71,9 @@ def run():
     # train model
     print "training model"
     start = datetime.now()
-    model = TFSGDC(dims=dims, maxiter=epochs, lr=lr, wregs=wreg, numbats=numbats, wsplit=splitid)
-    print "model defined in %f" % (datetime.now() - start).total_seconds()
+    model = TFSGDC(dims=dims, maxiter=epochs, lr=lr, wregs=wreg, numbats=numbats, wsplit=splitid, corruption="full")
+    #model = TFMF0SGDC(dims=dims, maxiter=epochs, lr=lr, wregs=wreg, numbats=numbats, wsplit=splitid, relidxoffset=splitid)
+    print "model %s defined in %f" % (model.__class__, (datetime.now() - start).total_seconds())
     start = datetime.now()
     W, R, err = model.train(data, evalinter=evalinter)
     print "model trained in %f" % (datetime.now() - start).total_seconds()

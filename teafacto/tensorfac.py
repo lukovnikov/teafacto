@@ -15,7 +15,7 @@ class TFSGD(object):
     '''
     only for 3D tensors of shape (slices: Nr, rows: Nx, cols: Nx)
     '''
-    def __init__(self, dims=10, maxiter=50, wregs=0.0, lr=0.0000001, negrate=1, numbats=100, wsplit=0):
+    def __init__(self, dims=10, maxiter=50, wregs=0.0, lr=0.0000001, negrate=1, numbats=100, wsplit=0, corruption="rhs"):
         self.dims = dims
         self.maxiter = maxiter
         if issequence(wregs):
@@ -31,6 +31,7 @@ class TFSGD(object):
         self.negrate = negrate
         self.numbats = numbats
         self.wsplit = wsplit
+        self.corruption = corruption
 
     def initvars(self, X, numcols=None, numrows=None, numslices=None, central=True):
         offset = 0.0
@@ -120,23 +121,45 @@ class TFSGD(object):
         negrate = self.negrate
         dims = X.shape
         corruptrange = [2]
+        if self.corruption == "full":
+            corruptrange = [0, 1, 2]
         wsplit = self.wsplit
         xkeys = X.keys
+        zvals = list(set(xkeys[:, 0]))
+
 
         def samplegen():
-            # sample positives
-            nonzeroidx = np.random.randint(0, len(X), (batsize,)).astype("int32")
-            possamples = [xkeys[nonzeroidx][ax].astype("int32") for ax in range(X.numdims)]
             # decide which part to corrupt
             corruptaxis = 2 if len(corruptrange) < 2 else np.random.choice(corruptrange)
             # corrupt
             if len(corruptrange) > 1:
-                corrupted = np.random.randint(0, dims[corruptaxis], (batsize,)).astype("int32")
-                negsamples = [xkeys[nonzeroidx][ax].astype("int32")
-                                if ax is not corruptaxis
-                                else corrupted
-                              for ax in range(len(X))]
+                # chose to corrupt before or after wsplit
+                '''corruptbefore = np.random.random() > wsplit*1.0/dims[1]
+                if corruptbefore:
+                    nonzeroidx = np.random.randint(0, wsplit, (batsize,)).astype("int32")
+                else:
+                    nonzeroidx = np.random.randint(wsplit, len(X)).astype("int32")
+                possamples = [xkeys[nonzeroidx][ax].astype("int32") for ax in range(X.numdims)]
+                negsamples = [xkeys[nonzeroidx][ax].astype("int32") for ax in range(X.numdims)]
+                if corruptbefore:
+                    corrupted = np.random.randint()'''
+                nonzeroidx = np.random.randint(0, len(X), (batsize,)).astype("int32")
+                possamples = [xkeys[nonzeroidx][ax].astype("int32") for ax in range(X.numdims)]
+                negsamples = [xkeys[nonzeroidx][ax].astype("int32") for ax in range(X.numdims)]
+                for i, x in enumerate(negsamples[0], start=0):
+                    if corruptaxis == 0: # corrupting z-axis
+                        corrupted = np.random.choice(zvals)
+                    elif corruptaxis == 1 or corruptaxis == 2: # corrupting x-axis
+                        v = negsamples[corruptaxis][i]
+                        if v < wsplit:
+                            corrupted = np.random.randint(0, min(wsplit, dims[corruptaxis]))
+                        else:
+                            corrupted = np.random.randint(wsplit, dims[corruptaxis])
+                    negsamples[corruptaxis][i] = corrupted
             else:
+                # sample positives
+                nonzeroidx = np.random.randint(0, len(X), (batsize,)).astype("int32")
+                possamples = [xkeys[nonzeroidx][ax].astype("int32") for ax in range(X.numdims)]
                 negsamples = [xkeys[nonzeroidx][ax].astype("int32") for ax in range(X.numdims)]
                 for i, x in enumerate(negsamples[1], start=0):
                     if x < wsplit:
@@ -233,14 +256,7 @@ class TFSGD(object):
 
     def save(self, filepath, extra=None):
         with open(filepath, "w") as f:
-            pickle.dump((self.W.get_value(), self.R.get_value(), {"dims":       self.dims,
-                                                                  "maxiter":    self.maxiter,
-                                                                  "lr":         self.lr,
-                                                                  "numbats":    self.numbats,
-                                                                  "wregs":      self.wregs,
-                                                                  "negrate":    self.negrate,
-                                                                  "wsplit":     self.wsplit},
-                         extra), f)
+            pickle.dump((self.W.get_value(), self.R.get_value(), self.getmodelparams(), extra), f)
 
     @classmethod
     def load(cls, filepath):
@@ -317,6 +333,16 @@ class TFSGDC(TFSGD):
         ndotp = ndotp.reshape((ndotp.shape[0], 1))
         return [dotp, ndotp], [rinp, winp, hinp, nrinp, nwinp, nhinp]
 
+    def getmodelparams(self):
+        return   {"dims":       self.dims,
+                  "maxiter":    self.maxiter,
+                  "lr":         self.lr,
+                  "numbats":    self.numbats,
+                  "wregs":      self.wregs,
+                  "negrate":    self.negrate,
+                  "wsplit":     self.wsplit,
+                  "corruption": self.corruption};
+
     def geterr(self, dotp, ndotp):
         '''
         Get error variable given positive dot product and negative dot product
@@ -355,3 +381,97 @@ class TFSGDC(TFSGD):
         idxs = np.asarray(idxs).astype("int32")
         pfun = self.getpredfdot()
         return pfun(*[idxs[:, i] for i in range(idxs.shape[1])])
+
+
+class TFMF0SGDC(TFSGDC):
+    def __init__(self, dims=10, maxiter=50, wregs=0.0, lr=0.0000001, negrate=1, numbats=100, wsplit=0, corruption="rhs", relidxoffset=0):
+        super(TFMF0SGDC, self).__init__(dims,maxiter,wregs,lr,negrate,numbats,wsplit,corruption)
+        self.relidxoffset = relidxoffset
+
+    def builddot(self, winp, rinp, hinp, crinp):
+        tdot = self.builddotwos(winp, rinp, hinp)
+        ddot = self.builddotdir(winp, crinp)
+        c = tdot + ddot  # this might be wrong as compatibility (ddot) and transformation (tdot) might compensate for each other while we want them to be true at the same time
+        #c = tdot * ddot #==> this might be better
+        return T.nnet.sigmoid(c)
+
+    def builddotdir(self, winp, crinp):
+        wemb = self.W[winp, :]
+        cemb = self.W[crinp, :]
+        d = T.batched_dot(wemb, cemb)
+        return d
+
+    def defmodel(self):
+        winp, rinp, hinp, crinp = T.ivectors("winp", "rinp", "hinp", "crinp")
+        nwinp, nrinp, nhinp, ncrinp = T.ivectors("nwinp", "nrinp", "nhinp", "ncrinp")
+        dotp = self.builddot(winp, rinp, hinp, crinp)
+        ndotp = self.builddot(nwinp, nrinp, nhinp, ncrinp)
+        dotp = dotp.reshape((dotp.shape[0], 1))
+        ndotp = ndotp.reshape((ndotp.shape[0], 1))
+        return [dotp, ndotp], [rinp, winp, hinp, crinp, nrinp, nwinp, nhinp, ncrinp]
+
+    def getsamplegen(self, X, batsize): #TODO
+        '''
+        get sample generator
+        :param X: indexes of nonzeroes of original input tensor. X is a ([int*]*)
+        :param batsize: size of batch (number of samples generated)
+        :return:
+        '''
+        negrate = self.negrate
+        dims = X.shape
+        corruptrange = [2]
+        if self.corruption == "full":
+            corruptrange = [0, 1, 2]
+        wsplit = self.wsplit
+        xkeys = X.keys
+        zvals = list(set(xkeys[:, 0]))
+        relidxoffset = self.relidxoffset
+
+        def samplegen():
+            # decide which part to corrupt
+            corruptaxis = 2 if len(corruptrange) < 2 else np.random.choice(corruptrange)
+            # corrupt
+            if len(corruptrange) > 1:
+                # chose to corrupt before or after wsplit
+                '''corruptbefore = np.random.random() > wsplit*1.0/dims[1]
+                if corruptbefore:
+                    nonzeroidx = np.random.randint(0, wsplit, (batsize,)).astype("int32")
+                else:
+                    nonzeroidx = np.random.randint(wsplit, len(X)).astype("int32")
+                possamples = [xkeys[nonzeroidx][ax].astype("int32") for ax in range(X.numdims)]
+                negsamples = [xkeys[nonzeroidx][ax].astype("int32") for ax in range(X.numdims)]
+                if corruptbefore:
+                    corrupted = np.random.randint()'''
+                nonzeroidx = np.random.randint(0, len(X), (batsize,)).astype("int32")
+                possamples = [xkeys[nonzeroidx][ax].astype("int32") for ax in range(X.numdims)]
+                negsamples = [xkeys[nonzeroidx][ax].astype("int32") for ax in range(X.numdims)]
+                for i, x in enumerate(negsamples[0], start=0):
+                    if corruptaxis == 0: # corrupting z-axis
+                        corrupted = np.random.choice(zvals)
+                    elif corruptaxis == 1 or corruptaxis == 2: # corrupting x-axis
+                        v = negsamples[corruptaxis]
+                        if v < wsplit:
+                            corrupted = np.random.randint(0, min(wsplit, dims[corruptaxis]))
+                        else:
+                            corrupted = np.random.randint(wsplit, dims[corruptaxis])
+                    negsamples[corruptaxis][i] = corrupted
+            else: # for every negatively sampled RHS, also neg-sample a MHS-C based on MHS but beware: MHS uses different indexes than MHS-C ==> need to translate
+                # sample positives
+                nonzeroidx = np.random.randint(0, len(X), (batsize,)).astype("int32")
+                possamples = [xkeys[nonzeroidx][ax].astype("int32") for ax in range(X.numdims)]
+                possamples.append(possamples[0]+relidxoffset) # transform idx's from MHS to MHS-C
+                negsamples = [xkeys[nonzeroidx][ax].astype("int32") for ax in range(X.numdims)]
+                negsamples.append(np.random.choice(zvals, negsamples[0].shape).astype("int32")+relidxoffset) # add corruption to MHS-C
+                for i, x in enumerate(negsamples[1], start=0):
+                    if x < wsplit:
+                        corruptaxis = 2
+                        if negsamples[2][i] < wsplit:
+                            corrupted = np.random.randint(0, min(wsplit, dims[corruptaxis]))
+                        else:
+                            corrupted = np.random.randint(wsplit, dims[corruptaxis])
+                    else:
+                        corruptaxis = 1
+                        corrupted = np.random.randint(wsplit, dims[corruptaxis])
+                    negsamples[corruptaxis][i] = corrupted
+            return possamples + negsamples
+        return samplegen
