@@ -12,7 +12,7 @@ from IPython import embed
 from utils import *
 
 
-class TFSGD(object):
+class OTFSGD(object):
     '''
     only for 3D tensors of shape (slices: Nr, rows: Nx, cols: Nx)
     '''
@@ -176,9 +176,11 @@ class TFSGD(object):
                         = np.random.randint(0, wsplit, (nonzeroidxsplitpoint,)).astype("int32")
                     negsamples[2][nonzeroidxsplitpoint:] \
                         = np.random.randint(0, wsplit, (batsize - nonzeroidxsplitpoint,)).astype("int32")
-                elif corruptaxis == 2: # corrupt relations
+                elif corruptaxis == 2: # corrupt relations/rhs entities
                     negsamples[2][:nonzeroidxsplitpoint] \
                         = np.random.randint(wsplit, dims[1], (nonzeroidxsplitpoint,)).astype("int32")
+                        #= np.random.randint(0, dims[1], (nonzeroidxsplitpoint,)).astype("int32")
+                        #
                     negsamples[1][nonzeroidxsplitpoint:] \
                         = np.random.randint(wsplit, dims[1], (batsize - nonzeroidxsplitpoint,)).astype("int32")
             return possamples + negsamples
@@ -316,7 +318,7 @@ class TFSGD(object):
         return atb
 
 
-class TFSGDC(TFSGD):
+class OTFSGDC(OTFSGD):
 
     def builddot(self, winp, rinp, hinp):
         wrhdot = self.builddotwos(winp, rinp, hinp)
@@ -393,9 +395,9 @@ class TFSGDC(TFSGD):
         return pfun(*[idxs[:, i] for i in range(idxs.shape[1])])
 
 
-class TFMF0SGDC(TFSGDC):
+class OTFMF0SGDC(OTFSGDC):
     def __init__(self, relidxoffset=0, revreloffset=0, lr2=0.00000001, **kwargs):
-        super(TFMF0SGDC, self).__init__(**kwargs)
+        super(OTFMF0SGDC, self).__init__(**kwargs)
         self.relidxoffset = relidxoffset
         self.revreloffset = revreloffset
         self.lr2 = lr2
@@ -473,7 +475,7 @@ class TFMF0SGDC(TFSGDC):
         return trainf
 
     def getsamplegen(self, X, batsize):
-        supersamplegen = super(TFMF0SGDC, self).getsamplegen(X, batsize)
+        supersamplegen = super(OTFMF0SGDC, self).getsamplegen(X, batsize)
         wsplit = self.wsplit
         relidxoffset = self.relidxoffset
         revreloffset = self.revreloffset

@@ -6,7 +6,7 @@ from matplotlib import pyplot as plt
 import pickle, os, pkgutil, pandas as pd, numpy as np
 from IPython import embed
 
-from teafacto.tensorfac import TFSGDC, TFMF0SGDC
+from teafacto.tensorfac import OTFSGDC, OTFMF0SGDC
 
 # TODO:  - 1. do the training
 #           - first check if sampling works correctly
@@ -30,13 +30,13 @@ def getsavepath():
 
 def run():
     # params
-    dims = 10
+    dims = 30
     negrate = 1
     numbats = 1000
     epochs = 10 #20
     wreg = [0.2, 0.007, 0.07]
     lr = 0.00005 #0.0001
-    lr2 = 0.000005
+    lr2 = 0.00005
     evalinter = 1
 
     threshold = 0.5
@@ -72,8 +72,8 @@ def run():
     # train model
     print "training model"
     start = datetime.now()
-    #model = TFSGDC(dims=dims, maxiter=epochs, lr=lr, wregs=wreg, numbats=numbats, wsplit=splitid, corruption="rhs")
-    model = TFMF0SGDC(dims=dims, maxiter=epochs, lr=lr, wregs=wreg, numbats=numbats, wsplit=splitid, relidxoffset=splitid, revreloffset=501, lr2=lr2)
+    #model = OTFSGDC(dims=dims, maxiter=epochs, lr=lr, wregs=wreg, numbats=numbats, wsplit=splitid, corruption="rhs")
+    model = OTFMF0SGDC(dims=dims, maxiter=epochs, lr=lr, wregs=wreg, numbats=numbats, wsplit=splitid, relidxoffset=splitid, revreloffset=501, lr2=lr2)
     print "model %s defined in %f" % (model.__class__, (datetime.now() - start).total_seconds())
     start = datetime.now()
     W, R, err = model.train(data, evalinter=evalinter)
@@ -84,11 +84,9 @@ def run():
 
     model.save(getsavepath())
 
-    inspect(model, fulldic, reldic)
+    #inspect(model, fulldic, reldic)
 
-    embed()
-    # todo inspect direct & experiment
-    # todo inspect chains
+    #embed()
 
 def inspect(model, fulldic, reldic):
     dbr = "http://dbpedia.org/resource/"
@@ -154,7 +152,7 @@ def extend(instance, new_class):
             )
 
 def loadmodel(path):
-    model = TFSGDC.load(path)
+    model = OTFSGDC.load(path)
     return model
 
 def loaddicts(path):
