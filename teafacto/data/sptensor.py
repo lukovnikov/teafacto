@@ -36,6 +36,18 @@ class SparseTensor(object):
     def shape(self):
         return tuple(map(lambda x: x+1, self._maxes))
 
+    def sortby(self, dim=1):
+        self._dok = OrderedDict(sorted(self._dok.iteritems(), key=lambda x: x[0][dim]))
+
+    def firstidxover(self, dim=1, val=0): #ONLY AFTER SORTING
+        i = 0
+        for v in self._dok.iterkeys():
+            #print v, dim, v[dim]
+            if v[dim] > val:
+                return i
+            i += 1
+        return len(self._dok)
+
     def __len__(self):
         return len(self._dok)
 

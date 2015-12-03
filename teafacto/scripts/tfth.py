@@ -30,12 +30,13 @@ def getsavepath():
 
 def run():
     # params
-    dims = 6
+    dims = 10
     negrate = 1
     numbats = 1000
     epochs = 10 #20
     wreg = [0.2, 0.007, 0.07]
-    lr = 0.0001 #0.0001
+    lr = 0.00005 #0.0001
+    lr2 = 0.000005
     evalinter = 1
 
     threshold = 0.5
@@ -71,8 +72,8 @@ def run():
     # train model
     print "training model"
     start = datetime.now()
-    model = TFSGDC(dims=dims, maxiter=epochs, lr=lr, wregs=wreg, numbats=numbats, wsplit=splitid, corruption="full")
-    #model = TFMF0SGDC(dims=dims, maxiter=epochs, lr=lr, wregs=wreg, numbats=numbats, wsplit=splitid, relidxoffset=splitid)
+    #model = TFSGDC(dims=dims, maxiter=epochs, lr=lr, wregs=wreg, numbats=numbats, wsplit=splitid, corruption="rhs")
+    model = TFMF0SGDC(dims=dims, maxiter=epochs, lr=lr, wregs=wreg, numbats=numbats, wsplit=splitid, relidxoffset=splitid, revreloffset=501, lr2=lr2)
     print "model %s defined in %f" % (model.__class__, (datetime.now() - start).total_seconds())
     start = datetime.now()
     W, R, err = model.train(data, evalinter=evalinter)
