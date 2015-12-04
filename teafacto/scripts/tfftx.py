@@ -6,7 +6,7 @@ from matplotlib import pyplot as plt
 import pickle, os, pkgutil, pandas as pd, numpy as np
 from IPython import embed
 
-from teafacto.tf import TFSGDC, TFMF0SGDC
+from teafacto.tf import TFSGDC, TFMF0SGDC, TFMXSGDC, RESCALSGDC
 
 
 def loaddata(file):
@@ -26,19 +26,20 @@ def getsavepath():
 
 def run():
     # params
-    dims = 12
+    dims = 20
     negrate = 1
-    numbats = 1000
-    epochs = 20 #20
-    wreg = [0.2, 0.007, 0.1]
-    lr = 0.00005 #0.0001
+    numbats = 100
+    epochs = 1000 #20
+    wreg = [0.007, 0.001, 0.000000001]
+    lr = .03/numbats #0.0001
     lr2 = 0.00005
     evalinter = 1
 
     threshold = 0.5
     #paths
     datafileprefix = "../../data/nycfilms/"
-    tensorfile = "fulltensorext.ssd"
+    #tensorfile = "fulltensorext.ssd"
+    tensorfile = "tripletensor.ssd"
 
     # get the data and split
     start = datetime.now()
@@ -52,11 +53,13 @@ def run():
     # train model
     print "training model"
     start = datetime.now()
-    model = TFSGDC(dims=dims, maxiter=epochs, lr=lr, wregs=wreg, numbats=numbats, corruption="rhs").autosave
+    #model = TFSGDC(dims=dims, maxiter=epochs, lr=lr, wregs=wreg, numbats=numbats, corruption="rhs").autosave
     #model = TFMF0SGDC(dims=dims, maxiter=epochs, lr=lr, wregs=wreg, numbats=numbats, corruption="rhs", lr2=lr2, invZoffset=501).autosave
+    model = TFMXSGDC(dims=dims, maxiter=epochs, lr=lr, wregs=wreg, numbats=numbats, corruption="nmhs", invZoffset=501).autosave
+    #model = RESCALSGDC(dims=dims, maxiter=epochs, lr=lr, wregs=wreg, numbats=numbats, corruption="nmhs").autosave
     print "model %s defined in %f" % (model.__class__.__name__, (datetime.now() - start).total_seconds())
     start = datetime.now()
-    W, R, H, err = model.train(data, evalinter=evalinter)
+    params, err = model.train(data, evalinter=evalinter)
     print "model trained in %f" % (datetime.now() - start).total_seconds()
     print len(err)
     plt.plot(err, "r")
@@ -64,7 +67,7 @@ def run():
 
     model.save(getsavepath())
 
-    #embed()
+    embed()
 
 
 ###################### FUNCTIONS FOR INSPECTION ##########################

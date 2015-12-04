@@ -184,7 +184,7 @@ class TFSGD(object):
 
         err = self.trainloop(X, self.getbatchloop(trainf, self.getsamplegen(X, batsize)), evalinter=evalinter)
 
-        return self.W.get_value(), self.R.get_value(), self.H.get_value(), err
+        return self.params.values(), err
 
     def getbatchloop(self, trainf, samplegen):
         '''
@@ -515,3 +515,237 @@ class TFMF0SGDC(TFSGDC):
                 samples.append(nents)
             return samples
         return samplegen
+
+
+class TFMXSGDC(TFSGDC):
+
+    def initvars(self, X, numcols=None, numrows=None, numslices=None, central=True):
+        offset = 0.0
+        if central is True:
+            offset = 0.5
+        self.numslices = X.shape[0] if numslices is None else numslices
+        self.numrows = X.shape[1] if numrows is None else numrows
+        self.numcols = X.shape[2] if numcols is None else numcols
+        if self.numrows != self.numcols:
+            pass #raise Exception("frontal slice must be square")
+        self.W = theano.shared(np.random.random((self.numrows, self.dims)) - offset)
+        self.R = theano.shared(np.random.random((self.numslices, self.dims, self.dims)) - offset)
+        self.H = theano.shared(np.random.random((self.numslices+self.invZoffset, self.dims)) - offset)
+
+        '''
+        print("test W")
+        print(self.W[0, :].eval())
+        '''
+
+        self.params = {"w": self.W, "r": self.R, "h": self.H}
+
+    def defmodel(self):
+        '''
+        Define model
+        '''
+        def sigm(x):
+            return T.nnet.sigmoid(x)
+        winp, rinp, hinp, rcinp, rcinpi = T.ivectors("winp", "rinp", "hinp", "rcinp", "rcinpi")
+        nwinp, nrinp, nhinp, nrcinp, nrcinpi = T.ivectors("nwinp", "nrinp", "nhinp", "nrcinp", "nrcinpi")
+        dotp = self.builddotwos(winp, rinp, hinp)
+        dotr = self.builddotrel(winp, rcinp)
+        dotri = self.builddotrel(hinp, rcinpi)
+        dotp = sigm(dotp) + sigm(dotr) + sigm(dotri)
+        ndotp = self.builddotwos(nwinp, nrinp, nhinp)
+        ndotr = self.builddotrel(nwinp, nrcinp)
+        ndotri = self.builddotrel(nhinp, nrcinpi)
+        ndotp = sigm(ndotp) + sigm(ndotr) + sigm(ndotri)
+        #dotp = T.nnet.sigmoid(dotp)
+        #ndotp = T.nnet.sigmoid(ndotp)
+        dotp = dotp.reshape((dotp.shape[0], 1))
+        ndotp = ndotp.reshape((ndotp.shape[0], 1))
+        return [dotp, ndotp], [rinp, winp, hinp, rcinp, rcinpi, nrinp, nwinp, nhinp, nrcinp, nrcinpi]
+
+    def builddotrel(self, winp, cinpi):
+        wemb = self.W[winp, :]
+        cemb = self.H[cinpi, :]
+        return T.batched_dot(wemb, cemb)
+
+    def builddot(self, winp, rinp, hinp):
+        wrhdot = self.builddotwos(winp, rinp, hinp)
+        return T.nnet.sigmoid(wrhdot)
+
+    def builddotwos(self, winp, rinp, hinp):
+        wemb = self.W[winp, :]
+        #remb = ifelse(T.lt(rinp, self.invZoffset), self.R[rinp, :, :], T.nlinalg.matrix_inverse(self.R[rinp-self.invZoffset, :, :]))
+        remb = self.R[rinp, :, :]
+        hemb = self.W[hinp, :]
+        wrprod = T.batched_dot(wemb, remb)
+        wrhdot = T.sum(wrprod * hemb, axis=1)
+        return wrhdot
+
+    def getsamplegen(self, X, batsize):
+        '''
+        get sample generator
+        :param X: indexes of nonzeroes of original input tensor. X is a ([int*]*)
+        :param batsize: size of batch (number of samples generated)
+        :return:
+        '''
+        negrate = self.negrate
+        dims = X.shape
+        print(dims)
+        corruptrange = []
+        corruptionmap = {
+            "full": [0,1,2],
+            "nlhs": [0,2],
+            "rhs":  [2],
+            "nmhs": [1,2],
+            "nrhs": [0,1],
+            "mhs":  [0],
+            "lhs":  [1]
+        }
+        corruptrange = corruptionmap[self.corruption]
+        xkeys = X.keys
+        zvals = list(set(xkeys[:, 0]))
+        print("corruptrange: ", corruptrange)
+        invZoffset = self.invZoffset
+
+        def samplegen(): # vanilla samplegen
+            corruptaxis = np.random.choice(corruptrange) # random axis to corrupt from corruptrange
+            nonzeroidx = sorted(np.random.randint(0, len(X), (batsize,)).astype("int32"))
+            possamples = [xkeys[nonzeroidx][ax].astype("int32") for ax in range(X.numdims)]
+            possamples.append(possamples[0])
+            possamples.append(possamples[0]+invZoffset)
+            negsamples = [xkeys[nonzeroidx][ax].astype("int32") for ax in range(X.numdims)]
+            if corruptaxis == 0:
+                corrupted = np.random.choice(zvals, (batsize,)).astype("int32")
+            else:
+                corrupted = np.random.randint(0, dims[corruptaxis], (batsize,)).astype("int32")
+            negsamples[corruptaxis] = corrupted
+            negsamples.append(negsamples[0])
+            negsamples.append(negsamples[0]+invZoffset)
+            return possamples + negsamples
+        return samplegen
+
+
+class RESCALSGDC(TFSGDC):
+
+    def initvars(self, X, numcols=None, numrows=None, numslices=None, central=True):
+        offset = 0.0
+        if central is True:
+            offset = 0.5
+        self.numslices = X.shape[0] if numslices is None else numslices
+        self.numrows = X.shape[1] if numrows is None else numrows
+        self.numcols = X.shape[2] if numcols is None else numcols
+        if self.numrows != self.numcols:
+            pass #raise Exception("frontal slice must be square")
+        self.W = theano.shared(np.random.random((self.numrows, self.dims)) - offset)
+        self.R = theano.shared(np.random.random((self.numslices, self.dims, self.dims)) - offset)
+
+        '''
+        print("test W")
+        print(self.W[0, :].eval())
+        '''
+
+        self.params = {"w": self.W, "r": self.R}
+
+    def getreg(self, *inp):
+        '''
+        return regularization variable for given input index variables
+        here: l2 norm
+        '''
+        tReg = (1./2.) * (T.sum(self.R**2) * self.wregs[0]
+                          + T.sum(self.W**2) * self.wregs[1])
+        return tReg
+
+    def defmodel(self):
+        '''
+        Define model
+        '''
+        winp, rinp, hinp = T.ivectors("winp", "rinp", "hinp")
+        nwinp, nrinp, nhinp = T.ivectors("nwinp", "nrinp", "nhinp")
+        dotp = self.builddot(winp, rinp, hinp)
+        ndotp = self.builddot(nwinp, nrinp, nhinp)
+        dotp = dotp.reshape((dotp.shape[0], 1))
+        ndotp = ndotp.reshape((ndotp.shape[0], 1))
+        return [dotp, ndotp], [rinp, winp, hinp, nrinp, nwinp, nhinp]
+
+    def builddot(self, winp, rinp, hinp):
+        wrhdot = self.builddotwos(winp, rinp, hinp)
+        return T.nnet.sigmoid(wrhdot)
+
+    def builddotwos(self, winp, rinp, hinp):
+        wemb = self.W[winp, :]
+        #remb = ifelse(T.lt(rinp, self.invZoffset), self.R[rinp, :, :], T.nlinalg.matrix_inverse(self.R[rinp-self.invZoffset, :, :]))
+        remb = self.R[rinp, :, :]
+        hemb = self.W[hinp, :]
+        wrprod = T.batched_dot(wemb, remb)
+        wrhdot = T.sum(wrprod * hemb, axis=1)
+        return wrhdot
+
+    def getsamplegen(self, X, batsize):
+        '''
+        get sample generator
+        :param X: indexes of nonzeroes of original input tensor. X is a ([int*]*)
+        :param batsize: size of batch (number of samples generated)
+        :return:
+        '''
+        negrate = self.negrate
+        dims = X.shape
+        print(dims)
+        corruptrange = []
+        corruptionmap = {
+            "full": [0,1,2],
+            "nlhs": [0,2],
+            "rhs":  [2],
+            "nmhs": [1,2],
+            "nrhs": [0,1],
+            "mhs":  [0],
+            "lhs":  [1]
+        }
+        corruptrange = corruptionmap[self.corruption]
+        xkeys = X.keys
+        zvals = list(set(xkeys[:, 0]))
+        print("corruptrange: ", corruptrange)
+        invZoffset = self.invZoffset
+
+        def samplegen(): # vanilla samplegen
+            corruptaxis = np.random.choice(corruptrange) # random axis to corrupt from corruptrange
+            nonzeroidx = sorted(np.random.randint(0, len(X), (batsize,)).astype("int32"))
+            possamples = [xkeys[nonzeroidx][ax].astype("int32") for ax in range(X.numdims)]
+            negsamples = [xkeys[nonzeroidx][ax].astype("int32") for ax in range(X.numdims)]
+            if corruptaxis == 0:
+                corrupted = np.random.choice(zvals, (batsize,)).astype("int32")
+            else:
+                corrupted = np.random.randint(0, dims[corruptaxis], (batsize,)).astype("int32")
+            negsamples[corruptaxis] = corrupted
+            return possamples + negsamples
+        return samplegen
+
+    def gettrainf(self, inps, outps, tCost):
+        '''
+        get theano training function that takes inps as input variables, returns outps as outputs
+        and takes the gradient of tCost w.r.t. the tensor decomposition components W, R and H
+        :param inps:
+        :param outps:
+        :param tCost:
+        :return:
+        '''
+        # get gradients
+        gW = T.grad(tCost, self.W)
+        gR = T.grad(tCost, self.R)
+
+        # define updates and function
+        updW = (self.W, self.W - self.lr * self.numbats * gW)
+        updR = (self.R, self.R - self.lr * self.numbats * gR)
+        trainf = theano.function(
+            inputs=inps,
+            outputs=outps,
+            updates=[updW, updR],
+            profile=self._profiletheano
+        )
+        return trainf
+
+    def save(self, filepath=None, extra=None):
+        if self._autosave_filepath is not None:
+            filepath = self._autosave_filepath
+        if filepath is None:
+            self._autosave_filepath = self.getsavepath()+".auto"
+            filepath = self._autosave_filepath
+        with open(filepath, "w") as f:
+            pickle.dump((self.W.get_value(), self.R.get_value(), None, self.getmodelparams(), extra), f)
