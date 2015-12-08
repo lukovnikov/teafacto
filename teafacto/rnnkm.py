@@ -138,25 +138,31 @@ class RNNTFSGDC(object):
         return batsize
 
     def defmodel(self):
-        def builddot(winp, rinp, hinp, rnnu):
-            wemb = self.W[winp, :]
-            remb = self.W[rinp, :]
-            hemb = self.W[hinp, :]
-            iseq = T.stack(wemb, remb)
-            oseq = rnnu(iseq)
-            om = oseq[:, -1, :]
-            omdot = T.sum(om * hemb, axis=1)
-            return omdot
         offset = 0.5
         self.W = theano.shared(np.random.random((self.vocabsize, self.dims)) - offset)
         self.rnnu = self.rnnuc(dim=self.dims, indim=self.dims, batsize=self.batsize, wreg=self.wreg)
         winp, rinp, hinp = T.ivectors("winp", "rinp", "hinp")
         nwinp, nrinp, nhinp = T.ivectors("nwinp", "nrinp", "nhinp")
-        dotp = builddot(winp, rinp, hinp, self.rnnu)
-        ndotp = builddot(nwinp, nrinp, nhinp, self.rnnu)
+        dotp = self.builddot(winp, rinp, hinp, self.rnnu)
+        ndotp = self.builddot(nwinp, nrinp, nhinp, self.rnnu)
         dotp = dotp.reshape((dotp.shape[0], 1))
         ndotp = ndotp.reshape((ndotp.shape[0], 1))
         return [dotp, ndotp], [rinp, winp, hinp, nrinp, nwinp, nhinp]
+
+
+    def builddot(self, winp, rinp, hinp, rnnu):
+        hemb = self.W[hinp, :]
+        om = self.prebuilddot(winp, rinp, rnnu)
+        omdot = T.sum(om * hemb, axis=1)
+        return omdot
+
+    def prebuilddot(self, winp, rinp, rnnu):
+        wemb = self.W[winp, :]
+        remb = self.W[rinp, :]
+        iseq = T.stack(wemb, remb)
+        oseq = rnnu(iseq)
+        om = oseq[:, -1, :]
+        return om
 
     def getparams(self):
         return self.rnnu.getparams() + [self.W]
@@ -173,6 +179,16 @@ class RNNTFSGDC(object):
             profile=self._profiletheano
         )
         return trainf
+
+    def getpredf(self):             # function to compute the predicted vector given entity and relation
+        winp, rinp = T.ivectors("winpp", "rinpp")
+        om = self.prebuilddot(winp, rinp, self.rnnu)
+        return theano.function(inputs=[winp, rinp], outputs=[om])
+
+    def getpreddotf(self):          # function to compute the score for a triple (array) given the indexes
+        winp, rinp, hinp = T.ivectors("winppp", "rinppp", "hinppp")
+        om = self.builddot(winp, rinp, hinp, self.rnnu)
+        return theano.function(inputs=[winp, rinp, hinp], outputs=[om])
 
     def getnormf(self):
         return None
