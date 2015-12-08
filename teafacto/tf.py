@@ -249,8 +249,6 @@ class TFSGD(object):
         with open(filepath, "w") as f:
             pickle.dump((self.W.get_value(), self.R.get_value(), self.H.get_value(), self.getmodelparams(), extra), f)
 
-
-
     def getmodelparams(self):
         return   {"dims":       self.dims,
                   "maxiter":    self.maxiter,
