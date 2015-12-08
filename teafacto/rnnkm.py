@@ -133,7 +133,6 @@ class RNNTFSGDC(object):
         return X.nonzeros(withvals=True)
 
     def getbatsize(self, X):
-        return 10
         numsam = X.count_nonzeros()
         batsize = ceil(numsam*1./self.numbats)
         return batsize
@@ -158,8 +157,6 @@ class RNNTFSGDC(object):
         dotp = dotp.reshape((dotp.shape[0], 1))
         ndotp = ndotp.reshape((ndotp.shape[0], 1))
         return [dotp, ndotp], [rinp, winp, hinp, nrinp, nwinp, nhinp]
-
-
 
     def getparams(self):
         return self.rnnu.getparams() + [self.W]
