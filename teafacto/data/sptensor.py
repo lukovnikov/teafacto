@@ -32,6 +32,20 @@ class SparseTensor(object):
         self._maxes = []
         self._fill = 0.0
 
+    def maxid(self, axis=0):
+        maxi = 0
+        for k in self._dok:
+            maxi = max(maxi, k[axis])
+        return maxi
+
+    def shiftids(self, axis, offset):
+        for k in self._dok:
+            v = self._dok[k]
+            del self._dok[k]
+            nk = tuple([ if x i])
+            self._dok[]
+            k[axis] += offset
+
     @property
     def shape(self):
         return tuple(map(lambda x: x+1, self._maxes))
@@ -132,5 +146,6 @@ if __name__ == "__main__":
         (0, 0, 5, 2.0),
         (4, 3, 6, 3.0)
     ])
-
-    print "lok: \n" + str(t.keys[0, 1][0])
+    print t._dok
+    t.shiftids(0,5)
+    print t._dok
