@@ -6,7 +6,7 @@ from matplotlib import pyplot as plt
 import pickle, os, pkgutil, pandas as pd, numpy as np
 from IPython import embed
 
-from teafacto.rnnkm import RNNTFSGDC
+from teafacto.rnnkm import GRU, RNNTFSGDSM
 
 
 def loaddata(file):
@@ -26,14 +26,15 @@ def getsavepath():
 
 def run():
     # params
-    dims = 20
+    dims = 100
     negrate = 1
     numbats = 100
-    epochs = 1000 #20
-    wreg = [0.007, 0.001, 0.000000001]
-    lr = .03/numbats #0.0001
-    lr2 = 0.00005
+    epochs = 300 #20
+    wreg = 0.01
+    lr = 0.01/numbats #0.0001 # for SGD
+    lr2 = 1.0
     evalinter = 1
+    rho = 0.95
 
     threshold = 0.5
     #paths
@@ -45,28 +46,29 @@ def run():
     start = datetime.now()
     data = loaddata(datafileprefix+tensorfile)
     data.threshold(threshold)
+    maxentid = max(data.maxid(1), data.maxid(2))
+    print maxentid
+    data.shiftids(0, maxentid+1)
 
     print "source data loaded in %f seconds" % (datetime.now() - start).total_seconds()
-
-    numslices, numrows, numcols = data.shape
 
     # train model
     print "training model"
     start = datetime.now()
-    #model = TFSGDC(dims=dims, maxiter=epochs, lr=lr, wregs=wreg, numbats=numbats, corruption="rhs").autosave
-    #model = TFMF0SGDC(dims=dims, maxiter=epochs, lr=lr, wregs=wreg, numbats=numbats, corruption="rhs", lr2=lr2, invZoffset=501).autosave
-    model = TFMXSGDC(dims=dims, maxiter=epochs, lr=lr, wregs=wreg, numbats=numbats, corruption="nmhs", invZoffset=501).autosave
-    #model = RESCALSGDC(dims=dims, maxiter=epochs, lr=lr, wregs=wreg, numbats=numbats, corruption="nmhs").autosave
+    model = RNNTFSGDSM(GRU, dims=dims, vocabsize=data.maxid(0)+1, maxiter=epochs, wreg=wreg, lr=lr2, rho=rho, numbats=numbats)\
+        .autosave#\
+        #.normalize
     print "model %s defined in %f" % (model.__class__.__name__, (datetime.now() - start).total_seconds())
     start = datetime.now()
-    params, err = model.train(data, evalinter=evalinter)
+    err = model.train(data, evalinter=evalinter)
     print "model trained in %f" % (datetime.now() - start).total_seconds()
-    print len(err)
     plt.plot(err, "r")
     plt.show(block=False)
 
-    model.save(getsavepath())
-
+    #model.save(getsavepath())
+    print "test prediction:"
+    print model.getpredictfunction()(11329, 9325, 7156)
+    print model.getpredictfunction()(11329, 3674, 7155)
     embed()
 
 
@@ -81,8 +83,7 @@ def extend(instance, new_class):
 
 
 def loadmodel(path):
-    model = TFSGDC.load(path)
-    return model
+    return RNNTFSGDSM.load(path)
 
 
 def loaddicts(path):

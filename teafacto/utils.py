@@ -8,3 +8,6 @@ def issequence(x):
 def isnumber(x):
     return isinstance(x, float) or isinstance(x, int)
 
+class TodoException(NotImplementedError):
+    pass
+

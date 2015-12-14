@@ -39,12 +39,12 @@ class SparseTensor(object):
         return maxi
 
     def shiftids(self, axis, offset):
+        newdoc = {}
         for k in self._dok:
             v = self._dok[k]
-            del self._dok[k]
-            nk = tuple([ if x i])
-            self._dok[]
-            k[axis] += offset
+            nk = tuple([k[x]+offset if x == axis else k[x] for x in range(len(k))])
+            newdoc[nk] = v
+        self._dok = newdoc
 
     @property
     def shape(self):
@@ -73,7 +73,7 @@ class SparseTensor(object):
             break
         return ret
 
-    def count_nonzeros(self):
+    def count_nonzero(self):
         return len(self._dok)
 
     def nonzeros(self, tuples=False, withvals=False):
@@ -149,3 +149,4 @@ if __name__ == "__main__":
     print t._dok
     t.shiftids(0,5)
     print t._dok
+    print t.maxid(0)
