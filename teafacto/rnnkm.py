@@ -498,8 +498,6 @@ class RNNTFSGDSM(Embedder, AdaDelta, Saveable, Trainable, Predictor, Batched):
         super(RNNTFSGDSM, self).__init__(**kw)
         self.rnnuc = rnnuc
         self.rnnu = self.rnnuc(dim=self.dims, indim=self.dims, wreg=self.wreg)
-        scale = 0.1
-        offset = 0.5
 
     def train(self, X, evalinter=10): # X: z, x, y, v OR r, s, o, v
         batsize = self.getbatsize(X)
@@ -517,6 +515,8 @@ class RNNTFSGDSM(Embedder, AdaDelta, Saveable, Trainable, Predictor, Batched):
     def defmodel(self):
         sidx, ridx, oidx = T.ivectors("sidx", "ridx", "oidx")
         outp = self.builddot(sidx, ridx, self.rnnu)
+        scale = 0.1
+        offset = 0.5
         self.smlayer = theano.shared(np.random.random((self.dims, self.vocabsize)).astype("float32")*scale-offset)
         probs = T.nnet.softmax(T.dot(outp, self.smlayer))
         #embed()
