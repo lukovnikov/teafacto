@@ -6,13 +6,18 @@ from matplotlib import pyplot as plt
 import pickle, os, pkgutil, pandas as pd, numpy as np
 from IPython import embed
 
-from teafacto.rnnkm import GRU, RNNTFSGDSM
+from teafacto.rnnkm import GRU, RNNTFSGDSM, RNU
+from teafacto.xrnnkm import XRNNKMSGDSM, AdaXRNNKMSM, GRUKMSGDSM, GRUKMSGDMM, ADDKMSGDMM, LSTMKMSGDMM
 
 
 def loaddata(file):
     file = os.path.join(os.path.dirname(__file__), file)
     st = SparseTensor.from_ssd(file)
     return st
+
+def loaddic(file):
+    file = os.path.join(os.path.dirname(__file__), file)
+    return pickle.load(open(file))
 
 def loadmeta(dfile):
     dfile = os.path.join(os.path.dirname(__file__), dfile)
@@ -26,50 +31,72 @@ def getsavepath():
 
 def run():
     # params
-    dims = 100
+    dims = 100 # 100
+    innerdims = 20
     negrate = 1
-    numbats = 100
-    epochs = 300 #20
-    wreg = 0.01
+    numbats = 100 # 100
+    epochs = 100 #20
+    wreg = 0.001
     lr = 0.01/numbats #0.0001 # for SGD
-    lr2 = 1.0
+    lr2 = 1.
     evalinter = 1
     rho = 0.95
 
+    toy = False
+
     threshold = 0.5
     #paths
-    datafileprefix = "../../data/nycfilms/"
-    #tensorfile = "fulltensorext.ssd"
-    tensorfile = "tripletensor.ssd"
-
-    # get the data and split
     start = datetime.now()
+
+    if toy:
+        dims = 10
+        numbats=10
+        wreg = 0.0
+        lr=0.1/numbats
+        datafileprefix = "../../data/"
+        tensorfile = "toy.ssd"
+        vocabsize=11
+        epochs=100
+    else:
+        # get the data and split
+        datafileprefix = "../../data/nycfilms/"
+        tensorfile = "tripletensor.flat.ssd"
+        fulldic = loaddic(datafileprefix+"tripletensor.flatidx.pkl")
+        vocabsize = len(fulldic)
+
     data = loaddata(datafileprefix+tensorfile)
-    data.threshold(threshold)
-    maxentid = max(data.maxid(1), data.maxid(2))
-    print maxentid
-    data.shiftids(0, maxentid+1)
+    data = data.keys.lok
+
+    trainX = data[:, :2]
+    labels = data[:, 2]
 
     print "source data loaded in %f seconds" % (datetime.now() - start).total_seconds()
 
     # train model
     print "training model"
     start = datetime.now()
-    model = RNNTFSGDSM(GRU, dims=dims, vocabsize=data.maxid(0)+1, maxiter=epochs, wreg=wreg, lr=lr2, rho=rho, numbats=numbats)\
-        .autosave#\
+    model = GRUKMSGDMM(dim=dims, vocabsize=vocabsize, maxiter=epochs, wreg=wreg, lr=lr, numbats=numbats)\
+        #.autosave
         #.normalize
     print "model %s defined in %f" % (model.__class__.__name__, (datetime.now() - start).total_seconds())
     start = datetime.now()
-    err = model.train(data, evalinter=evalinter)
+    err = model.train(trainX, labels, evalinter=evalinter)
     print "model trained in %f" % (datetime.now() - start).total_seconds()
     plt.plot(err, "r")
-    plt.show(block=False)
+    plt.show(block=True)
 
     #model.save(getsavepath())
-    print "test prediction:"
+    '''print "test prediction:"
     print model.getpredictfunction()(11329, 9325, 7156)
-    print model.getpredictfunction()(11329, 3674, 7155)
-    embed()
+    print model.getpredictfunction()(11329, 3674, 7155)'''
+    if toy:
+        print model.predict(0, 10, 1)
+        print model.predict(0, 10, 2)
+    else:
+        print model.predict(417, 11307, 9145)
+        print model.predict(417, 11307, 9156)
+
+    #embed()
 
 
 ###################### FUNCTIONS FOR INSPECTION ##########################

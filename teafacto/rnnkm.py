@@ -1,104 +1,14 @@
 __author__ = 'denis'
 import theano
 from theano import tensor as T
-import numpy as np
+import numpy as np, math
 from tf import TFSGD
 from utils import *
 from math import ceil, floor
 from datetime import datetime as dt
 from IPython import embed
 import sys, os, cPickle as pickle
-
-class GRU(object):
-    def __init__(self,
-                 dim=20,
-                 indim=20,
-                 wreg=0.0001,
-                 initmult=0.01,
-                 gateactivation=T.nnet.sigmoid,
-                 outpactivation=T.tanh,
-                 **kw):
-        super(GRU, self).__init__(**kw)
-        self.dim = dim
-        self.indim = indim
-        self.wreg = wreg
-        self.initmult = initmult
-        self.gateactivation = gateactivation
-        self.outpactivation = outpactivation
-
-        self.initparams()
-
-    def initparams(self):
-        self.paramnames = ["uz", "wz", "ur", "wr", "u", "w", "br", "bz", "b"]
-        params = {}
-        indim = self.indim
-        for paramname in self.paramnames:
-            if paramname[0] == "b":
-                shape = (self.dim,)
-            elif paramname[0] == "w":
-                shape = (indim, self.dim)
-            else:
-                shape = (self.dim, self.dim)
-            paramval = np.random.random(shape).astype("float32")*self.initmult
-            params[paramname] = theano.shared(paramval)
-            setattr(self, paramname, params[paramname])
-        self.initstate = T.zeros((self.indim,), dtype="float32")
-
-    def _getz(self, x_t, h_tm1):
-        return self.gateactivation(T.dot(h_tm1, self.uz) + T.dot(x_t, self.wz) + self.bz)
-    def _getr(self, x_t, h_tm1):
-        return self.gateactivation(T.dot(h_tm1, self.ur) + T.dot(x_t, self.wr) + self.br)
-    def _gethh(self, x_t, h_tm1, r):
-        return self.outpactivation(T.dot(h_tm1 * r, self.u) + T.dot(x_t, self.w) + self.b)
-    def _geth(self, z, hh, h_tm1):
-        return z * h_tm1 + (1-z) * hh
-
-    def rec(self, x_t, h_tm1):
-        '''
-        :param x_t: input values (nb_samples, nb_feats) for this recurrence step
-        :param h_tm1: previous states (nb_samples, out_dim)
-        :return: new state (nb_samples, out_dim)
-        '''
-        z = self._getz(x_t, h_tm1)
-        r = self._getr(x_t, h_tm1)
-        hh = self._gethh(x_t, h_tm1, r)
-        h = self._geth(z, hh, h_tm1)
-        return h
-
-    def recur(self, x):
-        inputs = x.dimshuffle(1, 0, 2) # inputs is (seq_len, nb_samples, nb_feats)
-        outputs, _ = theano.scan(fn=self.rec,
-                                 sequences=inputs,
-                                 outputs_info=
-                                    T.tile(self.initstate.reshape((1, self.initstate.shape[0])), [inputs.shape[1], 1]),
-                                 n_steps=inputs.shape[0])
-        return outputs.dimshuffle(1, 0, 2) #output is (nb_samples, seq_len, nb_feats)
-
-    def __call__(self, x):
-        return self.getoutput(x)
-
-    def getoutput(self, x):
-        '''
-        :param x: symbolic input tensor for shape (nb_samples, seq_len, nb_feats) where
-            nb_samples is the number of samples (number of sequences) in the current input
-            seq_len is the maximum length of the sequences
-            nb_feats is the number of features per sequence element
-        :return: symbolic output tensor for shape (nb_samples, seq_len, out_dim) where
-            nb_samples is the number of samples (number of sequences) in the original input
-            seq_len is the maximum length of the sequences
-            out_dim is the dimension of the output vector as specified by the dim argument in the constructor
-        '''
-        return self.recur(x)
-
-    def getreg(self):
-        def regf(x):
-            return T.sum(x**2)
-        reg = (1./2.) * reduce(lambda x, y: x+y, map(lambda x: regf(getattr(self, x))*self.wreg, self.paramnames))
-        return reg
-
-    def getparams(self):
-        return map(lambda x: getattr(self, x), self.paramnames)
-
+from rnn import RNU, GRU
 
 class Saveable(object):
     def __init__(self, **kw):
@@ -226,8 +136,9 @@ class GradientDescent(Parameterized, Profileable):
     def gettrainf(self, inps, outps, tCost):
         # get gradients
         params = self.parameters
-        grads = T.grad(tCost, params)
+        grads = T.grad(cost=tCost, wrt=params)
         updates = self.getupdates(params, grads)
+        showgraph(updates[0][1])
         trainf = theano.function(
             inputs=inps,
             outputs=outps,
@@ -237,7 +148,7 @@ class GradientDescent(Parameterized, Profileable):
         return trainf
 
     def getupdates(self, params, grads):
-        return map(lambda (p, g): (p, (p - self.lr * self.numbats * g).astype("float32")), zip(params, grads))
+        return map(lambda (p, g): (p, (p - np.asarray([self.lr*self.numbats]).astype("float32") * g).astype("float32")), zip(params, grads))
 
 class Batched(object):
     def __init__(self, numbats=100, **kw):
@@ -315,7 +226,7 @@ class Embedder(Regularizable, Normalizable):
         self.dims = dims
         offset = 0.5
         scaler = 0.1
-        self.W = theano.shared(np.random.random((self.vocabsize, self.dims)).astype("float32")*scaler - offset)
+        self.W = theano.shared((np.random.random((self.vocabsize, self.dims)).astype("float32")-offset)*scaler, name="W")
 
     @property
     def depparameters(self):
@@ -326,7 +237,7 @@ class Embedder(Regularizable, Normalizable):
         return [self.W]
 
     def getownreg(self):
-        return (1./2.) * (T.sum(self.W**2) * self.wreg)
+        return (1./2.) * ((T.sum(self.W**2) * self.wreg))
 
     def getdepreg(self):
         return self.rnnu.getreg()
@@ -404,7 +315,7 @@ class RNNTFSGDC(Embedder, Trainable, Predictor, GradientDescent, Batched, Saveab
 
     @property
     def depparameters(self):
-        return self.rnnu.getparams()
+        return self.rnnu.parameters
 
     @property
     def ownparameters(self):
@@ -486,7 +397,7 @@ class RNNTFSGDC(Embedder, Trainable, Predictor, GradientDescent, Batched, Saveab
         return samplegen
 
 
-class RNNTFSGDSM(Embedder, AdaDelta, Saveable, Trainable, Predictor, Batched):
+class RNNTFSM(Embedder, Saveable, Trainable, Predictor, Batched):
     # DONE: implement Adadelta: http://arxiv.org/pdf/1212.5701.pdf ?
     #       probably after-epoch normalization breaks Adadelta
     #       ==> remove norm, use wreg, exact norm doesn't matter much for prediction anyway
@@ -495,16 +406,23 @@ class RNNTFSGDSM(Embedder, AdaDelta, Saveable, Trainable, Predictor, Batched):
     # TODO: think about XE
     # TODO: validation
     def __init__(self, rnnuc=GRU, **kw):
-        super(RNNTFSGDSM, self).__init__(**kw)
+        super(RNNTFSM, self).__init__(**kw)
         self.rnnuc = rnnuc
         self.rnnu = self.rnnuc(dim=self.dims, indim=self.dims, wreg=self.wreg)
+        scale = 0.1
+        offset = 0.5
+        self.smlayer = theano.shared((np.random.random((self.dims, self.vocabsize)).astype("float32")-offset)*scale, name="sm")
 
     def train(self, X, evalinter=10): # X: z, x, y, v OR r, s, o, v
-        batsize = self.getbatsize(X)
+        self.batsize = self.getbatsize(X)
+        batsize = self.batsize
         probs, inps, gold = self.defmodel()
         tErr = self.geterr(probs, gold)
         tReg = self.getreg()
         tCost = tErr + tReg
+        showgraph(tCost)
+        #embed() # tErr.eval({inps[0]: [0], inps[1]:[10], gold: [1]})
+
         trainf = self.gettrainf(inps+[gold], [tErr, tCost], tCost)
         err = self.trainloop(X=X,
                              trainf=self.getbatchloop(trainf, self.getsamplegen(X, batsize)),
@@ -514,13 +432,20 @@ class RNNTFSGDSM(Embedder, AdaDelta, Saveable, Trainable, Predictor, Batched):
 
     def defmodel(self):
         sidx, ridx, oidx = T.ivectors("sidx", "ridx", "oidx")
-        outp = self.builddot(sidx, ridx, self.rnnu)
-        scale = 0.1
-        offset = 0.5
-        self.smlayer = theano.shared(np.random.random((self.dims, self.vocabsize)).astype("float32")*scale-offset)
-        probs = T.nnet.softmax(T.dot(outp, self.smlayer))
-        #embed()
-        return probs, [sidx, ridx], oidx
+        outp = self.builddot(sidx, ridx, self.rnnu) # (batsize, dims)
+        Nclasses = int(math.ceil(math.sqrt(self.vocabsize)))
+        Noutsperclass = int(math.ceil(math.sqrt(self.vocabsize)))
+        ''' H-sm
+        self.sm1w = theano.shared(np.random.random((self.dims, Nclasses)).astype("float32")*scale-offset)
+        self.sm1b = theano.shared(np.random.random((Nclasses,)).astype("float32")*scale-offset)
+        self.sm2w = theano.shared(np.random.random((Nclasses, self.dims, Noutsperclass)).astype("float32")*scale-offset)
+        self.sm2b = theano.shared(np.random.random((Nclasses, Noutsperclass)).astype("float32")*scale-offset)'''
+        ''' H-sm
+        probs = h_softmax(outp, self.batsize, self.vocabsize, Nclasses, Noutsperclass, self.sm1w, self.sm1b, self.sm2w, self.sm2b, oidx)'''
+        outdot = T.dot(outp, self.smlayer)
+        probs = T.nnet.softmax(outdot)
+        #showgraph(probs)
+        return probs, [sidx, ridx], oidx # probs: (batsize, vocabsize)
 
     def builddot(self, sidx, ridx, rnnu):
         semb = self.embed(sidx) # (batsize, dims)
@@ -529,37 +454,58 @@ class RNNTFSGDSM(Embedder, AdaDelta, Saveable, Trainable, Predictor, Batched):
         iseq = iseq.dimshuffle(1, 0, 2) # (batsize, 2, dims)
         oseq = rnnu(iseq)
         om = oseq[:, np.int32(-1), :] # om is (batsize, dims)
+        #om = semb + remb
+        #showgraph(om)
         return om
 
     def getsamplegen(self, X, batsize):
         xkeys = X.keys
+        indices = range(len(X))
         def samplegen():
-            nonzeroidx = sorted(np.random.randint(0, len(X), (batsize,)).astype("int32"))
+            nonzeroidx = sorted(np.random.choice(indices, size=(batsize,), replace=False).astype("int32"))
             samples = [xkeys[nonzeroidx][ax].astype("int32") for ax in range(X.numdims)]
             return [samples[1], samples[0], samples[2]]     # [[s*], [r*], [o*]]
         return samplegen
 
-    def geterr(self, x, y):
-        return T.sum(T.nnet.categorical_crossentropy(x, y))
+    def geterr(self, probs, gold): # probs: (nb_samples, vocabsize)
+        return -T.sum(T.log(probs[:, gold])) / self.batsize
+
+    def getreg(self):
+        def regf(x):
+            return T.sum(x**2)
+        reg = (1./2.) * reduce(lambda x, y: x+y,
+                               map(lambda x: regf(x)*self.wreg,
+                                   self.ownparameters)
+                               )
+        return reg
 
     @property
     def ownparameters(self):
         return [self.W, self.smlayer]
+        #return [self.W, self.sm1w, self.sm1b, self.sm2b, self.sm2w]
 
     @property
     def depparameters(self):
-        return self.rnnu.getparams()
+        return self.rnnu.parameters
 
     def getpredictfunction(self):
         probs, inps, gold = self.defmodel()
-        score = probs.T[gold]
+        score = probs[:, gold]
         scoref = theano.function(inputs=inps+[gold], outputs=score)
         def pref(s, r, o):
             args = [np.asarray(i).reshape((1,)).astype("int32") for i in [s, r, o]]
             return scoref(*args)
         return pref
 
+class RNNTFADASM(AdaDelta, RNNTFSM):
+    pass
 
+class RNNTFSGDSM(GradientDescent, RNNTFSM):
+    def __init__(self, **kw):
+        super(RNNTFSGDSM, self).__init__(**kw)
+
+def showgraph(var):
+    theano.printing.pydotprint(var, outfile="/home/denis/logreg_pydotprint_prediction.png", var_with_name_simple=True)
 
 if __name__ == "__main__":
     m = RNNTFSGDC.load("../models/RNNTFSGDSM.2015-12-10=22:39.auto")

@@ -150,3 +150,4 @@ if __name__ == "__main__":
     t.shiftids(0,5)
     print t._dok
     print t.maxid(0)
+    print len(t)
