@@ -18,8 +18,12 @@ class Saveable(object):
     ############# Saving and Loading #################"
     def getsavepath(self):
         dfile = os.path.join(os.path.dirname(__file__), "../models/%s.%s" %
-                             (os.path.splitext(self.__class__.__name__)[0], dt.now().strftime("%Y-%m-%d=%H:%M")))
+                             (self.printname, dt.now().strftime("%Y-%m-%d=%H:%M")))
         return dfile
+
+    @property
+    def printname(self):
+        return self.__class__.__name__
 
     def save(self, filepath=None, extra=None):
         if self._autosave_filepath is not None:

@@ -10,39 +10,44 @@ from math import ceil, floor
 from datetime import datetime as dt
 from IPython import embed
 import sys, os, cPickle as pickle
-from rnnkm import Saveable, Profileable, Predictor
-from rnn import GRU, LSTM
+from rnnkm import Saveable, Profileable, Predictor, Normalizable
+from rnn import GRU, LSTM, RNUBase
+from optimizers import SGD, RMSProp, AdaDelta, Optimizer
 
 class SGDBase(object):
     def __init__(self, maxiter=50, lr=0.0001, numbats=100, wreg=0.00001, **kw):
         self.maxiter = maxiter
-        self.lr = lr
         self.numbats = numbats
         self.wreg = wreg
-        self.tlr = theano.shared(np.float32(self.lr), name="lr")
         self.tnumbats = theano.shared(np.float32(self.numbats), name="numbats")
         self.twreg = theano.shared(np.float32(self.wreg), name="wreg")
+        self._optimizer = SGD(lr)
         super(SGDBase, self).__init__(**kw)
+
+    @property
+    def printname(self):
+        return self.__class__.__name__ + "+" + self._optimizer.__class__.__name__
+
+    def __add__(self, other):
+        if isinstance(other, Optimizer):
+            self._optimizer = other
+            other.onattach(self)
+            return self
+        else:
+            raise Exception("unknown type of composition argument")
 
     def gettrainf(self, finps, fouts, cost):
         params = self.ownparams + self.depparams
         grads = T.grad(cost, wrt=params)
         updates = self.getupdates(params, grads)
-        showgraph(updates[0][1])
+        #showgraph(updates[0][1])
         return theano.function(inputs=finps,
                                outputs=fouts,
                                updates=updates,
                                profile=self._profiletheano)
 
     def getupdates(self, params, grads):
-        updates = []
-        for (p, g) in zip(params, grads):
-            update = (p, (p - self.tlr * self.tnumbats * g).astype("float32"))
-            updates.append(update)
-        return updates
-
-    def getnormf(self):
-        return None
+        return self._optimizer.getupdates(params, grads)
 
     def trainloop(self, trainf, validf=None, evalinter=1, normf=None, average_err=True):
         err = []
@@ -96,7 +101,7 @@ class SGDBase(object):
         return batchloop
 
 
-class XRNNKMSGDSM(SGDBase, Saveable, Profileable, Predictor):
+class XRNNKMSGDSM(SGDBase, Saveable, Profileable, Predictor, Normalizable):
     def __init__(self, dim=20, innerdim=20, vocabsize=1000, **kw):
         self.dim = dim
         self.innerdim = innerdim
@@ -176,6 +181,14 @@ class XRNNKMSGDSM(SGDBase, Saveable, Profileable, Predictor):
             return scoref(*args)
         return pref
 
+    def getnormf(self):
+        if self._normalize is True:
+            norms = self.W.norm(2, axis=1).reshape((self.W.shape[0], 1))
+            upd = (self.W, self.W/norms)
+            return theano.function(inputs=[], outputs=[], updates=[upd])
+        else:
+            return None
+
 
 class GRUKMSGDSM(XRNNKMSGDSM):
     def __init__(self, **kw):
@@ -198,30 +211,9 @@ class GRUKMSGDSM(XRNNKMSGDSM):
         return self.rnnu.parameters
 
 
-class AdaXRNNKMSM(XRNNKMSGDSM):
-    def __init__(self, rho=0.95, epsilon=0.000001, **kw):
-        self.lr = 1.0
-        self.rho = rho
-        self.epsilon = epsilon
-        super(AdaXRNNKMSM, self).__init__(**kw)
-
-    def getupdates(self, params, grads):
-        adadelta_egs = [theano.shared(np.zeros_like(param.get_value()).astype("float32")) for param in params]
-        adadelta_edxs= [theano.shared(np.zeros_like(param.get_value()).astype("float32")) for param in params]
-        updates = []
-        for (p, g, eg, ed) in zip(params, grads, adadelta_egs, adadelta_edxs):
-            egp = self.rho * eg + (1 - self.rho) * (g**2)
-            updates.append((eg, egp.astype("float32")))
-            deltap = - (T.sqrt(ed + self.epsilon) / T.sqrt(egp + self.epsilon)) * g
-            updates.append((p, (p + self.lr * deltap).astype("float32")))
-            edp = self.rho * ed + (1 - self.rho) * (deltap**2)
-            updates.append((ed, edp.astype("float32")))
-        return updates
-
-
-class ADDKMSGDMM(SGDBase, Predictor, Profileable, Saveable):
+class KMMM(SGDBase, Predictor, Profileable, Saveable, Normalizable):
     def __init__(self, dim=10, vocabsize=10, negrate=1, margin=0.9, **kw):
-        super(ADDKMSGDMM, self).__init__(**kw)
+        super(KMMM, self).__init__(**kw)
         self.dim = dim
         self.vocabsize = vocabsize
         self.negrate = negrate
@@ -229,6 +221,10 @@ class ADDKMSGDMM(SGDBase, Predictor, Profileable, Saveable):
         offset=0.5
         scale=1.
         self.W = theano.shared((np.random.random((self.vocabsize, self.dim)).astype("float32")-offset)*scale, name="W")
+
+    @property
+    def printname(self):
+        return super(KMMM, self).printname + "+" + str(self.dim)+"D"
 
     def train(self, trainX, labels, evalinter=10): # X: z, x, y, v OR r, s, o, v
         self.batsize = int(ceil(trainX.shape[0]*1./self.numbats))
@@ -238,7 +234,7 @@ class ADDKMSGDMM(SGDBase, Predictor, Profileable, Saveable):
         tReg = self.getreg()
         #embed()
         tCost = tErr + tReg
-        showgraph(tCost)
+        #showgraph(tCost)
         #embed() # tErr.eval({inps[0]: [0], inps[1]:[10], gold: [1]})
 
         trainf = self.gettrainf(inps, [tErr, tCost], tCost)
@@ -250,13 +246,11 @@ class ADDKMSGDMM(SGDBase, Predictor, Profileable, Saveable):
     def defmodel(self):
         xidx, yidx, zidx, nzidx = T.ivectors("xidx", "yidx", "zidx", "nzidx") # rhs corruption only
         xemb, yemb, zemb, nzemb = self.embed(xidx, yidx, zidx, nzidx)
-        om = xemb - yemb + zemb
-        nom = xemb - yemb + nzemb
-        dotp = om.norm(2, axis=1)
-        ndotp = nom.norm(2, axis=1)
-        #sdotp = T.nnet.sigmoid(dotp)
-        #sndotp = T.nnet.sigmoid(ndotp)
+        dotp, ndotp = self.definnermodel(xemb, yemb, zemb, nzemb)
         return dotp, ndotp, [xidx, yidx, zidx, nzidx]
+
+    def definnermodel(self, xemb, yemb, zemb, nzemb):
+        pass
 
     def embed(self, *idxs):
         return tuple(map(lambda x: self.W[x, :], idxs))
@@ -298,24 +292,33 @@ class ADDKMSGDMM(SGDBase, Predictor, Profileable, Saveable):
         return pref
 
     def getnormf(self):
+        if self._normalize is True:
+            norms = self.W.norm(2, axis=1).reshape((self.W.shape[0], 1))
+            upd = (self.W, self.W/norms)
+            return theano.function(inputs=[], outputs=[], updates=[upd])
+        else:
             return None
 
 
-class GRUKMSGDMM(ADDKMSGDMM):
+class AddKMMM(KMMM):
 
-    def __init__(self, innerdim=None, **kw):
-        super(GRUKMSGDMM, self).__init__(**kw)
-        if innerdim is None:
-            innerdim = self.dim
-        self.innerdim = innerdim
-        self.initrnnu()
+    def definnermodel(self, xemb, yemb, zemb, nzemb):
+        om = xemb - yemb + zemb
+        nom = xemb - yemb + nzemb
+        dotp = om.norm(2, axis=1)
+        ndotp = nom.norm(2, axis=1)
+        #sdotp = T.nnet.sigmoid(dotp)
+        #sndotp = T.nnet.sigmoid(ndotp)
+        return dotp, ndotp
 
-    def initrnnu(self):
-        self.rnnu = GRU(dim=self.dim, wreg=self.wreg, innerdim=self.innerdim)
+    @property
+    def printname(self):
+        return super(AddKMMM, self).printname + "+Add"
 
-    def defmodel(self):
-        xidx, yidx, zidx, nzidx = T.ivectors("xidx", "yidx", "zidx", "nzidx") # rhs corruption only
-        xemb, yemb, zemb, nzemb = self.embed(xidx, yidx, zidx, nzidx)
+
+class RNNKMMM(KMMM):
+
+    def definnermodel(self, xemb, yemb, zemb, nzemb):
         iseq = T.stack(xemb, yemb) # (2, batsize, dims)
         iseq = iseq.dimshuffle(1, 0, 2) # (batsize, 2, dims)
         oseq = self.rnnu(iseq)
@@ -324,15 +327,23 @@ class GRUKMSGDMM(ADDKMSGDMM):
         ndotp = T.batched_dot(om, nzemb)
         sdotp = T.nnet.sigmoid(dotp)
         sndotp = T.nnet.sigmoid(ndotp)
-        return dotp, ndotp, [xidx, yidx, zidx, nzidx]
+        return dotp, ndotp
+
+    @property
+    def printname(self):
+        return super(RNNKMMM, self).printname + "+" + self.rnnu.__class__.__name__
 
     @property
     def depparams(self):
         return self.rnnu.parameters
 
-class LSTMKMSGDMM(GRUKMSGDMM):
-    def initrnnu(self):
-        self.rnnu = LSTM(dim=self.dim, innerdim=self.innerdim, wreg=self.wreg)
+    def __add__(self, other):
+        if isinstance(other, RNUBase):
+            self.rnnu = other
+            return self
+        else:
+            return super(KMMM, self).__add__(other)
+
 
 def showgraph(var):
     pass

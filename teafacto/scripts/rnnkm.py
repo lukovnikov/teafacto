@@ -6,8 +6,10 @@ from matplotlib import pyplot as plt
 import pickle, os, pkgutil, pandas as pd, numpy as np
 from IPython import embed
 
-from teafacto.rnnkm import GRU, RNNTFSGDSM, RNU
-from teafacto.xrnnkm import XRNNKMSGDSM, AdaXRNNKMSM, GRUKMSGDSM, GRUKMSGDMM, ADDKMSGDMM, LSTMKMSGDMM
+from teafacto.rnnkm import RNNTFSGDSM
+from teafacto.xrnnkm import RNNKMMM, AddKMMM, KMMM
+from teafacto.optimizers import SGD, RMSProp, AdaDelta
+from teafacto.rnn import GRU, LSTM, RNU
 
 
 def loaddata(file):
@@ -75,9 +77,10 @@ def run():
     # train model
     print "training model"
     start = datetime.now()
-    model = GRUKMSGDMM(dim=dims, vocabsize=vocabsize, maxiter=epochs, wreg=wreg, lr=lr, numbats=numbats)\
-        #.autosave
-        #.normalize
+    model = RNNKMMM(dim=dims, vocabsize=vocabsize, maxiter=epochs, wreg=wreg, numbats=numbats)\
+                .autosave.normalize \
+            + SGD(lr=lr) \
+            + GRU(dim=dims, innerdim=dims, wreg=wreg)
     print "model %s defined in %f" % (model.__class__.__name__, (datetime.now() - start).total_seconds())
     start = datetime.now()
     err = model.train(trainX, labels, evalinter=evalinter)
