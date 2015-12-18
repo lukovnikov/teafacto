@@ -101,117 +101,6 @@ class SGDBase(object):
         return batchloop
 
 
-
-class XRNNKMSGDSM(SGDBase, Saveable, Profileable, Predictor, Normalizable):
-    def __init__(self, dim=20, innerdim=20, vocabsize=1000, **kw):
-        self.dim = dim
-        self.innerdim = innerdim
-        self.W = None
-        self.sm = None
-        self.vocabsize = vocabsize
-        self.initvars()
-        super(XRNNKMSGDSM, self).__init__(**kw)
-
-    def initvars(self):
-        offset = 0.5
-        scale = 0.1
-        self.W = theano.shared((np.random.random((self.vocabsize, self.dim)).astype("float32")-offset)*scale, name="W")
-        self.sm = theano.shared((np.random.random((self.dim, self.vocabsize)).astype("float32")-offset)*scale, name="sm")
-
-    def train(self, trainX, labels, evalinter=10): # X: z, x, y, v OR r, s, o, v
-        self.batsize = int(ceil(trainX.shape[0]*1./self.numbats))
-        self.tbatsize = theano.shared(np.int32(self.batsize))
-        probs, inps, gold = self.defmodel()
-        tErr = self.geterr(probs, gold)
-        tReg = self.getreg()
-        tCost = tErr + tReg
-        showgraph(tCost)
-        #embed() # tErr.eval({inps[0]: [0], inps[1]:[10], gold: [1]})
-
-        trainf = self.gettrainf(inps+[gold], [tErr, tCost], tCost)
-        err = self.trainloop(trainf=self.getbatchloop(trainf, self.getsamplegen(trainX, labels)),
-                             evalinter=evalinter,
-                             normf=self.getnormf())
-        return err
-
-    def defmodel(self):
-        xidx, yidx, zidx = T.ivectors("xidx", "yidx", "zidx")
-        xemb, yemb = self.embed(xidx, yidx)
-        predemb = xemb + yemb
-        preds = T.dot(predemb, self.sm)
-        probs = T.nnet.softmax(preds)
-        return probs, [xidx, yidx], zidx
-
-    def embed(self, *idxs):
-        return tuple(map(lambda x: self.W[x, :], idxs))
-
-    def geterr(self, probs, gold): # probs: (batsize, vocabsize)-float, gold: (batsize,)-int
-        return -T.mean(T.log(probs[T.arange(self.tbatsize), gold])) # cross-entropy
-        #return T.sum(1-probs[:, gold]) theano.tensor.
-
-    def getreg(self, regf=lambda x: T.sum(x**2), factor=1./2):
-        return factor * reduce(lambda x, y: x + y,
-                               map(lambda x: regf(x) * self.twreg,
-                                   self.ownparams))
-
-    @property
-    def ownparams(self):
-        return [self.W, self.sm]
-        #return [self.W]
-
-    @property
-    def depparams(self):
-        return []
-
-    def getsamplegen(self, trainX, labels):
-        batsize = self.batsize
-
-        def samplegen():
-            nonzeroidx = sorted(np.random.randint(0, trainX.shape[0], size=(batsize,)).astype("int32"))
-            trainXsample = trainX[nonzeroidx, :].astype("int32")
-            labelsample = labels[nonzeroidx].astype("int32")
-            return [trainXsample[:, 0], trainXsample[:, 1], labelsample]     # [[s*], [r*], [o*]]
-        return samplegen
-
-    def getpredictfunction(self):
-        probs, inps, gold = self.defmodel()
-        score = probs[:, gold]
-        scoref = theano.function(inputs=inps+[gold], outputs=score)
-        def pref(s, r, o):
-            args = [np.asarray(i).reshape((1,)).astype("int32") for i in [s, r, o]]
-            return scoref(*args)
-        return pref
-
-    def getnormf(self):
-        if self._normalize is True:
-            norms = self.W.norm(2, axis=1).reshape((self.W.shape[0], 1))
-            upd = (self.W, self.W/norms)
-            return theano.function(inputs=[], outputs=[], updates=[upd])
-        else:
-            return None
-
-
-class GRUKMSGDSM(XRNNKMSGDSM):
-    def __init__(self, **kw):
-        super(GRUKMSGDSM, self).__init__(**kw)
-        self.rnnu = GRU(dim=self.dim, wreg=self.wreg, indim=self.dim)
-
-    def defmodel(self):
-        xidx, yidx, zidx = T.ivectors("xidx", "yidx", "zidx")
-        xemb, yemb = self.embed(xidx, yidx)
-        iseq = T.stack(xemb, yemb) # (2, batsize, dims)
-        iseq = iseq.dimshuffle(1, 0, 2) # (batsize, 2, dims)
-        oseq = self.rnnu(iseq)
-        om = oseq[:, np.int32(-1), :] # om is (batsize, dims)
-        preds = T.dot(om, self.sm)
-        probs = T.nnet.softmax(preds)
-        return probs, [xidx, yidx], zidx
-
-    @property
-    def depparams(self):
-        return self.rnnu.parameters
-
-
 class KMSM(SGDBase, Saveable, Profileable, Predictor, Normalizable):
     def __init__(self, vocabsize=10, negrate=None, margin=None, **kw):
         super(KMSM, self).__init__(**kw)
@@ -237,11 +126,11 @@ class KMSM(SGDBase, Saveable, Profileable, Predictor, Normalizable):
     def defmodel(self):
         pathidxs = T.imatrix("pathidxs")
         zidx = T.ivector("zidx") # rhs corruption only
-        scores = self.definnermodel(pathidxs, zidx)
-        probs = T.nnet.softmax(scores) # row-wise softmax
+        scores = self.definnermodel(pathidxs) # ? scores: float(batsize, vocabsize)
+        probs = T.nnet.softmax(scores) # row-wise softmax, ? probs: float(batsize, vocabsize)
         return probs, zidx, [pathidxs, zidx]
 
-    def definnermodel(self, pathidxs, zidx):
+    def definnermodel(self, pathidxs):
         raise NotImplementedError("use subclass")
 
     def getreg(self, regf=lambda x: T.sum(x**2), factor=1./2):
@@ -269,7 +158,7 @@ class KMSM(SGDBase, Saveable, Profileable, Predictor, Normalizable):
         def samplegen():
             nonzeroidx = sorted(np.random.randint(0, trainX.shape[0], size=(batsize,)).astype("int32"))
             trainXsample = trainX[nonzeroidx, :].astype("int32")
-            labelsample = labels[nonzeroidx, :].astype("int32")
+            labelsample = labels[nonzeroidx].astype("int32")
             return [trainXsample, labelsample]     # start + path, target, bad_target
         return samplegen
 
@@ -281,6 +170,121 @@ class KMSM(SGDBase, Saveable, Profileable, Predictor, Normalizable):
             args = [np.asarray(i).astype("int32") for i in [path, o]]
             return scoref(*args)
         return pref
+
+
+class SMSM(KMSM):
+
+    def defmodel(self):
+        pathidxs = T.imatrix("pathidxs")  # integers of (batsize, seqlen)
+        zidxs = T.imatrix("zidxs") # integers of (batsize, seqlen)
+        scores = self.definnermodel(pathidxs) #predictions, floats of (batsize, seqlen, vocabsize)
+        #probs = T.nnet.softmax(scores) # row-wise softmax; probs: (batsize, seqlen, vocabsize) #softmax doesn't work on tensor3D
+        probs = theano.scan(fn=T.nnet.softmax,
+                            sequences=scores,
+                            outputs_info=[None])
+        return probs, zidxs, [pathidxs, zidxs]
+
+    def geterr(self, probs, golds): # cross-entropy; probs: floats of (batsize, seqlen, vocabsize), gold: indexes of (batsize, seqlen)
+        return -T.mean(
+                    T.log(
+                        probs[T.arange(probs.shape[0])[:, None],
+                              T.arange(probs.shape[1])[None, :],
+                              golds])) # --> prob: floats of (batsize, seqlen) #TODO: is mean of logs of all matrix elements correct?
+
+    def getsamplegen(self, trainX, labels): # trainX and labels must be of same dimensions
+        batsize = self.batsize
+
+        def samplegen():
+            nonzeroidx = sorted(np.random.randint(0, trainX.shape[0], size=(batsize,)).astype("int32"))
+            trainXsample = trainX[nonzeroidx, :].astype("int32")
+            labelsample = labels[nonzeroidx, :].astype("int32")
+            return [trainXsample, labelsample]     # input seq, output seq
+        return samplegen
+
+    def getpredictfunction(self):
+        probs, golds, inps = self.defmodel()
+        score = probs[T.arange(golds.shape[0]), golds]
+        scoref = theano.function(inputs=[inps[0], inps[1]], outputs=score)
+        def pref(path, o):
+            args = [np.asarray(i).astype("int32") for i in [path, o]]
+            return scoref(*args)
+        return pref
+
+class ESMSM(SMSM, Normalizable): # identical to EKMSM since the same prediction part
+    def __init__(self, dim=10, **kw):
+        super(ESMSM, self).__init__(**kw)
+        offset=0.5
+        scale=1.
+        self.dim = dim
+        self.W = theano.shared((np.random.random((self.vocabsize, self.dim)).astype("float32")-offset)*scale, name="W")
+
+    def getnormf(self):
+        if self._normalize is True:
+            norms = self.W.norm(2, axis=1).reshape((self.W.shape[0], 1))
+            upd = (self.W, self.W/norms)
+            return theano.function(inputs=[], outputs=[], updates=[upd])
+        else:
+            return None
+
+    @property
+    def printname(self):
+        return super(ESMSM, self).printname + "+E" + str(self.dim)+"D"
+
+    @property
+    def ownparams(self):
+        return [self.W]
+
+    @property
+    def depparams(self):
+        return []
+
+    def embed(self, *idxs):
+        return tuple(map(lambda x: self.W[x, :], idxs))
+
+    def definnermodel(self, pathidxs):
+        pathembs = self.embed(pathidxs) # pathembs: (batsize, seqlen, edim); zemb: (batsize, edim)
+        return self.innermodel(pathembs)
+
+    def innermodel(self, pathembs):
+        raise NotImplementedError("use subclass")
+
+class RNNESMSM(ESMSM): # identical to RNNEKMSM since same prediction part
+
+    def innermodel(self, pathembs): #pathemb: (batsize, seqlen, dim)
+        oseq = self.rnnu(pathembs)
+        om = oseq[:, -1, :] # om is (batsize, innerdims)  ---> last output
+        scores = T.dot(om, self.Wout) # --> (batsize, vocabsize)
+        return scores
+
+    @property
+    def printname(self):
+        return super(RNNESMSM, self).printname + "+" + self.rnnu.__class__.__name__+ ":" + str(self.rnnu.innerdim) + "D"
+
+    @property
+    def depparams(self):
+        return self.rnnu.parameters
+
+    def __add__(self, other):
+        if isinstance(other, RNUBase):
+            self.rnnu = other
+            self.onrnnudefined()
+            return self
+        else:
+            return super(RNNESMSM, self).__add__(other)
+
+
+    @property
+    def ownparams(self):
+        return super(RNNESMSM, self).ownparams + [self.Wout]
+
+    def onrnnudefined(self):
+        self.initwout()
+
+    def initwout(self):
+        offset = 0.5
+        scale = 0.1
+        self.Wout = theano.shared((np.random.random((self.rnnu.innerdim, self.vocabsize)).astype("float32")-offset)*scale, name="Wout")
+
 
 class EKMSM(KMSM, Normalizable):
     def __init__(self, dim=10, **kw):
@@ -313,20 +317,20 @@ class EKMSM(KMSM, Normalizable):
     def embed(self, *idxs):
         return tuple(map(lambda x: self.W[x, :], idxs))
 
-    def definnermodel(self, pathidxs, zidx):
-        pathembs, zemb = self.embed(pathidxs, zidx)
-        return self.innermodel(pathembs, zemb)
+    def definnermodel(self, pathidxs):
+        pathembs, = self.embed(pathidxs) # pathembs: (batsize, seqlen, edim); zemb: (batsize, edim)
+        return self.innermodel(pathembs)
 
-    def innermodel(self, pathembs, zemb):
+    def innermodel(self, pathembs):
         raise NotImplementedError("use subclass")
 
 class RNNEKMSM(EKMSM):
 
-    def innermodel(self, pathembs, zemb): #pathemb: (batsize, seqlen, dim)
+    def innermodel(self, pathembs): #pathemb: (batsize, seqlen, dim)
         oseq = self.rnnu(pathembs)
         om = oseq[:, -1, :] # om is (batsize, innerdims)  ---> last output
-        dotp = T.dot(om, self.Wout) # --> (batsize, vocabsize)
-        return dotp
+        scores = T.dot(om, self.Wout) # --> (batsize, vocabsize)
+        return scores
 
     @property
     def printname(self):
