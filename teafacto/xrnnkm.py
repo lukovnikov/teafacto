@@ -269,7 +269,7 @@ class KMSM(SGDBase, Saveable, Profileable, Predictor, Normalizable):
         def samplegen():
             nonzeroidx = sorted(np.random.randint(0, trainX.shape[0], size=(batsize,)).astype("int32"))
             trainXsample = trainX[nonzeroidx, :].astype("int32")
-            labelsample = labels[nonzeroidx].astype("int32")
+            labelsample = labels[nonzeroidx, :].astype("int32")
             return [trainXsample, labelsample]     # start + path, target, bad_target
         return samplegen
 
@@ -330,7 +330,7 @@ class RNNEKMSM(EKMSM):
 
     @property
     def printname(self):
-        return super(RNNEKMSM, self).printname + "+" + self.rnnu.__class__.__name__
+        return super(RNNEKMSM, self).printname + "+" + self.rnnu.__class__.__name__+ ":" + str(self.rnnu.innerdim) + "D"
 
     @property
     def depparams(self):

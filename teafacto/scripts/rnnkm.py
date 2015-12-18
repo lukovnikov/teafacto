@@ -37,8 +37,8 @@ def run():
     innerdims = dims
     negrate = 10
     numbats = 100 # 100
-    epochs = 100 #20
-    wreg = 0.0#01
+    epochs = 200 #20
+    wreg = 0.0000001
     lr = 0.01/numbats #0.0001 # for SGD
     lr2 = 1.
     evalinter = 1
@@ -48,7 +48,7 @@ def run():
     ############"
     dims = 20
     innerdims = 50
-    lr = 9./numbats # 0.005
+    lr = 8./numbats # 0.005
 
     toy = False
 
@@ -84,7 +84,7 @@ def run():
     print "training model"
     start = datetime.now()
     model = RNNEKMSM(dim=dims, vocabsize=vocabsize, maxiter=epochs, wreg=wreg, numbats=numbats, negrate=negrate)\
-                .autosave \
+                .autosave.normalize \
             + SGD(lr=lr) \
             + GRU(dim=dims, innerdim=innerdims, wreg=wreg)
     print "model %s defined in %f" % (model.__class__.__name__, (datetime.now() - start).total_seconds())
