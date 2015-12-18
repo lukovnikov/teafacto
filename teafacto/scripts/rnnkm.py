@@ -7,7 +7,7 @@ import pickle, os, pkgutil, pandas as pd, numpy as np
 from IPython import embed
 
 from teafacto.rnnkm import RNNTFSGDSM
-from teafacto.xrnnkm import RNNKMMM, AddKMMM, KMMM
+from teafacto.xrnnkm import RNNEKMM, RNNEOKMM, AddEKMM, MulEKMM, RNNEKMSM
 from teafacto.optimizers import SGD, RMSProp, AdaDelta
 from teafacto.rnn import GRU, LSTM, RNU
 
@@ -34,15 +34,21 @@ def getsavepath():
 def run():
     # params
     dims = 100 # 100
-    innerdims = 20
-    negrate = 1
+    innerdims = dims
+    negrate = 10
     numbats = 100 # 100
     epochs = 100 #20
-    wreg = 0.001
+    wreg = 0.0#01
     lr = 0.01/numbats #0.0001 # for SGD
     lr2 = 1.
     evalinter = 1
     rho = 0.95
+
+
+    ############"
+    dims = 20
+    innerdims = 50
+    lr = 9./numbats # 0.005
 
     toy = False
 
@@ -77,10 +83,10 @@ def run():
     # train model
     print "training model"
     start = datetime.now()
-    model = RNNKMMM(dim=dims, vocabsize=vocabsize, maxiter=epochs, wreg=wreg, numbats=numbats)\
-                .autosave.normalize \
+    model = RNNEKMSM(dim=dims, vocabsize=vocabsize, maxiter=epochs, wreg=wreg, numbats=numbats, negrate=negrate)\
+                .autosave \
             + SGD(lr=lr) \
-            + GRU(dim=dims, innerdim=dims, wreg=wreg)
+            + GRU(dim=dims, innerdim=innerdims, wreg=wreg)
     print "model %s defined in %f" % (model.__class__.__name__, (datetime.now() - start).total_seconds())
     start = datetime.now()
     err = model.train(trainX, labels, evalinter=evalinter)
@@ -96,8 +102,8 @@ def run():
         print model.predict(0, 10, 1)
         print model.predict(0, 10, 2)
     else:
-        print model.predict(417, 11307, 9145)
-        print model.predict(417, 11307, 9156)
+        print model.predict([[417, 11307]], [9145])
+        print model.predict([[417, 11307]], [9156])
 
     #embed()
 
