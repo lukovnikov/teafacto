@@ -68,7 +68,7 @@ def run():
     # train model
     print "training model"
     start = datetime.now()
-    model = RNNESMSMShort(dim=dims, vocabsize=vocabsize, maxiter=epochs, wreg=wreg, numbats=numbats, negrate=negrate)\
+    model = RNNESMSMS(dim=dims, vocabsize=vocabsize, maxiter=epochs, wreg=wreg, numbats=numbats, negrate=negrate)\
                 .autosave.normalize \
             + SGD(lr=lr) \
             + GRU(dim=dims, innerdim=innerdims, wreg=wreg)
