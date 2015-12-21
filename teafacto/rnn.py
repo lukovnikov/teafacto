@@ -41,6 +41,9 @@ class RNUBase(object):
         output = outputs[0]
         return output.dimshuffle(1, 0, 2) #output is (nb_samples, seq_len, nb_feats)
 
+    def rec(self, *args):
+        raise NotImplementedError("use subclass")
+
     def __call__(self, x):
         return self.getoutput(x)
 
