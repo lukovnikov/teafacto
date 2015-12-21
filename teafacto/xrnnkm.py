@@ -58,7 +58,7 @@ class SGDBase(object):
         #if normf:
         #    normf()
         while not stop:
-            print("iter %d/%d" % (self.currentiter, self.maxiter))
+            print("iter %d/%f" % (self.currentiter, float(self.maxiter)))
             start = dt.now()
             erre = trainf()
             if average_err:
