@@ -37,7 +37,7 @@ def run():
     innerdims = dims
     negrate = 10
     numbats = 100 # 100
-    epochs = 200 #20
+    epochs = np.infty #20
     wreg = 0.0000001
     lr = 0.01/numbats #0.0001 # for SGD
     lr2 = 1.
@@ -47,8 +47,8 @@ def run():
 
 
     ############"
-    dims = 20
-    innerdims = 50
+    dims = 50
+    innerdims = 400
     lr = 1./numbats # 8
 
     start = datetime.now()
