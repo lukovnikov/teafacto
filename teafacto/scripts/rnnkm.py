@@ -7,7 +7,7 @@ import pickle, os, pkgutil, pandas as pd, numpy as np
 from IPython import embed
 
 from teafacto.rnnkm import RNNTFSGDSM
-from teafacto.xrnnkm import RNNEKMM, RNNEOKMM, AddEKMM, MulEKMM, RNNEKMSM, AutoRNNEKMSM
+from teafacto.xrnnkm import RNNEKMM, RNNEOKMM, AddEKMM, MulEKMM, RNNEKMSM, AutoRNNEKMSM, RNNESMSM
 from teafacto.optimizers import SGD, RMSProp, AdaDelta
 from teafacto.rnn import GRU, LSTM, RNU
 
@@ -48,7 +48,7 @@ def run():
     ############"
     dims = 20
     innerdims = 50
-    lr = 2./numbats # 8
+    lr = 8./numbats # 8
 
     toy = False
 
@@ -68,7 +68,7 @@ def run():
     else:
         # get the data and split
         datafileprefix = "../../data/nycfilms/"
-        tensorfile = "tripletensor.flat.ssd"
+        tensorfile = "alltripletensor.flat.ssd"
         fulldic = loaddic(datafileprefix+"tripletensor.flatidx.pkl")
         vocabsize = len(fulldic)
 
@@ -76,14 +76,14 @@ def run():
     data = data.keys.lok
 
     trainX = data[:, :2]
-    labels = data[:, 2]
+    labels = data[:, 1:]
 
     print "source data loaded in %f seconds" % (datetime.now() - start).total_seconds()
 
     # train model
     print "training model"
     start = datetime.now()
-    model = AutoRNNEKMSM(dim=dims, vocabsize=vocabsize, maxiter=epochs, wreg=wreg, numbats=numbats, negrate=negrate)\
+    model = RNNESMSM(dim=dims, vocabsize=vocabsize, maxiter=epochs, wreg=wreg, numbats=numbats, negrate=negrate)\
                 .autosave.normalize \
             + SGD(lr=lr) \
             + GRU(dim=dims, innerdim=innerdims, wreg=wreg)

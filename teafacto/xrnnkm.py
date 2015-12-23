@@ -58,7 +58,7 @@ class SGDBase(object):
         #if normf:
         #    normf()
         while not stop:
-            print("iter %d/%f" % (self.currentiter, float(self.maxiter)))
+            print("iter %d/%.0f" % (self.currentiter, float(self.maxiter)))
             start = dt.now()
             erre = trainf()
             if average_err:
@@ -190,12 +190,12 @@ class SMSM(KMSM):
         probs = args[0]
         golds = args[1]
         occluder = args[2]
-        return -T.mean(
+        return -T.sum(
                     occluder *
                     T.log(
                         probs[T.arange(probs.shape[0])[:, None],
                               T.arange(probs.shape[1])[None, :],
-                              golds])) # --> prob: floats of (batsize, seqlen) # is mean of logs of all matrix elements correct?
+                              golds])) / occluder.norm(1) # --> prob: floats of (batsize, seqlen) # is mean of logs of all matrix elements correct?
 
     def getsamplegen(self, trainX, labels): # trainX and labels must be of same dimensions
         batsize = self.batsize
@@ -293,6 +293,8 @@ class RNNESMSM(ESMSM):
         self.W = src.W
         self.Wout = src.Wout
         self.rnnu = src.rnnu
+        self.vocabsize = src.vocabsize
+        self.batsize = src.batsize
         return self
 
     def innermodel(self, pathembs): #pathemb: (batsize, seqlen, dim)
@@ -341,8 +343,8 @@ class RNNESMSMShort(RNNESMSM):
         occlusion = T.fmatrix("occlusion") # (batsize, seqlen)
 
         numstates = len(inspect.getargspec(self.rnnu.rec).args) - 2
-        initstate = T.zeros((self.batsize, self.rnnu.innerdim))
-        initstate2 = T.zeros((self.batsize, self.vocabsize))
+        initstate = T.zeros((pathidxs.shape[0], self.rnnu.innerdim))
+        initstate2 = T.zeros((pathidxs.shape[0], self.vocabsize))
         outputs, _ = theano.scan(fn=self.step, # --> iterate over seqlen
                                  sequences=[pathidxs.T, occlusion[:, :-1].T],
                                  outputs_info=[None]+[initstate2]+[initstate]*numstates)
@@ -360,26 +362,25 @@ class RNNESMSMShort(RNNESMSM):
         return [probs, newprevout] + rnnstates
 
     def geterr(self, probs, golds, occlusion): # cross-entropy; probs: floats of (batsize, seqlen, vocabsize), gold: indexes of (batsize, seqlen)
-        return -T.mean(
-                    occlusion[:, 1:] * # shift occlusion one left on seqlen dim
-                    T.log(
-                        probs[T.arange(probs.shape[0])[:, None],
-                              T.arange(probs.shape[1])[None, :],
-                              golds])) # --> result: floats of (batsize, seqlen)
+        r = occlusion[:, 1:] * T.log(probs[T.arange(probs.shape[0])[:, None],
+                                           T.arange(probs.shape[1])[None, :],
+                                           golds]) # --> result: floats of (batsize, seqlen)
+        return -T.sum(r)/occlusion[:, 1:].norm(1)
 
 
     def getsamplegen(self, trainX, labels): # trainX and labels must be of same dimensions
         batsize = self.batsize
+        occlprob = self.occlusion
 
         def samplegen():
             nonzeroidx = sorted(np.random.randint(0, trainX.shape[0], size=(batsize,)).astype("int32"))
             trainXsample = trainX[nonzeroidx, :].astype("int32")
             labelsample = labels[nonzeroidx, :].astype("int32")
             occluder = (trainXsample > 0).astype("int32")
-            occlusion = np.random.choice([0, 1], size=trainXsample.shape, p=[self.occlusion, 1-self.occlusion]).astype("float32")
+            occlusion = np.random.choice([0, 1], size=trainXsample.shape, p=[occlprob, 1-occlprob]).astype("float32")
             occlusion = occluder * occlusion
-            lastoccluder = (labelsample[:, -1] > 0).astype("int32")
-            occlusion = np.append(occlusion, lastoccluder, axis=1)
+            lastoccluder = np.expand_dims((labelsample[:, -1] > 0).astype("float32"), 1)
+            occlusion = np.append(occlusion, lastoccluder, axis=1).astype("float32")
             return [trainXsample, labelsample, occlusion]     # input seq, output seq
         return samplegen
 
@@ -391,9 +392,9 @@ class RNNESMSMShort(RNNESMSM):
             if occl is None:
                 occl = np.ones_like(paths)
             paths = np.asarray(paths).astype("int32")
-            occl = np.asarray(occl).astype("int32")
+            occl = np.asarray(occl).astype("float32")
             assert paths.shape == occl.shape
-            occl = np.append(occl, np.ones_like(occl[:, 0]), axis=1)
+            occl = np.append(occl, np.expand_dims(np.ones_like(occl[:, 0]), axis=1), axis=1).astype("float32")
             probsvals = scoref(paths, occl)
             return probsvals
         return probf
