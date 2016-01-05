@@ -7,7 +7,7 @@ import pickle, os, pkgutil, pandas as pd, numpy as np
 from IPython import embed
 
 from teafacto.rnnkm import RNNTFSGDSM
-from teafacto.xrnnkm import RNNEKMM, RNNEOKMM, AddEKMM, MulEKMM, RNNEKMSM, AutoRNNEKMSM, RNNESMSM, RNNESMSMShort
+from teafacto.xrnnkm import RNNEKMM, RNNEOKMM, AddEKMM, DiagMulEKMM, RNNEKMSM, AutoRNNEKMSM, RNNESMSM, RNNESMSMShort
 from teafacto.optimizers import SGD, RMSProp, AdaDelta
 from teafacto.rnn import GRU, LSTM, RNU
 

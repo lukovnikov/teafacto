@@ -588,8 +588,8 @@ class KMM(SGDBase, Predictor, Profileable, Saveable):
 class EKMM(KMM, Normalizable):
     def __init__(self, dim=10, **kw):
         super(EKMM, self).__init__(**kw)
-        offset=0.5
-        scale=1.
+        offset = 0.5
+        scale = 1.
         self.dim = dim
         self.W = theano.shared((np.random.random((self.vocabsize, self.dim)).astype("float32")-offset)*scale, name="W")
 
@@ -625,6 +625,7 @@ class EKMM(KMM, Normalizable):
 
 
 class AddEKMM(EKMM):
+    # TransE
 
     def innermodel(self, pathembs, zemb, nzemb): #pathemb: (batsize, seqlen, dim)
         om, _ = theano.scan(fn=self.traverse,
@@ -648,7 +649,8 @@ class AddEKMM(EKMM):
         return -T.sum(T.sqr(o - t), axis=1)
 
 
-class MulEKMM(AddEKMM):
+class DiagMulEKMM(AddEKMM):
+    # Bilinear Diag
     def traverse(self, x_t, h_tm1):
         h = x_t * h_tm1
         return [h, h]
@@ -658,6 +660,15 @@ class MulEKMM(AddEKMM):
 
     def emptystate(self, pathembs):
         return T.ones_like(pathembs[:, 0, :])
+
+class MulEKMM(EKMM):
+    pass # TODO: RESCAL
+    # __init__: initialize relation embeddings tensor R, require relational offset for index
+    # def definnermodel (embed relation using relation tensor R, entities using W)
+    # def innermodel: set initial state to subject entity embedding, then theano.scan with traverse over all relation matrices
+    # def traverse: apply relation matrix
+    # def membership: dot product with object embedding
+    # def ownparams: [self.W, self.R]
 
 
 class RNNEKMM(EKMM):
