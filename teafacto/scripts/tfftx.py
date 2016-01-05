@@ -1,12 +1,15 @@
 __author__ = 'denis'
 
-from teafacto.data.sptensor import SparseTensor
 from datetime import datetime
+import pickle
+import os
+
 from matplotlib import pyplot as plt
-import pickle, os, pkgutil, pandas as pd, numpy as np
+import numpy as np
 from IPython import embed
 
-from teafacto.tf import TFSGDC, TFMF0SGDC, TFMXSGDC, RESCALSGDC
+from teafacto.core.sptensor import SparseTensor
+from teafacto.facs.tf import TFSGDC, TFMXSGDC
 
 
 def loaddata(file):

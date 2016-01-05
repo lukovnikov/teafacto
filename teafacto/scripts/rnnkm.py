@@ -1,18 +1,22 @@
 __author__ = 'denis'
 
-from teafacto.data.sptensor import SparseTensor
 from datetime import datetime
-from matplotlib import pyplot as plt
-import pickle, os, pkgutil, pandas as pd, numpy as np
-from IPython import embed
+import pickle
+import os
 
-from teafacto.xxrnnkm import RNNTFSGDSM
-from teafacto.rnnkm import RNNEKMM, RNNEOKMM, AutoRNNEKMSM
-from teafacto.kmsm import RNNEKMSM, AutoRNNEKMSM
+from matplotlib import pyplot as plt
+import numpy as np
+
+from teafacto.core.sptensor import SparseTensor
+
+
+
+
+# from teafacto.kmsm import RNNEKMSM, AutoRNNEKMSM, AutoRNNEKMSM
 from teafacto.smsm import RNNESMSM
-from teafacto.kmm import AddEKMM, DiagMulEKMM, RNNEKMM, RNNEOKMM
-from teafacto.optimizers import SGD, RMSProp, AdaDelta
-from teafacto.rnn import GRU, LSTM, RNU
+
+from teafacto.core.optimizers import SGD
+from teafacto.core.rnn import GRU
 
 
 def loaddata(file):

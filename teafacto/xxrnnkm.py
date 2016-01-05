@@ -1,12 +1,12 @@
-from teafacto.km import Saveable, Trainable, Predictor, GradientDescent, Batched, AdaDelta, Embedder
+from teafacto.core.trainutil import Saveable, Trainable, Predictor, GradientDescent, Batched, AdaDelta, Embedder
 
 __author__ = 'denis'
 from theano import tensor as T
 import numpy as np, math
-from utils import *
-from rnn import GRU
+from teafacto.core.utils import *
+from teafacto.core.rnn import GRU
 
-# !!!!! NOT USED
+# !!!!! NOT USED?
 
 class RNNTFSGDC(Embedder, Trainable, Predictor, GradientDescent, Batched, Saveable):
     def __init__(self, rnnuc=GRU, dims=10, vocabsize=10, wreg=0.0, negrate=1, corruption="rhs", **kw):

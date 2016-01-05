@@ -1,15 +1,21 @@
 from math import ceil
+
 import numpy as np
 import theano
+
 from theano import tensor as T
-from teafacto.km import SGDBase, Saveable, Profileable, Predictor, Normalizable
-from teafacto.rnn import RNUBase
+
+from teafacto.core.trainutil import SGDBase, Saveable, Profileable, Predictor, Normalizable
+from teafacto.core.rnn import RNUBase
 
 __author__ = 'denis'
 
 # Knowledge Model - SoftMax objective # !!! DON'T USE ?!?8?!?
+# ?? is this only modelling knowledge (no not for a E R E R E RWR in graph)?
+# + KMSM only looks at the last result of the sequence
 
 class KMSM(SGDBase, Saveable, Profileable, Predictor, Normalizable):
+    #region SMBase
     def __init__(self, vocabsize=10, negrate=None, margin=None, **kw):
         super(KMSM, self).__init__(**kw)
         self.vocabsize = vocabsize
@@ -31,13 +37,6 @@ class KMSM(SGDBase, Saveable, Profileable, Predictor, Normalizable):
                              normf=self.getnormf())
         return err
 
-    def defmodel(self):
-        pathidxs = T.imatrix("pathidxs")
-        zidx = T.ivector("zidx") # rhs corruption only
-        scores = self.definnermodel(pathidxs) # ? scores: float(batsize, vocabsize)
-        probs = T.nnet.softmax(scores) # row-wise softmax, ? probs: float(batsize, vocabsize)
-        return probs, zidx, [pathidxs, zidx]
-
     def definnermodel(self, pathidxs):
         raise NotImplementedError("use subclass")
 
@@ -45,9 +44,6 @@ class KMSM(SGDBase, Saveable, Profileable, Predictor, Normalizable):
         return factor * reduce(lambda x, y: x + y,
                                map(lambda x: regf(x) * self.twreg,
                                    self.ownparams))
-
-    def geterr(self, probs, gold): # cross-entropy
-        return -T.mean(T.log(probs[T.arange(self.batsize), gold]))
 
     @property
     def ownparams(self):
@@ -59,6 +55,26 @@ class KMSM(SGDBase, Saveable, Profileable, Predictor, Normalizable):
 
     def getnormf(self):
         return None
+    #endregion SMBase
+
+
+    def defmodel(self):
+        pathidxs = T.imatrix("pathidxs")
+        zidx = T.ivector("zidx") # rhs corruption only
+        scores = self.definnermodel(pathidxs) # ? scores: float(batsize, vocabsize)
+        probs = T.nnet.softmax(scores) # row-wise softmax, ? probs: float(batsize, vocabsize)
+        return probs, zidx, [pathidxs, zidx]
+
+    def geterr(self, probs, gold): # cross-entropy
+        return -T.mean(T.log(probs[T.arange(self.batsize), gold]))
+
+    @property
+    def ownparams(self):
+        return []
+
+    @property
+    def depparams(self):
+        return []
 
     def getsamplegen(self, trainX, labels):
         batsize = self.batsize

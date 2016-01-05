@@ -1,7 +1,10 @@
 __author__ = 'denis'
-from teafacto.utils import issequence
-import numpy as np
 from collections import OrderedDict
+
+import numpy as np
+
+from teafacto.core.utils import issequence
+
 
 class SparseTensor(object):
 

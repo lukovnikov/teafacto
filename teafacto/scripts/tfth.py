@@ -1,12 +1,16 @@
 __author__ = 'denis'
 
-from teafacto.data.sptensor import SparseTensor
 from datetime import datetime
-from matplotlib import pyplot as plt
-import pickle, os, pkgutil, pandas as pd, numpy as np
-from IPython import embed
+import pickle
+import os
 
-from teafacto.tensorfac import OTFSGDC, OTFMF0SGDC
+from matplotlib import pyplot as plt
+import pandas as pd
+import numpy as np
+
+from teafacto.core.sptensor import SparseTensor
+from teafacto.facs.tensorfac import OTFSGDC, OTFMF0SGDC
+
 
 # TODO:  - 1. do the training
 #           - first check if sampling works correctly

@@ -2,11 +2,16 @@ __author__ = 'denis'
 
 from datetime import datetime
 from collections import OrderedDict, Counter
-import numpy as np, pandas as pd, pickle
+import pickle
+
+import numpy as np
+import pandas as pd
 from matplotlib import pyplot as plt
 from IPython import embed
 
-from teafacto.mf import NMFSGDCL
+from teafacto.facs.mf import NMFSGDCL
+
+
 #from teafacto.mftf import NMFALS, NMFSGDC
 
 

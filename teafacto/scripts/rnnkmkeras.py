@@ -1,20 +1,22 @@
 __author__ = 'denis'
 
-from keras.layers.recurrent import SimpleRNN, GRU, LSTM
-from keras.activations import softmax, tanh, sigmoid
+from datetime import datetime
+import pickle
+import os
+import math
+
+from keras.layers.recurrent import GRU
 from keras.models import Sequential
 from keras.layers.embeddings import Embedding
 from keras.layers.core import Dense
 from keras.regularizers import l2
-from keras.optimizers import SGD, Adadelta, Adagrad
-import keras as K
+from keras.optimizers import SGD, Adadelta
 from keras.callbacks import Callback
-
-from teafacto.data.sptensor import SparseTensor
-from datetime import datetime
 from matplotlib import pyplot as plt
-import pickle, os, pkgutil, pandas as pd, numpy as np, math
+import numpy as np
 from IPython import embed
+
+from teafacto.core.sptensor import SparseTensor
 
 
 def loaddata(file):

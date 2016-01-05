@@ -1,17 +1,17 @@
 from __future__ import print_function
 
-import theano, time, pickle, collections
-import numpy as np, pandas as pd
-import sys, os
-
-from theano import tensor as T
-from theano.ifelse import ifelse
-from math import ceil, floor
+import pickle
+import sys
+import os
+from math import ceil
 from datetime import datetime as dt
-from IPython import embed
 
-from utils import *
+import numpy as np
+from theano import tensor as T
 
+from teafacto.core.utils import *
+
+# !!! OLD CODE
 
 class TFSGD(object):
     def __init__(self, dims=10, maxiter=50, wregs=0.0, lr=0.0000001, negrate=1, numbats=100, corruption="rhs", invZoffset=501):

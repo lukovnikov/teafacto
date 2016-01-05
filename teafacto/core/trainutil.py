@@ -3,10 +3,12 @@ from datetime import datetime as dt
 from math import ceil
 import os
 import sys
+
 import numpy as np
 import theano
 from theano import tensor as T
-from teafacto.optimizers import SGD, Optimizer
+
+from teafacto.core.optimizers import SGD, Optimizer
 from teafacto.xxrnnkm import showgraph
 
 __author__ = 'denis'

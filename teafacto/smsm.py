@@ -1,17 +1,65 @@
 import inspect
+
 import numpy as np
 import theano
+
 from theano import tensor as T
-from teafacto.km import Normalizable
-from teafacto.rnn import RNUBase
+
+from teafacto.core.trainutil import SGDBase, Saveable, Profileable, Predictor, Normalizable
+from teafacto.core.rnn import RNUBase
 from teafacto.kmsm import KMSM
+from math import ceil
 
 __author__ = 'denis'
 
 # Sequence Model - SoftMax objective
+# used for knowledge modelling anyway
+# all models here assume single index space
+# i.c.t. KMSM, SMSM feedbacks on all elements from sequence
 
 
-class SMSM(KMSM):
+class SMSM(SGDBase, Saveable, Profileable, Predictor, Normalizable):
+    #region SMBase
+    def __init__(self, vocabsize=10, negrate=None, margin=None, **kw):
+        super(SMSM, self).__init__(**kw)
+        self.vocabsize = vocabsize
+
+    def train(self, trainX, labels, evalinter=10):
+        self.batsize = int(ceil(trainX.shape[0]*1./self.numbats))
+        self.tbatsize = theano.shared(np.int32(self.batsize))
+        model = self.defmodel() # the last element is list of inputs, all others go to geterr()
+        tErr = self.geterr(*model[:-1])
+        tReg = self.getreg()
+        #embed()
+        tCost = tErr + tReg
+        #showgraph(tCost)
+        #embed() # tErr.eval({inps[0]: [0], inps[1]:[10], gold: [1]})
+
+        trainf = self.gettrainf(model[-1], [tErr, tCost], tCost)
+        err = self.trainloop(trainf=self.getbatchloop(trainf, self.getsamplegen(trainX, labels)),
+                             evalinter=evalinter,
+                             normf=self.getnormf())
+        return err
+
+    def definnermodel(self, pathidxs):
+        raise NotImplementedError("use subclass")
+
+    def getreg(self, regf=lambda x: T.sum(x**2), factor=1./2):
+        return factor * reduce(lambda x, y: x + y,
+                               map(lambda x: regf(x) * self.twreg,
+                                   self.ownparams))
+
+    @property
+    def ownparams(self):
+        return []
+
+    @property
+    def depparams(self):
+        return []
+
+    def getnormf(self):
+        return None
+    #endregion SMBase
 
     def defmodel(self):
         pathidxs = T.imatrix("pathidxs")  # integers of (batsize, seqlen)
@@ -172,6 +220,8 @@ class RNNESMSM(ESMSM):
         self.Wout = theano.shared((np.random.random((self.rnnu.innerdim, self.vocabsize)).astype("float32")-offset)*scale, name="Wout")
 
 
+# used for partially occluded prediction with models trained using RNNESMSM
+# RNNESMSMShort supports random occlusion during training
 class RNNESMSMShort(RNNESMSM):
     def __init__(self, occlusion=0.1, **kw): # randomly occlude portion of sequence elements
         self.occlusion = occlusion

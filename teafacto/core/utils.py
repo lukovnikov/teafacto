@@ -1,9 +1,11 @@
 __author__ = 'denis'
 import collections
+
 import theano
 from theano import tensor
 
-from blocksparse import sparse_block_dot
+from teafacto.core.blocksparse import sparse_block_dot
+
 
 def issequence(x):
     return isinstance(x, collections.Sequence) and not isinstance(x, basestring)

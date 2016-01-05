@@ -1,14 +1,17 @@
 from math import ceil
+
 import numpy as np
 import theano
+
 from theano import tensor as T
-from teafacto.rnn import RNUBase
-from teafacto.xxrnnkm import Predictor, Profileable, Saveable, Normalizable
-from teafacto.km import SGDBase, Saveable, Profileable, Normalizable, Predictor
+
+from teafacto.core.rnn import RNUBase
+from teafacto.core.trainutil import SGDBase, Saveable, Profileable, Normalizable, Predictor
 
 __author__ = 'denis'
 
 # Knowledge Model - Margin objective
+# all models here assume single index space
 
 
 class KMM(SGDBase, Predictor, Profileable, Saveable):
@@ -133,13 +136,6 @@ class EKMM(KMM, Normalizable):
         pathembs = self.embedpath(pathidxs)
         return self.innermodel(semb, pathembs, zemb, nzemb)
 
-    def innermodel(self, semb, pathembs, zemb, nzemb):
-        raise NotImplementedError("use subclass")
-
-
-class AddEKMM(EKMM):
-    # TransE
-
     def innermodel(self, semb, pathembs, zemb, nzemb): #pathemb: (batsize, seqlen, dim)
         om, _ = theano.scan(fn=self.traverse,
                          sequences=self._scanshuffle(pathembs), # --> (seqlen, batsize, dim{1,2})
@@ -155,6 +151,14 @@ class AddEKMM(EKMM):
         return pathembs.dimshuffle(1, 0, 2)
 
     def traverse(self, x_t, h_tm1):
+        raise NotImplementedError("use subclass")
+
+    def membership(self, o, t):
+        raise NotImplementedError("use subclass")
+
+
+class AddEKMM(EKMM):                # TransE
+    def traverse(self, x_t, h_tm1):
         h = h_tm1 + x_t
         return [h, h]
 
@@ -162,29 +166,27 @@ class AddEKMM(EKMM):
         return -T.sum(T.sqr(o - t), axis=1)
 
 
-class DiagMulEKMM(AddEKMM):
-    # Bilinear Diag
-    def traverse(self, x_t, h_tm1):
-        h = x_t * h_tm1
-        return [h, h]
-
+class MulEKMM(EKMM):
     def membership(self, o, t):
         return T.batched_dot(o, t)
 
 
-class MulEKMM(DiagMulEKMM):
-    # RESCAL
-    # TODO: TEST (test all EKMM's)
+class VecMulEKMM(EKMM, MulEKMM):    # Bilinear Diag
+    def traverse(self, x_t, h_tm1):
+        h = x_t * h_tm1
+        return [h, h]
 
+
+class MatMulEKMM(EKMM, MulEKMM):    # RESCAL
     def __init__(self, **kw):
-        super(MulEKMM, self).__init__(**kw)
+        super(MatMulEKMM, self).__init__(**kw)
         offset = 0.5
         scale = 1.
         self.R = theano.shared((np.random.random((self.vocabsize, self.dim, self.dim)).astype("float32")-offset)*scale, name="R")
 
     @property
     def ownparams(self):
-        return super(MulEKMM, self).ownparams + [self.R]
+        return super(MatMulEKMM, self).ownparams + [self.R]
 
     def traverse(self, x_t, h_tm1): # x_t : (batsize, dim, dim), h_tm1 : (batsize, dim)
         h = T.batched_dot(x_t, h_tm1)
@@ -197,7 +199,7 @@ class MulEKMM(DiagMulEKMM):
         return pathembs.dimshuffle(1, 0, 2, 3) # ==> (seqlen, batsize, dim, dim)
 
 
-class RNNEKMM(EKMM):
+class RNNEKMM(EKMM):        # is this still useful? TODO
 
     def innermodel(self, pathembs, zemb, nzemb): #pathemb: (batsize, seqlen, dim)
         oseq = self.rnnu(pathembs)
@@ -232,7 +234,7 @@ class RNNEKMM(EKMM):
         pass
 
 
-class RNNEOKMM(RNNEKMM):
+class RNNEOKMM(RNNEKMM):    # is this still useful? TODO
     def onrnnudefined(self):
         self.initwout()
 
