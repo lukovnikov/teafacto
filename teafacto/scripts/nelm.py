@@ -6,8 +6,11 @@ from matplotlib import pyplot as plt
 import pickle, os, pkgutil, pandas as pd, numpy as np
 from IPython import embed
 
-from teafacto.rnnkm import RNNTFSGDSM
-from teafacto.xrnnkm import RNNEKMM, RNNEOKMM, AddEKMM, DiagMulEKMM, RNNEKMSM, AutoRNNEKMSM, RNNESMSM, RNNESMSMShort
+from teafacto.xxrnnkm import RNNTFSGDSM
+from teafacto.rnnkm import RNNEKMM, RNNEOKMM, DiagMulEKMM, AutoRNNEKMSM, RNNESMSMShort
+from teafacto.kmsm import RNNEKMSM, AutoRNNEKMSM
+from teafacto.smsm import RNNESMSM, RNNESMSMShort
+from teafacto.kmm import AddEKMM, DiagMulEKMM, RNNEKMM, RNNEOKMM
 from teafacto.optimizers import SGD, RMSProp, AdaDelta
 from teafacto.rnn import GRU, LSTM, RNU
 
