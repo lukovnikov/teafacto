@@ -9,21 +9,28 @@ import theano
 from theano import tensor as T
 
 from teafacto.core.optimizers import SGD, Optimizer
-from teafacto.xxrnnkm import showgraph
+from teafacto.core.utils import ticktock as tt
 
 __author__ = 'denis'
 
 
+def showgraph(var):
+    theano.printing.pydotprint(var, outfile="/home/denis/logreg_pydotprint_prediction.png", var_with_name_simple=True)
+
+
 class SGDBase(object):
-    def __init__(self, maxiter=50, lr=0.0001, numbats=100, wreg=0.00001, **kw):
+    def __init__(self, maxiter=50, lr=0.0001, numbats=100, wreg=0.00001, validsplit=0.1, **kw):
+        self.tt = tt(self.__class__.__name__)
         self.maxiter = maxiter
         self.currentiter = 0
         self.numbats = numbats
         self.wreg = wreg
+        self.validsplit = validsplit
         self.tnumbats = theano.shared(np.float32(self.numbats), name="numbats")
         self.twreg = theano.shared(np.float32(self.wreg), name="wreg")
         self._optimizer = SGD(lr)
         super(SGDBase, self).__init__(**kw)
+        self.tt.tock("initialized").tick()
 
     @property
     def printname(self):
@@ -42,39 +49,85 @@ class SGDBase(object):
         grads = T.grad(cost, wrt=params)
         updates = self.getupdates(params, grads)
         #showgraph(updates[0][1])
-        return theano.function(inputs=finps,
+        ret = theano.function(inputs=finps,
                                outputs=fouts,
                                updates=updates,
                                profile=self._profiletheano)
+        self.tt.tock("compiled").tick()
+        return ret
+
+    def getvalidf(self, finps, fouts):
+        ret = theano.function(inputs=finps, outputs=fouts)
+        return ret
+
+    def getvalidation(self, validf, samplegen):
+        def validator():
+            samples = samplegen()
+            return validf(*samples)[0], samples[0].shape[0] # tErr
+        return validator
 
     def getupdates(self, params, grads):
         return self._optimizer.getupdates(params, grads)
 
+    def splitdata(self, data, labels):
+        np.random.seed(12345)
+        validsize = data.shape[0] * self.validsplit
+        valididxs = sorted(np.random.randint(0, data.shape[0], size=(validsize,)).astype("int32"))
+        validdata = data[valididxs, :]
+        validlabels = labels[valididxs]
+        traindata = np.delete(data, valididxs, axis=0)
+        trainlabels = np.delete(labels, valididxs)
+        return traindata, trainlabels, validdata, validlabels
+
+    def train(self, data, labels, evalinter=10): # X: z, x, y, v OR r, s, o, v
+        traindata, trainlabels, validdata, validlabels = self.splitdata(data, labels)
+        self.batsize = int(ceil(traindata.shape[0]*1./self.numbats))
+        self.tbatsize = theano.shared(np.int32(self.batsize))
+        inps, tErr, tCost = self.defproblem()
+
+        trainf = self.gettrainf(inps, [tErr, tCost], tCost)
+        validf = self.getvalidf(inps, [tErr])
+        err = self.trainloop(trainf=self.getbatchloop(trainf, self.getsamplegen(traindata, trainlabels)),
+                             evalinter=evalinter,
+                             normf=self.getnormf(),
+                             validf=self.getvalidation(validf, self.getsamplegen(validdata, validlabels, onebatch=True)))
+        return err
+
     def trainloop(self, trainf, validf=None, evalinter=1, normf=None, average_err=True):
+        self.tt.tick("training")
         err = []
+        verr = []
         stop = False
         self.currentiter = 1
         evalcount = evalinter
-        #if normf:
-        #    normf()
+        if normf:
+            normf()
         while not stop:
             print("iter %d/%.0f" % (self.currentiter, float(self.maxiter)))
             start = dt.now()
-            erre = trainf()
+            erre, tsize = trainf()
             if average_err:
-                erre /= self.numbats
+                erre /= tsize
             if normf:
                 normf()
             if self.currentiter == self.maxiter:
                 stop = True
             self.currentiter += 1
             err.append(erre)
-            print(erre)
+            if validf is not None and self.currentiter % evalinter == 0: # validate and print
+                verre, vsize = validf()
+                if average_err:
+                    verre /= vsize
+                verr.append(verre)
+                print "training error: %f \t validation error: %f" % (erre, verre)
+            else:
+                print "training error: %f" % erre
             print("iter done in %f seconds" % (dt.now() - start).total_seconds())
             evalcount += 1
             if self._autosave:
                 self.save()
-        return err
+        self.tt.tock("trained").tick()
+        return err, verr
 
     def getbatchloop(self, trainf, samplegen):
         '''
@@ -87,6 +140,7 @@ class SGDBase(object):
             prevperc = -1.
             maxc = numbats
             terr = 0.
+            tsize = 0
             while c < maxc:
                 #region Percentage counting
                 perc = round(c*100./maxc)
@@ -97,8 +151,9 @@ class SGDBase(object):
                 #endregion
                 sampleinps = samplegen()
                 terr += trainf(*sampleinps)[0]
+                tsize += sampleinps[0].shape[0]
                 c += 1
-            return terr
+            return terr, tsize
         return batchloop
 
 
@@ -109,7 +164,7 @@ class Saveable(object):
         self._autosave_filepath = None
     ############# Saving and Loading #################"
     def getsavepath(self):
-        dfile = os.path.join(os.path.dirname(__file__), "../models/%s.%s" %
+        dfile = os.path.join(os.path.dirname(__file__), "../../models/%s.%s" %
                              (self.printname, dt.now().strftime("%Y-%m-%d=%H:%M")))
         return dfile
 

@@ -69,29 +69,24 @@ class RNU(RNUBase):
         self.paramnames = ["u", "w"]
         super(RNU, self).__init__(**kw)
 
-    def rec(self, x_t, h_tm1):
-        inp = T.dot(x_t, self.w)
-        rep = T.dot(h_tm1, self.u)
-        h = inp + rep
-        h = T.tanh(h)
+    def rec(self, x_t, h_tm1):      # x_t: (batsize, dim), h_tm1: (batsize, innerdim)
+        inp = T.dot(x_t, self.w)    # w: (dim, innerdim) ==> inp: (batsize, innerdim)
+        rep = T.dot(h_tm1, self.u)  # u: (innerdim, innerdim) ==> rep: (batsize, innerdim)
+        h = inp + rep               # h: (batsize, innerdim)
+        h = T.tanh(h)               #
         return [h, h] #T.tanh(inp+rep)
 
-
-class GRU(RNUBase):
+class GatedRNU(RNUBase):
     def __init__(self, gateactivation=T.nnet.sigmoid, outpactivation=T.tanh, **kw):
         self.gateactivation = gateactivation
         self.outpactivation = outpactivation
-        self.paramnames = ["uz", "wz", "ur", "wr", "u", "w", "br", "bz", "b"]
-        super(GRU, self).__init__(**kw)
+        super(GatedRNU, self).__init__(**kw)
 
-    def _getz(self, x_t, h_tm1):
-        return self.gateactivation(T.dot(h_tm1, self.uz) + T.dot(x_t, self.wz) + self.bz)
-    def _getr(self, x_t, h_tm1):
-        return self.gateactivation(T.dot(h_tm1, self.ur) + T.dot(x_t, self.wr) + self.br)
-    def _gethh(self, x_t, h_tm1, r):
-        return self.outpactivation(T.dot(h_tm1 * r, self.u) + T.dot(x_t, self.w) + self.b)
-    def _geth(self, z, hh, h_tm1):
-        return z * h_tm1 + (1-z) * hh
+
+class GRU(GatedRNU):
+    def __init__(self, **kw):
+        self.paramnames = ["um", "wm", "uhf", "whf", "u", "w", "bm", "bhf", "b"]
+        super(GRU, self).__init__(**kw)
 
     def rec(self, x_t, h_tm1):
         '''
@@ -99,17 +94,51 @@ class GRU(RNUBase):
         :param h_tm1: previous states (nb_samples, out_dim)
         :return: new state (nb_samples, out_dim)
         '''
-        z = self._getz(x_t, h_tm1)
-        r = self._getr(x_t, h_tm1)
-        hh = self._gethh(x_t, h_tm1, r)
-        h = self._geth(z, hh, h_tm1)
+        mgate =  self.gateactivation(T.dot(h_tm1, self.um)  + T.dot(x_t, self.wm)  + self.bm)
+        hfgate = self.gateactivation(T.dot(h_tm1, self.uhf) + T.dot(x_t, self.whf) + self.bhf)
+        canh = self.outpactivation(T.dot(h_tm1 * hfgate, self.u) + T.dot(x_t, self.w) + self.b)
+        h = mgate * h_tm1 + (1-mgate) * canh
         return [h, h]
+
+class IFGRU(GatedRNU):
+    def __init__(self, **kw):
+        self.paramnames = ["um", "wm", "uhf", "whf", "uif", "wif", "u", "w", "bm", "bhf", "bif", "b"]
+        super(IFGRU, self).__init__(**kw)
+
+    def rec(self, x_t, h_tm1):
+        '''
+        :param x_t: input values (nb_samples, nb_feats) for this recurrence step
+        :param h_tm1: previous states (nb_samples, out_dim)
+        :return: new state (nb_samples, out_dim)
+        '''
+        mgate =  self.gateactivation(T.dot(h_tm1, self.um)  + T.dot(x_t, self.wm)  + self.bm)
+        hfgate = self.gateactivation(T.dot(h_tm1, self.uhf) + T.dot(x_t, self.whf) + self.bhf)
+        ifgate = self.gateactivation(T.dot(h_tm1, self.uif) + T.dot(x_t, self.wif) + self.bif)
+        canh = self.outpactivation(T.dot(h_tm1 * hfgate, self.u) + T.dot(x_t * ifgate, self.w) + self.b)
+        h = mgate * h_tm1 + (1-mgate) * canh
+        return [h, h]
+
+class IFGRUTM(GatedRNU):
+    def __init__(self, **kw):
+        self.paramnames = ["ucf, uyf, uxf, uof, ucm, uc, rcf, ryf, rxf, rof, rcm, rc, wcf, wyf, wxf, wof, wcm, wc, wo, bcf, byf, bxf, bcm, bof, bc"]
+
+    def rec(self, x_t, c_tm1, y_tm1):
+        cfgate = self.gateactivation(T.dot(c_tm1, self.ucf) + T.dot(y_tm1, self.rcf) + T.dot(x_t, self.wcf) + self.bcf)
+        yfgate = self.gateactivation(T.dot(c_tm1, self.uyf) + T.dot(y_tm1, self.ryf) + T.dot(x_t, self.wyf) + self.byf)
+        xfgate = self.gateactivation(T.dot(c_tm1, self.uxf) + T.dot(y_tm1, self.rxf) + T.dot(x_t, self.wxf) + self.bxf)
+        mgate = self.gateactivation(T.dot(c_tm1, self.ucm) + T.dot(y_tm1, self.rcm) + T.dot(x_t, self.wcm) + self.bcm)
+        cft = T.dot(c_tm1 * cfgate, self.uc)
+        yft = T.dot(y_tm1 * yfgate, self.rc)
+        xft = T.dot(x_t * xfgate, self.wc)
+        canct = self.outpactivation(cft + yft + xft + self.bc)
+        c_t = mgate * c_tm1 + (1-mgate) * canct
+        ofgate = self.gateactivation(T.dot(c_t, self.uof) + T.dot(y_tm1, self.rof) + T.dot(x_t, self.wof) + self.bof)
+        y_t = self.outpactivation(T.dot(c_t * ofgate, self.wo))
+        return [y_t, c_t, y_t]
 
 
 class LSTM(RNUBase):
-    def __init__(self, gateactivation=T.nnet.sigmoid, outpactivation=T.tanh, **kw):
-        self.gateactivation = gateactivation
-        self.outpactivation = outpactivation
+    def __init__(self, **kw):
         self.paramnames = ["wf", "rf", "bf", "wi", "ri", "bi", "wo", "ro", "bo", "w", "r", "b", "pf", "pi", "po"]
         super(LSTM, self).__init__(**kw)
 

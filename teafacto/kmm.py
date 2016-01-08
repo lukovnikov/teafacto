@@ -25,7 +25,14 @@ class KMM(SGDBase, Predictor, Profileable, Saveable):
     def printname(self):
         return super(KMM, self).printname + "+n"+str(self.negrate)
 
-    def train(self, trainX, labels, evalinter=10): # X: z, x, y, v OR r, s, o, v
+    def defproblem(self):
+        pdot, ndot, inps = self.defmodel()
+        tErr = self.geterr(pdot, ndot)
+        tReg = self.getreg()
+        tCost = tErr + tReg
+        return inps, tErr, tCost
+
+    def ___train(self, trainX, labels, evalinter=10): # X: z, x, y, v OR r, s, o, v
         self.batsize = int(ceil(trainX.shape[0]*1./self.numbats))
         self.tbatsize = theano.shared(np.int32(self.batsize))
         pdot, ndot, inps = self.defmodel()
@@ -37,9 +44,11 @@ class KMM(SGDBase, Predictor, Profileable, Saveable):
         #embed() # tErr.eval({inps[0]: [0], inps[1]:[10], gold: [1]})
 
         trainf = self.gettrainf(inps, [tErr, tCost], tCost)
+        validf = self.getvalidf(inps, [tErr])
         err = self.trainloop(trainf=self.getbatchloop(trainf, self.getsamplegen(trainX, labels)),
                              evalinter=evalinter,
-                             normf=self.getnormf())
+                             normf=self.getnormf(),
+                             validf=validf)
         return err
 
     def defmodel(self):
@@ -72,13 +81,13 @@ class KMM(SGDBase, Predictor, Profileable, Saveable):
     def getnormf(self):
         return None
 
-    def getsamplegen(self, trainX, labels):
-        batsize = self.batsize
+    def getsamplegen(self, data, labels, onebatch=False):
+        batsize = self.batsize if not onebatch else data.shape[0]
         negrate = self.negrate
 
         def samplegen():
-            nonzeroidx = sorted(np.random.randint(0, trainX.shape[0], size=(batsize,)).astype("int32"))
-            trainXsample = trainX[nonzeroidx, :].astype("int32")
+            nonzeroidx = sorted(np.random.randint(0, data.shape[0], size=(batsize,)).astype("int32"))
+            trainXsample = data[nonzeroidx, :].astype("int32")
             trainXsample = np.repeat(trainXsample, negrate, axis=0)
             labelsample = labels[nonzeroidx].astype("int32")
             labelsample = np.repeat(labelsample, negrate, axis=0)
@@ -91,8 +100,8 @@ class KMM(SGDBase, Predictor, Profileable, Saveable):
     def getpredictfunction(self):
         pdot, _, inps = self.defmodel()
         scoref = theano.function(inputs=[inps[0], inps[1], inps[2]], outputs=pdot)
-        def pref(path, o):
-            args = [np.asarray(i).astype("int32") for i in [path, o]]
+        def pref(s, path, o):
+            args = [np.asarray(i).astype("int32") for i in [s, path, o]]
             return scoref(*args)
         return pref
 
@@ -129,17 +138,17 @@ class EKMM(KMM, Normalizable):
         return tuple(map(lambda x: self.W[x, :], idxs))
 
     def embedpath(self, path):
-        return self.embed(path)
+        return self.embed(path)[0]
 
     def definnermodel(self, sidx, pathidxs, zidx, nzidx):
         semb, zemb, nzemb = self.embed(sidx, zidx, nzidx)
         pathembs = self.embedpath(pathidxs)
         return self.innermodel(semb, pathembs, zemb, nzemb)
 
-    def innermodel(self, semb, pathembs, zemb, nzemb): #pathemb: (batsize, seqlen, dim)
+    def innermodel(self, semb, pathembs, zemb, nzemb): #pathemb: (batsize, seqlen, dim), *emb: (batsize, dim)
         om, _ = theano.scan(fn=self.traverse,
                          sequences=self._scanshuffle(pathembs), # --> (seqlen, batsize, dim{1,2})
-                         outputs_info=[None, semb] # zeroes like (batsize, dim)
+                         outputs_info=[None, semb]
                          )
         om = om[0] # --> (seqlen, batsize, dim)
         om = om[-1, :, :] # --> (batsize, dim)
@@ -153,31 +162,42 @@ class EKMM(KMM, Normalizable):
     def traverse(self, x_t, h_tm1):
         raise NotImplementedError("use subclass")
 
-    def membership(self, o, t):
+    def membership(self, h_tm1, t):
         raise NotImplementedError("use subclass")
 
 
-class AddEKMM(EKMM):                # TransE
-    def traverse(self, x_t, h_tm1):
-        h = h_tm1 + x_t
-        return [h, h]
-
+class DistMemberEKMM(EKMM):
     def membership(self, o, t):
         return -T.sum(T.sqr(o - t), axis=1)
 
 
-class MulEKMM(EKMM):
+class DotMemberEKMM(EKMM):
     def membership(self, o, t):
         return T.batched_dot(o, t)
 
 
-class VecMulEKMM(EKMM, MulEKMM):    # Bilinear Diag
-    def traverse(self, x_t, h_tm1):
+class CosMemberEKMM(EKMM):
+    def membership(self, o, t):
+        return T.batched_dot(o, t) / (o.norm(2, axis=1) * t.norm(2, axis=1))
+
+
+class AddEKMM(DistMemberEKMM):                # TransE
+    def traverse(self, x_t, h_tm1): # x_t: (batsize, dim), h_tm1: (batsize, dim)
+        h = h_tm1 + x_t
+        return [h, h]
+
+
+class VecMulEKMM(DotMemberEKMM):    # Bilinear Diag
+    def traverse(self, x_t, h_tm1): # x_t: (batsize, dim), h_tm1: (batsize, dim)
         h = x_t * h_tm1
         return [h, h]
 
 
-class MatMulEKMM(EKMM, MulEKMM):    # RESCAL
+class VecMulEKMMDist(DistMemberEKMM, VecMulEKMM):
+    pass
+
+
+class MatMulEKMM(DotMemberEKMM):    # RESCAL
     def __init__(self, **kw):
         super(MatMulEKMM, self).__init__(**kw)
         offset = 0.5
@@ -199,16 +219,28 @@ class MatMulEKMM(EKMM, MulEKMM):    # RESCAL
         return pathembs.dimshuffle(1, 0, 2, 3) # ==> (seqlen, batsize, dim, dim)
 
 
-class RNNEKMM(EKMM):        # is this still useful? TODO
+class MatMulEKMMCos(CosMemberEKMM, MatMulEKMM):
+    pass
 
-    def innermodel(self, pathembs, zemb, nzemb): #pathemb: (batsize, seqlen, dim)
-        oseq = self.rnnu(pathembs)
-        om = oseq[:, -1, :] # om is (batsize, innerdims)  ---> last output
-        dotp = self.membership_dot(om, zemb)
-        ndotp = self.membership_dot(om, nzemb)
-        return dotp, ndotp
+class TransAddEKMM(DotMemberEKMM):
+    def __init__(self, **kw):
+        super(TransAddEKMM, self).__init__(**kw)
+        offset = 0.5
+        scale = 1.
+        self.Rtrans = theano.shared((np.random.random((self.vocabsize, self.dim, self.dim)).astype("float32")-offset)*scale, name="Rtrans")
+        self.Radd = theano.shared((np.random.random((self.vocabsize, self.dim)).astype("float32")-offset)*scale, name="Radd")
 
-    def membership_dot(self, o, t):
+    @property
+    def ownparams(self):
+        return super(TransAddEKMM, self).ownparams + [self.Rtrans, self.Radd]
+
+
+class RNNEKMM(EKMM):
+
+    def traverse(self, x_t, h_tm1):         # x_t: (batsize, dim), h_tm1: (batsize, dim)
+        return self.rnnu.rec(x_t, h_tm1)
+
+    def membership(self, o, t):
         return T.batched_dot(o, t)
 
     def membership_add(self, o, t):
@@ -243,7 +275,7 @@ class RNNEOKMM(RNNEKMM):    # is this still useful? TODO
         scale = 0.1
         self.Wout = theano.shared((np.random.random((self.rnnu.innerdim, self.dim)).astype("float32")-offset)*scale, name="Wout")
 
-    def membership_dot(self, o, t):
+    def membership(self, o, t):
         om = T.dot(o, self.Wout)
         return T.batched_dot(om, t)
 

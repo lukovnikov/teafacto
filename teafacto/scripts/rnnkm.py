@@ -8,15 +8,23 @@ from matplotlib import pyplot as plt
 import numpy as np
 
 from teafacto.core.sptensor import SparseTensor
+from teafacto.core.utils import ticktock as TT
 
 
 
 
 # from teafacto.kmsm import RNNEKMSM, AutoRNNEKMSM, AutoRNNEKMSM
 from teafacto.smsm import RNNESMSM
+from teafacto.kmm import AddEKMM, VecMulEKMM, MatMulEKMM, RNNEKMM, RNNEOKMM, VecMulEKMMDist
 
 from teafacto.core.optimizers import SGD
-from teafacto.core.rnn import GRU
+from teafacto.core.rnn import GRU, IFGRU, LSTM, IFGRUTM
+
+from teafacto.kmm import EKMM
+import theano
+from theano import tensor as T
+
+np.random.seed(12345)
 
 
 def loaddata(file):
@@ -44,7 +52,7 @@ def run():
     innerdims = dims
     negrate = 10
     numbats = 100 # 100
-    epochs = 200 #20
+    epochs = 100 #20
     wreg = 0.0000001
     lr = 0.01/numbats #0.0001 # for SGD
     lr2 = 1.
@@ -54,14 +62,14 @@ def run():
 
     ############"
     dims = 20
-    innerdims = 50
-    lr = 8./numbats # 8
+    innerdims = dims#50
+    lr = 0.001/numbats # 8
 
     toy = False
 
     threshold = 0.5
     #paths
-    start = datetime.now()
+    datatt = TT("data")
 
     if toy:
         dims = 10
@@ -74,32 +82,31 @@ def run():
         epochs=100
     else:
         # get the data and split
-        datafileprefix = "../../data/nycfilms/"
+        datafileprefix = "../../data/nycfilms/triples.flat/"
         tensorfile = "alltripletensor.flat.ssd"
         fulldic = loaddic(datafileprefix+"tripletensor.flatidx.pkl")
         vocabsize = len(fulldic)
 
     data = loaddata(datafileprefix+tensorfile)
     data = data.keys.lok
-
     trainX = data[:, :2]
-    labels = data[:, 1:]
-
-    print "source data loaded in %f seconds" % (datetime.now() - start).total_seconds()
+    labels = data[:, -1]
+    # labels = data[:, 1:]
+    datatt.tock("loaded")
 
     # train model
-    print "training model"
-    start = datetime.now()
-    model = RNNESMSM(dim=dims, vocabsize=vocabsize, maxiter=epochs, wreg=wreg, numbats=numbats, negrate=negrate)\
+    model = MatMulEKMM(dim=dims, vocabsize=vocabsize, maxiter=epochs, wreg=wreg, numbats=numbats, negrate=negrate, validsplit=0.02)\
                 .autosave.normalize \
             + SGD(lr=lr) \
-            + GRU(dim=dims, innerdim=innerdims, wreg=wreg)
-    print "model %s defined in %f" % (model.__class__.__name__, (datetime.now() - start).total_seconds())
-    start = datetime.now()
-    err = model.train(trainX, labels, evalinter=evalinter)
-    print "model trained in %f" % (datetime.now() - start).total_seconds()
+            #+ IFGRU(dim=dims, innerdim=innerdims, wreg=wreg)
+    err, verr = model.train(trainX, labels, evalinter=evalinter)
+    erfile = "allcompat.flat.ssd"
+    #traincompat(model.W.get_value(), erfile)
     plt.plot(err, "r")
+    if len(verr) > 0:
+        plt.plot(verr, "g")
     plt.show(block=True)
+
 
     #model.save(getsavepath())
     '''print "test prediction:"
@@ -109,10 +116,91 @@ def run():
         print model.predict(0, 10, 1)
         print model.predict(0, 10, 2)
     else:
-        print model.predict([[417, 11307]], [9145])
-        print model.predict([[417, 11307]], [9156])
+        print model.predict([417], [[11307]], [9145])
+        print model.predict([417], [[11307]], [9156])
 
     #embed()
+
+def dotraincompat():
+    emodel = EKMM.load("../../models/MatMulEKMM+SGD+n10+E20D.2016-01-06=16:21.auto")
+    entemb = emodel.W.get_value()
+    erfile = "allcompat.flat.ssd"
+    traincompat(entemb, erfile)
+
+def traincompat(entemb, erfile): # entemb: (vocabsize, dim) matrix of entity embeddings
+                                 # erfile: path to file containing which entity has which relation
+    # params
+    negrate = 3
+    numbats = 100 # 100
+    epochs = 200 #20
+    wreg = 0.0000001
+    evalinter = 1
+    lr = 0.001/numbats # 8
+
+    toy = False
+
+    tt = TT("data")
+
+    if toy:
+        dims = 10
+        numbats=10
+        wreg = 0.0
+        lr=0.1/numbats
+        datafileprefix = "../../data/"
+        tensorfile = "toy.ssd"
+        vocabsize=11
+        epochs=100
+    else:
+        # get the data and split
+        datafileprefix = "../../data/nycfilms/triples.flat/"
+        fulldic = loaddic(datafileprefix+"compatreldic.flatidx.pkl")
+        vocabsize = len(fulldic)
+
+    data = loaddata(datafileprefix+erfile)
+    data = data.keys.lok
+    trainX = data[:, :1]
+    labels = data[:, 1]
+    tt.tock("loaded")
+
+    # train model
+    model = FixedEntCompat(entembs=entemb, vocabsize=vocabsize, maxiter=epochs, wreg=wreg, numbats=numbats, negrate=negrate)\
+                .autosave.normalize \
+            + SGD(lr=lr)
+    err = model.train(trainX, labels, evalinter=evalinter)
+    plt.plot(err, "r")
+    plt.show(block=True)
+
+
+class FixedEntCompat(EKMM): # margin-based matrix factorization
+    def __init__(self, entembs, **kw):
+        self.entembs = theano.shared(entembs)
+        kw.update([("dim", entembs.shape[1])])
+        super(FixedEntCompat, self).__init__(**kw)
+
+    def defmodel(self):
+        lhs = T.ivector("lhs")
+        rhs, nrhs = T.ivectors("rhs","nrhs")
+        lhsemb = self.entembs[lhs, :]
+        rhsemb = self.W[rhs, :]
+        nrhsemb = self.W[nrhs, :]
+        pdot = T.batched_dot(lhsemb, rhsemb)
+        ndot = T.batched_dot(lhsemb, nrhsemb)
+        return pdot, ndot, [lhs, rhs, nrhs]
+
+    def getsamplegen(self, trainX, labels):
+        innersamplegen = super(FixedEntCompat, self).getsamplegen(trainX, labels)
+        def samplegen():
+            innerret = innersamplegen()
+            return [innerret[0], innerret[2], innerret[3]]
+        return samplegen
+
+    def getpredictfunction(self):
+        pdot, _, inps = self.defmodel()
+        scoref = theano.function(inputs=[inps[0], inps[2]], outputs=pdot)
+        def pref(l, r):
+            args = [np.asarray(i).astype("int32") for i in [l, r]]
+            return scoref(*args)
+        return pref
 
 
 ###################### FUNCTIONS FOR INSPECTION ##########################
@@ -160,3 +248,4 @@ def chaintransform(model, idx, *tidxs):
 
 if __name__ == "__main__":
     run()
+    #dotraincompat()

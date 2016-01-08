@@ -5,7 +5,33 @@ import theano
 from theano import tensor
 
 from teafacto.core.blocksparse import sparse_block_dot
+from datetime import datetime as dt
 
+class ticktock(object):
+    def __init__(self, prefix="", verbose=True):
+        self.prefix = prefix
+        self.verbose = verbose
+        self.state = None
+        self._tick()
+
+    def tick(self, state=None):
+        if self.verbose and state is not None:
+            print "%s: %s" % (self.prefix, state)
+        self._tick()
+
+    def _tick(self):
+        self.ticktime = dt.now()
+
+    def _tock(self):
+        return (dt.now() - self.ticktime).total_seconds()
+
+    def tock(self, action=None, prefix=None):
+        duration = self._tock()
+        if self.verbose:
+            prefix = prefix if prefix is not None else self.prefix
+            action = action if action is not None else self.state
+            print "%s: %s in %f seconds" % (prefix, action, duration)
+        return self
 
 def issequence(x):
     return isinstance(x, collections.Sequence) and not isinstance(x, basestring)
