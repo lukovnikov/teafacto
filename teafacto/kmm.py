@@ -15,11 +15,12 @@ __author__ = 'denis'
 
 
 class KMM(SGDBase, Predictor, Profileable, Saveable):
-    def __init__(self, vocabsize=10, negrate=1, margin=1.0, **kw):
+    def __init__(self, vocabsize=10, numrels=0, negrate=1, margin=1.0, **kw):
         super(KMM, self).__init__(**kw)
         self.vocabsize = vocabsize
         self.negrate = negrate
         self.margin = margin
+        self.numrels = numrels
 
     @property
     def printname(self):
@@ -135,29 +136,21 @@ class EKMM(KMM, Normalizable):
         return []
 
     def embed(self, *idxs):
-        return tuple(map(lambda x: self.W[x, :], idxs))
+        if len(idxs) == 1:
+            return self.W[idxs[0], :]
+        else:
+            return tuple(map(lambda x: self.W[x, :], idxs))
 
-    def embedpath(self, path):
-        return self.embed(path)[0]
-
-    def definnermodel(self, sidx, pathidxs, zidx, nzidx):
-        semb, zemb, nzemb = self.embed(sidx, zidx, nzidx)
-        pathembs = self.embedpath(pathidxs)
-        return self.innermodel(semb, pathembs, zemb, nzemb)
-
-    def innermodel(self, semb, pathembs, zemb, nzemb): #pathemb: (batsize, seqlen, dim), *emb: (batsize, dim)
+    def definnermodel(self, sidx, pathidxs, zidx, nzidx):#pathemb: (batsize, seqlen), *emb: (batsize)
         om, _ = theano.scan(fn=self.traverse,
-                         sequences=self._scanshuffle(pathembs), # --> (seqlen, batsize, dim{1,2})
-                         outputs_info=[None, semb]
+                         sequences=pathidxs.T, # --> (seqlen, batsize)
+                         outputs_info=[None, self.embed(sidx)]
                          )
         om = om[0] # --> (seqlen, batsize, dim)
         om = om[-1, :, :] # --> (batsize, dim)
-        dotp = self.membership(om, zemb)
-        ndotp = self.membership(om, nzemb)
+        dotp = self.membership(om, self.embed(zidx))
+        ndotp = self.membership(om, self.embed(nzidx))
         return dotp, ndotp
-
-    def _scanshuffle(self, pathembs):
-        return pathembs.dimshuffle(1, 0, 2)
 
     def traverse(self, x_t, h_tm1):
         raise NotImplementedError("use subclass")
@@ -183,13 +176,13 @@ class CosMemberEKMM(EKMM):
 
 class AddEKMM(DistMemberEKMM):                # TransE
     def traverse(self, x_t, h_tm1): # x_t: (batsize, dim), h_tm1: (batsize, dim)
-        h = h_tm1 + x_t
+        h = h_tm1 + self.embed(x_t)
         return [h, h]
 
 
 class VecMulEKMM(DotMemberEKMM):    # Bilinear Diag
     def traverse(self, x_t, h_tm1): # x_t: (batsize, dim), h_tm1: (batsize, dim)
-        h = x_t * h_tm1
+        h = self.embed(x_t) * h_tm1
         return [h, h]
 
 
@@ -202,38 +195,41 @@ class MatMulEKMM(DotMemberEKMM):    # RESCAL
         super(MatMulEKMM, self).__init__(**kw)
         offset = 0.5
         scale = 1.
-        self.R = theano.shared((np.random.random((self.vocabsize, self.dim, self.dim)).astype("float32")-offset)*scale, name="R")
+        self.R = theano.shared((np.random.random((self.numrels, self.dim, self.dim)).astype("float32")-offset)*scale, name="R")
 
     @property
     def ownparams(self):
         return super(MatMulEKMM, self).ownparams + [self.R]
 
     def traverse(self, x_t, h_tm1): # x_t : (batsize, dim, dim), h_tm1 : (batsize, dim)
-        h = T.batched_dot(x_t, h_tm1)
+        h = T.batched_dot(self.embedR(x_t-self.vocabsize+self.numrels), h_tm1)
         return [h, h]
 
-    def embedpath(self, pathidxs): # pathidxs: (batsize, seqlen)
-        return self.R[pathidxs, :] # return: (batsize, seqlen, dim, dim)
-
-    def _scanshuffle(self, pathembs):
-        return pathembs.dimshuffle(1, 0, 2, 3) # ==> (seqlen, batsize, dim, dim)
+    def embedR(self, idxs): # pathidxs: (batsize)
+        return self.R[idxs, :] # return: (batsize, dim, dim)
 
 
 class MatMulEKMMCos(CosMemberEKMM, MatMulEKMM):
     pass
 
 class TransAddEKMM(DotMemberEKMM):
-    def __init__(self, **kw):
+    def __init__(self, innerdim=10, **kw):
         super(TransAddEKMM, self).__init__(**kw)
         offset = 0.5
         scale = 1.
-        self.Rtrans = theano.shared((np.random.random((self.vocabsize, self.dim, self.dim)).astype("float32")-offset)*scale, name="Rtrans")
-        self.Radd = theano.shared((np.random.random((self.vocabsize, self.dim)).astype("float32")-offset)*scale, name="Radd")
+        self.innerdim = innerdim
+        self.Rtrans = theano.shared((np.random.random((self.numrels, self.dim, self.innerdim)).astype("float32")-offset)*scale, name="Rtrans")
+        self.Radd = theano.shared((np.random.random((self.numrels, self.innerdim)).astype("float32")-offset)*scale, name="Radd")
+        self.Rtransinv = theano.shared((np.random.random((self.numrels, self.innerdim, self.dim)).astype("float32")-offset)*scale, name="Rtransinv")
 
     @property
     def ownparams(self):
-        return super(TransAddEKMM, self).ownparams + [self.Rtrans, self.Radd]
+        return super(TransAddEKMM, self).ownparams + [self.Rtrans, self.Radd, self.Rtransinv]
 
+    def traverse(self, x_t, h_tm1):
+        x_t = x_t - self.vocabsize + self.numrels
+        h = T.batched_dot(T.batched_dot(h_tm1, self.Rtrans[x_t, :]) + self.Radd[x_t, :], self.Rtransinv[x_t, :])
+        return [h, h]
 
 class RNNEKMM(EKMM):
 

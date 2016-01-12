@@ -15,7 +15,7 @@ from teafacto.core.utils import ticktock as TT
 
 # from teafacto.kmsm import RNNEKMSM, AutoRNNEKMSM, AutoRNNEKMSM
 from teafacto.smsm import RNNESMSM
-from teafacto.kmm import AddEKMM, VecMulEKMM, MatMulEKMM, RNNEKMM, RNNEOKMM, VecMulEKMMDist
+from teafacto.kmm import AddEKMM, VecMulEKMM, MatMulEKMM, RNNEKMM, RNNEOKMM, VecMulEKMMDist, TransAddEKMM
 
 from teafacto.core.optimizers import SGD
 from teafacto.core.rnn import GRU, IFGRU, LSTM, IFGRUTM
@@ -80,12 +80,16 @@ def run():
         tensorfile = "toy.ssd"
         vocabsize=11
         epochs=100
+        numrels = 1
     else:
         # get the data and split
         datafileprefix = "../../data/nycfilms/triples.flat/"
         tensorfile = "alltripletensor.flat.ssd"
         fulldic = loaddic(datafileprefix+"tripletensor.flatidx.pkl")
         vocabsize = len(fulldic)
+        numrels = 20
+
+    innerdim2 = 20
 
     data = loaddata(datafileprefix+tensorfile)
     data = data.keys.lok
@@ -95,7 +99,7 @@ def run():
     datatt.tock("loaded")
 
     # train model
-    model = MatMulEKMM(dim=dims, vocabsize=vocabsize, maxiter=epochs, wreg=wreg, numbats=numbats, negrate=negrate, validsplit=0.02)\
+    model = AddEKMM(numrels=numrels, dim=dims, vocabsize=vocabsize, maxiter=epochs, wreg=wreg, numbats=numbats, negrate=negrate, validsplit=0.02)\
                 .autosave.normalize \
             + SGD(lr=lr) \
             #+ IFGRU(dim=dims, innerdim=innerdims, wreg=wreg)
