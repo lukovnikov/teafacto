@@ -1,14 +1,12 @@
 import inspect
-
 import numpy as np
-import theano
+from math import ceil
 
+import theano
 from theano import tensor as T
 
-from teafacto.core.trainutil import SGDBase, Saveable, Profileable, Predictor, Normalizable
 from teafacto.core.rnn import RNUBase
-from teafacto.kmsm import KMSM
-from math import ceil
+from teafacto.core.trainutil import SGDBase, Saveable, Profileable, Predictor, Normalizable
 
 __author__ = 'denis'
 

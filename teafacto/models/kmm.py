@@ -231,16 +231,10 @@ class TransAddEKMM(DotMemberEKMM):
         h = T.batched_dot(T.batched_dot(h_tm1, self.Rtrans[x_t, :]) + self.Radd[x_t, :], self.Rtransinv[x_t, :])
         return [h, h]
 
-class RNNEKMM(EKMM):
+class RNNEKMM(DotMemberEKMM):
 
     def traverse(self, x_t, h_tm1):         # x_t: (batsize, dim), h_tm1: (batsize, dim)
-        return self.rnnu.rec(x_t, h_tm1)
-
-    def membership(self, o, t):
-        return T.batched_dot(o, t)
-
-    def membership_add(self, o, t):
-        return -T.sum(T.sqr(o - t), axis=1)
+        return self.rnnu.rec(self.embed(x_t), h_tm1)
 
     @property
     def printname(self):
@@ -260,6 +254,10 @@ class RNNEKMM(EKMM):
 
     def onrnnudefined(self):
         pass
+
+class ERNNEKMM(RNNEKMM):
+    def traverse(self, x_t, h_tm1):
+        return self.rnnu.rec(x_t - self.vocabsize + self.numrels, h_tm1)
 
 
 class RNNEOKMM(RNNEKMM):    # is this still useful? TODO

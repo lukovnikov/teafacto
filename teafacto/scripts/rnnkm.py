@@ -1,26 +1,25 @@
 __author__ = 'denis'
 
-from datetime import datetime
-import pickle
+import numpy as np
 import os
+import pickle
+from datetime import datetime
 
 from matplotlib import pyplot as plt
-import numpy as np
 
 from teafacto.core.sptensor import SparseTensor
 from teafacto.core.utils import ticktock as TT
 
-
-
-
 # from teafacto.kmsm import RNNEKMSM, AutoRNNEKMSM, AutoRNNEKMSM
-from teafacto.smsm import RNNESMSM
-from teafacto.kmm import AddEKMM, VecMulEKMM, MatMulEKMM, RNNEKMM, RNNEOKMM, VecMulEKMMDist, TransAddEKMM
+from teafacto.models.kmm import MatMulEKMM, AddEKMM, RNNEKMM, VecMulEKMM, ERNNEKMM
 
 from teafacto.core.optimizers import SGD
-from teafacto.core.rnn import GRU, IFGRU, LSTM, IFGRUTM
+from teafacto.core.rnn import GRU, IFGRU, IEGRU, FullEGRU
 
-from teafacto.kmm import EKMM
+from teafacto.eval.kbc import Evaluation
+from teafacto.eval.metrics import RecallAt, MeanQuantile
+
+from teafacto.models.kmm import EKMM
 import theano
 from theano import tensor as T
 
@@ -78,13 +77,15 @@ def run():
         lr=0.1/numbats
         datafileprefix = "../../data/"
         tensorfile = "toy.ssd"
+        testtensorfile = None
         vocabsize=11
         epochs=100
         numrels = 1
     else:
         # get the data and split
         datafileprefix = "../../data/nycfilms/triples.flat/"
-        tensorfile = "alltripletensor.flat.ssd"
+        tensorfile = "alltripletensor.train.flat.ssd"
+        testtensorfile = "alltripletensor.test.flat.ssd"
         fulldic = loaddic(datafileprefix+"tripletensor.flatidx.pkl")
         vocabsize = len(fulldic)
         numrels = 20
@@ -102,28 +103,27 @@ def run():
     model = AddEKMM(numrels=numrels, dim=dims, vocabsize=vocabsize, maxiter=epochs, wreg=wreg, numbats=numbats, negrate=negrate, validsplit=0.02)\
                 .autosave.normalize \
             + SGD(lr=lr) \
-            #+ IFGRU(dim=dims, innerdim=innerdims, wreg=wreg)
+            #+ FullEGRU(dim=numrels, innerdim=innerdims, wreg=wreg, nobias=True)# nobias=True,, outpactivation=lambda x: x)
     err, verr = model.train(trainX, labels, evalinter=evalinter)
-    erfile = "allcompat.flat.ssd"
-    #traincompat(model.W.get_value(), erfile)
+
+    evaluation = Evaluation(model)
+    evaluation.run(loaddata(datafileprefix+testtensorfile).keys.lok, RecallAt(10), RecallAt(15), RecallAt(30), MeanQuantile)
+    print(evaluation)
+    evaluation.save()
+
     plt.plot(err, "r")
     if len(verr) > 0:
         plt.plot(verr, "g")
     plt.show(block=True)
 
-
-    #model.save(getsavepath())
-    '''print "test prediction:"
-    print model.getpredictfunction()(11329, 9325, 7156)
-    print model.getpredictfunction()(11329, 3674, 7155)'''
     if toy:
         print model.predict(0, 10, 1)
         print model.predict(0, 10, 2)
     else:
         print model.predict([417], [[11307]], [9145])
         print model.predict([417], [[11307]], [9156])
-
     #embed()
+
 
 def dotraincompat():
     emodel = EKMM.load("../../models/MatMulEKMM+SGD+n10+E20D.2016-01-06=16:21.auto")

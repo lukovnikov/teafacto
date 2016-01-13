@@ -3,28 +3,35 @@ from theano import tensor as T
 import inspect
 
 class RNUBase(object):
-    def __init__(self, dim=20, innerdim=20, wreg=0.0001, initmult=0.1, **kw): # dim is input dimensions, innerdim = dimension of internal elements
+    def __init__(self, dim=20, innerdim=20, wreg=0.0001, initmult=0.1, nobias=False, **kw): # dim is input dimensions, innerdim = dimension of internal elements
         super(RNUBase, self).__init__(**kw)
         self.dim = dim
         self.innerdim = innerdim
         self.wreg = wreg
         self.initmult = initmult
+        self.nobias = nobias
         self.initparams()
 
     def initparams(self):
         params = {}
         indim = self.innerdim
         for paramname in self.paramnames:
+            if paramname[0] == "b" and self.nobias is True:
+                setattr(self, paramname, 0)
+                continue
             if paramname[0] == "b" or paramname[0] == "p": # bias or peepholes, internal weights
                 shape = (self.innerdim,)
             elif paramname[0] == "w": #input processing matrices
                 shape = (self.dim, self.innerdim)
             else: # internal recurrent matrices
                 shape = (self.innerdim, self.innerdim)
-            paramval = (np.random.random(shape).astype("float32")-0.5)*self.initmult
+            paramval = self._inittensor(shape)
             params[paramname] = theano.shared(paramval, name=paramname)
             setattr(self, paramname, params[paramname])
         #self.initstate = T.zeros((self.indim,), dtype="float32")
+
+    def _inittensor(self, dims):
+        return (np.random.random(dims).astype("float32")-0.5)*self.initmult
 
     def getreg(self, regf=lambda x: T.sum(x**2), mult=1./2):
         return mult * reduce(lambda x, y: x+y,
@@ -62,7 +69,8 @@ class RNUBase(object):
 
     @property
     def parameters(self):
-        return map(lambda x: getattr(self, x), self.paramnames)
+        params = [param for param in self.paramnames if self.nobias is False or not param[0] == "b"]
+        return map(lambda x: getattr(self, x), params)
 
 class RNU(RNUBase):
     def __init__(self, **kw):
@@ -99,6 +107,29 @@ class GRU(GatedRNU):
         canh = self.outpactivation(T.dot(h_tm1 * hfgate, self.u) + T.dot(x_t, self.w) + self.b)
         h = mgate * h_tm1 + (1-mgate) * canh
         return [h, h]
+
+class IEGRU(GRU): # self-input-embedding GRU
+    def rec(self, x_t, h_tm1):
+        mgate =  self.gateactivation(T.dot(h_tm1, self.um)  + self.wm[x_t, :] + self.bm)
+        hfgate = self.gateactivation(T.dot(h_tm1, self.uhf) + self.whf[x_t, :] + self.bhf)
+        canh = self.outpactivation(T.dot(h_tm1 * hfgate, self.u) + self.w[x_t, :] + self.b)
+        h = mgate * h_tm1 + (1-mgate) * canh
+        return [h, h]
+
+class FullEGRU(IEGRU):
+    def __init__(self, **kw):
+        super(FullEGRU, self).__init__(**kw)
+        self.um = theano.shared(self._inittensor((self.dim, self.innerdim, self.innerdim)))
+        self.uhf = theano.shared(self._inittensor((self.dim, self.innerdim, self.innerdim)))
+        self.u = theano.shared(self._inittensor((self.dim, self.innerdim, self.innerdim)))
+
+    def rec(self, x_t, h_tm1):
+        mgate =  self.gateactivation(T.batched_dot(h_tm1, self.um[x_t, :, :])  + self.wm[x_t, :] + self.bm)
+        hfgate = self.gateactivation(T.batched_dot(h_tm1, self.uhf[x_t, :, :]) + self.whf[x_t, :] + self.bhf)
+        canh = self.outpactivation(T.batched_dot(h_tm1 * hfgate, self.u[x_t, :, :]) + self.w[x_t, :] + self.b)
+        h = mgate * h_tm1 + (1-mgate) * canh
+        return [h, h]
+
 
 class IFGRU(GatedRNU):
     def __init__(self, **kw):

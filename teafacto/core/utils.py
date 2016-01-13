@@ -12,6 +12,8 @@ class ticktock(object):
         self.prefix = prefix
         self.verbose = verbose
         self.state = None
+        self.perc = None
+        self.prevperc = None
         self._tick()
 
     def tick(self, state=None):
@@ -25,13 +27,39 @@ class ticktock(object):
     def _tock(self):
         return (dt.now() - self.ticktime).total_seconds()
 
+    def progress(self, x, of):
+        self.perc = int(round(100.* x/of))
+        if self.perc != self.prevperc:
+            print "%d" % self.perc  + "%"
+            self.prevperc = self.perc
+
     def tock(self, action=None, prefix=None):
         duration = self._tock()
         if self.verbose:
             prefix = prefix if prefix is not None else self.prefix
             action = action if action is not None else self.state
-            print "%s: %s in %f seconds" % (prefix, action, duration)
+            print "%s: %s in %s seconds" % (prefix, action, self._getdurationstr(duration))
         return self
+
+    def _getdurationstr(self, duration):
+        if duration > 60:
+            acc = ""
+            seconds = int(round(duration))
+            acc = "%d seconds" % seconds
+            minutes = seconds % 60
+            acc = "%d minutes, %s" % (minutes, acc)
+            if minutes < 60:
+                return acc
+            hours = minutes % 60
+            acc = "%d hours, %s" % (hours, acc)
+            if hours < 24:
+                return acc
+            days = hours % 24
+            return "%d days, %s" % (days, acc)
+
+        else:
+            return "%f" % duration
+
 
 def issequence(x):
     return isinstance(x, collections.Sequence) and not isinstance(x, basestring)

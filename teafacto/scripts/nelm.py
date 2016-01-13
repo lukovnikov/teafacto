@@ -1,16 +1,16 @@
 __author__ = 'denis'
 
-from datetime import datetime
-import pickle
+import numpy as np
 import os
+import pickle
+from datetime import datetime
 
 from matplotlib import pyplot as plt
-import numpy as np
-
 from teafacto.xxrnnkm import RNNTFSGDSM
-from teafacto.smsm import RNNESMSM
+
 from teafacto.core.optimizers import SGD
 from teafacto.core.rnn import GRU
+from teafacto.models.smsm import RNNESMSM
 
 
 def loaddata(file):
