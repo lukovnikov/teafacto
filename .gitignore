@@ -25,6 +25,8 @@ downloads/
 eggs/
 .eggs/
 lib/
+/data/kaggleai/*
+/data/glove/glove*
 lib64/
 parts/
 sdist/

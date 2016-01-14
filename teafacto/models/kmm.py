@@ -6,7 +6,7 @@ import theano
 from theano import tensor as T
 
 from teafacto.core.rnn import RNUBase
-from teafacto.core.trainutil import SGDBase, Saveable, Profileable, Normalizable, Predictor
+from teafacto.core.trainutil import SGDBase, Saveable, Profileable, Normalizable, Predictor, uniform
 
 __author__ = 'denis'
 
@@ -110,18 +110,25 @@ class KMM(SGDBase, Predictor, Profileable, Saveable):
 class EKMM(KMM, Normalizable):
     def __init__(self, dim=10, **kw):
         super(EKMM, self).__init__(**kw)
-        offset = 0.5
-        scale = 1.
         self.dim = dim
-        self.W = theano.shared((np.random.random((self.vocabsize, self.dim)).astype("float32")-offset)*scale, name="W")
+        self.initvars()
+
+    def initvars(self):
+        self.W = theano.shared(uniform((self.vocabsize, self.dim)), name="W")
+        return [self.W]
 
     def getnormf(self):
         if self._normalize is True:
-            norms = self.W.norm(2, axis=1).reshape((self.W.shape[0], 1))
-            upd = (self.W, self.W/norms)
-            return theano.function(inputs=[], outputs=[], updates=[upd])
+            upds = []
+            for normparam in self.getnormparams():
+                norms = normparam.norm(2, axis=1).reshape((normparam.shape[0], 1))
+                upds.append((normparam, normparam/norms))
+            return theano.function(inputs=[], outputs=[], updates=upds)
         else:
             return None
+
+    def getnormparams(self):
+        return [self.W]
 
     @property
     def printname(self):
@@ -178,6 +185,183 @@ class AddEKMM(DistMemberEKMM):                # TransE
     def traverse(self, x_t, h_tm1): # x_t: (batsize, dim), h_tm1: (batsize, dim)
         h = h_tm1 + self.embed(x_t)
         return [h, h]
+
+
+class GateAddEKMM(DistMemberEKMM):
+    def __init__(self, **kw):
+        super(GateAddEKMM, self).__init__(**kw)
+        self.R = theano.shared(uniform((self.numrels, self.dim)), name="R")
+
+    def traverse(self, x_t, h_tm1):
+        gate = self.R[x_t - self.vocabsize + self.numrels, :]
+        gate = T.nnet.sigmoid(gate)
+        h = h_tm1 * gate + self.embed(x_t)
+        return [h, h]
+
+    @property
+    def ownparams(self):
+        return super(GateAddEKMM, self).ownparams + [self.R]
+
+class FracAddEKMM(GateAddEKMM):
+    def traverse(self, x_t, h_tm1):
+        gate = self.R[x_t - self.vocabsize + self.numrels, :]
+        gate = T.nnet.sigmoid(gate)
+        h = h_tm1 * gate + self.embed(x_t) * (1-gate)
+        return [h, h]
+
+
+class EModAddEKMM(DistMemberEKMM): # better than TransE
+    def __init__(self, **kw):
+        super(EModAddEKMM, self).__init__(**kw)
+        self.T = theano.shared(uniform((self.dim, self.dim)), name="T")
+
+    @property
+    def ownparams(self):
+        return super(EModAddEKMM, self).ownparams + [self.T]
+
+    def traverse(self, x_t, h_tm1):
+        gate = T.dot(h_tm1, self.T)
+        gate = T.nnet.sigmoid(gate)
+        add = self.embed(x_t) * gate
+        h = h_tm1 + add
+        return [h, h]
+
+class EModRFracAddEKMM(DistMemberEKMM):
+    def initvars(self):
+        super(EModRFracAddEKMM, self).initvars()
+        self.X = theano.shared(uniform((self.numrels, self.dim)), name="X")
+        self.F = theano.shared(uniform((self.dim, self.dim)), name="F")
+
+    @property
+    def ownparams(self):
+        return super(EModRFracAddEKMM, self).ownparams + [self.X, self.F]
+
+    def getnormparams(self):
+        return super(EModRFracAddEKMM, self).getnormparams() + [self.X]
+
+    def traverse(self, x_t, h_tm1):
+        xemb1 = self.W[x_t, :]
+        xemb2 = self.X[x_t - self.vocabsize + self.numrels, :]
+        gate = T.dot(h_tm1, self.F)
+        gate = T.nnet.sigmoid(gate)
+        add = xemb2 * (1-gate) + xemb1 * gate
+        h = h_tm1 + add
+        return [h, h]
+
+class EModRFrac3AddEKMM(DistMemberEKMM):
+    def initvars(self):
+        super(EModRFrac3AddEKMM, self).initvars()
+        self.X = theano.shared(uniform((self.numrels, self.dim)), name="X")
+        self.Y = theano.shared(uniform((self.numrels, self.dim)), name="Y")
+        self.F = theano.shared(uniform((self.dim, self.dim)), name="F")
+        self.G = theano.shared(uniform((self.dim, self.dim)), name="G")
+
+    @property
+    def ownparams(self):
+        return super(EModRFrac3AddEKMM, self).ownparams + [self.X, self.Y, self.F, self.G]
+
+    def getnormparams(self):
+        return super(EModRFrac3AddEKMM, self).getnormparams() + [self.X, self.Y]
+
+    def traverse(self, x_t, h_tm1):
+        xemb1 = self.W[x_t, :]
+        xemb2 = self.X[x_t - self.vocabsize + self.numrels, :]
+        xemb3 = self.Y[x_t - self.vocabsize + self.numrels, :]
+        gate1 = T.dot(h_tm1, self.F)
+        gate1 = T.nnet.sigmoid(gate1)
+        gate2 = T.dot(h_tm1, self.G)
+        gate2 = T.nnet.sigmoid(gate2)
+        add = (xemb2 * (1-gate1) + xemb1 * gate1) * gate2 + (1-gate2) * xemb3
+        h = h_tm1 + add
+        return [h, h]
+
+
+class ERModAddEKMM(DistMemberEKMM):
+    def __init__(self, **kw):
+        super(ERModAddEKMM, self).__init__(**kw)
+        self.R = theano.shared(uniform((self.dim, self.dim)), name="R")
+        self.T = theano.shared(uniform((self.dim, self.dim)), name="T")
+
+    @property
+    def ownparams(self):
+        return super(ERModAddEKMM, self).ownparams + [self.R, self.T]
+
+    def traverse(self, x_t, h_tm1):
+        xembs = self.embed(x_t)
+        gate = T.dot(xembs, self.R)
+        gate += T.dot(h_tm1, self.T)
+        gate = T.nnet.sigmoid(gate)
+        add = xembs * gate
+        h = h_tm1 + add
+        return [h, h]
+
+class RModEModAddEKMM(DistMemberEKMM): ############## -- ***** --
+    def initvars(self):
+        super(RModEModAddEKMM, self).initvars()
+        self.R = theano.shared(uniform((self.numrels, self.dim, self.dim)), name="R")
+
+    @property
+    def ownparams(self):
+        return super(RModEModAddEKMM, self).ownparams + [self.R]
+
+    def traverse(self, x_t, h_tm1):
+        xembs = self.embed(x_t)
+        rmod = self.R[x_t-self.vocabsize+self.numrels, :, :]
+        emod = T.batched_dot(h_tm1, rmod)
+        gate = T.nnet.sigmoid(emod)
+        ad = xembs * gate
+        h = h_tm1 + ad
+        return [h, h]
+
+class ERModRFracAddEKMM(DistMemberEKMM):
+    def initvars(self):
+        super(ERModRFracAddEKMM, self).initvars()
+        self.R = theano.shared(uniform((self.numrels, self.dim)))
+        self.X = theano.shared(uniform((self.numrels, self.dim)))
+
+    @property
+    def ownparams(self):
+        return super(ERModRFracAddEKMM, self).ownparams + [self.X, self.R]
+
+    def getnormparams(self):
+        return super(ERModRFracAddEKMM, self).getnormparams() + [self.X]
+
+    def traverse(self, x_t, h_tm1):
+        xembs1 = self.W[x_t, :]
+        xembs2 = self.X[x_t-self.vocabsize+self.numrels, :]
+        rmod = self.R[x_t-self.vocabsize+self.numrels, :]
+        emod = h_tm1 + rmod
+        gate = T.nnet.sigmoid(emod)
+        add = xembs2 * (1-gate) + xembs1 * gate
+        h = h_tm1 + add
+        return [h, h]
+
+
+class RModEModRFracAddEKMM(DistMemberEKMM):
+    def initvars(self):
+        super(RModEModRFracAddEKMM, self).initvars()
+        self.R = theano.shared(uniform((self.numrels, self.dim, self.dim)))
+        self.X = theano.shared(uniform((self.numrels, self.dim)))
+
+    @property
+    def ownparams(self):
+        return super(RModEModRFracAddEKMM, self).ownparams + [self.X, self.R]
+
+    def getnormparams(self):
+        return super(RModEModRFracAddEKMM, self).getnormparams() + [self.X]
+
+    def traverse(self, x_t, h_tm1):
+        xembs1 = self.W[x_t, :]
+        xembs2 = self.X[x_t-self.vocabsize+self.numrels, :]
+        rmod = self.R[x_t-self.vocabsize+self.numrels, :, :]
+        emod = T.batched_dot(h_tm1, rmod)
+        gate = T.nnet.sigmoid(emod)
+        add = xembs2 * (1-gate) + xembs1 * gate
+        h = h_tm1 + add
+        return [h, h]
+
+
+
 
 
 class VecMulEKMM(DotMemberEKMM):    # Bilinear Diag

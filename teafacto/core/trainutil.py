@@ -412,3 +412,7 @@ class Embedder(Regularizable, Normalizable):
 
     def embed(self, idx):
         return self.W[idx, :]
+
+
+def uniform(shape, offset=0.5, scale=1.):
+    return (np.random.random(shape).astype("float32")-offset)*scale

@@ -45,13 +45,13 @@ class ticktock(object):
         if duration > 60:
             acc = ""
             seconds = int(round(duration))
-            acc = "%d seconds" % seconds
-            minutes = seconds % 60
-            acc = "%d minutes, %s" % (minutes, acc)
+            acc = "%d seconds" % (seconds % 60)
+            minutes = seconds // 60
+            acc = "%d minutes, %s" % (minutes % 60, acc)
             if minutes < 60:
                 return acc
-            hours = minutes % 60
-            acc = "%d hours, %s" % (hours, acc)
+            hours = minutes // 60
+            acc = "%d hours, %s" % (hours % 24, acc)
             if hours < 24:
                 return acc
             days = hours % 24

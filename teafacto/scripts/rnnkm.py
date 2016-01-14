@@ -11,7 +11,7 @@ from teafacto.core.sptensor import SparseTensor
 from teafacto.core.utils import ticktock as TT
 
 # from teafacto.kmsm import RNNEKMSM, AutoRNNEKMSM, AutoRNNEKMSM
-from teafacto.models.kmm import MatMulEKMM, AddEKMM, RNNEKMM, VecMulEKMM, ERNNEKMM
+from teafacto.models.kmm import *
 
 from teafacto.core.optimizers import SGD
 from teafacto.core.rnn import GRU, IFGRU, IEGRU, FullEGRU
@@ -100,14 +100,14 @@ def run():
     datatt.tock("loaded")
 
     # train model
-    model = AddEKMM(numrels=numrels, dim=dims, vocabsize=vocabsize, maxiter=epochs, wreg=wreg, numbats=numbats, negrate=negrate, validsplit=0.02)\
+    model = RModEModRFracAddEKMM(numrels=numrels, dim=dims, vocabsize=vocabsize, maxiter=epochs, wreg=wreg, numbats=numbats, negrate=negrate, validsplit=0.02)\
                 .autosave.normalize \
             + SGD(lr=lr) \
             #+ FullEGRU(dim=numrels, innerdim=innerdims, wreg=wreg, nobias=True)# nobias=True,, outpactivation=lambda x: x)
     err, verr = model.train(trainX, labels, evalinter=evalinter)
 
     evaluation = Evaluation(model)
-    evaluation.run(loaddata(datafileprefix+testtensorfile).keys.lok, RecallAt(10), RecallAt(15), RecallAt(30), MeanQuantile)
+    evaluation.run(loaddata(datafileprefix+testtensorfile).keys.lok, RecallAt(10), RecallAt(15), RecallAt(30), MeanQuantile())
     print(evaluation)
     evaluation.save()
 
