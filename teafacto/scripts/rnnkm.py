@@ -17,11 +17,14 @@ from teafacto.core.optimizers import SGD
 from teafacto.core.rnn import GRU, IFGRU, IEGRU, FullEGRU
 
 from teafacto.eval.kbc import Evaluation
+from teafacto.eval.eval import KBCEvaluator
 from teafacto.eval.metrics import RecallAt, MeanQuantile
 
 from teafacto.models.kmm import EKMM
 import theano
 from theano import tensor as T
+
+from teafacto.core.train import Trainer
 
 np.random.seed(12345)
 
@@ -51,7 +54,7 @@ def run():
     innerdims = dims
     negrate = 10
     numbats = 100 # 100
-    epochs = 100 #20
+    epochs = 100
     wreg = 0.0000001
     lr = 0.01/numbats #0.0001 # for SGD
     lr2 = 1.
@@ -70,25 +73,13 @@ def run():
     #paths
     datatt = TT("data")
 
-    if toy:
-        dims = 10
-        numbats=10
-        wreg = 0.0
-        lr=0.1/numbats
-        datafileprefix = "../../data/"
-        tensorfile = "toy.ssd"
-        testtensorfile = None
-        vocabsize=11
-        epochs=100
-        numrels = 1
-    else:
-        # get the data and split
-        datafileprefix = "../../data/nycfilms/triples.flat/"
-        tensorfile = "alltripletensor.train.flat.ssd"
-        testtensorfile = "alltripletensor.test.flat.ssd"
-        fulldic = loaddic(datafileprefix+"tripletensor.flatidx.pkl")
-        vocabsize = len(fulldic)
-        numrels = 20
+    # get the data and split
+    datafileprefix = "../../data/nycfilms/triples.flat/"
+    tensorfile = "alltripletensor.train.flat.ssd"
+    testtensorfile = "alltripletensor.test.flat.ssd"
+    fulldic = loaddic(datafileprefix+"tripletensor.flatidx.pkl")
+    vocabsize = len(fulldic)
+    numrels = 20
 
     innerdim2 = 20
 
@@ -99,30 +90,37 @@ def run():
     # labels = data[:, 1:]
     datatt.tock("loaded")
 
-    # train model
-    model = RModEModRFracAddEKMM(numrels=numrels, dim=dims, vocabsize=vocabsize, maxiter=epochs, wreg=wreg, numbats=numbats, negrate=negrate, validsplit=0.02)\
-                .autosave.normalize \
-            + SGD(lr=lr) \
-            #+ FullEGRU(dim=numrels, innerdim=innerdims, wreg=wreg, nobias=True)# nobias=True,, outpactivation=lambda x: x)
-    err, verr = model.train(trainX, labels, evalinter=evalinter)
+    validsplit = 10 # 50
 
-    evaluation = Evaluation(model)
-    evaluation.run(loaddata(datafileprefix+testtensorfile).keys.lok, RecallAt(10), RecallAt(15), RecallAt(30), MeanQuantile())
-    print(evaluation)
-    evaluation.save()
+    # train model
+    trainer = Trainer(lambda:
+            EModAddEKMM(numrels=numrels, dim=dims, vocabsize=vocabsize,
+                       maxiter=epochs, wreg=wreg, numbats=numbats, negrate=negrate).normalize#.autosave
+            + SGD(lr=lr)
+            #+ FullEGRU(dim=numrels, innerdim=innerdims, wreg=wreg, nobias=True)# nobias=True,, outpactivation=lambda x: x)
+    )
+    models, err, verr, _, _, _ = trainer.train(trainX, labels, validinter=evalinter, validsplit=validsplit, validrandom=123, folds=1)
+
+    for model in models:
+        evaluation = KBCEvaluator(RecallAt(10), RecallAt(15), RecallAt(30), MeanQuantile())
+        d = loaddata(datafileprefix+testtensorfile).keys.lok
+        res = evaluation.run(model, d[:, :2], d[:, 2])
+        print(res)
+        evaluation.save(res)
+        print model.predict([417], [[11307]], [9145])
+        print model.predict([417], [[11307]], [9156])
 
     plt.plot(err, "r")
     if len(verr) > 0:
         plt.plot(verr, "g")
     plt.show(block=True)
 
-    if toy:
-        print model.predict(0, 10, 1)
-        print model.predict(0, 10, 2)
-    else:
-        print model.predict([417], [[11307]], [9145])
-        print model.predict([417], [[11307]], [9156])
-    #embed()
+
+
+
+
+
+
 
 
 def dotraincompat():

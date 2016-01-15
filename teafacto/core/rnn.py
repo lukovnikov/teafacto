@@ -1,8 +1,9 @@
 import theano, numpy as np
 from theano import tensor as T
 import inspect
+from teafacto.core.trainutil import Parameterized
 
-class RNUBase(object):
+class RNUBase(Parameterized):
     def __init__(self, dim=20, innerdim=20, wreg=0.0001, initmult=0.1, nobias=False, **kw): # dim is input dimensions, innerdim = dimension of internal elements
         super(RNUBase, self).__init__(**kw)
         self.dim = dim
@@ -46,7 +47,7 @@ class RNUBase(object):
                                  sequences=inputs,
                                  outputs_info=[None]+[initstate]*numstates)
         output = outputs[0]
-        return output.dimshuffle(1, 0, 2) #output is (nb_samples, seq_len, nb_feats)
+        return output.dimshuffle(1, 0, 2)[:, -1, :] #output is last state (nb_samples, nb_feats)
 
     def rec(self, *args):
         raise NotImplementedError("use subclass")
@@ -68,9 +69,10 @@ class RNUBase(object):
         return self.recur(x)
 
     @property
-    def parameters(self):
+    def ownparameters(self):
         params = [param for param in self.paramnames if self.nobias is False or not param[0] == "b"]
         return map(lambda x: getattr(self, x), params)
+
 
 class RNU(RNUBase):
     def __init__(self, **kw):
@@ -182,3 +184,28 @@ class LSTM(RNUBase):
         ogate = self.gateactivation(c_t*self.po + self.bo + T.dot(x_t, self.wo) + T.dot(y_tm1, self.ro))
         y_t = ogate * self.outpactivation(c_t)
         return [y_t, c_t, y_t]
+
+
+
+class RNNEncoder(Parameterized):
+    def __init__(self):
+        self.rnu = None
+
+    def __add__(self, other):
+        if isinstance(other, RNUBase):
+            self.rnu = other
+        return self
+
+    def encode(self, seq): # seq: (batsize, seqlen, dim)
+        inp = seq.dimshuffle(1, 0, 2)
+        numstates = len(inspect.getargspec(self.rnu.rec).args) - 2
+        initstate = T.zeros((inp.shape[1], self.rnu.innerdim)) # (nb_samples, dim)
+        outputs, _ = theano.scan(fn=self.rnu.rec,
+                                 sequences=inp,
+                                 outputs_info=[None]+[initstate]*numstates)
+        output = outputs[0]
+        return output[-1, :, :] #output is (batsize, nb_feats)
+
+    @property
+    def depparameters(self):
+        return self.rnu.parameters

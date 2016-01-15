@@ -18,14 +18,74 @@ def showgraph(var):
     theano.printing.pydotprint(var, outfile="/home/denis/logreg_pydotprint_prediction.png", var_with_name_simple=True)
 
 
-class SGDBase(object):
-    def __init__(self, maxiter=50, lr=0.0001, numbats=100, wreg=0.00001, validsplit=0.1, **kw):
+class Saveable(object):
+    def __init__(self, autosave=False, **kw):
+        super(Saveable, self).__init__(**kw)
+        self._autosave = autosave
+        self._autosave_filepath = None
+    ############# Saving and Loading #################"
+    def getsavepath(self):
+        dfile = os.path.join(os.path.dirname(__file__), "../../models/%s.%s" %
+                             (self.printname, dt.now().strftime("%Y-%m-%d=%H:%M")))
+        return dfile
+
+    @property
+    def printname(self):
+        return self.__class__.__name__
+
+    def save(self, filepath=None, extra=None):
+        if self._autosave_filepath is not None:
+            filepath = self._autosave_filepath
+        if filepath is None:
+            self._autosave_filepath = self.getsavepath()+".auto"
+            filepath = self._autosave_filepath
+        with open(filepath, "w") as f:
+            pickle.dump(self, f)
+
+    @classmethod
+    def load(cls, filepath):
+        with open(filepath) as f:
+            ret = pickle.load(f)
+        return ret
+
+    @property
+    def autosave(self): # for saving after each iter
+        self._autosave = True
+        return self
+
+
+class Parameterized(object):
+    @property
+    def parameters(self):
+        return self.depparameters + self.ownparameters
+
+    @property
+    def ownparameters(self):
+        return []
+
+    @property
+    def depparameters(self):
+        return []
+
+
+class Profileable(object):
+    def __init__(self, **kw):
+        super(Profileable, self).__init__(**kw)
+        self._profiletheano = False
+    ############## PROFILING #######################
+    @property
+    def profiletheano(self):
+        self._profiletheano = True
+        return self
+
+
+class SGDBase(Parameterized, Profileable):
+    def __init__(self, maxiter=50, lr=0.0001, numbats=100, wreg=0.00001, **kw):
         self.tt = tt(self.__class__.__name__)
         self.maxiter = maxiter
         self.currentiter = 0
         self.numbats = numbats
         self.wreg = wreg
-        self.validsplit = validsplit
         self.tnumbats = theano.shared(np.float32(self.numbats), name="numbats")
         self.twreg = theano.shared(np.float32(self.wreg), name="wreg")
         self._optimizer = SGD(lr)
@@ -45,7 +105,7 @@ class SGDBase(object):
             raise Exception("unknown type of composition argument")
 
     def gettrainf(self, finps, fouts, cost):
-        params = self.ownparams + self.depparams
+        params = self.parameters
         grads = T.grad(cost, wrt=params)
         updates = self.getupdates(params, grads)
         #showgraph(updates[0][1])
@@ -69,29 +129,22 @@ class SGDBase(object):
     def getupdates(self, params, grads):
         return self._optimizer.getupdates(params, grads)
 
-    def splitdata(self, data, labels):
-        np.random.seed(12345)
-        validsize = data.shape[0] * self.validsplit
-        valididxs = sorted(np.random.randint(0, data.shape[0], size=(validsize,)).astype("int32"))
-        validdata = data[valididxs, :]
-        validlabels = labels[valididxs]
-        traindata = np.delete(data, valididxs, axis=0)
-        trainlabels = np.delete(labels, valididxs)
-        return traindata, trainlabels, validdata, validlabels
-
-    def train(self, data, labels, evalinter=10): # X: z, x, y, v OR r, s, o, v
-        traindata, trainlabels, validdata, validlabels = self.splitdata(data, labels)
+    def train(self, traindata, trainlabels, validdata=None, validlabels=None, evalinter=10): # X: z, x, y, v OR r, s, o, v
         self.batsize = int(ceil(traindata.shape[0]*1./self.numbats))
         self.tbatsize = theano.shared(np.int32(self.batsize))
         inps, tErr, tCost = self.defproblem()
 
         trainf = self.gettrainf(inps, [tErr, tCost], tCost)
         validf = self.getvalidf(inps, [tErr])
-        err = self.trainloop(trainf=self.getbatchloop(trainf, self.getsamplegen(traindata, trainlabels)),
+        if validdata is None or validlabels is None:
+            validator = None
+        else:
+            validator = self.getvalidation(validf, self.getsamplegen(validdata, validlabels, onebatch=True))
+        err, verr = self.trainloop(trainf=self.getbatchloop(trainf, self.getsamplegen(traindata, trainlabels)),
                              evalinter=evalinter,
                              normf=self.getnormf(),
-                             validf=self.getvalidation(validf, self.getsamplegen(validdata, validlabels, onebatch=True)))
-        return err
+                             validf=validator)
+        return err, verr
 
     def trainloop(self, trainf, validf=None, evalinter=1, normf=None, average_err=True):
         self.tt.tick("training")
@@ -157,71 +210,38 @@ class SGDBase(object):
         return batchloop
 
 
-class Saveable(object):
+class SMBase(SGDBase):
+    #region SMBase
     def __init__(self, **kw):
-        super(Saveable, self).__init__(**kw)
-        self._autosave = False
-        self._autosave_filepath = None
-    ############# Saving and Loading #################"
-    def getsavepath(self):
-        dfile = os.path.join(os.path.dirname(__file__), "../../models/%s.%s" %
-                             (self.printname, dt.now().strftime("%Y-%m-%d=%H:%M")))
-        return dfile
+        super(SMBase, self).__init__(**kw)
 
-    @property
-    def printname(self):
-        return self.__class__.__name__
+    def defproblem(self):
+        probs, gold, inps = self.defmodel()
+        tReg = self.getreg()
+        tErr = self.geterr(probs, gold)
+        tCost = tReg + tErr
+        return inps, tErr, tCost
 
-    def save(self, filepath=None, extra=None):
-        if self._autosave_filepath is not None:
-            filepath = self._autosave_filepath
-        if filepath is None:
-            self._autosave_filepath = self.getsavepath()+".auto"
-            filepath = self._autosave_filepath
-        with open(filepath, "w") as f:
-            pickle.dump(self, f)
-
-    @classmethod
-    def load(cls, filepath):
-        with open(filepath) as f:
-            ret = pickle.load(f)
-        return ret
-
-    @property
-    def autosave(self): # for saving after each iter
-        self._autosave = True
-        return self
-
-
-class Profileable(object):
-    def __init__(self, **kw):
-        super(Profileable, self).__init__(**kw)
-        self._profiletheano = False
-    ############## PROFILING #######################
-    @property
-    def profiletheano(self):
-        self._profiletheano = True
-        return self
-
-
-class Parameterized(object):
-    @property
-    def parameters(self):
-        return self.depparameters + self.ownparameters
-
-    @property
-    def ownparameters(self):
-        raise NotImplementedError("use sublcass")
-
-    @property
-    def depparameters(self):
+    def defmodel(self):
         raise NotImplementedError("use subclass")
+
+    def getreg(self, regf=lambda x: T.sum(x**2), factor=1./2):
+        return factor * reduce(lambda x, y: x + y,
+                               map(lambda x: regf(x) * self.twreg,
+                                   self.parameters), 0)
+
+    def geterr(self, probs, gold): # cross-entropy
+        return -T.mean(T.log(probs[T.arange(self.batsize), gold]))
+
+    def getnormf(self):
+        return None
+    #endregion SMBase
 
 
 class Normalizable(Parameterized):
-    def __init__(self, **kw):
+    def __init__(self, normalize=False, **kw):
         super(Normalizable, self).__init__(**kw)
-        self._normalize = False
+        self._normalize = normalize
 
     @property
     def normalize(self):
@@ -387,10 +407,6 @@ class Embedder(Regularizable, Normalizable):
         offset = 0.5
         scaler = 0.1
         self.W = theano.shared((np.random.random((self.vocabsize, self.dims)).astype("float32")-offset)*scaler, name="W")
-
-    @property
-    def depparameters(self):
-        return []
 
     @property
     def ownparameters(self):

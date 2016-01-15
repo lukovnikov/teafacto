@@ -1,6 +1,8 @@
 import os, numpy as np, pandas as pd
 from teafacto.core.utils import ticktock as TT
 from IPython import embed
+import theano
+from theano import tensor as T
 
 class WordEmb(object):
     def __init__(self):
@@ -26,8 +28,20 @@ class WordEmb(object):
         self.W = np.asarray(self.W)
         self.tt.tock("loaded")
 
+    def d(self, word):
+        return self.D[word] if word in self.D else -1
+
+    def __mul__(self, other):
+        return self.d(other)
+
+    def __mod__(self, other):
+        return self.__getitem__(other)
+
     def getvector(self, word):
-        return self.W[self.D[word]]
+        try:
+            return self.W[self.D[word]]
+        except Exception:
+            return None
 
     def getdistance(self, A, B, distance=None):
         if distance is None:
@@ -41,7 +55,15 @@ class WordEmb(object):
         return self.getdistance(A, B)
 
     def __getitem__(self, word):
-        return self.getvector(word)
+        v = self.getvector(word)
+        return v if v is not None else np.zeros_like(self.W[0])
+
+    def gettheanovariable(self):
+        return theano.shared(np.asarray(self.W).astype("float32"), name=self.__class__.__name__)
+
+    @property
+    def theano(self):
+        return self.gettheanovariable()
 
 
 class Glove(WordEmb):

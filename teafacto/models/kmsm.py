@@ -43,14 +43,14 @@ class KMSM(SGDBase, Saveable, Profileable, Predictor, Normalizable):
     def getreg(self, regf=lambda x: T.sum(x**2), factor=1./2):
         return factor * reduce(lambda x, y: x + y,
                                map(lambda x: regf(x) * self.twreg,
-                                   self.ownparams))
+                                   self.parameters))
 
     @property
-    def ownparams(self):
+    def ownparameters(self):
         return []
 
     @property
-    def depparams(self):
+    def depparameters(self):
         return []
 
     def getnormf(self):
@@ -60,7 +60,7 @@ class KMSM(SGDBase, Saveable, Profileable, Predictor, Normalizable):
 
     def defmodel(self):
         pathidxs = T.imatrix("pathidxs")
-        zidx = T.ivector("zidx") # rhs corruption only
+        zidx = T.ivector("zidx") # (batsize)
         scores = self.definnermodel(pathidxs) # ? scores: float(batsize, vocabsize)
         probs = T.nnet.softmax(scores) # row-wise softmax, ? probs: float(batsize, vocabsize)
         return probs, zidx, [pathidxs, zidx]
@@ -69,11 +69,11 @@ class KMSM(SGDBase, Saveable, Profileable, Predictor, Normalizable):
         return -T.mean(T.log(probs[T.arange(self.batsize), gold]))
 
     @property
-    def ownparams(self):
+    def ownparameters(self):
         return []
 
     @property
-    def depparams(self):
+    def depparameters(self):
         return []
 
     def getsamplegen(self, trainX, labels):
@@ -117,11 +117,11 @@ class EKMSM(KMSM, Normalizable):
         return super(EKMSM, self).printname + "+E" + str(self.dim)+"D"
 
     @property
-    def ownparams(self):
+    def ownparameters(self):
         return [self.W]
 
     @property
-    def depparams(self):
+    def depparameters(self):
         return []
 
     def embed(self, *idxs):
@@ -148,7 +148,7 @@ class RNNEKMSM(EKMSM):
         return super(RNNEKMSM, self).printname + "+" + self.rnnu.__class__.__name__+ ":" + str(self.rnnu.innerdim) + "D"
 
     @property
-    def depparams(self):
+    def depparameters(self):
         return self.rnnu.parameters
 
     def __add__(self, other):
@@ -161,8 +161,8 @@ class RNNEKMSM(EKMSM):
 
 
     @property
-    def ownparams(self):
-        return super(RNNEKMSM, self).ownparams + [self.Wout]
+    def ownparameters(self):
+        return super(RNNEKMSM, self).ownparameters + [self.Wout]
 
     def onrnnudefined(self):
         self.initwout()

@@ -11,13 +11,13 @@ class RankingMetric(object):
     def name(self):
         raise NotImplementedError("use subclass")
 
-    def __call__(self, row=None, ranking=None): # df grouped by inputs, ranks ranks all entities
-        if row is None or ranking is None:
+    def __call__(self, label=None, ranking=None): # df grouped by inputs, ranks ranks all entities
+        if ranking is None or label is None:
             return self.compute()
         else:
-            self.accumulate(row, ranking)
+            self.accumulate(label, ranking)
 
-    def accumulate(self, row, ranking):
+    def accumulate(self, label, ranking):
         raise NotImplementedError("use subclass")
 
     def compute(self):
@@ -33,10 +33,9 @@ class RecallAt(RankingMetric):
     def name(self):
         return "Recall @ %d" % self.topn
 
-    def accumulate(self, row, ranking):
+    def accumulate(self, label, ranking):
         topnvals = map(lambda x: x[0], ranking[:self.topn])
-        correct = row[2]
-        recall = len(set(correct).intersection(set(topnvals))) * 1. / len(correct)
+        recall = len(set(label).intersection(set(topnvals))) * 1. / len(label)
         self.acc += recall
         self.div += 1
 
@@ -50,10 +49,9 @@ class MeanQuantile(RankingMetric):
     def name(self):
         return "Mean Quantile"
 
-    def accumulate(self, row, ranking):
-        correct = row[2]
+    def accumulate(self, label, ranking):
         total = len(ranking)
-        for correctone in correct:
+        for correctone in label:
             pos = 0
             for (x, y) in ranking:
                 if x == correctone:
