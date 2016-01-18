@@ -1,4 +1,5 @@
 import cPickle as pickle
+from IPython import embed
 from datetime import datetime as dt
 from math import ceil
 import os
@@ -210,7 +211,7 @@ class SGDBase(Parameterized, Profileable):
         return batchloop
 
 
-class SMBase(SGDBase):
+class SMBase(SGDBase): # TODO test
     #region SMBase
     def __init__(self, **kw):
         super(SMBase, self).__init__(**kw)
@@ -231,7 +232,7 @@ class SMBase(SGDBase):
                                    self.parameters), 0)
 
     def geterr(self, probs, gold): # cross-entropy
-        return -T.mean(T.log(probs[T.arange(self.batsize), gold]))
+        return -T.mean(T.log(probs[T.arange(gold.shape[0]), gold]))
 
     def getnormf(self):
         return None

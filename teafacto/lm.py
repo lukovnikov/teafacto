@@ -1,4 +1,5 @@
 import os, numpy as np, pandas as pd
+
 from teafacto.core.utils import ticktock as TT
 from IPython import embed
 import theano
@@ -17,25 +18,34 @@ class WordEmb(object):
         else:
             path = kw["path"]
         self.W = []
-        i = 0
+        i = 1
         for line in open(path):
             ls = line.split(" ")
             word = ls[0]
             self.D[word] = i
             self.W.append(map(lambda x: float(x), ls[1:]))
             i += 1
+        self.W.insert(0, np.zeros_like(self.W[1]))
         self.tt.tock("loaded in list").tick()
         self.W = np.asarray(self.W)
         self.tt.tock("loaded")
 
     def d(self, word):
-        return self.D[word] if word in self.D else -1
+        return self.D[word] if word in self.D else 0
 
     def __mul__(self, other):
         return self.d(other)
 
     def __mod__(self, other):
-        return self.__getitem__(other)
+        if isinstance(other, (tuple, list)): # distance
+            assert len(other) > 1
+            if len(other) == 2:
+                return self.getdistance(other[0], other[1])
+            else:
+                y = other[0]
+                return map(lambda x: self.getdistance(y, x), other[1:])
+        else:   # embed
+            return self.__getitem__(other)
 
     def getvector(self, word):
         try:

@@ -94,7 +94,7 @@ def run():
 
     # train model
     trainer = Trainer(lambda:
-            EModAddEKMM(numrels=numrels, dim=dims, vocabsize=vocabsize,
+            AddEKMM(numrels=numrels, dim=dims, vocabsize=vocabsize,
                        maxiter=epochs, wreg=wreg, numbats=numbats, negrate=negrate).normalize#.autosave
             + SGD(lr=lr)
             #+ FullEGRU(dim=numrels, innerdim=innerdims, wreg=wreg, nobias=True)# nobias=True,, outpactivation=lambda x: x)
@@ -106,7 +106,7 @@ def run():
         d = loaddata(datafileprefix+testtensorfile).keys.lok
         res = evaluation.run(model, d[:, :2], d[:, 2])
         print(res)
-        evaluation.save(res)
+        # evaluation.save(res) TODO
         print model.predict([417], [[11307]], [9145])
         print model.predict([417], [[11307]], [9156])
 

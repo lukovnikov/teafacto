@@ -38,7 +38,7 @@ class ticktock(object):
         if self.verbose:
             prefix = prefix if prefix is not None else self.prefix
             action = action if action is not None else self.state
-            print "%s: %s in %s seconds" % (prefix, action, self._getdurationstr(duration))
+            print "%s: %s in %s" % (prefix, action, self._getdurationstr(duration))
         return self
 
     def _getdurationstr(self, duration):
@@ -58,7 +58,7 @@ class ticktock(object):
             return "%d days, %s" % (days, acc)
 
         else:
-            return "%f" % duration
+            return "%f seconds" % duration
 
 
 def issequence(x):
