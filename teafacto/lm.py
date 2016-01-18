@@ -5,7 +5,7 @@ from IPython import embed
 import theano
 from theano import tensor as T
 
-class WordEmb(object):
+class WordEmb(object): # unknown words are mapped to index 0, their embedding is a zero vector
     def __init__(self):
         self.W = []
         self.D = {}
@@ -17,7 +17,7 @@ class WordEmb(object):
             raise Exception("path must be specified")
         else:
             path = kw["path"]
-        self.W = []
+        self.W = [None] # to be replaced by all zero's
         i = 1
         for line in open(path):
             ls = line.split(" ")
@@ -25,7 +25,7 @@ class WordEmb(object):
             self.D[word] = i
             self.W.append(map(lambda x: float(x), ls[1:]))
             i += 1
-        self.W.insert(0, np.zeros_like(self.W[1]))
+        self.W[0] = np.zeros_like(self.W[1])
         self.tt.tock("loaded in list").tick()
         self.W = np.asarray(self.W)
         self.tt.tock("loaded")
