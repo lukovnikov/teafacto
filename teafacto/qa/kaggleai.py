@@ -143,7 +143,6 @@ def run():
         df = read(path="../../data/kaggleai/test.tsv")
     else:
         df = read()
-        df = df.iloc[0:100]
     glove = Glove(50)
     tdf = transformdf(df, StringTransformer(glove))
 
