@@ -155,7 +155,7 @@ class IFGRUTM(GatedRNU):
     def __init__(self, **kw):
         self.paramnames = ["ucf, uyf, uxf, uof, ucm, uc, rcf, ryf, rxf, rof, rcm, rc, wcf, wyf, wxf, wof, wcm, wc, wo, bcf, byf, bxf, bcm, bof, bc"]
 
-    def rec(self, x_t, c_tm1, y_tm1):
+    def rec(self, x_t, y_tm1, c_tm1):
         cfgate = self.gateactivation(T.dot(c_tm1, self.ucf) + T.dot(y_tm1, self.rcf) + T.dot(x_t, self.wcf) + self.bcf)
         yfgate = self.gateactivation(T.dot(c_tm1, self.uyf) + T.dot(y_tm1, self.ryf) + T.dot(x_t, self.wyf) + self.byf)
         xfgate = self.gateactivation(T.dot(c_tm1, self.uxf) + T.dot(y_tm1, self.rxf) + T.dot(x_t, self.wxf) + self.bxf)
@@ -167,7 +167,7 @@ class IFGRUTM(GatedRNU):
         c_t = mgate * c_tm1 + (1-mgate) * canct
         ofgate = self.gateactivation(T.dot(c_t, self.uof) + T.dot(y_tm1, self.rof) + T.dot(x_t, self.wof) + self.bof)
         y_t = self.outpactivation(T.dot(c_t * ofgate, self.wo))
-        return [y_t, c_t, y_t]
+        return [y_t, y_t, c_t]
 
 
 class LSTM(RNUBase):
@@ -175,7 +175,7 @@ class LSTM(RNUBase):
         self.paramnames = ["wf", "rf", "bf", "wi", "ri", "bi", "wo", "ro", "bo", "w", "r", "b", "pf", "pi", "po"]
         super(LSTM, self).__init__(**kw)
 
-    def rec(self, x_t, c_tm1, y_tm1):
+    def rec(self, x_t, y_tm1, c_tm1):
         fgate = self.gateactivation(c_tm1*self.pf + self.bf + T.dot(x_t, self.wf) + T.dot(y_tm1, self.rf))
         igate = self.gateactivation(c_tm1*self.pi + self.bi + T.dot(x_t, self.wi) + T.dot(y_tm1, self.ri))
         cf = c_tm1 * fgate
@@ -183,7 +183,7 @@ class LSTM(RNUBase):
         c_t = cf + ifi
         ogate = self.gateactivation(c_t*self.po + self.bo + T.dot(x_t, self.wo) + T.dot(y_tm1, self.ro))
         y_t = ogate * self.outpactivation(c_t)
-        return [y_t, c_t, y_t]
+        return [y_t, y_t, c_t]
 
 
 
@@ -200,11 +200,18 @@ class RNNEncoder(Parameterized):
         inp = seq.dimshuffle(1, 0, 2)
         numstates = len(inspect.getargspec(self.rnu.rec).args) - 2
         initstate = T.zeros((inp.shape[1], self.rnu.innerdim)) # (nb_samples, dim)
-        outputs, _ = theano.scan(fn=self.rnu.rec,
+        outputs, _ = theano.scan(fn=self.recwrap,
                                  sequences=inp,
-                                 outputs_info=[None]+[initstate]*numstates, n_steps=5)
+                                 outputs_info=[None]+[initstate]*numstates)
         output = outputs[0]
         return output[-1, :, :] #output is (batsize, innerdim)
+
+    def recwrap(self, x_t, *args): # x_t: (batsize, dim)      IDEA: if input is all zeros, just return previous state
+        mask = x_t.norm(2, axis=1) > 0 # (batsize, )
+        rnuret = self.rnu.rec(x_t, *args) # list of matrices (batsize, **somedims**)
+        ret = map(lambda (a, r): (a.T * (1-mask) + r.T * mask).T, zip([args[0]] + list(args), rnuret))
+        return ret
+
 
     @property
     def depparameters(self):

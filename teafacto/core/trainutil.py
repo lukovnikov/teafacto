@@ -233,7 +233,8 @@ class SMBase(SGDBase): # TODO test
                                    self.parameters), 0)
 
     def geterr(self, probs, gold): # cross-entropy
-        return -T.mean(T.log(probs[T.arange(gold.shape[0]), gold]))
+        ret = -T.sum(T.log(probs[T.arange(gold.shape[0]), gold]))
+        return ret
 
     def getnormf(self):
         return None

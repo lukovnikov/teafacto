@@ -137,7 +137,7 @@ def run():
     wreg = 0.0
     epochs = 5
     numbats = 50
-    lr = 10000. #0.001
+    lr = 0.00001 #0.001
 
     if False:
         df = read(path="../../data/kaggleai/test.tsv")
@@ -158,7 +158,7 @@ def run():
     traindata = np.stack([qmat] + amats, axis=1) # (numsam, 5, maxlen)
     labeldata = tdf["correctAnswer"].values
     #embed()
-    models, err, verr, _, _, _ = trainer.train(traindata, labeldata, validsplit=5, validrandom=123, folds=5, average_err=False)
+    models, err, verr, _, _, _ = trainer.train(traindata, labeldata, validsplit=5, validrandom=123, folds=5)
     model = models[0]
 
     embed()
