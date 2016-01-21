@@ -158,7 +158,7 @@ def run():
                        for x in ["answerA", "answerB", "answerC", "answerD"]]]
     traindata = np.stack([qmat] + amats, axis=1) # (numsam, 5, maxlen)
     labeldata = tdf["correctAnswer"].values
-    #embed()
+    embed()
     models, err, verr, _, _, _ = trainer.train(traindata, labeldata, validsplit=5, validrandom=123, folds=5, average_err=False)
     model = models[0]
 
