@@ -24,7 +24,7 @@ dist/
 downloads/
 eggs/
 .eggs/
-/data/*
+/data/glove/glove.6B.300d.txt
 lib/
 /data/kaggleai/*
 lib64/
