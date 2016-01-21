@@ -21,10 +21,10 @@ env/
 build/
 develop-eggs/
 dist/
+/data/glove/*
 downloads/
 eggs/
 .eggs/
-/data/glove/glove.6B.300d.txt
 lib/
 /data/kaggleai/*
 lib64/

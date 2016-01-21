@@ -202,7 +202,7 @@ class RNNEncoder(Parameterized):
         initstate = T.zeros((inp.shape[1], self.rnu.innerdim)) # (nb_samples, dim)
         outputs, _ = theano.scan(fn=self.rnu.rec,
                                  sequences=inp,
-                                 outputs_info=[None]+[initstate]*numstates)
+                                 outputs_info=[None]+[initstate]*numstates, n_steps=5)
         output = outputs[0]
         return output[-1, :, :] #output is (batsize, innerdim)
 
