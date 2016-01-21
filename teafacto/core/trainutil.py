@@ -58,15 +58,15 @@ class Saveable(object):
 class Parameterized(object):
     @property
     def parameters(self):
-        return self.depparameters + self.ownparameters
+        return self.depparameters.union(self.ownparameters)
 
     @property
     def ownparameters(self):
-        return []
+        return set()
 
     @property
     def depparameters(self):
-        return []
+        return set()
 
 
 class Profileable(object):
@@ -106,7 +106,7 @@ class SGDBase(Parameterized, Profileable):
             raise Exception("unknown type of composition argument")
 
     def gettrainf(self, finps, fouts, cost):
-        params = self.parameters
+        params = list(self.parameters)
         grads = T.grad(cost, wrt=params)
         updates = self.getupdates(params, grads)
         #showgraph(updates[0][1])
@@ -114,7 +114,6 @@ class SGDBase(Parameterized, Profileable):
                                outputs=fouts,
                                updates=updates,
                                profile=self._profiletheano)
-        self.tt.tock("compiled").tick()
         return ret
 
     def getvalidf(self, finps, fouts):
@@ -130,13 +129,13 @@ class SGDBase(Parameterized, Profileable):
     def getupdates(self, params, grads):
         return self._optimizer.getupdates(params, grads)
 
-    def train(self, traindata, trainlabels, validdata=None, validlabels=None, evalinter=10): # X: z, x, y, v OR r, s, o, v
+    def train(self, traindata, trainlabels, validdata=None, validlabels=None, evalinter=10, average_err=True): # X: z, x, y, v OR r, s, o, v
         self.batsize = int(ceil(traindata.shape[0]*1./self.numbats))
         self.tbatsize = theano.shared(np.int32(self.batsize))
         inps, tErr, tCost = self.defproblem()
-
         trainf = self.gettrainf(inps, [tErr, tCost], tCost)
         validf = self.getvalidf(inps, [tErr])
+        self.tt.tock("compiled").tick()
         if validdata is None or validlabels is None:
             validator = None
         else:
@@ -144,7 +143,8 @@ class SGDBase(Parameterized, Profileable):
         err, verr = self.trainloop(trainf=self.getbatchloop(trainf, self.getsamplegen(traindata, trainlabels)),
                              evalinter=evalinter,
                              normf=self.getnormf(),
-                             validf=validator)
+                             validf=validator,
+                             average_err=average_err)
         return err, verr
 
     def trainloop(self, trainf, validf=None, evalinter=1, normf=None, average_err=True):
@@ -221,6 +221,7 @@ class SMBase(SGDBase): # TODO test
         tReg = self.getreg()
         tErr = self.geterr(probs, gold)
         tCost = tReg + tErr
+        #embed()
         return inps, tErr, tCost
 
     def defmodel(self):

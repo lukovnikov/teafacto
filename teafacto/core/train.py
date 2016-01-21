@@ -52,7 +52,7 @@ class Trainer(object):
         self.modelbuilder = modelbuilder
         self.params = params
 
-    def train(self, data, labels, validsplit=10, validrandom=False, folds=1, validinter=1, tester=None):
+    def train(self, data, labels, validsplit=10, validrandom=False, folds=1, validinter=1, tester=None, average_err=True):
         assert data.shape[0] == labels.shape[0]
         self.validsplit = validsplit
         if self.validsplit > 1:  # do validation during training
@@ -64,7 +64,7 @@ class Trainer(object):
             for splitidxs in self.splitter:
                 tdata, tlabels, vdata, vlabels = self.splitdata(data, labels, splitidxs)
                 m = self.modelbuilder()
-                serr, sverr = m.train(tdata, tlabels, vdata, vlabels, evalinter=validinter)
+                serr, sverr = m.train(tdata, tlabels, vdata, vlabels, evalinter=validinter, average_err=average_err)
                 models.append(m)
                 err.append(serr)
                 verr.append(sverr)

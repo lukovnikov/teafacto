@@ -71,7 +71,7 @@ class RNUBase(Parameterized):
     @property
     def ownparameters(self):
         params = [param for param in self.paramnames if self.nobias is False or not param[0] == "b"]
-        return map(lambda x: getattr(self, x), params)
+        return set(map(lambda x: getattr(self, x), params))
 
 
 class RNU(RNUBase):
@@ -204,7 +204,7 @@ class RNNEncoder(Parameterized):
                                  sequences=inp,
                                  outputs_info=[None]+[initstate]*numstates)
         output = outputs[0]
-        return output[-1, :, :] #output is (batsize, nb_feats)
+        return output[-1, :, :] #output is (batsize, innerdim)
 
     @property
     def depparameters(self):

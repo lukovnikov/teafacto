@@ -76,11 +76,10 @@ def transformdf(df, t):
 
 
 class QAEncDotSM(SMBase, Predictor, Saveable):
-    def __init__(self, dim=50, innerdim=100, wreg=0.000001, wembs=None, **kw):
+    def __init__(self, dim=50, innerdim=100, wembs=None, **kw):
         super(QAEncDotSM, self).__init__(**kw)
         self.dim = dim
         self.innerdim = innerdim
-        self.wreg = wreg
         self.qencoder = RNNEncoder() + GRU(dim=self.dim, innerdim=self.innerdim, wreg=self.wreg)
         self.aencoder = RNNEncoder() + GRU(dim=self.dim, innerdim=self.innerdim, wreg=self.wreg)
         if wembs is None:
@@ -93,6 +92,7 @@ class QAEncDotSM(SMBase, Predictor, Saveable):
         qenc = self.qencoder.encode(q) # qenc: (batsize, innerdim)
         aenc, benc, cenc, denc = [self.aencoder.encode(x) for x in [a, b, c, d]] # (batsize, innerdim)
         dots = [T.batched_dot(qenc, x).reshape((x.shape[0], 1)) for x in [aenc, benc, cenc, denc]]
+        #dots = [T.sqr((qenc - x).norm(2, axis=1)).reshape((x.shape[0], 1)) for x in [aenc, benc, cenc, denc]]
         dots = T.concatenate(dots, axis=1) # (batsize, 4)
         probs = T.nnet.softmax(dots)
         golds = T.ivector("answers")
@@ -100,11 +100,11 @@ class QAEncDotSM(SMBase, Predictor, Saveable):
 
     @property
     def depparameters(self):
-        return self.qencoder.parameters + self.aencoder.parameters
+        return self.qencoder.parameters.union(self.aencoder.parameters)
 
     @property
     def ownparameters(self):
-        return []
+        return set() #{self.wemb}
 
     def getsamplegen(self, data, labels, onebatch=False): # data: ? list of (batsize, seqlen), seqlen for Q is different than for A's
         if onebatch:
@@ -133,28 +133,33 @@ class QAEncDotSM(SMBase, Predictor, Saveable):
 
 
 def run():
-    df = read()
+
+    wreg = 0.0
+    epochs = 5
+    numbats = 50
+    lr = 10000. #0.001
+
+    if False:
+        df = read(path="../../data/kaggleai/test.tsv")
+    else:
+        df = read()
+        df = df.iloc[0:10]
     glove = Glove(50)
-    print glove * "word"
-    print np.linalg.norm(glove.theano.get_value()[glove * "word", :] - glove % "words")
     tdf = transformdf(df, StringTransformer(glove))
 
-    wreg = 0.00001
-    lr = 0.001
-    epochs = 100
-    numbats = 50
-
     trainer = Trainer(lambda:
-            QAEncDotSM(dim=50, innerdim=100, wreg=wreg, maxiter=epochs, numbats=numbats, wembs=glove).autosave \
+            QAEncDotSM(dim=50, innerdim=100, wreg=wreg, maxiter=epochs, numbats=numbats, wembs=glove)
             + SGD(lr=lr)
     )
+
     qmat = pd.DataFrame(list(tdf["question"].values)).fillna(0).values.astype("int32")
     amats = [np.pad(y, ((0, 0), (0, qmat.shape[1] - y.shape[1])), mode="constant")
              for y in [pd.DataFrame(list(tdf[x].values)).fillna(0).values.astype("int32")
                        for x in ["answerA", "answerB", "answerC", "answerD"]]]
     traindata = np.stack([qmat] + amats, axis=1) # (numsam, 5, maxlen)
     labeldata = tdf["correctAnswer"].values
-    models, err, verr, _, _, _ = trainer.train(traindata, labeldata, validsplit=5, validrandom=123, folds=5)
+    #embed()
+    models, err, verr, _, _, _ = trainer.train(traindata, labeldata, validsplit=5, validrandom=123, folds=5, average_err=False)
     model = models[0]
 
     embed()

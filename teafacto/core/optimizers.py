@@ -11,6 +11,7 @@ class Optimizer(object):
 class SGD(Optimizer):
     def __init__(self, lr=0.1, **kw):
         self.lr = lr
+        self.tlr = theano.shared(self.lr)
         self.numbats = 1
         super(SGD, self).__init__(**kw)
 
