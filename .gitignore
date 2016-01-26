@@ -24,6 +24,8 @@ dist/
 /data/glove/*
 downloads/
 eggs/
+/data/wikipedia/short-abstracts_en.nt
+/data/wikipedia/idx
 .eggs/
 lib/
 /data/kaggleai/*
