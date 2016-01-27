@@ -17,7 +17,7 @@ class WikipediaIndex(object):
         self.schema = Schema(title=ID(stored=True, unique=True), abstract=TEXT(analyzer=ana, stored=True))
         ix = create_in(self.dir, self.schema)
         with open(source) as sf:
-            writer = ix.writer()
+            writer = ix.writer(procs=3, limitmb=300)
             c = 0
             for line in sf:
                 m = atre.match(line)
@@ -31,7 +31,7 @@ class WikipediaIndex(object):
                         print "committing"
                         writer.commit()
                         print "committed"
-                        writer = ix.writer()
+                        writer = ix.writer(procs=3, limitmb=300)
             writer.commit()
 
     def search(self, q="test", limit=20):
@@ -78,7 +78,7 @@ class WikipediaIndex(object):
 if __name__ == "__main__":
 
     wi = WikipediaIndex()
-    #wi.index()
+    wi.index()
 
     sents = wi.getsentences("mercury", limit=20)
     for sent in sents:
