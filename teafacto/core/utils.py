@@ -1,5 +1,5 @@
 __author__ = 'denis'
-import collections
+import collections, os, urllib2, zipfile, bz2, re
 
 import theano
 from theano import tensor
@@ -184,3 +184,48 @@ def h_softmax(x, batch_size, n_outputs, n_classes, n_outputs_per_class,
 
     return output_probs
 
+
+class FileHandler(object):
+    @staticmethod
+    def check(fp):
+        return os.path.exists(fp)
+
+    @staticmethod
+    def download(url, fp):
+        f = None
+        CHUNK = 1*1024
+        try:
+            f = urllib2.urlopen(url)
+            # create directories if they don't exist
+            destdir = os.path.dirname(fp)
+            if not os.path.isdir(destdir):
+                os.makedirs(destdir)
+            # wrap archive type
+            decompressor = None
+            if re.match(r'^.+\.bz2$', url):
+                decompressor = bz2.BZ2Decompressor()
+            # download and write to disk
+            with open(fp, "w") as tf:
+                while True:
+                    chunk = f.read(CHUNK)
+                    if not chunk:
+                        break
+                    if decompressor is not None:
+                        chunk = decompressor.decompress(chunk)
+                    tf.write(chunk)
+        except Exception, e:
+            print e
+            print "could not download and save %s" % url
+        finally:
+            if f is not None:
+                f.close()
+
+    @staticmethod
+    def ensurefile(fp, url, zippath=None):
+        if not FileHandler.check(fp):
+            FileHandler.download(url, fp)
+
+    @staticmethod
+    def ensuredir(p):
+        if not os.path.isdir(p):
+            os.makedirs(p)

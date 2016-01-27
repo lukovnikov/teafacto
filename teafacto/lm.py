@@ -77,6 +77,7 @@ class WordEmb(object): # unknown words are mapped to index 0, their embedding is
 
 
 class Glove(WordEmb):
+
     def __init__(self, dims):
         super(Glove, self).__init__()
         self.load(dims=dims)

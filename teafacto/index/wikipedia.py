@@ -4,6 +4,7 @@ from whoosh.qparser import QueryParser
 from whoosh.analysis import StemmingAnalyzer
 import shelve, os, os.path
 import nltk
+from teafacto.core.utils import FileHandler
 
 import re
 atre = re.compile(r"^<([^>]+)>\s<[^>]+>\s\"(.+)\"@en\s\.$")
@@ -11,11 +12,14 @@ atre = re.compile(r"^<([^>]+)>\s<[^>]+>\s\"(.+)\"@en\s\.$")
 class WikipediaIndex(object):
     def __init__(self, dir="../../data/wikipedia/idx/"):
         self.dir = dir
+        FileHandler.ensuredir(self.dir)
+        self.defaulturis = {"abstract": "http://downloads.dbpedia.org/2015-04/core-i18n/en/long-abstracts_en.nt.bz2"}
 
-    def index(self, source="../../data/wikipedia/short-abstracts_en.nt"):
+    def index(self, source="../../data/wikipedia/long-abstracts_en.nt"):
         ana = StemmingAnalyzer()
         self.schema = Schema(title=ID(stored=True, unique=True), abstract=TEXT(analyzer=ana, stored=True))
         ix = create_in(self.dir, self.schema)
+        FileHandler.ensurefile(source, self.defaulturis["abstract"])
         with open(source) as sf:
             writer = ix.writer(procs=3, limitmb=300)
             c = 0
