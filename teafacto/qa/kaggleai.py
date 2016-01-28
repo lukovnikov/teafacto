@@ -165,7 +165,7 @@ class QAEncDotSM(MCQABaseSM):
         self.qencoder = RNNEncoder() + GRU(dim=self.dim, innerdim=self.innerdim, wreg=self.wreg)
         self.aencoder = RNNEncoder() + GRU(dim=self.dim, innerdim=self.innerdim, wreg=self.wreg)
         if wembs is None:
-            wembs = Glove(50)
+            wembs = Glove(dim)
         self.wemb = wembs.theano
 
     def encodeQ(self, qvar):
@@ -189,7 +189,7 @@ def run():
     wreg = 0.0
     epochs = 1
     numbats = 50
-    lr = 0.00000000000000000000001 #0.001
+    lr = 0.0#0000000000000000000001 #0.001
     dims=50
 
     if False:
