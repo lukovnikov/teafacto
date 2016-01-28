@@ -1,6 +1,7 @@
 
 from math import ceil
 import numpy as np
+from teafacto.core.utils import ticktock as TT
 
 
 class SplitIdxIterator(object):
@@ -29,6 +30,7 @@ class SplitIdxIterator(object):
                     np.random.shuffle(dataidxs)
                 offset = 0
             currentfold += 1
+            offset += splitsize
         return splits
 
     def __iter__(self):
@@ -51,16 +53,19 @@ class Trainer(object):
     def __init__(self, modelbuilder, **params):
         self.modelbuilder = modelbuilder
         self.params = params
+        self.tt = TT("Trainer")
 
     def train(self, data, labels, validsplit=10, validrandom=False, folds=1, validinter=1, tester=None, average_err=True):
         assert data.shape[0] == labels.shape[0]
         self.validsplit = validsplit
+        self.tt.tick("training")
         if self.validsplit > 1:  # do validation during training
             self.splitter = SplitIdxIterator(data.shape[0], split=validsplit, random=validrandom, folds=folds)
             err = []
             verr = []
             testres = []
             models = []
+            c = 0
             for splitidxs in self.splitter:
                 tdata, tlabels, vdata, vlabels = self.splitdata(data, labels, splitidxs)
                 m = self.modelbuilder()
@@ -71,19 +76,20 @@ class Trainer(object):
                 if tester is not None:
                     testre = tester.run(m, vdata, vlabels)
                     testres.append(testre)
+                c += 1
+                self.tt.progress(c, len(self.splitter.splits))
             err = np.asarray(err)
             avgerr = np.mean(err, axis=0)
             verr = np.asarray(verr)
             avgverr = np.mean(verr, axis=0)
             self.models = models
+            self.tt.tock("done")
             return models, avgerr, avgverr, testres, err, verr
         else:
             m = self.modelbuilder()
             err = m.train(data, labels)
             verr = []
             return [m], err, verr, None, None, None
-
-
 
     def splitdata(self, data, labels, splitidxs):
         validdata = data[splitidxs, :]

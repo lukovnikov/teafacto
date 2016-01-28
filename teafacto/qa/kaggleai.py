@@ -4,6 +4,8 @@ from teafacto.lm import Glove
 from teafacto.encoders.rnnenc import *
 from teafacto.core.rnn import *
 from teafacto.core.train import Trainer
+from teafacto.eval.eval import ClasEvaluator
+from teafacto.eval.metrics import ClassAccuracy
 
 from nltk.tokenize import RegexpTokenizer
 
@@ -75,36 +77,29 @@ def transformdf(df, t):
     return tdf
 
 
-class QAEncDotSM(SMBase, Predictor, Saveable):
-    def __init__(self, dim=50, innerdim=100, wembs=None, **kw):
-        super(QAEncDotSM, self).__init__(**kw)
-        self.dim = dim
-        self.innerdim = innerdim
-        self.qencoder = RNNEncoder() + GRU(dim=self.dim, innerdim=self.innerdim, wreg=self.wreg)
-        self.aencoder = RNNEncoder() + GRU(dim=self.dim, innerdim=self.innerdim, wreg=self.wreg)
-        if wembs is None:
-            wembs = Glove(50)
-        self.wemb = wembs.theano
+class MCQABaseSM(SMBase, Predictor, Saveable):
 
     def defmodel(self):
+        golds = T.ivector("answers")
         iq, ia, ib, ic, id = T.imatrices("q", "a", "b", "c", "d") # (batsize, seqlen)
         q, a, b, c, d = [self.wemb[x, :] for x in [iq, ia, ib, ic, id]] # (batsize, seqlen, dim)
-        qenc = self.qencoder.encode(q) # qenc: (batsize, innerdim)
-        aenc, benc, cenc, denc = [self.aencoder.encode(x) for x in [a, b, c, d]] # (batsize, innerdim)
-        dots = [T.batched_dot(qenc, x).reshape((x.shape[0], 1)) for x in [aenc, benc, cenc, denc]]
+        # sum
+        qenc = self.encodeQ(q)
+        aenc, benc, cenc, denc = map(self.encodeA, [a,b,c,d])
+        dots = [self.encScore(qenc, x) for x in [aenc, benc, cenc, denc]]
         #dots = [T.sqr((qenc - x).norm(2, axis=1)).reshape((x.shape[0], 1)) for x in [aenc, benc, cenc, denc]]
         dots = T.concatenate(dots, axis=1) # (batsize, 4)
         probs = T.nnet.softmax(dots)
-        golds = T.ivector("answers")
         return probs, golds, [iq, ia, ib, ic, id, golds]
 
-    @property
-    def depparameters(self):
-        return self.qencoder.parameters.union(self.aencoder.parameters)
-
-    @property
-    def ownparameters(self):
-        return set() #{self.wemb}
+    def getpredictfunction(self):
+        probs, _, inps = self.defmodel()
+        scoref = theano.function(inputs=inps[:5], outputs=probs)
+        def pref(data):
+            args = [np.asarray(i).astype("int32") for i in [data[:, 0, :], data[:, 1, :], data[:, 2, :], data[:, 3, :], data[:, 4, :]]]
+            outprobs = scoref(*args)    # (batsize, 4)
+            return outprobs.argmax(axis=1) # (batsize,)
+        return pref
 
     def getsamplegen(self, data, labels, onebatch=False): # data: ? list of (batsize, seqlen), seqlen for Q is different than for A's
         if onebatch:
@@ -131,23 +126,81 @@ class QAEncDotSM(SMBase, Predictor, Saveable):
         return samplegen
 
 
+class DotSumEmcSM(MCQABaseSM):
+    def __init__(self, dim=50, wembs=None, **kw):
+        super(DotSumEmcSM, self).__init__(**kw)
+        self.dim = dim
+        if wembs is None:
+            wembs = Glove(dim)
+        self.wemb = wembs.theano
+
+    def encodeQ(self, qvar): # (batsize, seqlen, dim) ==> (batsize, dim)
+        sum = T.sum(qvar, axis=1)
+        sum = (sum.T / sum.norm(2, axis=1)).T
+        return sum
+
+    def encodeA(self, avar):
+        sum = T.sum(avar, axis=1)
+        sum = (sum.T / sum.norm(2, axis=1)).T
+        return sum
+
+    def encScore(self, qenc, aenc):
+        return T.batched_dot(qenc, aenc).reshape((aenc.shape[0], 1))
+
+    @property
+    def depparameters(self):
+        return set()
+
+    @property
+    def ownparameters(self):
+        return {self.wemb}
+
+
+
+class QAEncDotSM(MCQABaseSM):
+    def __init__(self, dim=50, innerdim=100, wembs=None, **kw):
+        super(QAEncDotSM, self).__init__(**kw)
+        self.dim = dim
+        self.innerdim = innerdim
+        self.qencoder = RNNEncoder() + GRU(dim=self.dim, innerdim=self.innerdim, wreg=self.wreg)
+        self.aencoder = RNNEncoder() + GRU(dim=self.dim, innerdim=self.innerdim, wreg=self.wreg)
+        if wembs is None:
+            wembs = Glove(50)
+        self.wemb = wembs.theano
+
+    def encodeQ(self, qvar):
+        return self.qencoder.encode(qvar)
+
+    def encodeA(self, avar):
+        return self.aencoder.encode(avar)
+
+    @property
+    def depparameters(self):
+        return self.qencoder.parameters.union(self.aencoder.parameters)
+
+    @property
+    def ownparameters(self):
+        return set() #{self.wemb}
+
+
 
 def run():
 
     wreg = 0.0
-    epochs = 5
+    epochs = 1
     numbats = 50
-    lr = 0.00001 #0.001
+    lr = 0.00000000000000000000001 #0.001
+    dims=50
 
     if False:
         df = read(path="../../data/kaggleai/test.tsv")
     else:
         df = read()
-    glove = Glove(50)
+    glove = Glove(dims)
     tdf = transformdf(df, StringTransformer(glove))
 
     trainer = Trainer(lambda:
-            QAEncDotSM(dim=50, innerdim=100, wreg=wreg, maxiter=epochs, numbats=numbats, wembs=glove)
+            DotSumEmcSM(dim=dims, wreg=wreg, maxiter=epochs, numbats=numbats, wembs=glove)
             + SGD(lr=lr)
     )
 
@@ -158,8 +211,10 @@ def run():
     traindata = np.stack([qmat] + amats, axis=1) # (numsam, 5, maxlen)
     labeldata = tdf["correctAnswer"].values
     #embed()
-    models, err, verr, _, _, _ = trainer.train(traindata, labeldata, validsplit=5, validrandom=123, folds=5)
+    evaluator = ClasEvaluator(ClassAccuracy())
+    models, err, verr, tres, _, _ = trainer.train(traindata, labeldata, validsplit=5, validrandom=123, folds=5, tester=evaluator)
     model = models[0]
+    print tres
 
     embed()
 

@@ -1,5 +1,4 @@
-
-class RankingMetric(object):
+class Metric(object):
     def __init__(self, **kw):
         self.reset()
 
@@ -11,20 +10,35 @@ class RankingMetric(object):
     def name(self):
         raise NotImplementedError("use subclass")
 
-    def __call__(self, label=None, ranking=None): # df grouped by inputs, ranks ranks all entities
-        if ranking is None or label is None:
-            return self.compute()
-        else:
-            self.accumulate(label, ranking)
-
     def accumulate(self, label, ranking):
         raise NotImplementedError("use subclass")
 
     def compute(self):
         raise NotImplementedError("use subclass")
 
+    def __call__(self, label=None, ranking=None): # df grouped by inputs, ranks ranks all entities
+        if ranking is None or label is None:
+            return self.compute()
+        else:
+            self.accumulate(label, ranking)
 
-class RecallAt(RankingMetric):
+
+class ClassAccuracy(Metric):
+
+    @property
+    def name(self):
+        return "Classification Accuracy"
+
+    def accumulate(self, gold, pred):
+        if gold == pred:
+            self.acc += 1
+        self.div += 1
+
+    def compute(self):
+        return self.acc / self.div
+
+
+class RecallAt(Metric):
     def __init__(self, top, **kw):
         self.topn = top
         super(RecallAt, self).__init__(**kw)
@@ -43,7 +57,7 @@ class RecallAt(RankingMetric):
         return self.acc / self.div
 
 
-class MeanQuantile(RankingMetric):
+class MeanQuantile(Metric):
 
     @property
     def name(self):

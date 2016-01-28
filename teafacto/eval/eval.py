@@ -53,3 +53,18 @@ class KBCEvaluator(Evaluator):
         ret = zip(entidxs, preds)
         ret = sorted(ret, key=lambda x: x[1], reverse=True)
         return ret
+
+
+class ClasEvaluator(Evaluator):
+    def evaluate(self, model, data, labels):
+        tt = TT("Evaluator")
+        preds = model.predict(data)
+        for n in range(data.shape[0]): # iterate over all examples
+            #tt.progress(n, data.shape[0])
+            for metric in self.metrics:
+                metric(labels[n], preds[n])
+        results = {}
+        for metric in self.metrics:
+            results[metric.name] = metric()
+        tt.tock("computed")
+        return results

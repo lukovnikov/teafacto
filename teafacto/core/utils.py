@@ -30,7 +30,7 @@ class ticktock(object):
     def progress(self, x, of):
         self.perc = int(round(100.* x/of))
         if self.perc != self.prevperc:
-            print "%d" % self.perc  + "%"
+            print "%s: %d" % (self.prefix, self.perc)  + "%"
             self.prevperc = self.perc
 
     def tock(self, action=None, prefix=None):
