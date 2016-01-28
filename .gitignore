@@ -1,7 +1,8 @@
+#models/
 venv/
 decomp/
 .idea/
-/data/nycfilms/.ipynb_checkpoints
+.ipynb_checkpoints
 
 
 # default Python ignorelist
@@ -15,22 +16,24 @@ __pycache__/
 
 # Distribution / packaging
 .Python
-/scripts/test.py
+/teafacto/scripts/test.py
 env/
 build/
 develop-eggs/
 dist/
+/data/glove/*
 downloads/
 eggs/
+/data/wikipedia/short-abstracts_en.nt
+/data/wikipedia/idx/*
 .eggs/
 lib/
+/data/kaggleai/*
 lib64/
 parts/
 sdist/
 var/
 *.egg-info/
-.installed.cfg
-*.egg
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
