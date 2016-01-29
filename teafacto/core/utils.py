@@ -1,5 +1,5 @@
 __author__ = 'denis'
-import collections, os, urllib2, zipfile, bz2, re
+import collections, os, urllib2, zipfile, bz2, re, argparse, inspect
 
 import theano
 from theano import tensor
@@ -59,6 +59,23 @@ class ticktock(object):
 
         else:
             return "%f seconds" % duration
+
+
+def argparsify(f):
+    args, _, _, defaults = inspect.getargspec(f)
+    assert(len(args) == len(defaults))
+    parser = argparse.ArgumentParser()
+    i = 0
+    for arg in args:
+        parser.add_argument("-%s"%arg, "--%s"%arg, type=type(defaults[i]))
+        i += 1
+    par = parser.parse_args()
+    kwargs = {}
+    for arg in args:
+        if getattr(par, arg) is not None:
+            kwargs[arg] = getattr(par, arg)
+    return kwargs
+
 
 
 def issequence(x):
@@ -229,3 +246,10 @@ class FileHandler(object):
     def ensuredir(p):
         if not os.path.isdir(p):
             os.makedirs(p)
+
+
+if __name__ == "__main__":
+    def f(a=1, b=0.1, c="qsdf"):
+        print a, b, c
+    p = argparsify(f)
+    f(**p)

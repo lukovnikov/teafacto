@@ -21,7 +21,7 @@ class SGD(Optimizer):
     def getupdates(self, params, grads):
         updates = []
         for (p, g) in zip(params, grads):
-            update = (p, (p - self.lr * self.numbats * g).astype("float32"))
+            update = (p, p - (self.lr * self.numbats * g).astype("float32"))
             updates.append(update)
         return updates
 

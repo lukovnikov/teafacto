@@ -6,6 +6,7 @@ from teafacto.core.rnn import *
 from teafacto.core.train import Trainer
 from teafacto.eval.eval import ClasEvaluator
 from teafacto.eval.metrics import ClassAccuracy
+from teafacto.core.utils import argparsify
 
 from nltk.tokenize import RegexpTokenizer
 
@@ -79,7 +80,7 @@ def transformdf(df, t):
 
 class MCQABaseSM(SMBase, Predictor, Saveable):
 
-    def defmodel(self):
+    def defmodel(self): # model behaves correctly
         golds = T.ivector("answers")
         iq, ia, ib, ic, id = T.imatrices("q", "a", "b", "c", "d") # (batsize, seqlen)
         q, a, b, c, d = [self.wemb[x, :] for x in [iq, ia, ib, ic, id]] # (batsize, seqlen, dim)
@@ -90,6 +91,7 @@ class MCQABaseSM(SMBase, Predictor, Saveable):
         #dots = [T.sqr((qenc - x).norm(2, axis=1)).reshape((x.shape[0], 1)) for x in [aenc, benc, cenc, denc]]
         dots = T.concatenate(dots, axis=1) # (batsize, 4)
         probs = T.nnet.softmax(dots)
+        #embed()
         return probs, golds, [iq, ia, ib, ic, id, golds]
 
     def getpredictfunction(self):
@@ -102,7 +104,7 @@ class MCQABaseSM(SMBase, Predictor, Saveable):
         return pref
 
     def getsamplegen(self, data, labels, onebatch=False): # data: ? list of (batsize, seqlen), seqlen for Q is different than for A's
-        if onebatch:
+        if onebatch:                                      # works correctly (DONE: shapes inspected)
             batsize = data.shape[0]
         else:
             batsize = self.batsize
@@ -111,12 +113,12 @@ class MCQABaseSM(SMBase, Predictor, Saveable):
         np.random.shuffle(idxs)
         def samplegen():
             start = sampleoffsett[0]
-            #embed()
             end = min(sampleoffsett[0] + batsize, idxs.shape[0])
             selidxs = idxs[start:end]
             datasample = data[selidxs, :].astype("int32")
             labelsample = labels[selidxs].astype("int32")
             sampleoffsett[0] += end-start if end < idxs.shape[0] else 0
+            #embed()
             return datasample[:, 0, :], \
                    datasample[:, 1, :], \
                    datasample[:, 2, :], \
@@ -183,15 +185,13 @@ class QAEncDotSM(MCQABaseSM):
         return set() #{self.wemb}
 
 
-
-def run():
-
-    wreg = 0.0
-    epochs = 1
-    numbats = 50
-    lr = 0.0#0000000000000000000001 #0.001
-    dims=50
-
+def run(
+        wreg=0.0,
+        epochs=1,
+        numbats=50,
+        lr=10e-30,
+        dims=50
+    ):
     if False:
         df = read(path="../../data/kaggleai/test.tsv")
     else:
@@ -216,11 +216,15 @@ def run():
     model = models[0]
     print tres
 
-    embed()
+    #embed()
 
 
 
+def exprandint(shape, steepness, vocsize): # generate exponentially distributed integers between 0 and vocsize
+    r = np.random.random(shape)
+    s = -np.log(1- (1 - np.exp(-steepness)) * r) / steepness
+    return np.round(s*vocsize).astype("int32")
 
 
 if __name__ == "__main__":
-    run()
+    run(**argparsify(run))

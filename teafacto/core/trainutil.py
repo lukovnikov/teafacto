@@ -151,7 +151,7 @@ class SGDBase(Parameterized, Profileable):
         self.tt.tick("training")
         err = []
         verr = []
-        stop = False
+        stop = self.maxiter == 0
         self.currentiter = 1
         evalcount = evalinter
         if normf:
