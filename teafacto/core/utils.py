@@ -1,7 +1,7 @@
 __author__ = 'denis'
 import collections, os, urllib2, zipfile, bz2, re, argparse, inspect
 
-import theano
+import theano, numpy as np
 from theano import tensor
 
 from teafacto.core.blocksparse import sparse_block_dot
@@ -85,8 +85,16 @@ def issequence(x):
 def isnumber(x):
     return isinstance(x, float) or isinstance(x, int)
 
+
+def exprandint(shape, steepness, vocsize): # generate exponentially distributed integers between 0 and vocsize
+    r = np.random.random(shape)
+    s = -np.log(1- (1 - np.exp(-steepness)) * r) / steepness
+    return np.round(s*vocsize).astype("int32")
+
+
 class TodoException(NotImplementedError):
     pass
+
 
 def h_softmax(x, batch_size, n_outputs, n_classes, n_outputs_per_class,
               W1, b1, W2, b2, target=None):

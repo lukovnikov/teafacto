@@ -92,7 +92,7 @@ def run(
     tdf = transformdf(df, StringTransformer(glove))
 
     trainer = Trainer(lambda:
-                      DotSumEncSM(dim=dims, wreg=wreg, maxiter=epochs, numbats=numbats, wembs=glove)
+                      RNNMaskedSumEncDotSM(dim=dims, wreg=wreg, maxiter=epochs, numbats=numbats, wembs=glove)
                       + SGD(lr=lr)
     )
 
@@ -110,12 +110,6 @@ def run(
     print tres
 
     #embed()
-
-
-def exprandint(shape, steepness, vocsize): # generate exponentially distributed integers between 0 and vocsize
-    r = np.random.random(shape)
-    s = -np.log(1- (1 - np.exp(-steepness)) * r) / steepness
-    return np.round(s*vocsize).astype("int32")
 
 
 if __name__ == "__main__":

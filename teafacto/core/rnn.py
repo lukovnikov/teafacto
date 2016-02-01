@@ -2,6 +2,7 @@ import theano, numpy as np
 from theano import tensor as T
 import inspect
 from teafacto.core.trainutil import Parameterized
+from IPython import embed
 
 class RNUBase(Parameterized):
     def __init__(self, dim=20, innerdim=20, wreg=0.0001, initmult=0.1, nobias=False, **kw): # dim is input dimensions, innerdim = dimension of internal elements
@@ -224,7 +225,7 @@ class RNNEncoder(RNUParameterized):
 
 class RNNMask(RNUParameterized):
     '''
-    Generates vector mask sequence (elements between 0 and 1) for a sequence of vectors.
+    Puts an entry-wise RNN mask on a sequence of vectors.
     RNU output dims must be the same as input dims
     '''
     def mask(self, seq): # seq: (batsize, seqlen, dim)
@@ -238,7 +239,16 @@ class RNNMask(RNUParameterized):
                                  outputs_info=[None]+[initstate]*numstates)
         outputs = T.nnet.sigmoid(outputs[0]).dimshuffle(1, 0, 2) # outputs: [0, 1] of (batsize, seqlen, dim)
         mseq = seq * outputs # apply the mask
+        #embed()
         return mseq
 
     def recwrap(self, x_t, *args): # x_t: (batsize, dim)
         return self.rnu.rec(x_t, *args) # list of matrices (batsize, **somedims**)
+
+
+class RNNVectorMask(RNUParameterized):
+    '''
+    Puts a element-wise RNN weights on a sequence of vectors.
+    '''
+    pass
+    # TODO

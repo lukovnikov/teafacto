@@ -5,6 +5,7 @@ from theano import tensor as T
 from teafacto.core.rnn import RNNMask, GRU, RNNEncoder
 from teafacto.core.trainutil import SMBase, Predictor, Saveable
 from teafacto.lm import Glove
+from IPython import embed
 
 
 class MultiQABaseSM(SMBase, Predictor, Saveable):
@@ -104,7 +105,10 @@ class RNNMaskedSumEncDotSM(MultiQABaseSM):
         return sum
 
     def encodeA(self, avar):
-        return self.encodeQ(avar)
+        sum = T.sum(avar, axis=1)
+        eps = 10e-10 # to avoid division by zero
+        sum = (sum.T / (sum.norm(2, axis=1) + eps)).T
+        return sum
 
     def encScore(self, qenc, aenc):
         return T.batched_dot(qenc, aenc).reshape((aenc.shape[0], 1))
@@ -134,6 +138,9 @@ class QAEncDotSM(MultiQABaseSM):
 
     def encodeA(self, avar):
         return self.aencoder.encode(avar)
+
+    def encScore(self, qenc, aenc):
+        return T.batched_dot(qenc, aenc).reshape((aenc.shape[0], 1))
 
     @property
     def depparameters(self):
