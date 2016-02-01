@@ -186,8 +186,7 @@ class LSTM(RNUBase):
         return [y_t, y_t, c_t]
 
 
-
-class RNNEncoder(Parameterized):
+class RNUParameterized(Parameterized):
     def __init__(self):
         self.rnu = None
 
@@ -195,6 +194,16 @@ class RNNEncoder(Parameterized):
         if isinstance(other, RNUBase):
             self.rnu = other
         return self
+
+    @property
+    def depparameters(self):
+        return self.rnu.parameters
+
+
+class RNNEncoder(RNUParameterized):
+    '''
+    Encodes a sequence of vectors into a vector, input dims and output dims specified by the RNU unit
+    '''
 
     def encode(self, seq): # seq: (batsize, seqlen, dim)
         inp = seq.dimshuffle(1, 0, 2)
@@ -206,13 +215,30 @@ class RNNEncoder(Parameterized):
         output = outputs[0]
         return output[-1, :, :] #output is (batsize, innerdim)
 
-    def recwrap(self, x_t, *args): # x_t: (batsize, dim)      IDEA: if input is all zeros, just return previous state
+    def recwrap(self, x_t, *args): # x_t: (batsize, dim)      if input is all zeros, just return previous state
         mask = x_t.norm(2, axis=1) > 0 # (batsize, )
         rnuret = self.rnu.rec(x_t, *args) # list of matrices (batsize, **somedims**)
         ret = map(lambda (a, r): (a.T * (1-mask) + r.T * mask).T, zip([args[0]] + list(args), rnuret))
         return ret
 
 
-    @property
-    def depparameters(self):
-        return self.rnu.parameters
+class RNNMask(RNUParameterized):
+    '''
+    Generates vector mask sequence (elements between 0 and 1) for a sequence of vectors.
+    RNU output dims must be the same as input dims
+    '''
+    def mask(self, seq): # seq: (batsize, seqlen, dim)
+        inp = seq.dimshuffle(1, 0, 2)
+        # initialize hidden states, depending on the used RNN (numstates)
+        numstates = len(inspect.getargspec(self.rnu.rec).args) - 2
+        initstate = T.zeros((inp.shape[1], self.rnu.innerdim)) # (nb_samples, dim)
+        # run RNU over it
+        outputs, _ = theano.scan(fn=self.recwrap,
+                                 sequences=inp,
+                                 outputs_info=[None]+[initstate]*numstates)
+        outputs = T.nnet.sigmoid(outputs[0]).dimshuffle(1, 0, 2) # outputs: [0, 1] of (batsize, seqlen, dim)
+        mseq = seq * outputs # apply the mask
+        return mseq
+
+    def recwrap(self, x_t, *args): # x_t: (batsize, dim)
+        return self.rnu.rec(x_t, *args) # list of matrices (batsize, **somedims**)

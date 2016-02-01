@@ -81,7 +81,7 @@ class Profileable(object):
 
 
 class SGDBase(Parameterized, Profileable):
-    def __init__(self, maxiter=50, lr=0.0001, numbats=100, wreg=0.00001, **kw):
+    def __init__(self, maxiter=50, lr=0.0, numbats=100, wreg=0.00001, **kw):
         self.tt = tt(self.__class__.__name__)
         self.maxiter = maxiter
         self.currentiter = 0
@@ -160,6 +160,7 @@ class SGDBase(Parameterized, Profileable):
             print("iter %d/%.0f" % (self.currentiter, float(self.maxiter)))
             start = dt.now()
             erre, tsize = trainf()
+            print erre, tsize
             if average_err:
                 erre /= tsize
             if normf:
