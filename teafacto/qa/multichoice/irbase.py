@@ -16,9 +16,10 @@ def run(irwiki, load=False):
     else:
         sdf = pd.DataFrame.from_csv(tmpsdfp)
     cdf = choose(sdf)
+    print cdf
     cdf.to_csv(tmpcdfp)
-    evalu(cdf, df)
-    print sdf
+    res = evalu(cdf, df)
+    print res
 
 
 def transform(df):
@@ -27,7 +28,6 @@ def transform(df):
     df["answerB"] = df["answerB"].apply(lambda x: " ".join(x))
     df["answerC"] = df["answerC"].apply(lambda x: " ".join(x))
     df["answerD"] = df["answerD"].apply(lambda x: " ".join(x))
-    df["x"] = df.apply(lambda row: " ".join(row), axis=1)
     tdf = pd.DataFrame()
     tdf["qA"] = df.apply(lambda row: row["question"] + " " + row["answerA"], axis=1)
     tdf["qB"] = df.apply(lambda row: row["question"] + " " + row["answerB"], axis=1)
@@ -71,7 +71,7 @@ def elemscorer(idx):
 
 def choose(sdf): # sdf only has qA, qB, qC, qD and the right index (question id's)
     ret = pd.DataFrame()
-    ret["correctAnswer"] = sdf.idxmax(axis=1)
+    ret["correctAnswer"] = sdf.idxmax(axis=1).apply(lambda x: x[1])
     ret.index = sdf.index
     return ret
 
@@ -82,4 +82,4 @@ def evalu(pred, orig):
 
 if __name__ == "__main__":
     idx = WikipediaIndex(dir="../../../data/wikipedia/pagesidx/")
-    run(idx)
+    run(idx, load=True)
