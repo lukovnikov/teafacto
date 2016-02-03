@@ -91,6 +91,9 @@ class Trainer(object):
             verr = []
             return [m], err, verr, None, None, None
 
+    def predict(self, data, model):
+        model.predict(data)
+
     def splitdata(self, data, labels, splitidxs):
         validdata = data[splitidxs, :]
         validlabels = labels[splitidxs]

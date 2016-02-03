@@ -5,17 +5,19 @@ from whoosh.analysis import StemmingAnalyzer
 import shelve, os, os.path
 import nltk
 from teafacto.core.utils import FileHandler
+from IPython import embed
 
 import re
-atre = re.compile(r"^<([^>]+)>\s<[^>]+>\s\"(.+)\"@en\s\.$")
+
 
 class WikipediaIndex(object):
-    def __init__(self, dir="../../data/wikipedia/idx/"):
+    def __init__(self, dir="../../data/wikipedia/ck12idx/"):
         self.dir = dir
         FileHandler.ensuredir(self.dir)
         self.defaulturis = {"abstract": "http://downloads.dbpedia.org/2015-04/core-i18n/en/long-abstracts_en.nt.bz2"}
 
-    def index(self, source="../../data/wikipedia/long-abstracts_en.nt"):
+    def indexabstracts(self, source="../../data/wikipedia/long-abstracts_en.nt", atre=r"^<([^>]+)>\s<[^>]+>\s\"(.+)\"@en\s\.$"):
+        atre = re.compile(atre)
         ana = StemmingAnalyzer()
         self.schema = Schema(title=ID(stored=True, unique=True), abstract=TEXT(analyzer=ana, stored=True))
         ix = create_in(self.dir, self.schema)
@@ -38,22 +40,54 @@ class WikipediaIndex(object):
                         writer = ix.writer(procs=3, limitmb=300)
             writer.commit()
 
-    def search(self, q="test", limit=20):
+    def indexdump(self, source="../../data/wikipedia/ck12.txt", procs=3, limitmb=300):
+        titlere = re.compile("^<\./(.+)\.txt>$")
+        ana = StemmingAnalyzer()
+        self.schema = Schema(title=ID(stored=True, unique=True), content=TEXT(analyzer=ana, stored=True))
+        ix = create_in(self.dir, self.schema)
+        with open(source) as sf:
+            writer = ix.writer(procs=procs, limitmb=limitmb)
+            c = 0
+            currenttitle = None
+            currentcontent = ""
+            for line in sf:
+                m = titlere.match(line)
+                if m: # title
+                    # flush previously accumulated title and content
+                    if currenttitle is not None and len(currentcontent) > 0:
+                        writer.add_document(title=currenttitle, content=currentcontent)
+                    # set title, reset content
+                    currenttitle = m.group(1).decode("unicode-escape")
+                    currentcontent = ""
+                else: # content
+                    currentcontent += line.decode("unicode-escape") + " "
+            # flush latest accumulated title and content
+            if currenttitle is not None and len(currentcontent) > 0:
+                writer.add_document(title=currenttitle, content=currentcontent)
+            writer.commit()
+
+    def _search(self, q="test", limit=20, field="content"):
         ix = open_dir(self.dir)
         ret = []
         with ix.searcher() as searcher:
-            query = QueryParser("abstract", ix.schema).parse(q)
+            query = QueryParser(field, ix.schema).parse(q)
             rets = searcher.search(query, limit=limit)
             for r in rets:
-                ret.append({"title": r["title"], "abstract": r["abstract"]})
+                ret.append({"score": r.score, "content": r["content"], "title": r["title"]})
         return ret
+
+    def search(self, q="test", limit=20):
+        return self._search(q, limit, field="content")
+
+    def searchtitle(self, t="test", limit=20):
+        return self._search(t, limit, field="title")
 
     def getsentences(self, q="test", limit=20):
         sres = self.search(q, limit=limit)
         ret = []
         if sres is not None:
             for sre in sres:
-                sresents = nltk.tokenize.sent_tokenize(sre["abstract"])
+                sresents = nltk.tokenize.sent_tokenize(sre["content"])
                 ret.extend(sresents)
         return ret
 
@@ -82,11 +116,12 @@ class WikipediaIndex(object):
 if __name__ == "__main__":
 
     wi = WikipediaIndex()
-    wi.index()
+    #wi.indexdump()
 
-    sents = wi.getsentences("mercury", limit=20)
+    sents = wi.search("", limit=5)
     for sent in sents:
-        print sent
+        print sent["score"]
+        print sent["title"]# + sent["content"]
 
     #ss = nltk.tokenize.sent_tokenize("hello, it's me. I was wondering.")
 
