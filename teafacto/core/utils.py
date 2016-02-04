@@ -1,10 +1,11 @@
 __author__ = 'denis'
 import collections, os, urllib2, zipfile, bz2, re, argparse, inspect
 
-import theano, numpy as np
-from theano import tensor
+import numpy as np
+#import theano
+#from theano import tensor
 
-from teafacto.core.blocksparse import sparse_block_dot
+#from teafacto.core.blocksparse import sparse_block_dot
 from datetime import datetime as dt
 
 class ticktock(object):
@@ -159,7 +160,7 @@ def h_softmax(x, batch_size, n_outputs, n_classes, n_outputs_per_class,
     ----------
     .. [1] J. Goodman, "Classes for Fast Maximum Entropy Training,"
         ICASSP, 2001, <http://arxiv.org/abs/cs/0108006>`.
-    """
+
 
     # First softmax that computes the probabilities of belonging to each class
     class_probs = theano.tensor.nnet.softmax(tensor.dot(x, W1) + b1)
@@ -208,6 +209,7 @@ def h_softmax(x, batch_size, n_outputs, n_classes, n_outputs_per_class,
         output_probs = target_class_probs * output_probs
 
     return output_probs
+    """
 
 
 class FileHandler(object):

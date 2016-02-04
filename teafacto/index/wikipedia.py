@@ -4,6 +4,7 @@ from whoosh.qparser import QueryParser, OrGroup
 from whoosh.analysis import StemmingAnalyzer
 import shelve, os, os.path
 import nltk
+#from teafacto.core.utils import FileHandler
 from IPython import embed
 
 import re
@@ -126,7 +127,7 @@ class WikipediaIndex(object):
 if __name__ == "__main__":
 
     wi = WikipediaIndex(dir="../../data/wikipedia/pidx/")
-    wi.indexdump(source="../../data/wikipedia/pages.txt", paragraphlevel=False)
+    #wi.indexdump(source="../../data/wikipedia/pages.txt", paragraphlevel=True)
 
     sents = wi.search("athletes heart rate cell level mercury achromatopsia", limit=8)
     for sent in sents:

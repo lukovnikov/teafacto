@@ -1,16 +1,16 @@
 from teafacto.index.wikipedia import WikipediaIndex
 from teafacto.qa.multichoice.kaggleutils import *
-from teafacto.core.utils import ticktock
+from teafacto.core.utils import ticktock, argparsify
+import multiprocessing as mp, pandas as pd, math
 
 
-def run(irwiki, load=False):
+def run(irp="../../../data/wikipedia/pagesidx/", load=0, parallel=3):
     tmpsdfp = "sdf.part.tmp.csv"
     tmpcdfp = "preds.csv"
     df = read()
-    if not load:
+    if load == 0:
         tdf = transform(df)
-        irscorer = elemscorer(irwiki)
-        sdf = scoredf(tdf, irscorer)
+        sdf = scoredf(tdf, irp, parallel=parallel)
         print sdf
         sdf.to_csv(tmpsdfp)
     else:
@@ -37,20 +37,41 @@ def transform(df):
     return tdf
 
 
-def scoredf(tdf, scorer):
-    sdf = pd.DataFrame()
+def scoredf(tdf, irp, parallel=1):
+    tt2 = ticktock("Scorer global")
+    tt2.tick("scoring")
+    if parallel > 1: # do parallellized
+        chunks = parallel
+        datalen = tdf.shape[0]
+        chunksize = int(math.ceil(datalen*1.0/chunks))
+        xdfcs = []
+        for i in range(chunks):
+            pxdf = tdf.iloc[i*chunksize: min((i+1)*chunksize, datalen)]
+            xdfcs.append(pxdf)
+        pool = mp.Pool()
+        res = pool.map(scoredffun, zip(xdfcs, [{"irp": irp}]*len(xdfcs)))
+        sdf = pd.concat(res)
+        ####sdf = tdf.apply(lambda row: scorerow(row, scorer), axis=1)
+    else:
+        sdf = scoredffun((tdf, irp))
+    sdf.index = tdf.index
+    return sdf
+
+
+def scoredffun((tdf, settings)):
     c = 0
-    tt = ticktock("Scorer")
-    tt.tick()
+    retdf = pd.DataFrame()
+    tt = ticktock("Score fun")
+    tt.tick("scorer initialized")
+    scorer = elemscorer(WikipediaIndex(dir=settings["irp"]))
     for i, row in tdf.iterrows():
         c += 1
         if c % 10 == 0:
             tt.tock("%d/%d" % (c, tdf.shape[0])).tick()
             #break
-        sdf = sdf.append(scorerow(row, scorer))
-    sdf.index = tdf.index
-    sdf = tdf.apply(lambda row: scorerow(row, scorer), axis=1)
-    return sdf
+        retdf = retdf.append(scorerow(row, scorer))
+    tt.tock("scored")
+    return retdf
 
 
 def scorerow(row, scorer):
@@ -83,5 +104,4 @@ def evalu(pred, orig):
 # TODO: make incomplete retrieval (now many things are scored at 0.0)
 
 if __name__ == "__main__":
-    idx = WikipediaIndex(dir="../../../data/wikipedia/pagesidx/")
-    run(idx, load=False)
+    run(**argparsify(run))
