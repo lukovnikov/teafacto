@@ -126,7 +126,7 @@ class WikipediaIndex(object):
 if __name__ == "__main__":
 
     wi = WikipediaIndex(dir="../../data/wikipedia/pagesidx/")
-    #wi.indexdump(source="../../data/wikipedia/pages.txt", paragraphlevel=True)
+    wi.indexdump(source="../../data/wikipedia/pages.txt", paragraphlevel=True)
 
     sents = wi.search("athletes heart rate cell level mercury achromatopsia", limit=8)
     for sent in sents:
