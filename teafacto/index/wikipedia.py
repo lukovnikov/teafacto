@@ -39,7 +39,7 @@ class WikipediaIndex(object):
                         writer = ix.writer(procs=3, limitmb=300)
             writer.commit()
 
-    def indexdump(self, source="../../data/wikipedia/ck12.txt", procs=3, limitmb=300, paragraphlevel=False):
+    def indexdump(self, source="../../data/wikipedia/ck12.txt", procs=12, limitmb=300, paragraphlevel=False):
         titlere = re.compile("^<\./(.+)\.txt>$")
         ana = StemmingAnalyzer()
         self.schema = Schema(title=ID(stored=True, unique=True), content=TEXT(analyzer=ana, stored=True))
@@ -125,8 +125,8 @@ class WikipediaIndex(object):
 
 if __name__ == "__main__":
 
-    wi = WikipediaIndex(dir="../../data/wikipedia/pagesidx/")
-    wi.indexdump(source="../../data/wikipedia/pages.txt", paragraphlevel=True)
+    wi = WikipediaIndex(dir="../../data/wikipedia/pidx/")
+    wi.indexdump(source="../../data/wikipedia/pages.txt", paragraphlevel=False)
 
     sents = wi.search("athletes heart rate cell level mercury achromatopsia", limit=8)
     for sent in sents:
