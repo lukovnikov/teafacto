@@ -1,6 +1,6 @@
 from whoosh.index import create_in, open_dir
 from whoosh.fields import *
-from whoosh.qparser import QueryParser
+from whoosh.qparser import QueryParser, OrGroup
 from whoosh.analysis import StemmingAnalyzer
 import shelve, os, os.path
 import nltk
@@ -79,12 +79,12 @@ class WikipediaIndex(object):
         except Exception as e:
             print e
 
-    def _search(self, q="test", limit=20, field="content"):
+    def _search(self, q="test", limit=20, field="content", orgroup=True):
         ix = open_dir(self.dir)
         ret = []
         with ix.searcher() as searcher:
             try:
-                query = QueryParser(field, ix.schema).parse(q)
+                query = QueryParser(field, ix.schema, group=OrGroup.factory(0.9)).parse(q)
             except AttributeError as e:
                 print e, q
             rets = searcher.search(query, limit=limit)
@@ -129,7 +129,7 @@ if __name__ == "__main__":
     wi = WikipediaIndex(dir="../../data/wikipedia/pagesidx/")
     #wi.indexdump(source="../../data/wikipedia/pages.txt", paragraphlevel=True)
 
-    sents = wi.search("athletes heart rate cell level", limit=10)
+    sents = wi.search("athletes heart rate cell level mercury achromatopsia", limit=8)
     for sent in sents:
         print "%.3f - %s" % (sent["score"], sent["title"])# + sent["content"]
 

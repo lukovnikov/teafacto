@@ -4,7 +4,7 @@ from teafacto.core.utils import ticktock
 
 
 def run(irwiki, load=False):
-    tmpsdfp = "sdf.tmp.csv"
+    tmpsdfp = "sdf.part.tmp.csv"
     tmpcdfp = "preds.csv"
     df = read()
     if not load:
@@ -46,10 +46,10 @@ def scoredf(tdf, scorer):
         c += 1
         if c % 10 == 0:
             tt.tock("%d/%d" % (c, tdf.shape[0])).tick()
-            break
+            #break
         sdf = sdf.append(scorerow(row, scorer))
-    #sdf.index = tdf.index
-    #sdf = tdf.apply(lambda row: scorerow(row, scorer), axis=1)
+    sdf.index = tdf.index
+    sdf = tdf.apply(lambda row: scorerow(row, scorer), axis=1)
     return sdf
 
 
@@ -80,6 +80,8 @@ def evalu(pred, orig):
     return (pred["correctAnswer"] == orig["correctAnswer"]).sum(axis=0)*1. / orig.shape[0]
 
 
+# TODO: make incomplete retrieval (now many things are scored at 0.0)
+
 if __name__ == "__main__":
     idx = WikipediaIndex(dir="../../../data/wikipedia/pagesidx/")
-    run(idx, load=True)
+    run(idx, load=False)
