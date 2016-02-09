@@ -1,4 +1,4 @@
-from teafacto.index.wikipedia import WikipediaIndex
+from teafacto.index.wikiindex import WikipediaIndex
 from teafacto.qa.multichoice.kaggleutils import *
 from teafacto.core.utils import ticktock, argparsify
 import multiprocessing as mp, pandas as pd, math
