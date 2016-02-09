@@ -4,10 +4,10 @@ from teafacto.core.utils import ticktock, argparsify
 import multiprocessing as mp, pandas as pd, math
 
 
-def run(irp="../../../data/wikipedia/pagesidx/", load=0, parallel=3):
-    tmpsdfp = "sdf.part.tmp.csv"
-    tmpcdfp = "preds.csv"
-    df = read()
+def run(irp="../../../data/wikipedia/pagesidx/", load=0, parallel=3, dataset="../../../data/kaggleai/training_set.tsv", prefix="t"):
+    tmpsdfp = prefix+"sdf.tmp.csv"
+    tmpcdfp = prefix+"preds.csv"
+    df = read(path=dataset)
     if load == 0:
         tdf = transform(df)
         sdf = scoredf(tdf, irp, parallel=parallel)
