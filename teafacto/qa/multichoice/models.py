@@ -87,6 +87,17 @@ class DotSumEncSM(MultiQABaseSM):
         return {self.wemb}
 
 
+class RNNWeightedSumEncDotSM(MultiQABaseSM):
+    def __init__(self, dim=50, wembs=None, **kw):
+        super(RNNWeightedSumEncDotSM, self).__init__(**kw)
+        self.dim = dim
+        self.innerdim = dim
+        self.mask = RNNMask() + GRU(dim=self.dim, innerdim=self.innerdim, wreg=self.wreg) # one mask for Q's and A's
+        if wembs is None:
+            wembs = Glove(dim)
+        self.wemb = wembs.theano
+
+
 class RNNMaskedSumEncDotSM(MultiQABaseSM):
     def __init__(self, dim=50, wembs=None, **kw):
         super(RNNMaskedSumEncDotSM, self).__init__(**kw)

@@ -1,5 +1,5 @@
 from flask import Flask, jsonify
-from teafacto.index.wikipedia import WikipediaIndex
+from teafacto.index.wikiindex import WikipediaIndex
 
 def run():
     wi = WikipediaIndex()
