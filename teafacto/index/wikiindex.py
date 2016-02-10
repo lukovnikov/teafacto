@@ -14,6 +14,8 @@ class WikipediaIndex(object):
     def __init__(self, dir="../../data/wikipedia/pagesidx/"):
         self.dir = dir
         #FileHandler.ensuredir(self.dir)
+        self.ix = None
+        self.searcher = None
         self.defaulturis = {"abstract": "http://downloads.dbpedia.org/2015-04/core-i18n/en/long-abstracts_en.nt.bz2"}
 
     def indexabstracts(self, source="../../data/wikipedia/long-abstracts_en.nt", atre=r"^<([^>]+)>\s<[^>]+>\s\"(.+)\"@en\s\.$"):
@@ -40,7 +42,7 @@ class WikipediaIndex(object):
                         writer = ix.writer(procs=3, limitmb=300)
             writer.commit()
 
-    def indexdump(self, source="../../data/wikipedia/ck12.txt", procs=12, limitmb=300, paragraphlevel=False):
+    def indexdump(self, source="../../data/wikipedia/ck12.txt", procs=3, limitmb=300, paragraphlevel=False):
         titlere = re.compile("^<\./(.+)\.txt>$")
         ana = StemmingAnalyzer()
         self.schema = Schema(title=ID(stored=True, unique=True), content=TEXT(analyzer=ana, stored=True))
@@ -80,16 +82,19 @@ class WikipediaIndex(object):
             print e
 
     def _search(self, q="test", limit=20, field="content", orgroup=True):
-        ix = open_dir(self.dir)
+        if self.ix is None:
+            self.ix = open_dir(self.dir)
+        if self.searcher is None:
+            self.searcher = self.ix.searcher()
         ret = []
-        with ix.searcher() as searcher:
-            try:
-                query = QueryParser(field, ix.schema, group=OrGroup.factory(0.9)).parse(q)
-            except AttributeError as e:
-                print e, q
-            rets = searcher.search(query, limit=limit)
-            for r in rets:
-                ret.append({"score": r.score, "content": r["content"], "title": r["title"]})
+        rets = []
+        try:
+            query = QueryParser(field, self.ix.schema, group=OrGroup.factory(0.9)).parse(q)
+            rets = self.searcher.search(query, limit=limit)
+        except AttributeError as e:
+            print e, q
+        for r in rets:
+            ret.append({"score": r.score, "content": r["content"], "title": r["title"]})
         return ret
 
     def search(self, q="test", limit=20):
@@ -126,12 +131,21 @@ class WikipediaIndex(object):
 
 if __name__ == "__main__":
 
-    wi = WikipediaIndex(dir="../../data/wikipedia/pidx/")
-    #wi.indexdump(source="../../data/wikipedia/pages.txt", paragraphlevel=True)
+    wi = WikipediaIndex(dir="../../data/wikipedia/nparaidx/")
+    #wi.indexdump(source="../../data/wikipedia/npages.txt", paragraphlevel=True)
 
-    sents = wi.search("athletes heart rate cell level mercury achromatopsia", limit=8)
-    for sent in sents:
-        print "%.3f - %s" % (sent["score"], sent["title"])# + sent["content"]
+    def srh(k):
+        print "searching for: \"%s\"" % k
+        sents = wi.search(k, limit=8)
+        for sent in sents:
+            print "%.3f - %s" % (sent["score"], sent["title"])# + sent["content"]
+        print "\n"
+
+    srh("color blindness")
+    srh("mercury")
+    srh("industry")
+    srh("barack obama")
+    srh("fumes")
 
     #ss = nltk.tokenize.sent_tokenize("hello, it's me. I was wondering.")
 
