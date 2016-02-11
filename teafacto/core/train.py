@@ -55,7 +55,7 @@ class Trainer(object):
         self.params = params
         self.tt = TT("Trainer")
 
-    def train(self, data, labels, validsplit=10, validrandom=False, folds=1, validinter=1, tester=x, average_err=True):
+    def train(self, data, labels, validsplit=10, validrandom=False, folds=1, validinter=1, tester=None, average_err=True):
         assert data.shape[0] == labels.shape[0]
         self.validsplit = validsplit
         self.tt.tick("training")

@@ -41,17 +41,17 @@ def transformdf(df, t):
 
 
 def run(
-        wreg=0.0,
-        epochs=0,
+        wreg=0.0001,
+        epochs=20,
         numbats=50,
-        lr=0.0,
+        lr=0.01,
         dims=50,
-        predicton="../../../data/kaggleai/validation_set.tsv"
+        predicton=None # "../../../data/kaggleai/validation_set.tsv"
     ):
     def innerrun():
         glove = Glove(dims)
         trainer = Trainer(lambda:
-                          DotSumEncSM(dim=dims, wreg=wreg, maxiter=epochs, numbats=numbats, wembs=glove)
+                          QAEncDotSM(dim=dims, wreg=wreg, maxiter=epochs, numbats=numbats, wembs=glove)
                           + SGD(lr=lr)
         )
         return trainer, glove
