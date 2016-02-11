@@ -112,7 +112,7 @@ class WikipediaIndex(object):
         self.ensuresearcher()
         anaw = [x.text for x in ana(w.decode("unicode-escape"))]
         if len(anaw) == 0:
-            return 0
+            return 0.
         else:
             return self.searcher.idf("content", anaw[0])
 
