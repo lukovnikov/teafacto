@@ -21,7 +21,7 @@ def read(path="../../../data/kaggleai/training_set.tsv"):
     return df
 
 def tokenize(ll):
-    tokens = RegexpTokenizer(r'\w+').tokenize(ll)
+    tokens = RegexpTokenizer(r'[^\W_]+').tokenize(ll)
     if len(tokens) == 1 and len(tokens[0]) == 1: # one letter:
         return tokens[0]
     else:

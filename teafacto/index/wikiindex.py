@@ -1,6 +1,6 @@
 from whoosh.index import create_in, open_dir
 from whoosh.fields import *
-from whoosh.qparser import QueryParser, OrGroup
+from whoosh.qparser import QueryParser, OrGroup, AndMaybeGroup, AndGroup
 from whoosh.analysis import StemmingAnalyzer
 import shelve, os, os.path
 import nltk
@@ -81,15 +81,22 @@ class WikipediaIndex(object):
         except Exception as e:
             print e
 
-    def _search(self, q="test", limit=20, field="content", orgroup=True):
+    def ensuresearcher(self):
         if self.ix is None:
             self.ix = open_dir(self.dir)
         if self.searcher is None:
             self.searcher = self.ix.searcher()
+
+    def _search(self, q="test", limit=20, door=False, field="content"):
+        self.ensuresearcher()
         ret = []
         rets = []
         try:
-            query = QueryParser(field, self.ix.schema, group=OrGroup.factory(0.9)).parse(q)
+            if door:
+                gro = OrGroup
+            else:
+                gro = AndGroup
+            query = QueryParser(field, self.ix.schema, group=gro).parse(q)
             rets = self.searcher.search(query, limit=limit)
         except AttributeError as e:
             print e, q
@@ -97,8 +104,13 @@ class WikipediaIndex(object):
             ret.append({"score": r.score, "content": r["content"], "title": r["title"]})
         return ret
 
-    def search(self, q="test", limit=20):
-        return self._search(q, limit, field="content")
+    def search(self, q="test", limit=20, door=False):
+        return self._search(q, limit=limit, door=door, field="content")
+
+    def getidf(self, w="the"):
+        self.ensuresearcher()
+        return self.searcher.idf("content", w)
+
 
     def searchtitle(self, t="test", limit=20):
         return self._search(t, limit, field="title")
@@ -134,9 +146,9 @@ if __name__ == "__main__":
     wi = WikipediaIndex(dir="../../data/wikipedia/nparaidx/")
     #wi.indexdump(source="../../data/wikipedia/npages.txt", paragraphlevel=True)
 
-    def srh(k):
+    def srh(k, limit=1, door=False):
         print "searching for: \"%s\"" % k
-        sents = wi.search(k, limit=8)
+        sents = wi.search(k, limit=limit, door=door)
         for sent in sents:
             print "%.3f - %s" % (sent["score"], sent["title"])# + sent["content"]
         print "\n"
@@ -146,6 +158,7 @@ if __name__ == "__main__":
     srh("industry")
     srh("barack obama")
     srh("fumes")
+    embed()
 
     #ss = nltk.tokenize.sent_tokenize("hello, it's me. I was wondering.")
 
