@@ -108,8 +108,13 @@ class WikipediaIndex(object):
         return self._search(q, limit=limit, door=door, field="content")
 
     def getidf(self, w="the"):
+        ana = StemmingAnalyzer()
         self.ensuresearcher()
-        return self.searcher.idf("content", w)
+        anaw = [x.text for x in ana(w.decode("unicode-escape"))]
+        if len(anaw) == 0:
+            return 0
+        else:
+            return self.searcher.idf("content", anaw[0])
 
 
     def searchtitle(self, t="test", limit=20):
@@ -143,7 +148,7 @@ class WikipediaIndex(object):
 
 if __name__ == "__main__":
 
-    wi = WikipediaIndex(dir="../../data/wikipedia/nparaidx/")
+    wi = WikipediaIndex(dir="../../data/wikipedia/npageidx/")
     #wi.indexdump(source="../../data/wikipedia/npages.txt", paragraphlevel=True)
 
     def srh(k, limit=1, door=False):
