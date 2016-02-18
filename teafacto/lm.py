@@ -6,10 +6,12 @@ import theano
 from theano import tensor as T
 
 class WordEmb(object): # unknown words are mapped to index 0, their embedding is a zero vector
-    def __init__(self):
+    def __init__(self, asparam=False):
         self.W = []
         self.D = {}
         self.tt = TT(self.__class__.__name__)
+        self.isparam = asparam
+
 
     def load(self, **kw):
         self.tt.tick("loading")
@@ -65,8 +67,17 @@ class WordEmb(object): # unknown words are mapped to index 0, their embedding is
         return self.getdistance(A, B)
 
     def __getitem__(self, word):
-        v = self.getvector(word)
-        return v if v is not None else np.zeros_like(self.W[0])
+        if isinstance(word, theano.Variable): # word should contain indexes
+            return self.theanovar[word, :]
+        else:
+            v = self.getvector(word)
+            return v if v is not None else np.zeros_like(self.W[0])
+
+    @property
+    def theanovar(self):
+        if self._theanovar is None:
+            self._theanovar = self.gettheanovariable()
+        return self._theanovar
 
     def gettheanovariable(self):
         return theano.shared(np.asarray(self.W).astype("float32"), name=self.__class__.__name__)

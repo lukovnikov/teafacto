@@ -56,6 +56,9 @@ class Saveable(object):
 
 
 class Parameterized(object):
+    def __init__(self, **kw):
+        super(Parameterized, self).__init__(**kw)
+        
     @property
     def parameters(self):
         return self.depparameters.union(self.ownparameters)

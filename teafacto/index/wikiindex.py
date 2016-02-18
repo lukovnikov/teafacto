@@ -11,8 +11,8 @@ import re
 
 
 class WikipediaIndex(object):
-    def __init__(self, dir="../../data/wikipedia/pagesidx/"):
-        self.dir = dir
+    def __init__(self, dir="../../data/wikipedia/npageidx/"):
+        self.dir = os.path.join(os.path.dirname(__file__), dir)
         #FileHandler.ensuredir(self.dir)
         self.ix = None
         self.searcher = None

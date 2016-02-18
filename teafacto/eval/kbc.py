@@ -1,13 +1,14 @@
-import os, pickle
+import os
+import pickle
 
 import numpy as np
 import pandas as pd
 
 from teafacto.core.sptensor import SparseTensor
+from teafacto.core.trainutil import Saveable
 from teafacto.core.utils import ticktock as TT
 from teafacto.eval.metrics import RecallAt, MeanQuantile
-from teafacto.core.trainutil import Saveable
-from teafacto.models.kmm import KMM
+from teafacto.models.kb.kmm import KMM
 
 
 class Evaluation(object):

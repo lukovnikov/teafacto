@@ -1,6 +1,5 @@
 __author__ = 'denis'
 
-import numpy as np
 import os
 import pickle
 from datetime import datetime
@@ -11,16 +10,14 @@ from teafacto.core.sptensor import SparseTensor
 from teafacto.core.utils import ticktock as TT
 
 # from teafacto.kmsm import RNNEKMSM, AutoRNNEKMSM, AutoRNNEKMSM
-from teafacto.models.kmm import *
+from teafacto.models.kb.kmm import *
 
 from teafacto.core.optimizers import SGD
-from teafacto.core.rnn import GRU, IFGRU, IEGRU, FullEGRU
 
-from teafacto.eval.kbc import Evaluation
 from teafacto.eval.eval import KBCEvaluator
 from teafacto.eval.metrics import RecallAt, MeanQuantile
 
-from teafacto.models.kmm import EKMM
+from teafacto.models.kb.kmm import EKMM
 import theano
 from theano import tensor as T
 

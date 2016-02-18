@@ -2,6 +2,7 @@ import theano, numpy as np
 from theano import tensor as T
 import inspect
 from teafacto.core.trainutil import Parameterized
+from teafacto.core.init import random
 from IPython import embed
 
 class RNUBase(Parameterized):
@@ -13,6 +14,7 @@ class RNUBase(Parameterized):
         self.initmult = initmult
         self.nobias = nobias
         self.initparams()
+        self.initstates = None
 
     def initparams(self):
         params = {}
@@ -33,7 +35,7 @@ class RNUBase(Parameterized):
         #self.initstate = T.zeros((self.indim,), dtype="float32")
 
     def _inittensor(self, dims):
-        return (np.random.random(dims).astype("float32")-0.5)*self.initmult
+        return random(dims, offset=0.5, initmult=self.initmult)
 
     def getreg(self, regf=lambda x: T.sum(x**2), mult=1./2):
         return mult * reduce(lambda x, y: x+y,
@@ -55,6 +57,12 @@ class RNUBase(Parameterized):
 
     def __call__(self, x):
         return self.getoutput(x)
+
+    def set_init_states(self, values):
+        self.initstates = values
+
+    def get_init_info(self, batsize):
+        raise NotImplementedError("use subclass")
 
     def getoutput(self, x):
         '''
@@ -80,12 +88,19 @@ class RNU(RNUBase):
         self.paramnames = ["u", "w"]
         super(RNU, self).__init__(**kw)
 
+    def get_init_info(self, batsize):
+        h_t0 = self.initstates
+        if h_t0 is None:
+            h_t0 = T.zeros((batsize, self.innerdim))
+        return [h_t0]
+
     def rec(self, x_t, h_tm1):      # x_t: (batsize, dim), h_tm1: (batsize, innerdim)
         inp = T.dot(x_t, self.w)    # w: (dim, innerdim) ==> inp: (batsize, innerdim)
         rep = T.dot(h_tm1, self.u)  # u: (innerdim, innerdim) ==> rep: (batsize, innerdim)
         h = inp + rep               # h: (batsize, innerdim)
         h = T.tanh(h)               #
         return [h, h] #T.tanh(inp+rep)
+
 
 class GatedRNU(RNUBase):
     def __init__(self, gateactivation=T.nnet.sigmoid, outpactivation=T.tanh, **kw):
@@ -155,6 +170,14 @@ class IFGRU(GatedRNU):
 class IFGRUTM(GatedRNU):
     def __init__(self, **kw):
         self.paramnames = ["ucf, uyf, uxf, uof, ucm, uc, rcf, ryf, rxf, rof, rcm, rc, wcf, wyf, wxf, wof, wcm, wc, wo, bcf, byf, bxf, bcm, bof, bc"]
+        super(IFGRUTM, self).__init__(**kw)
+
+    def get_init_info(self, batsize):
+        y_t0 = T.zeros((batsize, self.innerdim))
+        c_t0 = self.initstates
+        if c_t0 is None:
+            c_t0 = T.zeros((batsize, self.innerdim))
+        return [y_t0, c_t0]
 
     def rec(self, x_t, y_tm1, c_tm1):
         cfgate = self.gateactivation(T.dot(c_tm1, self.ucf) + T.dot(y_tm1, self.rcf) + T.dot(x_t, self.wcf) + self.bcf)
@@ -176,6 +199,13 @@ class LSTM(RNUBase):
         self.paramnames = ["wf", "rf", "bf", "wi", "ri", "bi", "wo", "ro", "bo", "w", "r", "b", "pf", "pi", "po"]
         super(LSTM, self).__init__(**kw)
 
+    def get_init_info(self, batsize):
+        y_t0 = T.zeros((batsize, self.innerdim))
+        c_t0 = self.initstates
+        if c_t0 is None:
+            c_t0 = T.zeros((batsize, self.innerdim))
+        return [y_t0, c_t0]
+
     def rec(self, x_t, y_tm1, c_tm1):
         fgate = self.gateactivation(c_tm1*self.pf + self.bf + T.dot(x_t, self.wf) + T.dot(y_tm1, self.rf))
         igate = self.gateactivation(c_tm1*self.pi + self.bi + T.dot(x_t, self.wi) + T.dot(y_tm1, self.ri))
@@ -188,13 +218,21 @@ class LSTM(RNUBase):
 
 
 class RNUParameterized(Parameterized):
-    def __init__(self):
+    def __init__(self, **kw):
         self.rnu = None
+        super(RNUParameterized, self).__init__(**kw)
 
     def __add__(self, other):
+        self.attach(other)
+
+    def attach(self, other):
         if isinstance(other, RNUBase):
             self.rnu = other
+            self.afterRNUattach()
         return self
+
+    def afterRNUattach(self):
+        raise NotImplementedError("use subclass")
 
     @property
     def depparameters(self):
@@ -208,11 +246,9 @@ class RNNEncoder(RNUParameterized):
 
     def encode(self, seq): # seq: (batsize, seqlen, dim)
         inp = seq.dimshuffle(1, 0, 2)
-        numstates = len(inspect.getargspec(self.rnu.rec).args) - 2
-        initstate = T.zeros((inp.shape[1], self.rnu.innerdim)) # (nb_samples, dim)
         outputs, _ = theano.scan(fn=self.recwrap,
                                  sequences=inp,
-                                 outputs_info=[None]+[initstate]*numstates)
+                                 outputs_info=[None]+self.rnu.get_init_info(seq.shape[0]))
         output = outputs[0]
         return output[-1, :, :] #output is (batsize, innerdim)
 
@@ -221,6 +257,59 @@ class RNNEncoder(RNUParameterized):
         rnuret = self.rnu.rec(x_t, *args) # list of matrices (batsize, **somedims**)
         ret = map(lambda (a, r): (a.T * (1-mask) + r.T * mask).T, zip([args[0]] + list(args), rnuret))
         return ret
+
+
+class RNNDecoder(RNUParameterized):
+    '''
+    Decodes a sequence given initial state
+    output: probabilities over symbol space float: (batsize, seqlen, dim) where dim is number of symbols
+
+    TERMINUS SYMBOL = 0
+    ! first input is TERMINUS ==> suggest to set TERMINUS(0) embedding to all zeroes (in s2vf)
+    '''
+    # TODO: test
+    def __init__(self, hlimit=50, s2vf=None, v2pf=None, **kw): # limit says at most how many is produced
+        super(RNNDecoder, self).__init__(**kw)
+        self.limit = hlimit
+        # outdims are the same as RNU's input dims
+        self.s2vf = s2vf
+        self.v2pf = v2pf
+        self.O = None
+        self.W = None
+
+    @property
+    def ownparameters(self):
+        ret = set()
+        if self.O is not None:
+            ret.add(self.O)
+        return ret
+
+    def afterRNUattach(self):
+        if self.v2pf is None:
+            self.O = theano.shared(random((self.rnu.innerdim, self.rnu.dim)))
+            self.v2pf = lambda v: T.nnet.softmax(T.dot(v, self.O))
+        if self.s2vf is None:
+            self.W = T.eye(self.rnu.dim, self.rnu.dim) # one-hot embedding matrix
+            self.s2vf = lambda s: self.W[s, :]
+
+    def decode(self, initstates, initprobs=None): # initstate: (batsize, innerdim)
+        if initprobs is None:
+            initprobs = T.eye(1, self.rnu.dim).repeat(initstates.shape[0], axis=0) # all TERMINUS (batsize, dim)
+        self.rnu.set_init_states(initstates)
+        outputs, _ = theano.scan(fn=self.recwrap,
+                                 outputs_info=[initprobs, 0]+self.rnu.get_init_info(),
+                                 n_steps=self.limit)
+        return outputs[0] # returns probabilities of symbols --> (batsize, seqlen, vocabsize)
+
+    def recwrap(self, x_t, i, *args): # once output is terminus, always terminus and previous state is returned
+        chosen = x_t.argmax(axis=1, keepdims=True) # x_t = probs over symbols:: f32-(batsize, dim) ==> int32-(batsize,)
+        mask = T.clip(chosen + T.clip(1-i, 0, 1), 0, 1) # (batsize, ) --> only make mask if not in first iter
+        newinp = self.s2vf(chosen) #
+        rnuret = self.rnu.rec(newinp, *args) # list of matrices (batsize, **somedims**)
+        outprobs = self.v2pf(rnuret[0])
+        ret = map(lambda (a, r): (a.T * (1-mask) + r.T * mask).T, zip([x_t] + list(args), [outprobs]+rnuret[1:]))
+        i = i + 1
+        return [ret[0], i] + ret[1:], {}, theano.scan_module.until( (i > 1) * T.eq(mask.norm(1), 0) )
 
 
 class RNNMask(RNUParameterized):
