@@ -1,14 +1,10 @@
-import pandas as pd
-
 from teafacto.core.train import Trainer
 from teafacto.core.utils import argparsify
-from teafacto.encoders.rnnenc import *
 from teafacto.eval.eval import ClasEvaluator
 from teafacto.eval.metrics import ClassAccuracy
-from teafacto.lm import Glove
-from teafacto.qa.multichoice.models import *
-
+from teafacto.models.seq.rnnenc import *
 from teafacto.qa.multichoice.kaggleutils import *
+from teafacto.qa.multichoice.models import *
 
 
 def _getpathfromhere(p):

@@ -25,6 +25,8 @@ dist/
 downloads/
 eggs/
 /data/wikipedia/short-abstracts_en.nt
+/teafacto/qa/multichoice/svm/*.csv
+/teafacto/qa/multichoice/svm/*.tsv
 /data/wikipedia/idx/*
 .eggs/
 lib/
