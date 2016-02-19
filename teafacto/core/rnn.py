@@ -5,7 +5,11 @@ from teafacto.core.trainutil import Parameterized
 from teafacto.core.init import random
 from IPython import embed
 
-class RNUBase(Parameterized):
+class RNUParam():
+    def rec(self, *args):
+        raise NotImplementedError("use subclass")
+
+class RNUBase(Parameterized, RNUParam):
     def __init__(self, dim=20, innerdim=20, wreg=0.0001, initmult=0.1, nobias=False, **kw): # dim is input dimensions, innerdim = dimension of internal elements
         super(RNUBase, self).__init__(**kw)
         self.dim = dim
@@ -107,6 +111,12 @@ class GatedRNU(RNUBase):
         self.gateactivation = gateactivation
         self.outpactivation = outpactivation
         super(GatedRNU, self).__init__(**kw)
+
+    def get_init_info(self, batsize):
+        h_t0 = self.initstates
+        if h_t0 is None:
+            h_t0 = T.zeros((batsize, self.innerdim))
+        return [h_t0]
 
 
 class GRU(GatedRNU):
@@ -217,6 +227,59 @@ class LSTM(RNUBase):
         return [y_t, y_t, c_t]
 
 
+class RecurrentStack(RNUParam, Parameterized):
+    def __init__(self, dim, *blocks, **kw): # layer can be a layer or function
+        # TODO --> to support different kinds of RNU's and intermediate transformations (incl. dropout)
+        self.dim = dim
+        self.blocks = blocks
+        self.initstates = None
+        super(RecurrentStack, self).__init__(**kw)
+
+    def set_init_states(self, values): # one state per RNU, non-RNU's are ignored
+        self.initstates = values
+
+    def do_set_init_states(self):
+        rnulayers = filter(lambda x: isinstance(x, RNUBase), self.blocks)
+        if self.initstates is None:
+            self.initstates = [None] * len(rnulayers)
+        if len(rnulayers) != len(self.initstates):
+            raise AssertionError("number of states should be the same as number of stateful layers in stack")
+        z = zip(rnulayers, self.initstates)
+        for l, s in z:
+            l.set_init_states(s)
+
+    def get_init_info(self, batsize):
+        self.do_set_init_states()
+        rnulayers = filter(lambda x: isinstance(x, RNUBase), self.blocks)
+        init_infos = []
+        for rnul in rnulayers:
+            init_infos.extend(rnul.get_init_info(batsize))
+        return init_infos
+
+    def rec(self, x_t, *states):
+        # apply each block on x_t to get next-level input, consume states in the process
+        nextinp = x_t
+        nextstates = []
+        for block in self.blocks:
+            numstates = 0
+            if isinstance(block, RNUBase): # real RNU # TODO: also accept RecurrentStacks here
+                numstates = len(inspect.getargspec(block.rec).args) - 2
+                rnuret = block.rec(nextinp, *states[0:numstates])
+                nextinp = rnuret[0]
+                nextstates.extend(rnuret[1:])
+                states = states[numstates:]
+            else: # block is a function
+                nextinp = block(nextinp)
+        return [nextinp] + nextstates
+
+    @property
+    def depparameters(self):
+        ret = set()
+        for block in self.blocks:
+            if isinstance(block, Parameterized):
+                ret.update(block.parameters)
+        return ret
+
 class RNUParameterized(Parameterized):
     def __init__(self, **kw):
         self.rnu = None
@@ -224,9 +287,10 @@ class RNUParameterized(Parameterized):
 
     def __add__(self, other):
         self.attach(other)
+        return self
 
     def attach(self, other):
-        if isinstance(other, RNUBase):
+        if isinstance(other, RNUParam):
             self.rnu = other
             self.afterRNUattach()
         return self
@@ -258,6 +322,9 @@ class RNNEncoder(RNUParameterized):
         ret = map(lambda (a, r): (a.T * (1-mask) + r.T * mask).T, zip([args[0]] + list(args), rnuret))
         return ret
 
+    def afterRNUattach(self):
+        pass
+
 
 class RNNDecoder(RNUParameterized):
     '''
@@ -268,12 +335,10 @@ class RNNDecoder(RNUParameterized):
     ! first input is TERMINUS ==> suggest to set TERMINUS(0) embedding to all zeroes (in s2vf)
     '''
     # TODO: test
-    def __init__(self, hlimit=50, s2vf=None, v2pf=None, **kw): # limit says at most how many is produced
+    def __init__(self, hlimit=50, **kw): # limit says at most how many is produced
         super(RNNDecoder, self).__init__(**kw)
         self.limit = hlimit
         # outdims are the same as RNU's input dims
-        self.s2vf = s2vf
-        self.v2pf = v2pf
         self.O = None
         self.W = None
 
@@ -285,31 +350,34 @@ class RNNDecoder(RNUParameterized):
         return ret
 
     def afterRNUattach(self):
-        if self.v2pf is None:
-            self.O = theano.shared(random((self.rnu.innerdim, self.rnu.dim)))
-            self.v2pf = lambda v: T.nnet.softmax(T.dot(v, self.O))
-        if self.s2vf is None:
+        if not isinstance(self.rnu, RecurrentStack): # ==> create our default recurrent stack
             self.W = T.eye(self.rnu.dim, self.rnu.dim) # one-hot embedding matrix
-            self.s2vf = lambda s: self.W[s, :]
+            self.O = theano.shared(random((self.rnu.innerdim, self.rnu.dim)))
+            rnu = self.rnu
+            rs = RecurrentStack(lambda x: self.W[x, :],
+                                rnu,
+                                lambda x: T.dot(x, self.O),
+                                lambda x: T.nnet.softmax(x))
+            self.rnu = rs
 
-    def decode(self, initstates, initprobs=None): # initstate: (batsize, innerdim)
+    def decode(self, initstates, initprobs=None): # initstates: list of (batsize, innerdim)
+        batsize = initstates[0].shape[0]
         if initprobs is None:
-            initprobs = T.eye(1, self.rnu.dim).repeat(initstates.shape[0], axis=0) # all TERMINUS (batsize, dim)
+            initprobs = T.eye(1, self.rnu.dim).repeat(batsize, axis=0) # all TERMINUS (batsize, dim)
         self.rnu.set_init_states(initstates)
         outputs, _ = theano.scan(fn=self.recwrap,
-                                 outputs_info=[initprobs, 0]+self.rnu.get_init_info(),
+                                 outputs_info=[initprobs, 0]+self.rnu.get_init_info(batsize),
                                  n_steps=self.limit)
-        return outputs[0] # returns probabilities of symbols --> (batsize, seqlen, vocabsize)
+        return outputs[0].dimshuffle(1, 0, 2) # returns probabilities of symbols --> (batsize, seqlen, vocabsize)
 
     def recwrap(self, x_t, i, *args): # once output is terminus, always terminus and previous state is returned
-        chosen = x_t.argmax(axis=1, keepdims=True) # x_t = probs over symbols:: f32-(batsize, dim) ==> int32-(batsize,)
-        mask = T.clip(chosen + T.clip(1-i, 0, 1), 0, 1) # (batsize, ) --> only make mask if not in first iter
-        newinp = self.s2vf(chosen) #
-        rnuret = self.rnu.rec(newinp, *args) # list of matrices (batsize, **somedims**)
-        outprobs = self.v2pf(rnuret[0])
+        chosen = x_t.argmax(axis=1, keepdims=False) # x_t = probs over symbols:: f32-(batsize, dim) ==> int32-(batsize,)
+        mask = T.clip(chosen.reshape(chosen.shape[0], 1) + T.clip(1-i, 0, 1), 0, 1) # (batsize, ) --> only make mask if not in first iter
+        rnuret = self.rnu.rec(chosen, *args) # list of matrices (batsize, **somedims**)
+        outprobs = rnuret[0]
         ret = map(lambda (a, r): (a.T * (1-mask) + r.T * mask).T, zip([x_t] + list(args), [outprobs]+rnuret[1:]))
         i = i + 1
-        return [ret[0], i] + ret[1:], {}, theano.scan_module.until( (i > 1) * T.eq(mask.norm(1), 0) )
+        return [ret[0], i] + ret[1:]#, {}, theano.scan_module.until( (i > 1) * T.eq(mask.norm(1), 0) )
 
 
 class RNNMask(RNUParameterized):

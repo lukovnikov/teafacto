@@ -215,7 +215,7 @@ class SGDBase(Parameterized, Profileable):
         return batchloop
 
 
-class SMBase(SGDBase): # TODO test
+class SMBase(SGDBase):
     #region SMBase
     def __init__(self, **kw):
         super(SMBase, self).__init__(**kw)
@@ -243,6 +243,14 @@ class SMBase(SGDBase): # TODO test
     def getnormf(self):
         return None
     #endregion SMBase
+
+
+class SeqSMBase(SMBase):
+    def geterr(self, probs, gold): # probs (batsize, seqlen, vocsize) + gold: (batsize, seqlen) ==> sum of neg log-probs of correct seq
+        def _f(probsmat, goldvec):
+            return T.sum(-T.log(probsmat[T.arange(probsmat.shape[0]), goldvec]))
+        o, _ = theano.scan(fn=_f, sequences=[probs, gold])
+        return T.sum(o)
 
 
 class Normalizable(Parameterized):
