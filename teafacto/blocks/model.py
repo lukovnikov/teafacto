@@ -2,7 +2,9 @@ import theano
 from theano import tensor as T
 from teafacto.blocks.datafeed import DataFeed
 from teafacto.blocks.trainer import ModelTrainer, ContrastModelTrainer
-from teafacto.blocks.core import input, Block
+from teafacto.blocks.core import Input, Block
+
+# DO NOT USE THIS, USE BLOCKS INSTEAD
 
 
 class Model(Block):
@@ -47,7 +49,7 @@ class Model(Block):
             inputdata = DataFeed(inputdata)
         if not isinstance(gold, DataFeed):
             gold = DataFeed(gold)
-        goldvar = input(gold.ndim, gold.dtype, name="gold")
+        goldvar = Input(gold.ndim, gold.dtype, name="gold")
         trainer = self.gettrainer(goldvar.d)
         trainer.traindata = inputdata
         trainer.traingold = gold

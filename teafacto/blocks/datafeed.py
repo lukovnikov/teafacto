@@ -54,14 +54,14 @@ class DataFeeder(object): # contains data feeds
         start = 0
         middle = int(ceil(1.*self.size / split))
         end = self.size
-        dftrain = DataFeeder(*[self.splitfeed(feed, splitidxs[start:middle]) for feed in self.feeds])
-        dfvalid = DataFeeder(*[self.splitfeed(feed, splitidxs[middle:end])   for feed in self.feeds])
+        dfvalid = DataFeeder(*[self.splitfeed(feed, splitidxs[start:middle]) for feed in self.feeds])
+        dftrain = DataFeeder(*[self.splitfeed(feed, splitidxs[middle:end])   for feed in self.feeds])
         return dftrain, dfvalid
 
     def isplit(self, splitidxs):
         nsplitidxs = np.setdiff1d(np.arange(0, self.size), splitidxs)
-        dftrain = DataFeeder(*[self.splitfeed(feed, splitidxs)  for feed in self.feeds])
-        dfvalid = DataFeeder(*[self.splitfeed(feed, nsplitidxs) for feed in self.feeds])
+        dfvalid = DataFeeder(*[self.splitfeed(feed, splitidxs)  for feed in self.feeds])
+        dftrain = DataFeeder(*[self.splitfeed(feed, nsplitidxs) for feed in self.feeds])
         return dftrain, dfvalid
 
     def splitfeed(self, feed, idxs):

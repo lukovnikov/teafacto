@@ -8,7 +8,7 @@ from lasagne.regularization import l1, l2
 from lasagne.updates import *
 from theano import tensor as T
 
-from teafacto.blocks.core import input
+from teafacto.blocks.core import *
 from teafacto.blocks.datafeed import DataFeeder, SplitIdxIterator
 from teafacto.core.utils import ticktock as TT
 
@@ -17,7 +17,7 @@ class ModelTrainer(object):
         self.model = model
         self.goldvar = gold
         self.validsetmode= False
-        self.average_err = False # TODO: do we still need this?
+        self.average_err = True # TODO: do we still need this?
         # training settings
         self.objective = None
         self.regularizer = None
@@ -27,7 +27,7 @@ class ModelTrainer(object):
         self.gradconstraints = []
         # validation settings
         self.trainstrategy = self._train_full
-        self.validsplit = 0
+        self.validsplits = 0
         self.validrandom = False
         self.validata = None
         self.validgold = None
@@ -52,7 +52,7 @@ class ModelTrainer(object):
         return self
 
     def cross_entropy(self):
-        # TODO
+        self._set_objective(lambda probs, gold: -T.log(probs[T.arange(gold.shape[0]), gold]))
         return self
 
     def squared_error(self):
@@ -129,24 +129,34 @@ class ModelTrainer(object):
         self.trainstrategy = self._train_split
         self.validsplits = splits
         self.validrandom = random
+        self.validsetmode = True
         return self
 
     def validate_on(self, data, gold):
         self.trainstrategy = self._train_validdata
         self.validdata = data
         self.validgold = gold
+        self.validsetmode = True
         return self
 
     def cross_validate(self, splits=5, random=False):
         self.trainstrategy = self._train_cross_valid
         self.validsplits = splits
         self.validrandom = random
+        self.validsetmode = True
         return self
 
     ############################################################# execution ############################################
 
     ########################## ACTUAL TRAINING #########################
+    def traincheck(self):
+        assert(self.optimizer is not None)
+        assert(self.objective is not None)
+        assert(self.traindata is not None)
+        assert(self.traingold is not None)
+
     def train(self, numbats, epochs):
+        self.traincheck()
         self.numbats = numbats
         self.maxiter = epochs
         self._train()
@@ -157,26 +167,30 @@ class ModelTrainer(object):
         validfun = self.buildvalidfun(model) # to be applied for one batch
         self.tt.tock("compiled training function")
         # train mode: full -> train on all data; split -> split, then train, then valid; data -> valid on validdata; cross -> cross validation
-        return self.trainstrategy(trainfun, validfun)
+        return self.trainstrategy(model)
 
     def buildmodel(self):
-        return self.model.build()
+        self.model.build()
+        return self.model
 
     def buildtrainfun(self, model):
-        params = model.allparams
+        params = model.output.allparams
         inputs = model.inputs
         loss, newinp = self.buildlosses(model, [self.objective])
         loss = loss[0]
         if newinp is not None:
             inputs = newinp
-        reg = self.regularizer(params)
-        cost = loss+reg
+        if self.regularizer is not None:
+            reg = self.regularizer(params)
+            cost = loss+reg
+        else:
+            cost = loss
         grads = T.grad(cost, [x.d for x in params])  # compute gradient
         grads = self._gradconstrain(grads)
         rawupdates = self.optimizer(grads, [x.d for x in params])       # raw updates from optimizer
-        updates = map(lambda x: (x[0][0], x[1].constraintf(x[0][1]*x[1].lrmul)),    # updates penalized by param lrmul
-                      zip(rawupdates, [x for x in params]))                         # and constrained by param's info
-        trainf = theano.function(inputs=[x.d for x in inputs]+[self.goldvar], outputs=cost, updates=updates)
+        updates = map(lambda x: (x[0][0], x[1].constraintf()(x[0][1]*x[1].lrmul)),    # updates penalized by param lrmul
+                      zip(rawupdates.items(), [x for x in params]))                         # and constrained by param's info
+        trainf = theano.function(inputs=[x.d for x in inputs]+[self.goldvar], outputs=[cost], updates=updates)
         return trainf
 
     def buildlosses(self, model, objs):
@@ -185,38 +199,48 @@ class ModelTrainer(object):
     def buildvalidfun(self, model):
         metrics, newinp = self.buildlosses(model, self.validators)
         inputs = newinp if newinp is not None else model.inputs
-        return theano.function(inputs=[x.d for x in inputs] + [self.goldvar], outputs=metrics)
+        if len(metrics) > 0:
+            return theano.function(inputs=[x.d for x in inputs] + [self.goldvar], outputs=metrics)
+        else:
+            return None
 
     ################### TRAINING STRATEGIES ############
-    def _train_full(self, trainf, validf): # train on all data, no validation
+    def _train_full(self, model): # train on all data, no validation
+        trainf = self.buildtrainfun(model)
         err, _ = self.trainloop(
                 trainf=self.getbatchloop(trainf, DataFeeder(self.traindata, self.traingold).numbats(self.numbats)),
                 average_err=self.average_err)
         return err
 
-    def _train_validdata(self, trainf, validf):
+    def _train_validdata(self, model):
+        trainf = self.buildtrainfun(model)
+        validf = self.buildvalidfun(model)
         err, verr = self.trainloop(
                 trainf=self.getbatchloop(trainf, DataFeeder(self.traindata, self.traingold).numbats(self.numbats)),
                 validf=self.getbatchloop(validf, DataFeeder(self.validdata, self.validgold)),
                 average_err=self.average_err)
         return err, verr
 
-    def _train_split(self, trainf, validf): # split input data in training and validation data -> train and validate
+    def _train_split(self, model):
+        trainf = self.buildtrainfun(model)
+        validf = self.buildvalidfun(model)
         df = DataFeeder(self.traindata, self.traingold)
-        dftrain, dfvalid = df.split(self.validsplit, self.validrandom)
+        dftrain, dfvalid = df.split(self.validsplits, self.validrandom)
         err, verr = self.trainloop(
                 trainf=self.getbatchloop(trainf, dftrain.numbats(self.numbats)),
                 validf=self.getbatchloop(validf, dfvalid),
                 average_err=self.average_err)
         return err, verr
 
-    def _train_cross_valid(self, trainf, validf):
+    def _train_cross_valid(self, model):
         df = DataFeeder(self.traindata, self.traingold)
-        splitter = SplitIdxIterator(df.size, split=self.validsplit, random=self.validrandom, folds=self.validsplit)
+        splitter = SplitIdxIterator(df.size, split=self.validsplits, random=self.validrandom, folds=self.validsplits)
         err = []
         verr = []
         c = 0
         for splitidxs in splitter:
+            trainf = self.buildtrainfun(model)
+            validf = self.buildvalidfun(model)
             tf, vf = df.isplit(splitidxs)
             serr, sverr = self.trainloop(
                 trainf=self.getbatchloop(trainf, tf.numbats(self.numbats)),
@@ -224,12 +248,18 @@ class ModelTrainer(object):
                 average_err=self.average_err)
             err.append(serr)
             verr.append(sverr)
+            self.resetmodel(self.model)
         err = np.asarray(err)
         avgerr = np.mean(err, axis=0)
         verr = np.asarray(verr)
         avgverr = np.mean(verr, axis=0)
         self.tt.tock("done")
         return avgerr, avgverr, err, verr
+
+    def resetmodel(self, model):
+        params = model.allparams
+        for param in params:
+            param.reset()
 
     ############## TRAINING LOOPS ##################
     def trainloop(self, trainf, validf=None, evalinter=1, average_err=True):
@@ -242,22 +272,17 @@ class ModelTrainer(object):
         while not stop:
             print("iter %d/%.0f" % (self.currentiter, float(self.maxiter)))
             start = dt.now()
-            erre, tsize = trainf()
-            print erre, tsize
-            if average_err:
-                erre = map(lambda x: x/tsize, erre)
+            erre = trainf()
             if self.currentiter == self.maxiter:
                 stop = True
             self.currentiter += 1
             err.append(erre)
             if validf is not None and self.currentiter % evalinter == 0: # validate and print
-                verre, vsize = validf() # TODO: verre is a list?
-                if average_err:
-                    verre = map(lambda x: x/vsize, verre)
+                verre = validf()
                 verr.append(verre)
-                print "training error: %f \t validation error: %f" % (erre, verre)
+                print "training error: %s \t validation error: %s" % (" - ".join(map(lambda x: "%.3f" % x, erre)), " - ".join(map(lambda x: "%.3f" % x, verre)))
             else:
-                print "training error: %f" % erre
+                print "training error: %s" % " - ".join(map(lambda x: "%.3f" % x, erre))
             print("iter done in %f seconds" % (dt.now() - start).total_seconds())
             evalcount += 1
             if self.autosave:
@@ -285,9 +310,10 @@ class ModelTrainer(object):
                     terr = eterr
                 else:
                     terr = map(lambda x: x[0]+x[1], zip(terr, eterr))
-
                 c += 1
-            return terr, datafeeder.size
+            if self.average_err is True:
+                terr = map(lambda x: x*1./c, terr)
+            return terr
         return batchloop
 
     @property
@@ -306,14 +332,14 @@ class ContrastModelTrainer(ModelTrainer):
         # model predicts a score, the loss in trainer operates between the pos and all neg examples
         # TODO: what role does the goldvar play?
         # make new inputs based on model inputs
-        newinpblocks = [input(x.ndim+1, x.dtype) for x in inpblocks]
+        newinpblocks = [Input(x.ndim + 1, x.dtype) for x in inpblocks]
         si = [x.dimswap(1, 0).d for x in newinpblocks] # put pos/neg dim as first
 
         def pair(*args):
             pargs = args[:len(args)/2]
             nargs = args[len(args)/2:]
-            pos = model.apply(pargs) # --> (batsize,)
-            neg = model.apply(nargs) # --> (batsize,)
+            pos = model.wrapply(pargs) # --> (batsize,)
+            neg = model.wrapply(nargs) # --> (batsize,)
             closses = obj(pos, neg)  # --> (batsize,)
             return closses
 

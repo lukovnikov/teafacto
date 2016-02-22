@@ -1,6 +1,9 @@
 import theano
 from theano import tensor as T
 
+from teafacto.blocks.datafeed import DataFeed
+from teafacto.blocks.trainer import *
+
 from teafacto.core.init import *
 from lasagne.init import *
 from lasagne.updates import norm_constraint
@@ -11,28 +14,27 @@ class Parameter(object):
     A parameter wraps a shared variable and can optionally have a different learning rate and regularization multiplier
     '''
     def __init__(self, value, name=None, lrmul=1., regmul=1., shape=None):
+        self.initializer = None
         if isinstance(value, theano.compile.sharedvalue.SharedVariable):
             self.value = value
             self.shape = value.get_value().shape
+            self.initializer = lambda: value.get_values()
         elif isinstance(value, Initializer):
-            self.initializer = value
             self.shape = shape
+            self.initializer = lambda: value.sample(shape)
+            self.value = theano.shared(np.zeros(shape))
             self.reset()
         else:
             self.value = theano.shared(value)
+            self.initializer = lambda: value
             self.shape = value.shape
-        self.value = value
         self.lrmul = lrmul
         self.regmul = regmul
         self.name = str(name) if name is not None else "auto:" + str(np.random.randint(0, 10000))
-        self.initializer = None
         self.constraints = []
 
     def reset(self):
-        if isinstance(self.initializer, Initializer):
-            self.value = self.initializer.sample(self.shape)
-        else:
-            self.value = self.initializer()
+        self.value.set_value(self.initializer())
 
     @property
     def d(self):
@@ -55,9 +57,10 @@ class Parameter(object):
         return self
 
     def constraintf(self):
+        cs = self.constraints
         def innerconstraintf(x):
             ret = x
-            for cf in self.constraints:
+            for cf in cs:
                 ret = cf(ret)
             return ret
         return innerconstraintf
@@ -79,7 +82,7 @@ class param(object):
 
     ############## LASAGE INITS ################
     def _lasagne_init(self, initializer):
-        return Parameter(initializer, self.lrmul, self.regmul)
+        return Parameter(initializer, self.lrmul, self.regmul, shape=self.shape)
 
     def uniform(self, range=0.01, std=None, mean=0.0):
         return self._lasagne_init(Uniform(range, std, mean))
@@ -113,8 +116,6 @@ class Elem(object):    # carries output shape information
     def __init__(self, shape=None, name=None):
         self._shape = shape
         self._name = name
-        self.parents = set()
-        self.params = set()
 
     @property
     def dshape(self): # returns declared shape
@@ -123,27 +124,30 @@ class Elem(object):    # carries output shape information
     @property
     def allparams(self):
         acc = set()
-        acc.update(self.params)
-        for parent in self.parents:
+        if hasattr(self, "params"):
+            acc.update(self.params)
+        for parent in self.getparents():
             acc.update(parent.allparams)
         return acc
 
-    @property
-    def allinputs(self):
-        acc = set()
-        if isinstance(self, Var) and len(self.parents) == 0:
-            acc.update([self])
-        for parent in self.parents:
-            acc.update(parent.allinputs)
-        return acc
+    def getparents(self):
+        raise NotImplementedError("use subclass")
 
 
 class Var(Elem): # result of applying a block on theano variables
-    def __init__(self, tvar, parents=None, **kw):
+    def __init__(self, tvar, parent=None, **kw):
         super(Var, self).__init__(name=tvar.name, **kw)
         assert(isinstance(tvar, theano.Variable))
         self.tvar = tvar
-        self.parents = parents if parents is not None else set()
+        self.parents = [] # can only have one parent (a block)
+        if parent is not None:
+            self.add_parent(parent)
+
+    def getparents(self):
+        return self.parents
+
+    def add_parent(self, p):
+        self.parents.append(p)
 
     @property
     def d(self):
@@ -153,10 +157,10 @@ class Var(Elem): # result of applying a block on theano variables
         return "var::%s-%s:%s" % (self._name, self.tvar.dtype, str(self._shape))
 
 
-class input(Var): # generates feed + creates symbolic vars for input
+class Input(Var): # generates feed + creates symbolic vars for input
     def __init__(self, ndim, dtype, name=None, **kw): # data source (numpy array)
         value = T.TensorType(dtype, (False,)*ndim)(name=name)
-        super(input, self).__init__(value, parents=None, **kw)
+        super(Input, self).__init__(value, parent=None, **kw)
         self.ndim = ndim # store number of dimensions
 
     def dimswap(self, a, b):
@@ -167,31 +171,34 @@ class input(Var): # generates feed + creates symbolic vars for input
         return Var(ret, [self])
 
 
-class BlockInput(object):
-    def __init__(self, name, ndim, dtype, shape=None):
-        self.name = name
-        self.ndim = ndim
-        self.dtype = dtype
-        self.shape = shape
-
-
 class Block(Elem): # block with parameters
     def __init__(self, **kw):
         super(Block, self).__init__(**kw)
-        self.initparams()
-        self.inputs = {}
+        self.inputs = []
+        self.parents = []
+        self.params = []
 
-    def initparams(self):
-        '''init params here'''
+    def initinputs(self): # must override
+        return []
 
-    def initinputs(self):
-        pass
+    def apply(self, *vars):
+        trueargs = [x.d for x in vars]
+        result = self._apply(*trueargs)
+        return Var(result, parent=self)
 
-    def add_input(self, inp):
-        if inp.name in self.inputs:
-            raise Exception("input with that name already exists in this block")
-        self.inputs[inp.name] = BlockInput(name, ndim, dtype)
-        return self.inp
+    # may override: -------------------------------------------------
+    def predict(self, inputdata):
+        if self._predictf is None:
+            self.build()
+            self._predictf = theano.function(outputs=self.output.d, inputs=[x.d for x in self.inputs])
+        return self._predictf(dict(zip([x.d for x in self.inputs], inputdata)))
+
+    def gettrainer(self, goldvar):
+        return ModelTrainer(self, goldvar)
+
+    # do not override ------------------------------------------------
+    def getparents(self):
+        return self.parents
 
     def add_params(self, params):
         for param in params:
@@ -214,18 +221,29 @@ class Block(Elem): # block with parameters
             if len(p) > 2:
                 regmul = p[2]
             p = Parameter(p, lrmul=lrmul, regmul=regmul)
-        self.params.add(p)
+        self.params.append(p)
         return p
 
     def __call__(self, *args, **kwargs):
-        return self.apply(*args, **kwargs)
+        return self.wrapply(*args)
 
-    def apply(self, *blocks):
-        for block in blocks:
-            self.parents.add(block)
-        trueargs = [x.d for x in blocks]
-        result = self._apply(*trueargs)
-        return Var(result, parents=[self])
+    def wrapply(self, *args):
+        self.parents.extend(args)
+        ret = self.apply(*args)
+        ret.add_parent(self)
+        return ret
+
+    def build(self): # stores block inputs and block output
+        self.inputs = self.initinputs()
+        self.output = self.wrapply(*self.inputs)
+
+    def train(self, inputdata, gold):
+        # wrap data in datafeeds, generate gold var
+        goldvar = Input(gold.ndim, gold.dtype, name="gold")
+        trainer = self.gettrainer(goldvar.d)
+        trainer.traindata = inputdata
+        trainer.traingold = gold
+        return trainer
 
 
 class wrap(Block): # wraps a theano symbolic expression into a block
@@ -250,7 +268,7 @@ class FeedForward(Block): # feedforward
 
 
 if __name__ == "__main__":
-    x = input(2, "int32", name="x")
+    x = Input(2, "int32", name="x")
     E = param((10, 10)).uniform()
     W = param((10, 10)).uniform()
     y = wrap(lambda x: E[x, :], E)(x)
