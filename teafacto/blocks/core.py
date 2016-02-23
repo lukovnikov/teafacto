@@ -15,23 +15,34 @@ class TWrapper(type):
         top = getattr(T, item)
         return wrapf(top)
 
-def wrapf(attr, addparent=None):
+def wrapf(attr, root=None):
     if hasattr(attr, "__call__"): # real function
-        innerwrap = lambda *args, **kwargs: fwrap(attr, addparent, *args, **kwargs)
+        innerwrap = lambda *args, **kwargs: fwrap(attr, root, *args, **kwargs)
     else:
-        innerwrap = lambda: pwrap(attr)
+        innerwrap = pwrap(attr)
     return innerwrap
 
-def fwrap(attr, addparent, *args, **kwargs):
+def fwrap(attr, root, *args, **kwargs):
     params = [x for x in args if isinstance(x, Parameter)]
     kwparams = [x for x in kwargs.values() if isinstance(x, Parameter)]
-    ret = wrap(lambda *args, **kwargs: attr(*args, **kwargs), *(params+kwparams))(*args, **kwargs)
-    if addparent is not None:
-        ret.add_parent(addparent)
+    wrapper = wrap(lambda *args, **kwargs: attr(*args, **kwargs), *(params+kwparams))
+    ret = wrapper(*args, **kwargs)
+    if root is not None:
+        if isinstance(root, Var):
+            wrapper.add_parent(root)
+        elif isinstance(root, Parameter):
+            wrapper.add_param(root)
     return ret
 
 def pwrap(attr):
-    return attr
+    return WrappedAttr(attr)
+
+class WrappedAttr():
+    def __init__(self, attr):
+        self.attr = attr
+
+    def __getattr__(self, item):
+        return wrapf(getattr(self.attr, item))
 
 
 class tensorops:
@@ -41,27 +52,28 @@ class TensorWrapper(type):
     """Wrapper class that provides proxy access to an instance of some
        internal instance."""
 
-    __ignore__ = "class mro new init setattr getattr getattribute"
+    __ignore__ = "class mro new init setattr getattr getattribute subclasshook"
 
     def __init__(cls, name, bases, dct):
 
         def make_proxy(name):
             def proxy(self, *args):
                 attr = getattr(self.d, name)
-                return wrapf(attr, addparent=self)
+                return wrapf(attr, root=self)
             return proxy
 
-        type.__init__(cls, name, bases, dct)
         ignore = set("__%s__" % n for n in cls.__ignore__.split())
         for name in dir(_tensor_py_operators):
             if name.startswith("__"):
                 if name not in ignore and name not in dct:
                     setattr(cls, name, property(make_proxy(name)))
+        type.__init__(cls, name, bases, dct)
 
 class Parameter(object):
     '''
     A parameter wraps a shared variable and can optionally have a different learning rate and regularization multiplier
     '''
+    __metaclass__ = TensorWrapper
     def __init__(self, value, name=None, lrmul=1., regmul=1., shape=None):
         self.initializer = None
         if isinstance(value, theano.compile.sharedvalue.SharedVariable):
@@ -187,8 +199,8 @@ class Elem(object):    # carries output shape information
 class Var(Elem): # result of applying a block on theano variables
     __metaclass__ = TensorWrapper
 
-    def __getattr__(self, item):
-        return wrapf(getattr(self.tvar, item), addparent=self)
+    def __getattr__(self, item):                                # TODO: CAN'T GET TO SUPERCLASS ANYMORE
+        return wrapf(getattr(self.tvar, item), root=self)
 
     def __init__(self, tvar, parent=None, **kw):
         super(Var, self).__init__(name=tvar.name, **kw)
@@ -229,6 +241,14 @@ class Input(Var): # generates feed + creates symbolic vars for input
         return Var(ret, [self])
 
 
+def recurmap(fun, data):
+    if isinstance(data, dict):
+        return type(data)(dict([(recurmap(fun, item[0]), recurmap(fun, item[1])) for item in data.items()]))
+    elif isinstance(data, (tuple, list, set)):
+        return type(data)([recurmap(fun, elem) for elem in data])
+    else:
+        return fun(data)
+
 class Block(Elem): # block with parameters
     def __init__(self, **kw):
         super(Block, self).__init__(**kw)
@@ -241,10 +261,10 @@ class Block(Elem): # block with parameters
         return []
 
     def apply(self, *vars, **kwargs):
-        trueargs = [x.d if hasattr(x, "d") else x for x in vars]
-        truekwargs = dict(map(lambda (x, y): (x, y.d if hasattr(y, "d") else y), kwargs.items()))
+        trueargs = recurmap(lambda x: x.d if hasattr(x, "d") else x, vars)
+        truekwargs = recurmap(lambda x: x.d if hasattr(x, "d") else x, kwargs)
         result = self._apply(*trueargs, **truekwargs)
-        return Var(result, parent=self)
+        return Var(result)#, parent=self)
 
     # may override: -------------------------------------------------
     def predict(self, inputdata):
@@ -257,8 +277,25 @@ class Block(Elem): # block with parameters
         return ModelTrainer(self, goldvar)
 
     # do not override ------------------------------------------------
+    def wrapply(self, *args, **kwargs):
+        self.parents.extend(recurfilter(lambda x: isinstance(x, Var), args))
+        self.parents.extend(recurfilter(lambda x: isinstance(x, Var), kwargs))
+        ret = self.apply(*args, **kwargs)
+        ret.add_parent(self) # TODO: remove??
+        return ret
+
+    def build(self): # stores block inputs and block output
+        self.inputs = self.initinputs()
+        self.output = self.wrapply(*self.inputs)
+
+    def __call__(self, *args, **kwargs):
+        return self.wrapply(*args, **kwargs)
+
     def getparents(self):
         return self.parents
+
+    def add_parent(self, p):
+        self.parents.append(p)
 
     def add_params(self, params):
         for param in params:
@@ -284,20 +321,6 @@ class Block(Elem): # block with parameters
         self.params.append(p)
         return p
 
-    def __call__(self, *args, **kwargs):
-        return self.wrapply(*args, **kwargs)
-
-    def wrapply(self, *args, **kwargs):
-        self.parents.extend([x for x in args if isinstance(x, Var)])
-        self.parents.extend([x for x in kwargs.values() if isinstance(x, Var)])
-        ret = self.apply(*args, **kwargs)
-        ret.add_parent(self) # TODO: remove??
-        return ret
-
-    def build(self): # stores block inputs and block output
-        self.inputs = self.initinputs()
-        self.output = self.wrapply(*self.inputs)
-
     def train(self, inputdata, gold):
         # wrap data in datafeeds, generate gold var
         goldvar = Input(gold.ndim, gold.dtype, name="gold")
@@ -306,6 +329,20 @@ class Block(Elem): # block with parameters
         trainer.traingold = gold
         return trainer
 
+def recurfilter(fun, data):
+    acc = []
+    if isinstance(data, dict):
+        data = data.items()
+    if isinstance(data, (tuple, list, set)):
+        for elem in data:
+            ret = recurfilter(fun, elem)
+            acc.extend(ret)
+    else:
+        if fun(data):
+            acc.append(data)
+        else:
+            acc.append(None)
+    return filter(lambda x: x is not None, acc)
 
 class wrap(Block): # wraps a theano symbolic expression into a block
     def __init__(self, fun, *params, **kw):
@@ -356,6 +393,9 @@ if __name__ == "__main__":
     #print xval
     #print y.allparams
     #print y.eval({x: xval})
-    z = (x + y).norm(2, axis=0)
-    print z.eval({x: xval})
-    print z.allparams
+    a = Var(T.ivector())
+    print "a params", a.allparams
+    z = (x + y)
+    b = z.norm(2, axis=0)
+    print b.eval({x: xval})
+    print y.allparams, z.allparams
