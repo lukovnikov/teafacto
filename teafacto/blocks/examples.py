@@ -42,7 +42,7 @@ class AutoEncoder(Block):
 
 
 def run(
-        epochs=15,
+        epochs=100,
         dim=50,
         vocabsize=2000,
         lr=1,
@@ -50,8 +50,10 @@ def run(
     ):
     data = np.arange(0, vocabsize).astype("int32")
     ae = AutoEncoder(indim=vocabsize, dim=dim)
-    ae  .train(data, data).rmsprop().cross_entropy().cross_validate(5, True).cross_entropy()\
+    ae  .train(data, data).rmsprop().cross_entropy().validate(5, True).cross_entropy()\
         .train(numbats=numbats, epochs=epochs)
+
+    ae.predict([0])
 
     return epochs
 

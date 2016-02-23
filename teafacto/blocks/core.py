@@ -1,5 +1,6 @@
 import theano
 from theano import tensor as T
+from theano.tensor.var import _tensor_py_operators
 
 from teafacto.blocks.datafeed import DataFeed
 from teafacto.blocks.trainer import *
@@ -8,6 +9,54 @@ from teafacto.core.init import *
 from lasagne.init import *
 from lasagne.updates import norm_constraint
 
+
+class TWrapper(type):
+    def __getattr__(cls, item):
+        top = getattr(T, item)
+        return wrapf(top)
+
+def wrapf(attr, addparent=None):
+    if hasattr(attr, "__call__"): # real function
+        innerwrap = lambda *args, **kwargs: fwrap(attr, addparent, *args, **kwargs)
+    else:
+        innerwrap = lambda: pwrap(attr)
+    return innerwrap
+
+def fwrap(attr, addparent, *args, **kwargs):
+    params = [x for x in args if isinstance(x, Parameter)]
+    kwparams = [x for x in kwargs.values() if isinstance(x, Parameter)]
+    ret = wrap(lambda *args, **kwargs: attr(*args, **kwargs), *(params+kwparams))(*args, **kwargs)
+    if addparent is not None:
+        ret.add_parent(addparent)
+    return ret
+
+def pwrap(attr):
+    return attr
+
+
+class tensorops:
+    __metaclass__ = TWrapper
+
+class TensorWrapper(type):
+    """Wrapper class that provides proxy access to an instance of some
+       internal instance."""
+
+    __ignore__ = "class mro new init setattr getattr getattribute"
+
+    def __init__(cls, name, bases, dct):
+
+        def make_proxy(name):
+            def proxy(self, *args):
+                attr = getattr(self.d, name)
+                return wrapf(attr, addparent=self)
+            return proxy
+
+        type.__init__(cls, name, bases, dct)
+        ignore = set("__%s__" % n for n in cls.__ignore__.split())
+        for name in dir(_tensor_py_operators):
+            if name.startswith("__"):
+                if name not in ignore and name not in dct:
+                    setattr(cls, name, property(make_proxy(name)))
 
 class Parameter(object):
     '''
@@ -49,7 +98,7 @@ class Parameter(object):
         return self
 
     def normalize(self, axis=0, norm=2, epsilon=1e-7):
-        # TODO
+        self.constraints.append(lambda x: x/(x.norm(norm, axis=axis)+epsilon)) # TODO
         return self
 
     def norm_constraint(self, max_norm, norm_axes=None, epsilon=1e-7):
@@ -113,7 +162,8 @@ class param(object):
 
 
 class Elem(object):    # carries output shape information
-    def __init__(self, shape=None, name=None):
+    def __init__(self, shape=None, name=None, **kw):
+        super(Elem, self).__init__()
         self._shape = shape
         self._name = name
 
@@ -125,7 +175,7 @@ class Elem(object):    # carries output shape information
     def allparams(self):
         acc = set()
         if hasattr(self, "params"):
-            acc.update(self.params)
+            acc.update(set(self.params))
         for parent in self.getparents():
             acc.update(parent.allparams)
         return acc
@@ -135,6 +185,11 @@ class Elem(object):    # carries output shape information
 
 
 class Var(Elem): # result of applying a block on theano variables
+    __metaclass__ = TensorWrapper
+
+    def __getattr__(self, item):
+        return wrapf(getattr(self.tvar, item), addparent=self)
+
     def __init__(self, tvar, parent=None, **kw):
         super(Var, self).__init__(name=tvar.name, **kw)
         assert(isinstance(tvar, theano.Variable))
@@ -148,6 +203,9 @@ class Var(Elem): # result of applying a block on theano variables
 
     def add_parent(self, p):
         self.parents.append(p)
+
+    def eval(self, argdic):
+        return self.d.eval(dict(map(lambda (x, y): (x.d, y), argdic.items())))
 
     @property
     def d(self):
@@ -177,13 +235,15 @@ class Block(Elem): # block with parameters
         self.inputs = []
         self.parents = []
         self.params = []
+        self._predictf = None
 
-    def initinputs(self): # must override
+    def initinputs(self): # must override to be trainable
         return []
 
-    def apply(self, *vars):
-        trueargs = [x.d for x in vars]
-        result = self._apply(*trueargs)
+    def apply(self, *vars, **kwargs):
+        trueargs = [x.d if hasattr(x, "d") else x for x in vars]
+        truekwargs = dict(map(lambda (x, y): (x, y.d if hasattr(y, "d") else y), kwargs.items()))
+        result = self._apply(*trueargs, **truekwargs)
         return Var(result, parent=self)
 
     # may override: -------------------------------------------------
@@ -225,12 +285,13 @@ class Block(Elem): # block with parameters
         return p
 
     def __call__(self, *args, **kwargs):
-        return self.wrapply(*args)
+        return self.wrapply(*args, **kwargs)
 
-    def wrapply(self, *args):
-        self.parents.extend(args)
-        ret = self.apply(*args)
-        ret.add_parent(self)
+    def wrapply(self, *args, **kwargs):
+        self.parents.extend([x for x in args if isinstance(x, Var)])
+        self.parents.extend([x for x in kwargs.values() if isinstance(x, Var)])
+        ret = self.apply(*args, **kwargs)
+        ret.add_parent(self) # TODO: remove??
         return ret
 
     def build(self): # stores block inputs and block output
@@ -253,8 +314,8 @@ class wrap(Block): # wraps a theano symbolic expression into a block
         assert(hasattr(fun, "__call__"))
         self.opfun = fun
 
-    def _apply(self, *tvars):
-        return self.opfun(*tvars)
+    def _apply(self, *tvars, **kwargs):
+        return self.opfun(*tvars, **kwargs)
 
 
 class FeedForward(Block): # feedforward
@@ -268,12 +329,12 @@ class FeedForward(Block): # feedforward
 
 
 if __name__ == "__main__":
-    x = Input(2, "int32", name="x")
+    '''x = Input(2, "int32", name="x")
     E = param((10, 10)).uniform()
     W = param((10, 10)).uniform()
     y = wrap(lambda x: E[x, :], E)(x)
     y = FeedForward(11, 12)(y)
-
+    '''
     '''
     model = Model(y, [x])
     errors = model.train([xval], gval).cross_entropy().l2(0.001).sgd(lr) \
@@ -281,7 +342,20 @@ if __name__ == "__main__":
                   .train()
     prediction = model.predict([xval])
     '''
+    '''
     print y.allinputs
     print y.allparams
     print x
-
+    '''
+    x = Input(1, "float32")
+    W = param((10, 10)).uniform()
+    y = tensorops.dot(W, x)
+    normparam = theano.shared(0)
+    normparam = Parameter(normparam)
+    xval = np.random.random((10,)).astype("float32")
+    #print xval
+    #print y.allparams
+    #print y.eval({x: xval})
+    z = (x + y).norm(2, axis=0)
+    print z.eval({x: xval})
+    print z.allparams
