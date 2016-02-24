@@ -3,10 +3,10 @@ from datetime import datetime as dt
 import numpy as np
 import sys
 import theano
+from theano import tensor as tensor
 from lasagne.objectives import *
 from lasagne.regularization import l1, l2
 from lasagne.updates import *
-from theano import tensor as T
 
 from teafacto.blocks.core import *
 from teafacto.blocks.datafeed import DataFeeder, SplitIdxIterator
@@ -18,6 +18,7 @@ class ModelTrainer(object):
         self.goldvar = gold
         self.validsetmode= False
         self.average_err = True # TODO: do we still need this?
+        self._autosave = False
         # training settings
         self.objective = None
         self.regularizer = None
@@ -52,11 +53,33 @@ class ModelTrainer(object):
         return self
 
     def cross_entropy(self):
-        self._set_objective(lambda probs, gold: -T.log(probs[T.arange(gold.shape[0]), gold]))
+        self._set_objective(lambda probs, gold: -tensor.log(probs[tensor.arange(gold.shape[0]), gold]))
         return self
 
     def squared_error(self):
         self._set_objective(lambda x, y: squared_error(x, y))
+        return self
+
+    def accuracy(self, top_k=1):
+        def categorical_accuracy(predictions, targets, top_k=1): # !!! copied from Lasagne # TODO: import properly
+            if targets.ndim == predictions.ndim:
+                targets = theano.tensor.argmax(targets, axis=-1)
+            elif targets.ndim != predictions.ndim - 1:
+                raise TypeError('rank mismatch between targets and predictions')
+
+            if top_k == 1:
+                # standard categorical accuracy
+                top = theano.tensor.argmax(predictions, axis=-1)
+                return theano.tensor.eq(top, targets)
+            else:
+                # top-k accuracy
+                top = theano.tensor.argsort(predictions, axis=-1)
+                # (Theano cannot index with [..., -top_k:], we need to simulate that)
+                top = top[[slice(None) for _ in range(top.ndim - 1)] +
+                          [slice(-top_k, None)]]
+                targets = theano.tensor.shape_padaxis(targets, axis=-1)
+                return theano.tensor.any(theano.tensor.eq(top, targets), axis=-1)
+        self._set_objective(lambda x, y: categorical_accuracy(x, y, top_k=top_k))
         return self
 
     def hinge_loss(self):
@@ -125,6 +148,11 @@ class ModelTrainer(object):
 
     ################### VALIDATION ####################### --> use one of following
 
+    def autovalidate(self): # validates on the same data as training data
+        self.validate_on(self.traindata, self.traingold)
+        self.validsetmode = True
+        return self
+
     def validate(self, splits=5, random=False):
         self.trainstrategy = self._train_split
         self.validsplits = splits
@@ -185,7 +213,7 @@ class ModelTrainer(object):
             cost = loss+reg
         else:
             cost = loss
-        grads = T.grad(cost, [x.d for x in params])  # compute gradient
+        grads = tensor.grad(cost, [x.d for x in params])  # compute gradient
         grads = self._gradconstrain(grads)
         rawupdates = self.optimizer(grads, [x.d for x in params])       # raw updates from optimizer
         updates = map(lambda x: (x[0][0], x[1].constraintf()(x[0][1]*x[1].lrmul)),    # updates penalized by param lrmul
@@ -216,15 +244,15 @@ class ModelTrainer(object):
         trainf = self.buildtrainfun(model)
         validf = self.buildvalidfun(model)
         err, verr = self.trainloop(
-                trainf=self.getbatchloop(trainf, DataFeeder(self.traindata, self.traingold).numbats(self.numbats)),
-                validf=self.getbatchloop(validf, DataFeeder(self.validdata, self.validgold)),
+                trainf=self.getbatchloop(trainf, DataFeeder(*(self.traindata + [self.traingold])).numbats(self.numbats)),
+                validf=self.getbatchloop(validf, DataFeeder(*(self.validdata + [self.validgold]))),
                 average_err=self.average_err)
         return err, verr
 
     def _train_split(self, model):
         trainf = self.buildtrainfun(model)
         validf = self.buildvalidfun(model)
-        df = DataFeeder(self.traindata, self.traingold)
+        df = DataFeeder(*(self.traindata + [self.traingold]))
         dftrain, dfvalid = df.split(self.validsplits, self.validrandom)
         err, verr = self.trainloop(
                 trainf=self.getbatchloop(trainf, dftrain.numbats(self.numbats)),
@@ -233,7 +261,7 @@ class ModelTrainer(object):
         return err, verr
 
     def _train_cross_valid(self, model):
-        df = DataFeeder(self.traindata, self.traingold)
+        df = DataFeeder(*(self.traindata + [self.traingold]))
         splitter = SplitIdxIterator(df.size, split=self.validsplits, random=self.validrandom, folds=self.validsplits)
         err = []
         verr = []
@@ -285,7 +313,7 @@ class ModelTrainer(object):
                 print "training error: %s" % " - ".join(map(lambda x: "%.3f" % x, erre))
             print("iter done in %f seconds" % (dt.now() - start).total_seconds())
             evalcount += 1
-            if self.autosave:
+            if self._autosave:
                 self.save(self.model)
         self.tt.tock("trained").tick()
         return err, verr
@@ -318,10 +346,11 @@ class ModelTrainer(object):
 
     @property
     def autosave(self):
-        return False # TODO
+        self._autosave = True
+        return self
 
-    def save(self, model):
-        pass # TODO
+    def save(self, model, filepath=None):
+        model.save(filepath=filepath)
 
 
 class ContrastModelTrainer(ModelTrainer):
@@ -344,7 +373,7 @@ class ContrastModelTrainer(ModelTrainer):
             return closses
 
         o, _ = theano.scan(fn=pair, sequences=si[1:], non_sequences=si[0]) # iterate over neg examples --> (negrate, batsize)
-        aggf = T.mean if self.average_err is True else T.sum
+        aggf = tensor.mean if self.average_err is True else tensor.sum
         oa = aggf(o, axis=0)
         oaa = aggf(oa, axis=1)
         return oaa, newinpblocks

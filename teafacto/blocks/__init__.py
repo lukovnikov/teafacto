@@ -1,6 +1,13 @@
 # TODO: implement example dynamic data feed
 # TODO: implement more objectives
-# TODO: add (auto)saving --> in trainer
+# TODO: (auto)saving: pickling doesn't work
 
-# TODO: no automatic param adding in Block.wrapply() --> might be source of bugs
-# TODO: parameters used inside rec function should be params of the scan block
+# WARNING: no automatic param adding in Block.wrapply() --> might be source of bugs
+
+# TODO: implement stopping for scan: wrap theano.scan_module.until in T.until
+
+# TODO: test parameter constraints
+# TODO: test RNU in blocks
+# TODO: finish porting RNN and test
+
+# TODO: (maybe): layering function stack(...) for quick layering of blocks

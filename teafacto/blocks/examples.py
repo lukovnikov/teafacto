@@ -1,9 +1,9 @@
+from teafacto.blocks.core import tensorops as T
 from teafacto.blocks.core import *
 from teafacto.blocks.datafeed import *
 from teafacto.blocks.trainer import *
-from teafacto.core.utils import argparsify
+from teafacto.blocks.util import argparsify
 from teafacto.lm import Glove
-from teafacto.blocks.core import tensorops as T
 
 
 class Embed(Block):
@@ -11,7 +11,10 @@ class Embed(Block):
         super(Embed, self).__init__(**kw)
         self.dim = dim
         self.indim = indim
-        self.W = param((indim, dim)).uniform()
+        self.W = param((indim, dim)).uniform().normalize(axis=1)
+
+    def initinputs(self):
+        return [Input(ndim=1, dtype="int32", name="emb_inp")]
 
     def apply(self, inptensor):
         return self.W[inptensor, :]
@@ -21,9 +24,9 @@ class Softmax(Block):
         return T.nnet.softmax(inptensor)
 
 
-class AutoEncoder(Block):
+class Dummy(Block):
     def __init__(self, indim=1000, dim=50, **kw):
-        super(AutoEncoder, self).__init__(**kw)
+        super(Dummy, self).__init__(**kw)
         self.dim = dim
         self.indim = indim
         self.W = Embed(indim=indim, dim=dim)
@@ -40,20 +43,23 @@ class AutoEncoder(Block):
 
 
 def run(
-        epochs=100,
-        dim=20,
+        epochs=20,
+        dim=15,
         vocabsize=2000,
-        lr=1,
+        lr=0.1,
         numbats=100
     ):
     data = np.arange(0, vocabsize).astype("int32")
-    ae = AutoEncoder(indim=vocabsize, dim=dim)
-    ae  .train([data], data).rmsprop().cross_entropy().validate(5, random=True).cross_entropy()\
+    ae = Dummy(indim=vocabsize, dim=dim)
+    ae  .train([data], data).rmsprop().cross_entropy().autovalidate().cross_entropy().accuracy()\
         .train(numbats=numbats, epochs=epochs)
 
-    pred = ae.predict([0, 1, 2])
+    pdata = [0, 1, 2]
+    pembs = ae.W.predict(pdata)
+    print pembs, pembs.shape
+    print np.linalg.norm(pembs, axis=1)
+    pred = ae.predict(pdata)
     print pred.shape
-    print pred
 
 
 if __name__ == "__main__":
