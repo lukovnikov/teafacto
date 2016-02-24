@@ -41,19 +41,19 @@ class AutoEncoder(Block):
 
 def run(
         epochs=100,
-        dim=50,
+        dim=20,
         vocabsize=2000,
         lr=1,
         numbats=100
     ):
     data = np.arange(0, vocabsize).astype("int32")
     ae = AutoEncoder(indim=vocabsize, dim=dim)
-    ae  .train(data, data).rmsprop().cross_entropy().validate(5, random=True).cross_entropy().squared_error()\
+    ae  .train([data], data).rmsprop().cross_entropy().validate(5, random=True).cross_entropy()\
         .train(numbats=numbats, epochs=epochs)
 
-    ae.predict([0])
-
-    return epochs
+    pred = ae.predict([0, 1, 2])
+    print pred.shape
+    print pred
 
 
 if __name__ == "__main__":

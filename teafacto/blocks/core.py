@@ -9,11 +9,24 @@ from teafacto.core.init import *
 from lasagne.init import *
 from lasagne.updates import norm_constraint
 
-
+### DON'T WORRY ABOUT THIS
 class TWrapper(type):
     def __getattr__(cls, item):
         top = getattr(T, item)
         return wrapf(top)
+
+    def scan(cls, fn, sequences=None, outputs_info=None, non_sequences=None, n_steps=None, truncate_gradient=-1, go_backwards=False,mode=None, name=None, profile=False, allow_gc=None, strict=False):
+        return scan()(fn, sequences=sequences, outputs_info=outputs_info, non_sequences=non_sequences, n_steps=n_steps,
+                      truncate_gradient=truncate_gradient, go_backwards=go_backwards,mode=mode, name=name, profile=profile,
+                      allow_gc=allow_gc, strict=strict)
+
+    def dimswap(cls, v, a, b):
+        dims = range(v.ndim)
+        dims[a] = b
+        dims[b] = a
+        ret = v.d.dimshuffle(*dims)
+        return Var(ret, [v])
+
 
 def wrapf(attr, root=None):
     if hasattr(attr, "__call__"): # real function
@@ -69,6 +82,9 @@ class TensorWrapper(type):
                     setattr(cls, name, property(make_proxy(name)))
         type.__init__(cls, name, bases, dct)
 
+
+
+### WORRY ABOUT THIS
 class Parameter(object):
     '''
     A parameter wraps a shared variable and can optionally have a different learning rate and regularization multiplier
@@ -94,6 +110,10 @@ class Parameter(object):
         self.name = str(name) if name is not None else "auto:" + str(np.random.randint(0, 10000))
         self.constraints = []
 
+    def applyonval(self, f):
+        self.value.set_value(f(self.value.get_value()))
+        return self
+
     def reset(self):
         self.value.set_value(self.initializer())
 
@@ -102,7 +122,7 @@ class Parameter(object):
         return self.value
 
     def __repr__(self):
-        return "param::%s=%s:%s-%.1f:%.1f" % (self.name, str(self.value.dtype), str(self.value.get_value().shape), self.lrmul, self.regmul)
+        return "param::%s:%s/%.1f:%.1f" % (str(self.value.dtype), str(self.value.get_value().shape), self.lrmul, self.regmul)
 
     ############## VALUE CONSTRAINTS ############### --> applied in the order that the were added
     def clip(self, a, b):
@@ -127,7 +147,6 @@ class Parameter(object):
         return innerconstraintf
 
 
-
 class param(object):
     def __init__(self, shape, lrmul=1., regmul=1.):
         self.shape = shape
@@ -135,13 +154,23 @@ class param(object):
         self.regmul = regmul
         self.value = None
 
-    def random(self, offset=0.5, scale=0.1):
-        init = lambda: random(self.shape, offset, scale)
-        ret = Parameter(init, self.lrmul, self.regmul)
-        ret.initializer = init
+    def _init_help(self, f):
+        ret = Parameter(f(), self.lrmul, self.regmul)
+        ret.initializer = f
         return ret
 
+    ############## OWN INITS ###################
+    def random(self, offset=0.5, scale=0.1):
+        return self._init_help(lambda: random(self.shape, offset, scale))
+
+    def eye(self, offset=0):
+        return self._init_help(lambda: np.eye(self.shape[0], self.shape[1], k=offset, dtype="float32"))
+
     ############## LASAGE INITS ################
+    def init(self, name, *args, **kwargs):
+        assert hasattr(self, name)
+        return getattr(self, name)(*args, **kwargs)
+
     def _lasagne_init(self, initializer):
         return Parameter(initializer, self.lrmul, self.regmul, shape=self.shape)
 
@@ -173,6 +202,7 @@ class param(object):
         return self._lasagne_init(Orthogonal(gain))
 
 
+### DON'T WORRY ABOUT THIS
 class Elem(object):    # carries output shape information
     def __init__(self, shape=None, name=None, **kw):
         super(Elem, self).__init__()
@@ -196,6 +226,7 @@ class Elem(object):    # carries output shape information
         raise NotImplementedError("use subclass")
 
 
+### WORRY ABOUT THIS
 class Var(Elem): # result of applying a block on theano variables
     __metaclass__ = TensorWrapper
 
@@ -216,7 +247,7 @@ class Var(Elem): # result of applying a block on theano variables
     def add_parent(self, p):
         self.parents.append(p)
 
-    def eval(self, argdic):
+    def eval(self, argdic={}):
         return self.d.eval(dict(map(lambda (x, y): (x.d, y), argdic.items())))
 
     @property
@@ -233,13 +264,6 @@ class Input(Var): # generates feed + creates symbolic vars for input
         super(Input, self).__init__(value, parent=None, **kw)
         self.ndim = ndim # store number of dimensions
 
-    def dimswap(self, a, b):
-        dims = range(self.ndim)
-        dims[a] = b
-        dims[b] = a
-        ret = self.d.dimshuffle(*dims)
-        return Var(ret, [self])
-
 
 def recurmap(fun, data):
     if isinstance(data, dict):
@@ -249,12 +273,14 @@ def recurmap(fun, data):
     else:
         return fun(data)
 
+
 class Block(Elem): # block with parameters
     def __init__(self, **kw):
         super(Block, self).__init__(**kw)
         self.inputs = []
         self.parents = []
         self.params = []
+        self.output = None
         self._predictf = None
 
     def initinputs(self): # must override to be trainable
@@ -267,11 +293,13 @@ class Block(Elem): # block with parameters
         return Var(result)#, parent=self)
 
     # may override: -------------------------------------------------
-    def predict(self, inputdata):
+    def predict(self, *inputdata):
         if self._predictf is None:
-            self.build()
+            if False or len(self.inputs) == 0 or self.output is None:
+                self.build()
             self._predictf = theano.function(outputs=self.output.d, inputs=[x.d for x in self.inputs])
-        return self._predictf(dict(zip([x.d for x in self.inputs], inputdata)))
+        args = dict(zip([x.d for x in self.inputs], inputdata))
+        return self._predictf(*inputdata)
 
     def gettrainer(self, goldvar):
         return ModelTrainer(self, goldvar)
@@ -344,6 +372,7 @@ def recurfilter(fun, data):
             acc.append(None)
     return filter(lambda x: x is not None, acc)
 
+
 class wrap(Block): # wraps a theano symbolic expression into a block
     def __init__(self, fun, *params, **kw):
         super(wrap, self).__init__(**kw)
@@ -354,6 +383,29 @@ class wrap(Block): # wraps a theano symbolic expression into a block
     def _apply(self, *tvars, **kwargs):
         return self.opfun(*tvars, **kwargs)
 
+
+class scan(Block):
+    def __init__(self, **kw):
+        super(scan, self).__init__(**kw)
+        # set params
+
+    def fnwrap(self, fn): # enables writing fn in blocks level
+        def fwrapper(*args): # theano vars
+            trueargs = [Var(x) for x in args]
+            res = (fn(*trueargs),)
+            ret = tuple(recurmap(lambda x: x.d if hasattr(x, "d") else x, res))[0]
+            self.add_params(reduce(lambda x, y: set(x).union(set(y)),
+                                   map(lambda x: x.allparams, recurfilter(lambda x: isinstance(x, Var), res)), set()))
+            self.add_params(recurfilter(lambda x: isinstance(x, Parameter), res))
+            return ret
+        return fwrapper
+
+    def apply(self, fn, **kwargs):
+        self.params.extend(recurfilter(lambda x: isinstance(x, Parameter), kwargs))
+        trueargs = recurmap(lambda x: x.d if hasattr(x, "d") else x, kwargs)
+        o, u = theano.scan(self.fnwrap(fn), **trueargs)
+        ret = Var(o)
+        return ret
 
 class FeedForward(Block): # feedforward
     def __init__(self, indim, dim, activation=None, **kw):
@@ -384,6 +436,8 @@ if __name__ == "__main__":
     print y.allparams
     print x
     '''
+
+    '''
     x = Input(1, "float32")
     W = param((10, 10)).uniform()
     y = tensorops.dot(W, x)
@@ -399,3 +453,16 @@ if __name__ == "__main__":
     b = z.norm(2, axis=0)
     print b.eval({x: xval})
     print y.allparams, z.allparams
+    '''
+    print T.eye(10, 1).eval()
+    O = param((10, 10)).eye().applyonval(lambda x: x*1/3)
+    W = param((10, 10)).eye().applyonval(lambda x: x*2)
+
+    def rec(x):
+        ret = tensorops.dot(W, x)
+        ret = tensorops.dot(O, ret)
+        return ret
+    outputs = tensorops.scan(fn=rec, outputs_info=tensorops.eye(10, 1), n_steps=10)
+    print outputs.eval()
+    print outputs.allparams
+    print W.d.get_value()
