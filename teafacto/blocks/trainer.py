@@ -21,6 +21,7 @@ class ModelTrainer(object):
         self.average_err = True # TODO: do we still need this?
         self._autosave = False
         # training settings
+        self.learning_rate = 1.0
         self.objective = None
         self.regularizer = None
         self.optimizer = None
@@ -120,31 +121,38 @@ class ModelTrainer(object):
 
     ##################### OPTIMIZERS ######################
     def sgd(self, lr):
-        self.optimizer = lambda x, y: sgd(x, y, learning_rate=lr)
+        self.learning_rate = lr
+        self.optimizer = lambda x, y, l: sgd(x, y, learning_rate=l)
         return self
 
     def momentum(self, lr, mome=0.9):
-        self.optimizer = lambda x, y: momentum(x, y, learning_rate=lr, momentum=mome)
+        self.learning_rate = lr
+        self.optimizer = lambda x, y, l: momentum(x, y, learning_rate=l, momentum=mome)
         return self
 
     def nesterov_momentum(self, lr, momentum=0.9):
-        self.optimizer = lambda x, y: nesterov_momentum(x, y, learning_rate=lr, momentum=momentum)
+        self.learning_rate = lr
+        self.optimizer = lambda x, y, l: nesterov_momentum(x, y, learning_rate=l, momentum=momentum)
         return self
 
     def adagrad(self, lr=1.0, epsilon=1e-6):
-        self.optimizer = lambda x, y: adagrad(x, y, learning_rate=lr, epsilon=epsilon)
+        self.learning_rate = lr
+        self.optimizer = lambda x, y, l: adagrad(x, y, learning_rate=l, epsilon=epsilon)
         return self
 
     def rmsprop(self, lr=1., rho=0.9, epsilon=1e-6):
-        self.optimizer = lambda x, y: rmsprop(x, y, learning_rate=lr, rho=rho, epsilon=epsilon)
+        self.learning_rate = lr
+        self.optimizer = lambda x, y, l: rmsprop(x, y, learning_rate=l, rho=rho, epsilon=epsilon)
         return self
 
     def adadelta(self, lr=1., rho=0.95, epsilon=1e-6):
-        self.optimizer = lambda x, y: adadelta(x, y, learning_rate=lr, rho=rho, epsilon=epsilon)
+        self.learning_rate = lr
+        self.optimizer = lambda x, y, l: adadelta(x, y, learning_rate=l, rho=rho, epsilon=epsilon)
         return self
 
     def adam(self, lr=0.001, b1=0.9, b2=0.999, epsilon=1e-8):
-        self.optimizer = lambda x, y: adam(x, y, learning_rate=lr, beta1=b1, beta2=b2, epsilon=epsilon)
+        self.learning_rate = lr
+        self.optimizer = lambda x, y, l: adam(x, y, learning_rate=l, beta1=b1, beta2=b2, epsilon=epsilon)
         return self
 
     ################### VALIDATION ####################### --> use one of following
@@ -188,7 +196,7 @@ class ModelTrainer(object):
         self.traincheck()
         self.numbats = numbats
         self.maxiter = epochs
-        self._train()
+        return self._train()
 
     def _train(self):
         model = self.buildmodel()
@@ -211,19 +219,20 @@ class ModelTrainer(object):
             cost = loss+reg
         else:
             cost = loss
+        updates = []
         grads = tensor.grad(cost, [x.d for x in params])  # compute gradient
         grads = self._gradconstrain(grads)
-        rawupdates = self.optimizer(grads, [x.d for x in params])       # raw updates from optimizer
-        updates = []  # numerically unstable?
-        for p in rawupdates:
-            param = None
-            for para in params:
-                if para.d == p:
-                    param = para
-            if param is not None:
-                updates.append((p, param.constraintf()((rawupdates[p] - p) * param.lrmul + p)))    # num-stable? -> TODO
-            else:
-                updates.append((p, rawupdates[p]))
+        for param, grad in zip(params, grads):
+            upds = self.optimizer([grad], [param.d], self.learning_rate*param.lrmul)
+            for upd in upds:
+                broken = False
+                for para in params:
+                    if para.d == upd:
+                        updates.append((upd, para.constraintf()(upds[upd])))
+                        broken = True
+                        break
+                if not broken:
+                    updates.append((upd, upds[upd]))
         print updates
         trainf = theano.function(inputs=[x.d for x in inputs]+[self.goldvar], outputs=[cost], updates=updates)
         return trainf
@@ -245,7 +254,7 @@ class ModelTrainer(object):
         err, _ = self.trainloop(
                 trainf=self.getbatchloop(trainf, DataFeeder(self.traindata, self.traingold).numbats(self.numbats)),
                 average_err=self.average_err)
-        return err
+        return err, None, None, None
 
     def _train_validdata(self, model):
         trainf = self.buildtrainfun(model)
@@ -254,7 +263,7 @@ class ModelTrainer(object):
                 trainf=self.getbatchloop(trainf, DataFeeder(*(self.traindata + [self.traingold])).numbats(self.numbats)),
                 validf=self.getbatchloop(validf, DataFeeder(*(self.validdata + [self.validgold]))),
                 average_err=self.average_err)
-        return err, verr
+        return err, verr, None, None
 
     def _train_split(self, model):
         trainf = self.buildtrainfun(model)
@@ -265,7 +274,7 @@ class ModelTrainer(object):
                 trainf=self.getbatchloop(trainf, dftrain.numbats(self.numbats)),
                 validf=self.getbatchloop(validf, dfvalid),
                 average_err=self.average_err)
-        return err, verr
+        return err, verr, None, None
 
     def _train_cross_valid(self, model):
         df = DataFeeder(*(self.traindata + [self.traingold]))

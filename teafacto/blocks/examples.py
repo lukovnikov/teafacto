@@ -11,13 +11,14 @@ class Embed(Block):
         super(Embed, self).__init__(**kw)
         self.dim = dim
         self.indim = indim
-        self.W = param((indim, dim)).uniform()#.normalize(axis=1)
+        self.W = param((indim, dim), lrmul=1.).uniform().normalize(axis=1)
 
     def initinputs(self):
         return [Input(ndim=1, dtype="int32", name="emb_inp")]
 
     def apply(self, inptensor):
         return self.W[inptensor, :]
+
 
 class Softmax(Block):
     def apply(self, inptensor): # matrix
@@ -30,7 +31,7 @@ class Dummy(Block):
         self.dim = dim
         self.indim = indim
         self.W = Embed(indim=indim, dim=dim)
-        self.O = param((dim, indim)).uniform()
+        self.O = param((dim, indim), lrmul=1.).uniform()
 
     def initinputs(self):
         return [Input(ndim=1, dtype="int32", name="autoenc_inp")]
@@ -44,23 +45,25 @@ class Dummy(Block):
 
 def run(
         epochs=100,
-        dim=50,
+        dim=10,
         vocabsize=2000,
-        lr=1.,
+        lr=0.02,
         numbats=100
     ):
+    lr *= numbats
     data = np.arange(0, vocabsize).astype("int32")
     ae = Dummy(indim=vocabsize, dim=dim)
-    ae  .train([data], data).adadelta(lr=lr).neg_log_prob().validate(5, random=True).neg_log_prob().accuracy()\
+    err, verr, _, _ = \
+        ae  .train([data], data).adadelta(lr=lr).neg_log_prob().validate(5, random=True).neg_log_prob().accuracy()\
         .train(numbats=numbats, epochs=epochs)
 
     pdata = range(100)
     pembs = ae.W.predict(pdata)
-    print pembs
     print np.linalg.norm(pembs, axis=1)
     pred = ae.predict(pdata)
     print pred.shape
     print np.argmax(pred, axis=1)
+    #print err, verr
 
 
 if __name__ == "__main__":
