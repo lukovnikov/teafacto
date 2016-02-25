@@ -147,6 +147,10 @@ class ModelTrainer(object):
         if self.dynamic_lr is not None:
             self.learning_rate.set_value(self.dynamic_lr(self.learning_rate.get_value(), epoch, maxepoch, terrs, verrs))
 
+    def dlr_thresh(self, thresh=5):
+        self.dynamic_lr = thresh_lr(self.learning_rate, thresh=thresh)
+        return self
+
     ##################### OPTIMIZERS ######################
     def sgd(self, lr):
         self._setlr(lr)

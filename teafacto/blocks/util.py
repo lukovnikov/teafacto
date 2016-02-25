@@ -107,6 +107,7 @@ class Saveable(object):
             filepath = self.getdefaultsavepath() + ".auto"
         with open(filepath, "w") as f:
             pkl.dump(self, f)
+        return filepath
 
     @staticmethod
     def load(filepath):

@@ -3,7 +3,7 @@ from unittest import TestCase
 from teafacto.blocks.rnu import GRU, LSTM
 from teafacto.blocks.core import param, Input
 from teafacto.blocks.core import tensorops as T
-import numpy as np
+import numpy as np, os
 
 
 class TestGRU(TestCase):
@@ -20,6 +20,11 @@ class TestGRU(TestCase):
         self.ushape = (self.innerdim, self.innerdim)
         self.bshape = (self.innerdim, )
         self.rnu.autobuild(self.testdata)
+        self.toremovefiles = []
+
+    def tearDown(self):
+        for p in self.toremovefiles:
+            os.remove(p)
 
     def makernu(self):
         return GRU(dim=self.dim, innerdim=self.innerdim)
@@ -82,7 +87,12 @@ class TestGRU(TestCase):
         data = np.random.random(othershape)
         self.assertRaises(Exception, self.rnu.predict, data)
 
-
+    def test_save_load_predict(self):
+        outpv = self.rnu.predict(self.testdata)
+        path = self.rnu.save()
+        self.toremovefiles.append(path)
+        loaded = self.rnu.__class__.load(path)
+        self.assertTrue(np.allclose(outpv, loaded.predict(self.testdata)))
 
 
 class TestLSTM(TestGRU):

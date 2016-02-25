@@ -65,7 +65,7 @@ class TensorWrapper(type):
     """Wrapper class that provides proxy access to an instance of some
        internal instance."""
 
-    __ignore__ = "class mro new init setattr getattr getattribute subclasshook"
+    __ignore__ = "class mro new init setattr getattr getattribute getstate setstate"
 
     def __init__(cls, name, bases, dct):
 
@@ -87,6 +87,8 @@ class TensorWrapped(object):
     __metaclass__ = TensorWrapper
 
     def __getattr__(self, item):
+        if item in ["__%s__" % a for a in self.__metaclass__.__ignore__.split(" ")]:
+            raise AttributeError()
         return wrapf(getattr(self.d, item), root=self)
 
     def dimswap(self, a, b):

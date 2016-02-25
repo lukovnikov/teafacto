@@ -1,6 +1,5 @@
 # TODO: implement example dynamic data feed
 # TODO: implement more objectives
-# TODO: (auto)saving: pickling doesn't work
 
 # WARNING: no automatic param adding in Block.wrapply() --> might be source of bugs
 
@@ -14,4 +13,4 @@
 
 # TODO/TEST: Val with all the rest
 
-# TODO/THINK: dynamic learning rate and other optimization parameters
+# TODO/TEST: implement data splitting tests

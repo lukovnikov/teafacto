@@ -38,7 +38,7 @@ class Dummy(Block):
 
 
 def run(
-        epochs=100,
+        epochs=1,
         dim=10,
         vocabsize=2000,
         lr=0.02,
@@ -48,7 +48,8 @@ def run(
     data = np.arange(0, vocabsize).astype("int32")
     ae = Dummy(indim=vocabsize, dim=dim)
     err, verr, _, _ = \
-        ae.train([data], data).adadelta(lr=thresh_lr(lr)).neg_log_prob().validate(5, random=True).neg_log_prob().accuracy()\
+        ae  .train([data], data).adadelta(lr=lr).dlr_thresh().neg_log_prob()\
+            .validate(5, random=True).neg_log_prob().accuracy().autosave\
         .train(numbats=numbats, epochs=epochs)
 
     pdata = range(100)
