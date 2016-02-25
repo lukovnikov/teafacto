@@ -194,23 +194,7 @@ class ModelTrainer(object):
         self.traincheck()
         self.numbats = numbats
         self.maxiter = epochs
-        return self._train()
-
-    def _train(self):
-        model = self.buildmodel()
-        # train mode: full -> train on all data; split -> split, then train, then valid; data -> valid on validdata; cross -> cross validation
-        return self.trainstrategy(model)
-
-    def autobuildmodel(self):
-        '''inps = [Input(ndim=x.ndim, dtype=x.dtype) for x in self.traindata]
-        self.model.inputs = inps
-        outp = self.model(inps)
-        self.model.output = outp
-        return self.model'''
-
-    def buildmodel(self):
-        self.model.build()
-        return self.model
+        return self.trainstrategy(self.model)
 
     def buildtrainfun(self, model):
         params = model.output.allparams

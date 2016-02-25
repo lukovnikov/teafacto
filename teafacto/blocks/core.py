@@ -286,9 +286,6 @@ class Block(Elem, Saveable): # block with parameters
         self.output = None
         self._predictf = None
 
-    def initinputs(self): # must override to be trainable
-        return []
-
     def apply(self, *vars, **kwargs):
         trueargs = recurmap(lambda x: x.d if hasattr(x, "d") else x, vars)
         truekwargs = recurmap(lambda x: x.d if hasattr(x, "d") else x, kwargs)
@@ -299,7 +296,7 @@ class Block(Elem, Saveable): # block with parameters
     def predict(self, *inputdata):
         if self._predictf is None:
             if False or len(self.inputs) == 0 or self.output is None:
-                self.build()
+                self.autobuild(inputdata)
             self._predictf = theano.function(outputs=self.output.d, inputs=[x.d for x in self.inputs])
         args = dict(zip([x.d for x in self.inputs], inputdata))
         return self._predictf(*inputdata)
@@ -317,6 +314,11 @@ class Block(Elem, Saveable): # block with parameters
 
     def build(self): # stores block inputs and block output
         self.inputs = self.initinputs()
+        self.output = self.wrapply(*self.inputs)
+
+    def autobuild(self, inputdata):
+        inputdata = map(lambda x: x if isinstance(inputdata, np.ndarray) else np.asarray(x), inputdata)
+        self.inputs = [Input(ndim=td.ndim, dtype=td.dtype) for td in inputdata]
         self.output = self.wrapply(*self.inputs)
 
     def __call__(self, *args, **kwargs):
@@ -355,6 +357,7 @@ class Block(Elem, Saveable): # block with parameters
     def train(self, inputdata, gold):
         # wrap data in datafeeds, generate gold var
         goldvar = Input(gold.ndim, gold.dtype, name="gold")
+        self.autobuild(inputdata)
         trainer = self.gettrainer(goldvar.d)
         trainer.traindata = inputdata
         trainer.traingold = gold

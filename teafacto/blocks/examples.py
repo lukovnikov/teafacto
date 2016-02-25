@@ -13,9 +13,6 @@ class Embed(Block):
         self.indim = indim
         self.W = param((indim, dim), lrmul=1.).uniform().normalize(axis=1)
 
-    def initinputs(self):
-        return [Input(ndim=1, dtype="int32", name="emb_inp")]
-
     def apply(self, inptensor):
         return self.W[inptensor, :]
 
@@ -32,9 +29,6 @@ class Dummy(Block):
         self.indim = indim
         self.W = Embed(indim=indim, dim=dim)
         self.O = param((dim, indim), lrmul=1.).uniform()
-
-    def initinputs(self):
-        return [Input(ndim=1, dtype="int32", name="autoenc_inp")]
 
     def apply(self, inptensor):
         emb = self.W(inptensor)
