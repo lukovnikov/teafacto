@@ -35,14 +35,14 @@ class RNUBase(Block, RNUParam):
             setattr(self, paramname, params[paramname])
 
     def recur(self, x):
-        inputs = x.dimshuffle(1, 0, 2) # inputs is (seq_len, nb_samples, dim)
+        inputs = x.dimswap(1, 0) # inputs is (seq_len, nb_samples, dim)
         numstates = len(inspect.getargspec(self.rec).args) - 2
         initstate = T.zeros((inputs.shape[1], self.innerdim)) # (nb_samples, dim)
         outputs, _ = T.scan(fn=self.rec,
                             sequences=inputs,
                             outputs_info=[None]+[initstate]*numstates)
         output = outputs[0]
-        return output.dimshuffle(1, 0, 2)
+        return output.dimswap(1, 0)
 
     def rec(self, *args):
         raise NotImplementedError("use subclass")
@@ -58,9 +58,11 @@ class RNUBase(Block, RNUParam):
 
 
 class RNU(RNUBase):
-    def __init__(self, **kw):
-        self.paramnames = ["u", "w"]
+    paramnames = ["u", "w", "b"]
+
+    def __init__(self, outpactivation=T.tanh, **kw):
         super(RNU, self).__init__(**kw)
+        self.outpactivation = outpactivation
 
     def get_init_info(self, batsize):
         h_t0 = self.initstates
@@ -71,15 +73,14 @@ class RNU(RNUBase):
     def rec(self, x_t, h_tm1):      # x_t: (batsize, dim), h_tm1: (batsize, innerdim)
         inp = T.dot(x_t, self.w)    # w: (dim, innerdim) ==> inp: (batsize, innerdim)
         rep = T.dot(h_tm1, self.u)  # u: (innerdim, innerdim) ==> rep: (batsize, innerdim)
-        h = inp + rep               # h: (batsize, innerdim)
-        h = T.tanh(h)               #
+        h = inp + rep + self.b               # h: (batsize, innerdim)
+        h = self.outpactivation(h)               #
         return [h, h] #T.tanh(inp+rep)
 
 
-class GatedRNU(RNUBase):
-    def __init__(self, gateactivation=T.nnet.sigmoid, outpactivation=T.tanh, **kw):
+class GatedRNU(RNU):
+    def __init__(self, gateactivation=T.nnet.sigmoid, **kw):
         self.gateactivation = gateactivation
-        self.outpactivation = outpactivation
         super(GatedRNU, self).__init__(**kw)
 
     def get_init_info(self, batsize):
@@ -88,11 +89,12 @@ class GatedRNU(RNUBase):
             h_t0 = T.zeros((batsize, self.innerdim))
         return [h_t0]
 
+    def rec(self, *args):
+        raise NotImplementedError("use subclass")
+
 
 class GRU(GatedRNU):
-    def __init__(self, **kw):
-        self.paramnames = ["um", "wm", "uhf", "whf", "u", "w", "bm", "bhf", "b"]
-        super(GRU, self).__init__(**kw)
+    paramnames = ["um", "wm", "uhf", "whf", "u", "w", "bm", "bhf", "b"]
 
     def rec(self, x_t, h_tm1):
         '''
@@ -130,9 +132,7 @@ class FullEGRU(IEGRU):
 
 
 class IFGRU(GatedRNU):
-    def __init__(self, **kw):
-        self.paramnames = ["um", "wm", "uhf", "whf", "uif", "wif", "u", "w", "bm", "bhf", "bif", "b"]
-        super(IFGRU, self).__init__(**kw)
+    paramnames = ["um", "wm", "uhf", "whf", "uif", "wif", "u", "w", "bm", "bhf", "bif", "b"]
 
     def rec(self, x_t, h_tm1):
         '''
@@ -148,9 +148,7 @@ class IFGRU(GatedRNU):
         return [h, h]
 
 class IFGRUTM(GatedRNU):
-    def __init__(self, **kw):
-        self.paramnames = ["ucf, uyf, uxf, uof, ucm, uc, rcf, ryf, rxf, rof, rcm, rc, wcf, wyf, wxf, wof, wcm, wc, wo, bcf, byf, bxf, bcm, bof, bc"]
-        super(IFGRUTM, self).__init__(**kw)
+    paramnames = ["ucf, uyf, uxf, uof, ucm, uc, rcf, ryf, rxf, rof, rcm, rc, wcf, wyf, wxf, wof, wcm, wc, wo, bcf, byf, bxf, bcm, bof, bc"]
 
     def get_init_info(self, batsize):
         y_t0 = T.zeros((batsize, self.innerdim))
@@ -175,9 +173,7 @@ class IFGRUTM(GatedRNU):
 
 
 class LSTM(GatedRNU):
-    def __init__(self, **kw):
-        self.paramnames = ["wf", "rf", "bf", "wi", "ri", "bi", "wo", "ro", "bo", "w", "r", "b", "pf", "pi", "po"]
-        super(LSTM, self).__init__(**kw)
+    paramnames = ["wf", "rf", "bf", "wi", "ri", "bi", "wo", "ro", "bo", "w", "r", "b", "pf", "pi", "po"]
 
     def get_init_info(self, batsize):
         y_t0 = T.zeros((batsize, self.innerdim))
@@ -196,3 +192,8 @@ class LSTM(GatedRNU):
         y_t = ogate * self.outpactivation(c_t)
         return [y_t, y_t, c_t]
 
+
+if __name__ == "__main__":
+    gru = GRU(dim=20, innerdim=20)
+    gru.autobuild([[1, 2, 3]])
+    print gru.output.allparams

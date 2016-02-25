@@ -19,17 +19,18 @@ class TWrapper(type):
                       truncate_gradient=truncate_gradient, go_backwards=go_backwards,mode=mode, name=name, profile=profile,
                       allow_gc=allow_gc, strict=strict)
 
-    def dimswap(cls, v, a, b):
-        dims = range(v.ndim)
-        dims[a] = b
-        dims[b] = a
-        ret = v.d.dimshuffle(*dims)
-        return Var(ret, [v])
+    def until(cls, expr):
+        return until(expr)
+
+    def as_long_as(cls, expr):
+        return until(cls.xor(expr, 1))     # xor?
 
 
 def wrapf(attr, root=None):
-    if hasattr(attr, "__call__"): # real function
+    if isfunction(attr): # real function
         innerwrap = lambda *args, **kwargs: fwrap(attr, root, *args, **kwargs)
+    elif isnumber(attr) or isstring(attr): # or other literals/non-syms/modules/properties/...
+        return attr
     else:
         innerwrap = pwrap(attr)
     return innerwrap
@@ -40,7 +41,7 @@ def fwrap(attr, root, *args, **kwargs):
     wrapper = wrap(lambda *args, **kwargs: attr(*args, **kwargs), *(params+kwparams))
     ret = wrapper(*args, **kwargs)
     if root is not None:
-        if isinstance(root, Var):
+        if isinstance(root, Var) or isinstance(root, Val):
             wrapper.add_parent(root)
         elif isinstance(root, Parameter):
             wrapper.add_param(root)
@@ -82,13 +83,27 @@ class TensorWrapper(type):
         type.__init__(cls, name, bases, dct)
 
 
+class TensorWrapped(object):
+    __metaclass__ = TensorWrapper
+
+    def __getattr__(self, item):
+        return wrapf(getattr(self.d, item), root=self)
+
+    def dimswap(self, a, b):
+        def tinner(v, a, b):
+            dims = range(v.ndim)
+            dims[a] = b
+            dims[b] = a
+            return v.dimshuffle(*dims)
+        return wrap(tinner)(self, a, b)
+
+
 
 ### WORRY ABOUT THIS
-class Parameter(object):
+class Parameter(TensorWrapped):
     '''
     A parameter wraps a shared variable and can optionally have a different learning rate and regularization multiplier
     '''
-    __metaclass__ = TensorWrapper
     def __init__(self, value, name=None, lrmul=1., regmul=1., shape=None):
         self.initializer = None
         if isinstance(value, theano.compile.sharedvalue.SharedVariable):
@@ -100,13 +115,17 @@ class Parameter(object):
             self.initializer = lambda: value.sample(shape)
             self.value = theano.shared(np.zeros(shape))
             self.reset()
+        elif isinstance(value, Val):
+            self.value = value.d
+            self.shape = value.d.get_value().shape
+            self.initializer = lambda: value.d.get_value()
         else:
             self.value = theano.shared(value)
             self.initializer = lambda: value
             self.shape = value.shape
         self.lrmul = lrmul
         self.regmul = regmul
-        self.name = str(name) if name is not None else "auto:" + str(np.random.randint(0, 10000))
+        self.name = str(name) if name is not None else "auto" + str(np.random.randint(0, 10000))
         self.constraints = []
 
     def applyonval(self, f):
@@ -121,7 +140,7 @@ class Parameter(object):
         return self.value
 
     def __repr__(self):
-        return "param::%s:%s/%.1f:%.1f" % (str(self.value.dtype), str(self.value.get_value().shape), self.lrmul, self.regmul)
+        return "param::'%s':%s%s" % (str(self.name), str(self.value.dtype), str(self.value.get_value().shape))
 
     ############## VALUE CONSTRAINTS ############### --> applied in the order that the were added
     def clip(self, a, b):
@@ -205,16 +224,44 @@ class param(object):
         return self._lasagne_init(Orthogonal(gain))
 
 
+class Val(TensorWrapped):
+    def __init__(self, value, name=None, **kw):
+        super(Val, self).__init__(**kw)
+        self.name = name
+        if not isinstance(value, np.ndarray):
+            value = np.asarray(value)
+        self.value = theano.shared(value, name=name)
+
+    @property
+    def d(self):
+        return self.value
+
+    @property
+    def v(self):
+        return self.value.get_value()
+
+    @property
+    def allparams(self): # TODO: can Vals have parents?
+        return set()
+
+
 ### DON'T WORRY ABOUT THIS
 class Elem(object):    # carries output shape information
     def __init__(self, shape=None, name=None, **kw):
         super(Elem, self).__init__()
         self._shape = shape
         self._name = name
+        self.parents = []
 
     @property
     def dshape(self): # returns declared shape
         return self._shape
+
+    def add_parent(self, p):
+        self.parents.append(p)
+
+    def getparents(self):
+        return self.parents
 
     @property
     def allparams(self):
@@ -225,40 +272,25 @@ class Elem(object):    # carries output shape information
             acc.update(parent.allparams)
         return acc
 
-    def getparents(self):
-        raise NotImplementedError("use subclass")
-
 
 ### WORRY ABOUT THIS
-class Var(Elem): # result of applying a block on theano variables
-    __metaclass__ = TensorWrapper
-
-    def __getattr__(self, item):
-        return wrapf(getattr(self.tvar, item), root=self)
-
-    def __init__(self, tvar, parent=None, **kw):
-        super(Var, self).__init__(name=tvar.name, **kw)
-        assert(isinstance(tvar, theano.Variable))
-        self.tvar = tvar
-        self.parents = [] # can only have one parent (a block)
+class Var(Elem, TensorWrapped): # result of applying a block on theano variables
+    def __init__(self, value, parent=None, **kw):
+        super(Var, self).__init__(name=value.name, **kw)
+        assert(isinstance(value, theano.Variable))
+        self.value = value
         if parent is not None:
             self.add_parent(parent)
-
-    def getparents(self):
-        return self.parents
-
-    def add_parent(self, p):
-        self.parents.append(p)
 
     def eval(self, argdic={}):
         return self.d.eval(dict(map(lambda (x, y): (x.d, y), argdic.items())))
 
     @property
     def d(self):
-        return self.tvar
+        return self.value
 
     def __repr__(self):
-        return "var::%s-%s:%s" % (self._name, self.tvar.dtype, str(self._shape))
+        return "var::%s-%s:%s" % (self._name, self.value.dtype, str(self._shape))
 
 
 class Input(Var): # generates feed + creates symbolic vars for input
@@ -281,7 +313,6 @@ class Block(Elem, Saveable): # block with parameters
     def __init__(self, **kw):
         super(Block, self).__init__(**kw)
         self.inputs = []
-        self.parents = []
         self.params = []
         self.output = None
         self._predictf = None
@@ -306,29 +337,25 @@ class Block(Elem, Saveable): # block with parameters
 
     # do not override ------------------------------------------------
     def wrapply(self, *args, **kwargs):
-        self.parents.extend(recurfilter(lambda x: isinstance(x, Var), args))
-        self.parents.extend(recurfilter(lambda x: isinstance(x, Var), kwargs))
+        self.parents.extend(recurfilter(lambda x: isinstance(x, Var) or isinstance(x, Val), args))
+        self.parents.extend(recurfilter(lambda x: isinstance(x, Var) or isinstance(x, Val), kwargs))
         ret = self.apply(*args, **kwargs)
-        ret.add_parent(self) # TODO: remove??
+        possibleparents = recurfilter(lambda x: isinstance(x, Elem), ret)
+        for p in possibleparents:
+            p.add_parent(self)
         return ret
 
     def build(self): # stores block inputs and block output
         self.inputs = self.initinputs()
         self.output = self.wrapply(*self.inputs)
 
-    def autobuild(self, inputdata):
+    def autobuild(self, *inputdata):
         inputdata = map(lambda x: x if isinstance(inputdata, np.ndarray) else np.asarray(x), inputdata)
         self.inputs = [Input(ndim=td.ndim, dtype=td.dtype) for td in inputdata]
         self.output = self.wrapply(*self.inputs)
 
     def __call__(self, *args, **kwargs):
         return self.wrapply(*args, **kwargs)
-
-    def getparents(self):
-        return self.parents
-
-    def add_parent(self, p):
-        self.parents.append(p)
 
     def add_params(self, params):
         for param in params:
@@ -357,11 +384,12 @@ class Block(Elem, Saveable): # block with parameters
     def train(self, inputdata, gold):
         # wrap data in datafeeds, generate gold var
         goldvar = Input(gold.ndim, gold.dtype, name="gold")
-        self.autobuild(inputdata)
+        self.autobuild(*inputdata)
         trainer = self.gettrainer(goldvar.d)
         trainer.traindata = inputdata
         trainer.traingold = gold
         return trainer
+
 
 def recurfilter(fun, data):
     acc = []
@@ -396,25 +424,41 @@ class scan(Block):
         # set params
 
     def fnwrap(self, fn): # enables writing fn in blocks level
+        scanblock = self
         def fwrapper(*args): # theano vars
             trueargs = [Var(x) for x in args]
-            res = (fn(*trueargs),)
-            ret = tuple(recurmap(lambda x: x.d if hasattr(x, "d") else x, res))[0]
-            self.add_params(reduce(lambda x, y: set(x).union(set(y)),
-                                   map(lambda x: x.allparams, recurfilter(lambda x: isinstance(x, Var), res)), set()))
-            self.add_params(recurfilter(lambda x: isinstance(x, Parameter), res))
+            res = fn(*trueargs)
+            ret = tuple(recurmap(lambda x: x.d if hasattr(x, "d") else x, res))
+            newparents = recurfilter(lambda x: isinstance(x, Var) or isinstance(x, Val), res) + \
+                         recurfilter(lambda x: isinstance(x, until), res)
+            for npa in newparents:
+                scanblock.add_parent(npa)
+            #self.add_params(reduce(lambda x, y: set(x).union(set(y)),
+            #                       map(lambda x: x.allparams, recurfilter(lambda x: isinstance(x, Var), res)), set()))
+            #self.add_params(recurfilter(lambda x: isinstance(x, Parameter), res))
             return ret
         return fwrapper
 
     def apply(self, fn, **kwargs):
         self.params.extend(recurfilter(lambda x: isinstance(x, Parameter), kwargs))
         trueargs = recurmap(lambda x: x.d if hasattr(x, "d") else x, kwargs)
-        o, u = theano.scan(self.fnwrap(fn), **trueargs)
-        ret = Var(o)
-        return ret
+        o, updates = theano.scan(self.fnwrap(fn), **trueargs)
+        ret = [Var(oe) for oe in o] if issequence(o) else Var(o)
+        return ret, updates
+
+class until(Elem):
+    def __init__(self, expr, **kw):
+        super(until, self).__init__(**kw)
+        self.add_parent(expr)
+        self.expr = expr
+
+    @property
+    def d(self): # wrap theano.scan_module.until(cond)
+        return theano.scan_module.until(self.expr.d)
 
 
 if __name__ == "__main__":
+    '''
     print tensor.eye(10, 1).eval()
     O = param((10, 10)).eye().applyonval(lambda x: x*1/3)
     W = param((10, 10)).eye().applyonval(lambda x: x*2)
@@ -427,3 +471,26 @@ if __name__ == "__main__":
     print outputs.eval()
     print outputs.allparams
     print W.d.get_value()
+    '''
+    '''
+    x = Val([1, 2], name="val")
+    x += 1
+    print x.getparents()
+    print x.d, x.eval()
+    print x.ndim
+    Val([1, 2]).d.set_value([1, 2, 3])
+    '''
+
+    x = Val(2, name="val")
+    y = Parameter(Val(1), name="premult")
+    w = Parameter(Val(2), name="multiplier")
+    z = Parameter(Val(0.5), name="divider")
+    x = x * y
+    def rec(a, c):
+        return [a*w, c+1], tensorops.as_long_as(c < 5)
+    o, u = tensorops.scan(fn=rec, n_steps=10, outputs_info=[x, 0])
+    ov = o[0]
+    cv = o[1]
+    print "scan's params", ov.allparams
+    print "scan's output", ov.eval()
+    print "counter:", cv.eval()
