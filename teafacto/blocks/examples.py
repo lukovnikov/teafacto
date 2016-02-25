@@ -54,7 +54,7 @@ def run(
     data = np.arange(0, vocabsize).astype("int32")
     ae = Dummy(indim=vocabsize, dim=dim)
     err, verr, _, _ = \
-        ae  .train([data], data).adadelta(lr=lr).neg_log_prob().validate(5, random=True).neg_log_prob().accuracy()\
+        ae.train([data], data).adadelta(lr=lr).neg_log_prob().validate(5, random=True).neg_log_prob().accuracy()\
         .train(numbats=numbats, epochs=epochs)
 
     pdata = range(100)

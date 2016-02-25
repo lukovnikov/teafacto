@@ -1,10 +1,9 @@
 import theano
-from theano import tensor as tensor
+from theano import tensor
 from theano.tensor.var import _tensor_py_operators
 
-from teafacto.blocks.datafeed import DataFeed
-from teafacto.blocks.trainer import *
 from teafacto.blocks.util import *
+from teafacto.blocks.trainer import ModelTrainer, ContrastModelTrainer
 
 from lasagne.init import *
 from lasagne.updates import norm_constraint

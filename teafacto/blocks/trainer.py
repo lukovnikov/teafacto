@@ -1,6 +1,4 @@
 from datetime import datetime as dt
-from collections import OrderedDict
-
 import numpy as np
 import sys
 import theano
@@ -9,7 +7,7 @@ from lasagne.objectives import *
 from lasagne.regularization import l1, l2
 from lasagne.updates import *
 
-from teafacto.blocks.core import *
+#from teafacto.blocks.core import Input
 from teafacto.blocks.datafeed import DataFeeder, SplitIdxIterator
 from teafacto.core.utils import ticktock as TT
 
@@ -202,6 +200,13 @@ class ModelTrainer(object):
         model = self.buildmodel()
         # train mode: full -> train on all data; split -> split, then train, then valid; data -> valid on validdata; cross -> cross validation
         return self.trainstrategy(model)
+
+    def autobuildmodel(self):
+        '''inps = [Input(ndim=x.ndim, dtype=x.dtype) for x in self.traindata]
+        self.model.inputs = inps
+        outp = self.model(inps)
+        self.model.output = outp
+        return self.model'''
 
     def buildmodel(self):
         self.model.build()
