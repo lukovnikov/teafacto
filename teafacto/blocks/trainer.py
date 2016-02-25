@@ -1,4 +1,5 @@
 from datetime import datetime as dt
+from collections import OrderedDict
 
 import numpy as np
 import sys
@@ -52,7 +53,7 @@ class ModelTrainer(object):
         self._set_objective(lambda x, y: x * y)
         return self
 
-    def cross_entropy(self):
+    def neg_log_prob(self):
         self._set_objective(lambda probs, gold: -tensor.log(probs[tensor.arange(gold.shape[0]), gold]))
         return self
 
@@ -191,9 +192,6 @@ class ModelTrainer(object):
 
     def _train(self):
         model = self.buildmodel()
-        trainfun = self.buildtrainfun(model) # to be applied for one batch
-        validfun = self.buildvalidfun(model) # to be applied for one batch
-        self.tt.tock("compiled training function")
         # train mode: full -> train on all data; split -> split, then train, then valid; data -> valid on validdata; cross -> cross validation
         return self.trainstrategy(model)
 
@@ -216,8 +214,17 @@ class ModelTrainer(object):
         grads = tensor.grad(cost, [x.d for x in params])  # compute gradient
         grads = self._gradconstrain(grads)
         rawupdates = self.optimizer(grads, [x.d for x in params])       # raw updates from optimizer
-        updates = map(lambda x: (x[0][0], x[1].constraintf()(x[0][1]*x[1].lrmul)),    # updates penalized by param lrmul
-                      zip(rawupdates.items(), [x for x in params]))                         # and constrained by param's info
+        updates = []  # numerically unstable?
+        for p in rawupdates:
+            param = None
+            for para in params:
+                if para.d == p:
+                    param = para
+            if param is not None:
+                updates.append((p, param.constraintf()((rawupdates[p] - p) * param.lrmul + p)))    # num-stable? -> TODO
+            else:
+                updates.append((p, rawupdates[p]))
+        print updates
         trainf = theano.function(inputs=[x.d for x in inputs]+[self.goldvar], outputs=[cost], updates=updates)
         return trainf
 

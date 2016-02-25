@@ -11,7 +11,7 @@ class Embed(Block):
         super(Embed, self).__init__(**kw)
         self.dim = dim
         self.indim = indim
-        self.W = param((indim, dim)).uniform().normalize(axis=1)
+        self.W = param((indim, dim)).uniform()#.normalize(axis=1)
 
     def initinputs(self):
         return [Input(ndim=1, dtype="int32", name="emb_inp")]
@@ -43,23 +43,24 @@ class Dummy(Block):
 
 
 def run(
-        epochs=20,
-        dim=15,
+        epochs=100,
+        dim=50,
         vocabsize=2000,
-        lr=0.1,
+        lr=1.,
         numbats=100
     ):
     data = np.arange(0, vocabsize).astype("int32")
     ae = Dummy(indim=vocabsize, dim=dim)
-    ae  .train([data], data).rmsprop().cross_entropy().autovalidate().cross_entropy().accuracy()\
+    ae  .train([data], data).adadelta(lr=lr).neg_log_prob().validate(5, random=True).neg_log_prob().accuracy()\
         .train(numbats=numbats, epochs=epochs)
 
-    pdata = [0, 1, 2]
+    pdata = range(100)
     pembs = ae.W.predict(pdata)
-    print pembs, pembs.shape
+    print pembs
     print np.linalg.norm(pembs, axis=1)
     pred = ae.predict(pdata)
     print pred.shape
+    print np.argmax(pred, axis=1)
 
 
 if __name__ == "__main__":
