@@ -11,6 +11,24 @@ from lasagne.updates import *
 from teafacto.blocks.datafeed import DataFeeder, SplitIdxIterator
 from teafacto.core.utils import ticktock as TT
 
+
+class DynamicLearningParam(object):
+    def __init__(self, lr):
+        self.lr = lr
+
+    def __call__(self, lr, epoch, maxiter, terrs, verrs): # get new learning rate based on old one, epoch, maxiter, training error, validation errors
+        raise NotImplementedError("use subclass")
+
+
+class thresh_lr(DynamicLearningParam):
+    def __init__(self, lr, thresh=5):
+        super(thresh_lr, self).__init__(lr)
+        self.thresh = thresh
+
+    def __call__(self, lr, epoch, maxiter, terrs, verrs):
+        return lr if epoch < self.thresh else 0.
+
+
 class ModelTrainer(object):
     def __init__(self, model, gold):
         self.model = model
@@ -19,7 +37,8 @@ class ModelTrainer(object):
         self.average_err = True # TODO: do we still need this?
         self._autosave = False
         # training settings
-        self.learning_rate = 1.0
+        self.learning_rate = None
+        self.dynamic_lr = None
         self.objective = None
         self.regularizer = None
         self.optimizer = None
@@ -117,39 +136,50 @@ class ModelTrainer(object):
         self.regularizer = lambda x: self._regul(l1, amount, x)
         return self
 
+    ####################  LEARNING RATE ###################
+    def _setlr(self, lr):
+        if isinstance(lr, DynamicLearningParam):
+            self.dynamic_lr = lr
+            lr = lr.lr
+        self.learning_rate = theano.shared(lr)
+
+    def _update_lr(self, epoch, maxepoch, terrs, verrs):
+        if self.dynamic_lr is not None:
+            self.learning_rate.set_value(self.dynamic_lr(self.learning_rate.get_value(), epoch, maxepoch, terrs, verrs))
+
     ##################### OPTIMIZERS ######################
     def sgd(self, lr):
-        self.learning_rate = lr
+        self._setlr(lr)
         self.optimizer = lambda x, y, l: sgd(x, y, learning_rate=l)
         return self
 
     def momentum(self, lr, mome=0.9):
-        self.learning_rate = lr
+        self._setlr(lr)
         self.optimizer = lambda x, y, l: momentum(x, y, learning_rate=l, momentum=mome)
         return self
 
     def nesterov_momentum(self, lr, momentum=0.9):
-        self.learning_rate = lr
+        self._setlr(lr)
         self.optimizer = lambda x, y, l: nesterov_momentum(x, y, learning_rate=l, momentum=momentum)
         return self
 
     def adagrad(self, lr=1.0, epsilon=1e-6):
-        self.learning_rate = lr
+        self._setlr(lr)
         self.optimizer = lambda x, y, l: adagrad(x, y, learning_rate=l, epsilon=epsilon)
         return self
 
     def rmsprop(self, lr=1., rho=0.9, epsilon=1e-6):
-        self.learning_rate = lr
+        self._setlr(lr)
         self.optimizer = lambda x, y, l: rmsprop(x, y, learning_rate=l, rho=rho, epsilon=epsilon)
         return self
 
     def adadelta(self, lr=1., rho=0.95, epsilon=1e-6):
-        self.learning_rate = lr
+        self._setlr(lr)
         self.optimizer = lambda x, y, l: adadelta(x, y, learning_rate=l, rho=rho, epsilon=epsilon)
         return self
 
     def adam(self, lr=0.001, b1=0.9, b2=0.999, epsilon=1e-8):
-        self.learning_rate = lr
+        self._setlr(lr)
         self.optimizer = lambda x, y, l: adam(x, y, learning_rate=l, beta1=b1, beta2=b2, epsilon=epsilon)
         return self
 
@@ -303,7 +333,7 @@ class ModelTrainer(object):
         self.currentiter = 1
         evalcount = evalinter
         while not stop:
-            print("iter %d/%.0f" % (self.currentiter, float(self.maxiter)))
+            print("iter %d/%d" % (self.currentiter, int(self.maxiter)))
             start = dt.now()
             erre = trainf()
             if self.currentiter == self.maxiter:
@@ -317,6 +347,7 @@ class ModelTrainer(object):
             else:
                 print "training error: %s" % " - ".join(map(lambda x: "%.3f" % x, erre))
             print("iter done in %f seconds" % (dt.now() - start).total_seconds())
+            self._update_lr(self.currentiter, self.maxiter, err, verr)
             evalcount += 1
             if self._autosave:
                 self.save(self.model)
@@ -366,7 +397,7 @@ class ContrastModelTrainer(ModelTrainer):
         # model predicts a score, the loss in trainer operates between the pos and all neg examples
         # TODO: what role does the goldvar play?
         # make new inputs based on model inputs
-        newinpblocks = [Input(x.ndim + 1, x.dtype) for x in inpblocks]
+        newinpblocks = [Input(x.ndim + 1, x.dtype) for x in inpblocks] # TODO/FIX
         si = [x.dimswap(1, 0).d for x in newinpblocks] # put pos/neg dim as first
 
         def pair(*args):
