@@ -326,11 +326,11 @@ class Block(Elem, Saveable): # block with parameters
     # may override: -------------------------------------------------
     def predict(self, *inputdata):
         if self._predictf is None:
-            if False or len(self.inputs) == 0 or self.output is None:
-                self.autobuild(inputdata)
+            #if False or len(self.inputs) == 0 or self.output is None:
+            self.autobuild(*inputdata)
             self._predictf = theano.function(outputs=self.output.d, inputs=[x.d for x in self.inputs])
-        args = dict(zip([x.d for x in self.inputs], inputdata))
-        return self._predictf(*inputdata)
+        args = [np.asarray(x) if not isinstance(x, np.ndarray) else x for x in inputdata]
+        return self._predictf(*args)
 
     def gettrainer(self, goldvar):
         return ModelTrainer(self, goldvar)
@@ -350,7 +350,7 @@ class Block(Elem, Saveable): # block with parameters
         self.output = self.wrapply(*self.inputs)
 
     def autobuild(self, *inputdata):
-        inputdata = map(lambda x: x if isinstance(inputdata, np.ndarray) else np.asarray(x), inputdata)
+        inputdata = map(lambda x: x if isinstance(x, np.ndarray) else np.asarray(x), inputdata)
         self.inputs = [Input(ndim=td.ndim, dtype=td.dtype) for td in inputdata]
         self.output = self.wrapply(*self.inputs)
 
@@ -455,6 +455,29 @@ class until(Elem):
     @property
     def d(self): # wrap theano.scan_module.until(cond)
         return theano.scan_module.until(self.expr.d)
+
+
+class stack(Block):
+    def __init__(self, *layers, **kw):
+        super(stack, self).__init__(**kw)
+        self.layers = layers
+
+    def apply(self, *vars):
+        ret = vars
+        for layer in self.layers:
+            ret = [layer(*ret)]
+        return ret
+
+
+class Embed(Block):
+    def __init__(self, indim=1000, dim=50, **kw):
+        super(Embed, self).__init__(**kw)
+        self.dim = dim
+        self.indim = indim
+        self.W = param((indim, dim), lrmul=1., name="embedder").uniform().normalize(axis=1)
+
+    def apply(self, inptensor):
+        return self.W[inptensor, :]
 
 
 if __name__ == "__main__":

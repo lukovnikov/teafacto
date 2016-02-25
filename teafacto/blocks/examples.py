@@ -11,7 +11,7 @@ class Embed(Block):
         super(Embed, self).__init__(**kw)
         self.dim = dim
         self.indim = indim
-        self.W = param((indim, dim), lrmul=1.).uniform().normalize(axis=1)
+        self.W = param((indim, dim), lrmul=1., name="embedder").uniform().normalize(axis=1)
 
     def apply(self, inptensor):
         return self.W[inptensor, :]

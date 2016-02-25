@@ -1,6 +1,8 @@
 from unittest import TestCase
 
 from teafacto.blocks.rnu import GRU, LSTM
+from teafacto.blocks.core import param, Input
+from teafacto.blocks.core import tensorops as T
 import numpy as np
 
 
@@ -52,6 +54,13 @@ class TestGRU(TestCase):
         varparamset = set(outpvar.allparams)
         self.assertSetEqual(gruparamset, varparamset)
 
+    def test_params_propagated_through_rnu(self):
+        O = param((self.dim, self.dim), name="bigo").uniform()
+        i = Input(ndim=2, dtype="int32")
+        x = O[i, :]
+        out = self.rnu(x)
+        self.assertIn(O, out.allparams)
+
     def test_output_shape_predict(self):
         outpv = self.rnu.predict(self.testdata)
         self.assertEqual(outpv.shape, (self.batsize, self.seqlen, self.innerdim))
@@ -72,6 +81,7 @@ class TestGRU(TestCase):
         othershape = (self.batsize, self.seqlen, self.dim*25)
         data = np.random.random(othershape)
         self.assertRaises(Exception, self.rnu.predict, data)
+
 
 
 
