@@ -30,6 +30,7 @@ eggs/
 /models
 /teafacto/qa
 /notebooks
+/data/wikipedia/*
 /teafacto/qa/multichoice/svm/*.tsv
 /data/wikipedia/idx/*
 .eggs/
