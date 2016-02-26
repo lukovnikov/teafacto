@@ -26,9 +26,12 @@ class RecurrentStack(RecurrentBlock):
         self.do_set_init_states()
         recurrentlayers = filter(lambda x: isinstance(x, RecurrentBlock), self.layers)
         init_infos = []
-        for recurrentlayer in recurrentlayers:
-            init_infos.extend(recurrentlayer.get_init_info(batsize))
-        return init_infos
+        for recurrentlayer in recurrentlayers: # insert in the front
+            i = 0
+            for initinfo in recurrentlayer.get_init_info(batsize):
+                init_infos.insert(i, initinfo)
+                i += 1
+        return init_infos   # layerwise in reverse
 
     def rec(self, x_t, *states):
         # apply each block on x_t to get next-level input, consume states in the process
@@ -37,9 +40,15 @@ class RecurrentStack(RecurrentBlock):
         for block in self.layers:
             if isinstance(block, RecurrentBlock):
                 numstates = len(inspect.getargspec(block.rec).args) - 2
-                rnuret = block.rec(nextinp, *states[0:numstates])
-                nextstates.extend(rnuret[1:])
-                states = states[numstates:]
+                # eat from behind
+                recstates = states[-numstates:]
+                states = states[:-numstates]
+                rnuret = block.rec(nextinp, *recstates)
+                # insert from behind
+                i = 0
+                for nextstate in rnuret[1:]:
+                    nextstates.insert(i, nextstate)
+                    i += 1
                 nextinp = rnuret[0]
             elif isinstance(block, Block): # block is a function
                 nextinp = block(*nextinp)
@@ -55,9 +64,12 @@ class RecurrentStack(RecurrentBlock):
 
 
 class RecurrentBlockParameterized(object):
-    def __init__(self, **kw):
-        self.block = None
+    def __init__(self, *layers, **kw):
         super(RecurrentBlockParameterized, self).__init__(**kw)
+        if len(layers) > 0:
+            self.block = RecurrentStack(*layers)
+        else:
+            self.block = None
 
     def __add__(self, other):
         assert(self.block is None)  # this block should not be parameterized already in order to parameterize it
@@ -74,7 +86,7 @@ class RecurrentBlockParameterized(object):
         raise NotImplementedError("use subclass")
 
 
-class RNNEncoder(Block, RecurrentBlockParameterized):
+class RNNEncoder(RecurrentBlockParameterized, Block):
     '''
     Encodes a sequence of vectors into a vector, input dims and output dims specified by the RNU unit
     '''
@@ -90,14 +102,14 @@ class RNNEncoder(Block, RecurrentBlockParameterized):
     def recwrap(self, x_t, *args): # x_t: (batsize, dim)      if input is all zeros, just return previous state
         mask = x_t.norm(2, axis=1) > 0 # (batsize, )
         rnuret = self.block.rec(x_t, *args) # list of matrices (batsize, **somedims**)
-        ret = map(lambda (a, r): (a.T * (1-mask) + r.T * mask).T, zip([args[0]] + list(args), rnuret))
+        ret = map(lambda (origarg, rnuretarg): (origarg.T * (1 - mask) + rnuretarg.T * mask).T, zip([args[0]] + list(args), rnuret)) # TODO mask breaks multi-layered encoders (order is reversed)
         return ret
 
     def onAttach(self):
         pass
 
 
-class RNNDecoder(Block, RecurrentBlockParameterized):
+class RNNDecoder(RecurrentBlockParameterized, Block):
     '''
     Decodes a sequence given initial state
     output: probabilities over symbol space float: (batsize, seqlen, dim) where dim is number of symbols
