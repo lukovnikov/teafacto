@@ -12,8 +12,11 @@ before_install:
   - pip install -U pip
 install:
   - travis_wait travis_retry pip install -r requirements.txt
+  - travis_retry pip install coveralls
   - travis_retry python setup.py develop
-script: nosetests
+script: nosetests --with-coverage --cover-package=teafacto
+after_success:
+  - coveralls
 cache:
   - apt
   - directories:
