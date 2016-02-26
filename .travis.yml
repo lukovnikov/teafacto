@@ -12,7 +12,6 @@ before_install:
   - pip install -U pip
 install:
   - pip install -r requirements.txt
-  - travis_retry pip install python-coveralls
   - travis_retry python setup.py develop
 script: nosetests
 cache:

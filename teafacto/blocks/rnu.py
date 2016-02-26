@@ -1,5 +1,4 @@
 import inspect
-from teafacto.core.trainutil import Parameterized
 from teafacto.blocks.core import *
 from teafacto.blocks.core import tensorops as T
 
