@@ -6,10 +6,24 @@
 # WARNING: using updates with theano.scan is not tested and might not work, actually, don't use updates
 
 # TODO/TEST: parameter constraints
-# TODO: finish porting RNN and test
+
+# TODO/TEST: regularization
 
 # TODO/TEST: Val with all the rest
 
 # TODO/TEST: data splitting tests
 
-# TODO: store parameter owners/block owners
+# IDEA: store parameter owners/block owners
+
+# TODO/THINK: should RNN encoder return multiple outputs in case it contains multiple recurrent layers?
+#      --> can not train multi-output blocks directly
+#   -> what about RNN decoder? multiple inputs?
+
+
+
+# TODO: ENABLE APPROPRIATE SUPPORT FOR MULTI-OUTPUT BLOCKS ::!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+
+
+# TODO: test RNN decoder
+# + TODO: implement neg log prob loss for sequences (automatic detection or explicit setting?)

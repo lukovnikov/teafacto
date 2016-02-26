@@ -354,23 +354,26 @@ class Block(Elem, Saveable): # block with parameters
         return ModelTrainer(self, goldvar)
 
     # do not override ------------------------------------------------
-    def wrapply(self, *args, **kwargs):
-        self.parents.extend(recurfilter(lambda x: isinstance(x, Var) or isinstance(x, Val), args))
-        self.parents.extend(recurfilter(lambda x: isinstance(x, Var) or isinstance(x, Val), kwargs))
+    def wrapply(self, *args, **kwargs): # is this multi-output compatible?
+        self.parents.extend(recurfilter(lambda x: isinstance(x, (Var, Val)), args))
+        self.parents.extend(recurfilter(lambda x: isinstance(x, (Var, Val)), kwargs))
         ret = self.apply(*args, **kwargs)
-        possibleparents = recurfilter(lambda x: isinstance(x, Elem), ret)
-        for p in possibleparents:
+        possiblechildren = recurfilter(lambda x: isinstance(x, Elem), ret)
+        for p in possiblechildren:
             p.add_parent(self)
         return ret
 
     def build(self): # stores block inputs and block output
         self.inputs = self.initinputs()
-        self.output = self.wrapply(*self.inputs)
+        self._build(*self.inputs)
+
+    def _build(self, *inps):
+        self.output = self.wrapply(*inps)
 
     def autobuild(self, *inputdata):
         inputdata = map(lambda x: x if isinstance(x, np.ndarray) else np.asarray(x), inputdata)
         self.inputs = [Input(ndim=td.ndim, dtype=td.dtype) for td in inputdata]
-        self.output = self.wrapply(*self.inputs)
+        self._build(*self.inputs)
 
     def __call__(self, *args, **kwargs):
         return self.wrapply(*args, **kwargs)

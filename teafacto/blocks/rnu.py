@@ -2,6 +2,7 @@ import inspect
 from teafacto.blocks.core import *
 from teafacto.blocks.core import tensorops as T
 
+
 class RecurrentBlock(Block):
     def __init__(self, **kw):
         super(RecurrentBlock, self).__init__(**kw)
@@ -15,6 +16,10 @@ class RecurrentBlock(Block):
 
     def get_init_info(self, batsize):
         raise NotImplementedError("use subclass")
+
+    def get_states_from_outputs(self, outputs):     # topmost layer --> first in list of states (reverse)
+        raise NotImplementedError("use subclass")
+
 
 class RNUBase(RecurrentBlock):
     paramnames = []
@@ -69,6 +74,10 @@ class RNU(RNUBase):
             h_t0 = T.zeros((batsize, self.innerdim))
         return [h_t0]
 
+    def get_states_from_outputs(self, outputs):
+        assert(len(outputs) == 1)
+        return [outputs[0]]
+
     def rec(self, x_t, h_tm1):      # x_t: (batsize, dim), h_tm1: (batsize, innerdim)
         inp = T.dot(x_t, self.w)    # w: (dim, innerdim) ==> inp: (batsize, innerdim)
         rep = T.dot(h_tm1, self.u)  # u: (innerdim, innerdim) ==> rep: (batsize, innerdim)
@@ -81,12 +90,6 @@ class GatedRNU(RNU):
     def __init__(self, gateactivation=T.nnet.sigmoid, **kw):
         self.gateactivation = gateactivation
         super(GatedRNU, self).__init__(**kw)
-
-    def get_init_info(self, batsize):
-        h_t0 = self.initstates
-        if h_t0 is None:
-            h_t0 = T.zeros((batsize, self.innerdim))
-        return [h_t0]
 
     def rec(self, *args):
         raise NotImplementedError("use subclass")
@@ -156,6 +159,10 @@ class IFGRUTM(GatedRNU):
             c_t0 = T.zeros((batsize, self.innerdim))
         return [y_t0, c_t0]
 
+    def get_states_from_outputs(self, outputs):
+        assert(len(outputs) == 2)
+        return [outputs[1]]
+
     def rec(self, x_t, y_tm1, c_tm1):
         cfgate = self.gateactivation(T.dot(c_tm1, self.ucf) + T.dot(y_tm1, self.rcf) + T.dot(x_t, self.wcf) + self.bcf)
         yfgate = self.gateactivation(T.dot(c_tm1, self.uyf) + T.dot(y_tm1, self.ryf) + T.dot(x_t, self.wyf) + self.byf)
@@ -181,6 +188,10 @@ class LSTM(GatedRNU):
             c_t0 = T.zeros((batsize, self.innerdim))
         return [y_t0, c_t0]
 
+    def get_states_from_outputs(self, outputs):
+        assert(len(outputs) == 2)
+        return [outputs[1]]
+
     def rec(self, x_t, y_tm1, c_tm1):
         fgate = self.gateactivation(c_tm1*self.pf + self.bf + T.dot(x_t, self.wf) + T.dot(y_tm1, self.rf))
         igate = self.gateactivation(c_tm1*self.pi + self.bi + T.dot(x_t, self.wi) + T.dot(y_tm1, self.ri))
@@ -190,9 +201,3 @@ class LSTM(GatedRNU):
         ogate = self.gateactivation(c_t*self.po + self.bo + T.dot(x_t, self.wo) + T.dot(y_tm1, self.ro))
         y_t = ogate * self.outpactivation(c_t)
         return [y_t, y_t, c_t]
-
-
-if __name__ == "__main__":
-    gru = GRU(dim=20, innerdim=20)
-    gru.autobuild([[1, 2, 3]])
-    print gru.output.allparams

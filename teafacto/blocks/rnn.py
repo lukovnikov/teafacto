@@ -22,6 +22,20 @@ class RecurrentStack(RecurrentBlock):
         for l, s in z:
             l.set_init_states(s)
 
+    def get_states_from_outputs(self, outputs):
+        # outputs are ordered from topmost recurrent layer first ==> split and delegate
+        states = []
+        for recurrentlayer in filter(lambda x: isinstance(x, RecurrentBlock), self.layers): # from bottom -> eat from behind; insert to the front
+            numstates = len(inspect.getargspec(recurrentlayer.rec).args) - 2
+            layerstates = recurrentlayer.get_states_from_outputs(outputs[-numstates:]) # might be more than one
+            i = 0
+            for layerstate in layerstates:
+                states.insert(i, layerstate)
+                i += 1
+            outputs = outputs[:-numstates]
+        assert(len(outputs) == 0)
+        return states
+
     def get_init_info(self, batsize):
         self.do_set_init_states()
         recurrentlayers = filter(lambda x: isinstance(x, RecurrentBlock), self.layers)
@@ -89,6 +103,8 @@ class RecurrentBlockParameterized(object):
 class RNNEncoder(RecurrentBlockParameterized, Block):
     '''
     Encodes a sequence of vectors into a vector, input dims and output dims specified by the RNU unit
+    Returns multiple outputs, multiple states
+    Builds for one output
     '''
 
     def apply(self, seq): # seq: (batsize, seqlen, dim)
@@ -97,7 +113,12 @@ class RNNEncoder(RecurrentBlockParameterized, Block):
                             sequences=inp,
                             outputs_info=[None]+self.block.get_init_info(seq.shape[0]))
         output = outputs[0]
-        return output[-1, :, :] #output is (batsize, innerdim)
+        states = self.block.get_states_from_outputs(outputs[1:])
+        #return output[-1, :, :] #output is (batsize, innerdim)
+        return [s[-1, :, :] for s in states]
+
+    def _build(self, *inps):
+        self.output = self.wrapply(*inps)[0]
 
     def recwrap(self, x_t, *args): # x_t: (batsize, dim)      if input is all zeros, just return previous state
         mask = x_t.norm(2, axis=1) > 0 # (batsize, )
