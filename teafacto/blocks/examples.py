@@ -3,15 +3,16 @@ from teafacto.blocks.core import *
 from teafacto.blocks.datafeed import *
 from teafacto.blocks.trainer import *
 from teafacto.blocks.util import argparsify
-from teafacto.lm import Glove
 
 
-class Embed(Block):
-    def __init__(self, indim=1000, dim=50, **kw):
-        super(Embed, self).__init__(**kw)
+class VectorEmbed(Block):
+    def __init__(self, indim=1000, dim=50, normalize=False, **kw):
+        super(VectorEmbed, self).__init__(**kw)
         self.dim = dim
         self.indim = indim
-        self.W = param((indim, dim), lrmul=1., name="embedder").uniform().normalize(axis=1)
+        self.W = param((indim, dim), lrmul=1., name="embedder").uniform()
+        if normalize:
+            self.W = self.W.normalize(axis=1)
 
     def apply(self, inptensor):
         return self.W[inptensor, :]
@@ -23,11 +24,11 @@ class Softmax(Block):
 
 
 class Dummy(Block):
-    def __init__(self, indim=1000, dim=50, **kw):
+    def __init__(self, indim=1000, dim=50, normalize=False, **kw):
         super(Dummy, self).__init__(**kw)
         self.dim = dim
         self.indim = indim
-        self.W = Embed(indim=indim, dim=dim)
+        self.W = Embed(indim=indim, dim=dim, normalize=normalize)
         self.O = param((dim, indim), lrmul=1.).uniform()
 
     def apply(self, inptensor):

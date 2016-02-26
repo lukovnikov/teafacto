@@ -1,7 +1,7 @@
 import os, numpy as np, pandas as pd
 
 from collections import OrderedDict
-from teafacto.core.utils import ticktock as TT
+from teafacto.blocks.util import ticktock as TT
 from IPython import embed
 import theano
 from theano import tensor as T

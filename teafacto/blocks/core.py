@@ -459,18 +459,6 @@ class until(Elem):
         return theano.scan_module.until(self.expr.d)
 
 
-class stack(Block):
-    def __init__(self, *layers, **kw):
-        super(stack, self).__init__(**kw)
-        self.layers = layers
-
-    def apply(self, *vars):
-        ret = vars
-        for layer in self.layers:
-            ret = [layer(*ret)]
-        return ret
-
-
 class Embed(Block):
     def __init__(self, indim=1000, dim=50, **kw):
         super(Embed, self).__init__(**kw)

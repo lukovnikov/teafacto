@@ -12,3 +12,5 @@
 # TODO/TEST: Val with all the rest
 
 # TODO/TEST: implement data splitting tests
+
+# TODO: store parameter owners/block owners

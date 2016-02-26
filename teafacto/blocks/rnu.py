@@ -2,11 +2,23 @@ import inspect
 from teafacto.blocks.core import *
 from teafacto.blocks.core import tensorops as T
 
-class RNUParam(object):
+class RecurrentBlock(Block):
+    def __init__(self, **kw):
+        super(RecurrentBlock, self).__init__(**kw)
+        self.initstates = None
+
     def rec(self, *args):
         raise NotImplementedError("use subclass")
 
-class RNUBase(Block, RNUParam):
+    def set_init_states(self, values):
+        self.initstates = values
+
+    def get_init_info(self, batsize):
+        raise NotImplementedError("use subclass")
+
+class RNUBase(RecurrentBlock):
+    paramnames = []
+
     def __init__(self, dim=20, innerdim=20, wreg=0.0001, initmult=0.1, nobias=False, **kw): # dim is input dimensions, innerdim = dimension of internal elements
         super(RNUBase, self).__init__(**kw)
         self.dim = dim
@@ -15,7 +27,6 @@ class RNUBase(Block, RNUParam):
         self.initmult = initmult
         self.nobias = nobias
         self.initparams()
-        self.initstates = None
 
     def initparams(self):
         params = {}
@@ -35,22 +46,11 @@ class RNUBase(Block, RNUParam):
 
     def recur(self, x):
         inputs = x.dimswap(1, 0) # inputs is (seq_len, nb_samples, dim)
-        numstates = len(inspect.getargspec(self.rec).args) - 2
-        initstate = T.zeros((inputs.shape[1], self.innerdim)) # (nb_samples, dim)
         outputs, _ = T.scan(fn=self.rec,
                             sequences=inputs,
-                            outputs_info=[None]+[initstate]*numstates)
+                            outputs_info=[None]+self.get_init_info(inputs.shape[1]))
         output = outputs[0]
         return output.dimswap(1, 0)
-
-    def rec(self, *args):
-        raise NotImplementedError("use subclass")
-
-    def set_init_states(self, values):
-        self.initstates = values
-
-    def get_init_info(self, batsize):
-        raise NotImplementedError("use subclass")
 
     def apply(self, x):
         return self.recur(x)
