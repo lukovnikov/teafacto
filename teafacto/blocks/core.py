@@ -393,6 +393,13 @@ class Block(Elem, Saveable): # block with parameters
         return trainer
 
 
+def asblock(f):
+    def inner(*args):
+        return f(*args)
+    return inner
+
+
+
 def recurfilter(fun, data):
     acc = []
     if isinstance(data, dict):
