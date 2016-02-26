@@ -1,6 +1,7 @@
 import theano
 from theano import tensor
 from theano.tensor.var import _tensor_py_operators
+from types import ModuleType
 
 from teafacto.blocks.util import *
 from teafacto.blocks.trainer import ModelTrainer, ContrastModelTrainer
@@ -31,9 +32,18 @@ def wrapf(attr, root=None):
         innerwrap = lambda *args, **kwargs: fwrap(attr, root, *args, **kwargs)
     elif isnumber(attr) or isstring(attr): # or other literals/non-syms/modules/properties/...
         return attr
-    else:
+    elif isinstance(attr, ModuleType):
         innerwrap = pwrap(attr)
+    elif isinstance(attr, theano.Variable):
+        innerwrap = vwrap(attr, root)
+    else:
+        innerwrap = attr
     return innerwrap
+
+
+def vwrap(attr, root):
+    return Var(attr, parent=root)
+
 
 def fwrap(attr, root, *args, **kwargs):
     params = [x for x in args if isinstance(x, Parameter)]
@@ -41,7 +51,7 @@ def fwrap(attr, root, *args, **kwargs):
     wrapper = wrap(lambda *args, **kwargs: attr(*args, **kwargs), *(params+kwparams))
     ret = wrapper(*args, **kwargs)
     if root is not None:
-        if isinstance(root, Var) or isinstance(root, Val):
+        if isinstance(root, (Var, Val)):
             wrapper.add_parent(root)
         elif isinstance(root, Parameter):
             wrapper.add_param(root)
@@ -89,7 +99,9 @@ class TensorWrapped(object):
     def __getattr__(self, item):
         if item in ["__%s__" % a for a in self.__metaclass__.__ignore__.split(" ")]:
             raise AttributeError()
-        return wrapf(getattr(self.d, item), root=self)
+        ret = getattr(self.d, item)
+
+        return wrapf(ret, root=self)
 
     def dimswap(self, a, b):
         def tinner(v, a, b):
@@ -165,6 +177,10 @@ class Parameter(TensorWrapped):
                 ret = cf(ret)
             return ret
         return innerconstraintf
+
+    @property
+    def allparams(self):
+        return {self}
 
 
 class param(object):
@@ -478,39 +494,7 @@ class Embed(Block):
 
 
 if __name__ == "__main__":
-    '''
-    print tensor.eye(10, 1).eval()
-    O = param((10, 10)).eye().applyonval(lambda x: x*1/3)
-    W = param((10, 10)).eye().applyonval(lambda x: x*2)
-
-    def rec(x):
-        ret = tensorops.dot(W, x)
-        ret = tensorops.dot(O, ret)
-        return ret
-    outputs = tensorops.scan(fn=rec, outputs_info=tensorops.eye(10, 1), n_steps=10)
-    print outputs.eval()
-    print outputs.allparams
-    print W.d.get_value()
-    '''
-    '''
-    x = Val([1, 2], name="val")
-    x += 1
-    print x.getparents()
-    print x.d, x.eval()
-    print x.ndim
-    Val([1, 2]).d.set_value([1, 2, 3])
-    '''
-
-    x = Val(2, name="val")
-    y = Parameter(Val(1), name="premult")
-    w = Parameter(Val(2), name="multiplier")
-    z = Parameter(Val(0.5), name="divider")
-    x = x * y
-    def rec(a, c):
-        return [a*w, c+1], tensorops.as_long_as(c < 5)
-    o, u = tensorops.scan(fn=rec, n_steps=10, outputs_info=[x, 0])
-    ov = o[0]
-    cv = o[1]
-    print "scan's params", ov.allparams
-    print "scan's output", ov.eval()
-    print "counter:", cv.eval()
+    x = Val([[1, 2]]).T
+    print x
+    w = param((10, 10)).uniform().T
+    print w.allparams

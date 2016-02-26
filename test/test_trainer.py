@@ -1,6 +1,9 @@
 from unittest import TestCase
-from teafacto.blocks.examples import *
+
 import numpy as np
+
+from examples.dummy import *
+
 '''
     pred = ae.predict(pdata)
     print pred.shape
