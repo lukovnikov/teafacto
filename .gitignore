@@ -29,7 +29,6 @@ eggs/
 /teafacto/facs
 /teafacto/qa
 /teafacto/index
-/teafacto/core
 /notebooks
 /data/wikipedia/*
 .eggs/
