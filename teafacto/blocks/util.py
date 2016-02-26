@@ -94,7 +94,10 @@ class Saveable(object):
 
     ############# Saving and Loading #################"
     def getdefaultsavepath(self):
-        dfile = os.path.join(os.path.dirname(__file__), "../../saves/%s.%s" %
+        dir = "../../saves/"
+        if not os.path.exists(os.path.join(os.path.dirname(__file__), dir)):
+            os.makedirs(os.path.join(os.path.dirname(__file__), dir))
+        dfile = os.path.join(os.path.dirname(__file__), dir+"%s.%s" %
                              (self.printname, dt.now().strftime("%Y-%m-%d=%H:%M")))
         return dfile
 
