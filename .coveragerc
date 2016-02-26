@@ -15,3 +15,7 @@ exclude_lines =
     if __name__ == .__main__.:
 omit =
     */__init__.py
+    teafacto/lm.py
+    teafacto/models
+    teafacto/scripts
+    test
