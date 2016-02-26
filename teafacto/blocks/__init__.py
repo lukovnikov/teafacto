@@ -9,8 +9,6 @@
 # TODO/TEST: RNU in blocks
 # TODO: finish porting RNN and test
 
-# TODO: (maybe): layering function stack(...) for quick layering of blocks
-
 # TODO/TEST: Val with all the rest
 
 # TODO/TEST: implement data splitting tests

@@ -2,7 +2,7 @@ import inspect
 from teafacto.blocks.core import *
 from teafacto.blocks.core import tensorops as T
 
-class RNUParam():
+class RNUParam(object):
     def rec(self, *args):
         raise NotImplementedError("use subclass")
 
