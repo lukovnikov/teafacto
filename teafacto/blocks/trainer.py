@@ -9,7 +9,7 @@ from lasagne.updates import *
 
 #from teafacto.blocks.core import Input
 from teafacto.blocks.datafeed import DataFeeder, SplitIdxIterator
-from teafacto.core.utils import ticktock as TT
+from teafacto.blocks.util import ticktock as TT
 
 
 class DynamicLearningParam(object):

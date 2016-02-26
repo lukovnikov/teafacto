@@ -3,7 +3,7 @@ from teafacto.blocks.rnu import *
 from teafacto.blocks.core import tensorops as T
 
 
-class RecurrentStack(RNUParam, Parameterized):
+class RecurrentStack(RNUParam):
     def __init__(self, dim, *blocks, **kw): # layer can be a layer or function
         # TODO --> to support different kinds of RNU's and intermediate transformations (incl. dropout)
         self.dim = dim
