@@ -1,12 +1,20 @@
 language: python
+sudo: false
 python:
-  - "2.7_with_system_site_packages"
+  - "2.7"
+addons:
+  apt:
+    packages:
+      - libblas-dev
+      - liblapack-dev
+      - gfortran
 before_install:
-  - sudo apt-get update -qq
-  - sudo apt-get install -qq libatlas-dev libatlas-base-dev liblapack-dev gfortran# command to install dependencies
-install: "pip install -r requirements.txt"
-# running tests
+  - pip install -U pip
+install:
+  - travis_wait travis_retry pip install -r requirements.txt
 script: nosetests
-branches:
-  only:
-    - blocks
+cache:
+  - apt
+  - directories:
+    - $HOME/.cache/pip
+    - $HOME/.theano
