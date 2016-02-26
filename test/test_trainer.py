@@ -2,7 +2,7 @@ from unittest import TestCase
 
 import numpy as np
 
-from examples.dummy import *
+from teafacto.examples.dummy import *
 
 '''
     pred = ae.predict(pdata)
