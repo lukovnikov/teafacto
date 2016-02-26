@@ -24,7 +24,7 @@ dist/
 /data/glove/*
 downloads/
 eggs/
-/saves
+/saves/*
 /models
 /teafacto/facs
 /teafacto/qa
