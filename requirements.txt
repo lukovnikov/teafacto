@@ -1,12 +1,15 @@
+Lasagne==0.1
 Theano==0.7.0
 Whoosh==2.7.0
 argparse==1.2.1
 cycler==0.9.0
 decorator==4.0.6
+dill==0.2.5
 ipython==4.0.3
 ipython-genutils==0.1.0
 matplotlib==1.5.1
 nltk==3.1
+nose==1.3.7
 numpy==1.10.4
 pandas==0.17.1
 path.py==8.1.2
@@ -19,6 +22,5 @@ pytz==2015.7
 scipy==0.17.0
 simplegeneric==0.8.1
 six==1.10.0
--e git+https://github.com/lukovnikov/teafacto.git@46285c3133aa2aeb63ae08e9999e2b50306d909c#egg=teafacto-master
 traitlets==4.1.0
 wsgiref==0.1.2
