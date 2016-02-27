@@ -15,15 +15,9 @@
 
 # IDEA: store parameter owners/block owners
 
-# TODO/THINK: should RNN encoder return multiple outputs in case it contains multiple recurrent layers?
-#      --> can not train multi-output blocks directly
-#   -> what about RNN decoder? multiple inputs?
-
-
-
 # TODO: ENABLE APPROPRIATE SUPPORT FOR MULTI-OUTPUT BLOCKS ::!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 
 
-# TODO: test RNN decoder
+# TODO: finish and test RNN decoder
 # + TODO: implement neg log prob loss for sequences (automatic detection or explicit setting?)

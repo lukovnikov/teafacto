@@ -106,6 +106,8 @@ class RNNEncoder(RecurrentBlockParameterized, Block):
     Returns multiple outputs, multiple states
     Builds for one output
     '''
+    _withoutput = False
+    _all_states = False
 
     def apply(self, seq): # seq: (batsize, seqlen, dim)
         inp = seq.dimswap(1, 0)
@@ -113,12 +115,25 @@ class RNNEncoder(RecurrentBlockParameterized, Block):
                             sequences=inp,
                             outputs_info=[None]+self.block.get_init_info(seq.shape[0]))
         output = outputs[0]
-        states = self.block.get_states_from_outputs(outputs[1:])
-        #return output[-1, :, :] #output is (batsize, innerdim)
-        return [s[-1, :, :] for s in states]
+        if self._all_states:
+            states = self.block.get_states_from_outputs(outputs[1:])
+            ret = [s[-1, :, :] for s in states]
+        else:
+            ret = [output[-1, :, :]] #output is (batsize, innerdim)
+        if self._withoutput:
+            return ret + [output]
+        else:
+            if len(ret) == 1:
+                return ret[0]
+            else:
+                return ret
 
     def _build(self, *inps):
-        self.output = self.wrapply(*inps)[0]
+        res = self.wrapply(*inps)
+        if issequence(res):
+            self.output = res[0]
+        else:
+            self.output = res
 
     def recwrap(self, x_t, *args): # x_t: (batsize, dim)      if input is all zeros, just return previous state
         mask = x_t.norm(2, axis=1) > 0 # (batsize, )
@@ -128,6 +143,19 @@ class RNNEncoder(RecurrentBlockParameterized, Block):
 
     def onAttach(self):
         pass
+
+    @property
+    def all_states(self):
+        '''Call this switch to get the final states of all recurrent layers'''
+        self._all_states = True
+        return self
+
+    @property
+    def with_outputs(self):
+        '''Call this switch to get the actual output of top layer as the last outputs'''
+        self._withoutput = True
+        return self
+
 
 
 class RNNDecoder(RecurrentBlockParameterized, Block):
