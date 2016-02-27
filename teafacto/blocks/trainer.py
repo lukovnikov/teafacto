@@ -275,7 +275,7 @@ class ModelTrainer(object):
     def _train_full(self, model): # train on all data, no validation
         trainf = self.buildtrainfun(model)
         err, _ = self.trainloop(
-                trainf=self.getbatchloop(trainf, DataFeeder(self.traindata, self.traingold).numbats(self.numbats)),
+                trainf=self.getbatchloop(trainf, DataFeeder(*(self.traindata + [self.traingold])).numbats(self.numbats)),
                 average_err=self.average_err)
         return err, None, None, None
 

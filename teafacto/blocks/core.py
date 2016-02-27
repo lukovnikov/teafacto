@@ -494,10 +494,3 @@ class Embed(Block):
 
     def apply(self, inptensor):
         return self.W[inptensor, :]
-
-
-if __name__ == "__main__":
-    x = Val([[1, 2]]).T
-    print x
-    w = param((10, 10)).uniform().T
-    print w.allparams
