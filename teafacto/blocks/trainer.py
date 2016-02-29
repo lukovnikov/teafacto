@@ -75,6 +75,14 @@ class ModelTrainer(object):
         self._set_objective(lambda probs, gold: -tensor.log(probs[tensor.arange(gold.shape[0]), gold]))
         return self
 
+    def seq_neg_log_prob(self): # probs (batsize, seqlen, vocsize) + gold: (batsize, seqlen) ==> sum of neg log-probs of correct seq
+        def inner(probs, gold):
+            def _f(probsmat, goldvec):
+                return tensor.sum(-tensor.log(probsmat[tensor.arange(probsmat.shape[0]), goldvec]))  # ==> iter over batsize
+            o, _ = theano.scan(fn=_f, sequences=[probs, gold])      # out: (batsize,)
+        self._set_objective(inner)
+        return self
+
     def squared_error(self):
         self._set_objective(lambda x, y: squared_error(x, y))
         return self

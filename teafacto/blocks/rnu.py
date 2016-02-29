@@ -11,8 +11,12 @@ class RecurrentBlock(Block):
     def rec(self, *args):
         raise NotImplementedError("use subclass")
 
-    def set_init_states(self, values):
-        self.initstates = values
+    def set_init_states(self, values):  # values can be a whole list, must take only the top state
+        if values is None:
+            return values
+        else:
+            self.initstates = values[0]
+            return values[1:]
 
     def get_init_info(self, batsize):
         raise NotImplementedError("use subclass")

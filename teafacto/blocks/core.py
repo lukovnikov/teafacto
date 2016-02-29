@@ -290,6 +290,11 @@ class Elem(object):    # carries output shape information
             acc.update(parent.allparams)
         return acc
 
+    def reset(self):
+        for p in self.parents:
+            p.reset()
+        self.parents = []
+
 
 ### WORRY ABOUT THIS
 class Var(Elem, TensorWrapped): # result of applying a block on theano variables
@@ -334,6 +339,12 @@ class Block(Elem, Saveable): # block with parameters
         self.params = []
         self.output = None
         self._predictf = None
+        self._pristine = True
+
+    def reset(self): # clear all non-param info in whole expression structure that ends in this block
+        self.inputs = []
+        self.output = None
+        super(Block, self).reset()
 
     def apply(self, *vars, **kwargs):
         trueargs = recurmap(lambda x: x.d if hasattr(x, "d") else x, vars)
@@ -371,8 +382,13 @@ class Block(Elem, Saveable): # block with parameters
         self.output = self.wrapply(*inps)
 
     def autobuild(self, *inputdata):
+        self.reset()
         inputdata = map(lambda x: x if isinstance(x, np.ndarray) else np.asarray(x), inputdata)
-        self.inputs = [Input(ndim=td.ndim, dtype=td.dtype) for td in inputdata]
+        self.inputs = []
+        inpnum = 1
+        for td in inputdata:
+            self.inputs.append(Input(ndim=td.ndim, dtype=td.dtype, name="inp:%d" % inpnum))
+            inpnum += 1
         self._build(*self.inputs)
 
     def __call__(self, *args, **kwargs):
@@ -413,9 +429,9 @@ class Block(Elem, Saveable): # block with parameters
 
 
 def asblock(f):
-    def inner(*args):
-        return f(*args)
-    return inner
+    retblock = Block()
+    retblock.apply = f
+    return retblock
 
 
 
@@ -457,7 +473,7 @@ class scan(Block):
             trueargs = [Var(x) for x in args]
             res = fn(*trueargs)
             ret = tuple(recurmap(lambda x: x.d if hasattr(x, "d") else x, res))
-            newparents = recurfilter(lambda x: isinstance(x, Var) or isinstance(x, Val), res) + \
+            newparents = recurfilter(lambda x: isinstance(x, (Var, Val)), res) + \
                          recurfilter(lambda x: isinstance(x, until), res)
             for npa in newparents:
                 scanblock.add_parent(npa)

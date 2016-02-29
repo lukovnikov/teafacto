@@ -7,20 +7,17 @@ class RecurrentStack(RecurrentBlock):
     def __init__(self, *args, **kw): # layer can be a layer or function
         super(RecurrentStack, self).__init__(**kw)
         self.layers = args
-        self.initstates = None
+        #self.initstates = None
 
-    def set_init_states(self, values): # one state per RNU, non-RNU's are ignored
-        self.initstates = values
-
-    def do_set_init_states(self):
-        recurrentlayers = filter(lambda x: isinstance(x, RecurrentBlock), self.layers)
-        if self.initstates is None:
-            self.initstates = [None] * len(recurrentlayers)
-        if len(recurrentlayers) != len(self.initstates):
+    def set_init_states(self, values): # one state per RNU, multiple states for a recurrent stack
+        #self.initstates = values
+        recurrentlayers = list(filter(lambda x: isinstance(x, RecurrentBlock), self.layers))
+        recurrentlayers.reverse()
+        if len(recurrentlayers) != len(values):
             raise AssertionError("number of states should be the same as number of stateful layers in stack")
-        z = zip(recurrentlayers, self.initstates)
-        for l, s in z:
-            l.set_init_states(s)
+        for recurrentlayer in recurrentlayers:  # iterating on reversed list of blocks
+            values = recurrentlayer.set_init_states(values)
+        return values
 
     def get_states_from_outputs(self, outputs):
         # outputs are ordered from topmost recurrent layer first ==> split and delegate
@@ -37,14 +34,11 @@ class RecurrentStack(RecurrentBlock):
         return states
 
     def get_init_info(self, batsize):
-        self.do_set_init_states()
-        recurrentlayers = filter(lambda x: isinstance(x, RecurrentBlock), self.layers)
+        recurrentlayers = list(filter(lambda x: isinstance(x, RecurrentBlock), self.layers))
+        recurrentlayers.reverse()
         init_infos = []
         for recurrentlayer in recurrentlayers: # insert in the front
-            i = 0
-            for initinfo in recurrentlayer.get_init_info(batsize):
-                init_infos.insert(i, initinfo)
-                i += 1
+            init_infos.extend(recurrentlayer.get_init_info(batsize))
         return init_infos   # layerwise in reverse
 
     def rec(self, x_t, *states):
@@ -65,7 +59,7 @@ class RecurrentStack(RecurrentBlock):
                     i += 1
                 nextinp = rnuret[0]
             elif isinstance(block, Block): # block is a function
-                nextinp = block(*nextinp)
+                nextinp = block(nextinp)
         return [nextinp] + nextstates
 
     def apply(self, seq):
@@ -81,7 +75,11 @@ class RecurrentBlockParameterized(object):
     def __init__(self, *layers, **kw):
         super(RecurrentBlockParameterized, self).__init__(**kw)
         if len(layers) > 0:
-            self.block = RecurrentStack(*layers)
+            if len(layers) == 1:
+                self.block = layers[0]
+                assert(isinstance(self.block, RecurrentBlock))
+            else:
+                self.block = RecurrentStack(*layers)
         else:
             self.block = None
 
@@ -157,39 +155,53 @@ class RNNEncoder(RecurrentBlockParameterized, Block):
         return self
 
 
-
 class RNNDecoder(RecurrentBlockParameterized, Block):
     '''
-    Decodes a sequence given initial state
-    output: probabilities over symbol space float: (batsize, seqlen, dim) where dim is number of symbols
+    Decodes a sequence of symbols given initial state
+    output: probabilities over symbol space float: (batsize, seqlen, vocabsize)
 
     TERMINUS SYMBOL = 0
     ! first input is TERMINUS ==> suggest to set TERMINUS(0) embedding to all zeroes (in s2vf)
     '''
     # TODO: test
-    def __init__(self, hlimit=50, **kw): # limit says at most how many is produced
-        super(RNNDecoder, self).__init__(**kw)
-        self.limit = hlimit
+    def __init__(self, *layers, **kw): # limit says at most how many is produced
+        if "hlimit" in kw:
+            self.limit = kw["hlimit"]
+            del kw["hlimit"]
+        else:
+            self.limit = 50
+        try:
+            self.dim = kw["dim"]
+            del kw["dim"]
+        except Exception:
+            raise Exception("must provide input dimension with dim=<inp_dim>")
+        super(RNNDecoder, self).__init__(*layers, **kw)
 
     def onAttach(self):
         pass
 
-    def apply(self, initstates, initprobs=None): # initstates: list of (batsize, innerdim)
+    def apply(self, *initstates, **kw): # initstates: list of (batsize, innerdim)
         batsize = initstates[0].shape[0]
-        if initprobs is None:
-            initprobs = T.eye(1, self.block.dim).repeat(batsize, axis=0) # all TERMINUS (batsize, dim)
+        if "initprobs" in kw:
+            initprobs = kw["initprobs"]
+            del kw["initprobs"]
+        else:
+            initprobs = T.eye(1, self.dim).repeat(batsize, axis=0) # all TERMINUS (batsize, dim)
         self.block.set_init_states(initstates)
         outputs, _ = T.scan(fn=self.recwrap,
-                                 outputs_info=[initprobs, 0]+self.block.get_init_info(batsize),
-                                 n_steps=self.limit)
+                            outputs_info=[initprobs, 0]+self.block.get_init_info(batsize),
+                            n_steps=self.limit)
         return outputs[0].dimshuffle(1, 0, 2) # returns probabilities of symbols --> (batsize, seqlen, vocabsize)
 
     def recwrap(self, x_t, i, *args): # once output is terminus, always terminus and previous state is returned
         chosen = x_t.argmax(axis=1, keepdims=False) # x_t = probs over symbols:: f32-(batsize, dim) ==> int32-(batsize,)
-        mask = T.clip(chosen.reshape(chosen.shape[0], 1) + T.clip(1-i, 0, 1), 0, 1) # (batsize, ) --> only make mask if not in first iter
+        eye = T.eye(x_t.shape[1], x_t.shape[1])
+        chosen = eye[chosen]
+        #mask = T.clip(chosen.reshape(chosen.shape[0], 1) + T.clip(1-i, 0, 1), 0, 1) # (batsize, ) --> only make mask if not in first iter
         rnuret = self.block.rec(chosen, *args) # list of matrices (batsize, **somedims**)
         outprobs = rnuret[0]
-        ret = map(lambda (a, r): (a.T * (1-mask) + r.T * mask).T, zip([x_t] + list(args), [outprobs]+rnuret[1:]))
+        #ret = map(lambda (a, r): (a.T * (1-mask) + r.T * mask).T, zip([x_t] + list(args), [outprobs]+rnuret[1:]))
+        ret = rnuret
         i = i + 1
         return [ret[0], i] + ret[1:]#, {}, T.until( (i > 1) * T.eq(mask.norm(1), 0) )
 

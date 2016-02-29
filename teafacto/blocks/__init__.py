@@ -17,6 +17,9 @@
 
 # TODO: ENABLE APPROPRIATE SUPPORT FOR MULTI-OUTPUT BLOCKS ::!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
+# TODO/THINK: better shape management
+
+# TODO: cleaning expressions for reuse (for prediction/) with subblocks etc.
 
 
 # TODO: finish and test RNN decoder

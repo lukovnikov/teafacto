@@ -13,22 +13,22 @@ from teafacto.examples.dummy import *
 class TestModelTrainer(TestCase):
     def setUp(self):
         dim=50
+        self.epochs=4
         self.vocabsize=2000
-        self.lrthresh = 5
+        self.lrthresh = 2
         normalize=True
         self.ae = Dummy(indim=self.vocabsize, dim=dim, normalize=normalize)
         self.train()
 
     def train(self):
         numbats=100
-        epochs=10
         lr=0.02
         lr *= numbats
         data = np.arange(0, self.vocabsize).astype("int32")
         self.err, self.verr, _, _ = \
             self.ae.train([data], data).adadelta(lr=lr).dlr_thresh(thresh=self.lrthresh).neg_log_prob() \
                 .autovalidate().neg_log_prob().accuracy()\
-            .train(numbats=numbats, epochs=epochs)
+            .train(numbats=numbats, epochs=self.epochs)
 
     def test_embeddings_normalized(self):
         pdata = range(self.vocabsize)
@@ -49,23 +49,15 @@ class TestModelTrainer(TestCase):
 
 
 class TestModelTrainerNovalidate(TestModelTrainer):
-    def setUp(self):
-        dim=50
-        self.vocabsize=2000
-        self.lrthresh = 5
-        normalize=True
-        self.ae = Dummy(indim=self.vocabsize, dim=dim, normalize=normalize)
-        self.train()
 
     def train(self):
         numbats=100
-        epochs=10
         lr=0.02
         lr *= numbats
         data = np.arange(0, self.vocabsize).astype("int32")
         self.err, self.verr, _, _ = \
             self.ae.train([data], data).adadelta(lr=lr).dlr_thresh(thresh=self.lrthresh).neg_log_prob() \
-            .train(numbats=numbats, epochs=epochs)
+            .train(numbats=numbats, epochs=self.epochs)
 
     def test_embeddings_normalized(self):
         pass
@@ -74,26 +66,24 @@ class TestModelTrainerNovalidate(TestModelTrainer):
 class TestModelTrainerValidsplit(TestModelTrainerNovalidate):
     def train(self):
         numbats=100
-        epochs=10
         lr=0.02
         lr *= numbats
         data = np.arange(0, self.vocabsize).astype("int32")
         self.err, self.verr, _, _ = \
             self.ae.train([data], data).adadelta(lr=lr).dlr_thresh(thresh=self.lrthresh).neg_log_prob() \
             .validate(5, random=True).neg_log_prob() \
-            .train(numbats=numbats, epochs=epochs)
+            .train(numbats=numbats, epochs=self.epochs)
 
 
 class TestModelTrainerCrossValid(TestModelTrainerNovalidate):
     def train(self):
         numbats=100
-        epochs=10
         lr=0.02
         lr *= numbats
         data = np.arange(0, self.vocabsize).astype("int32")
         self.err, self.verr, _, _ = \
             self.ae.train([data], data).adadelta(lr=lr).dlr_thresh(thresh=self.lrthresh).neg_log_prob() \
             .cross_validate(5, random=True).neg_log_prob() \
-            .train(numbats=numbats, epochs=epochs)
+            .train(numbats=numbats, epochs=self.epochs)
 
 
