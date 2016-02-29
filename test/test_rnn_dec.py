@@ -28,4 +28,10 @@ class TestSimpleRNNDecoder(TestCase):
         stkoutval = self.stk.predict(self.stackdata)
         self.assertEqual(stkoutval.shape, (self.batsize, self.seqlen, self.vocsize))
 
+    ''' TODO: make this work
+    def test_decoder_stack_prediction_shape_after_rnndecoder_prediction(self):
+        self.dec.predict(self.data)
+        self.stk.predict(self.stackdata)
+    '''
+
 

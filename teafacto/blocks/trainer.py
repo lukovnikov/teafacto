@@ -7,9 +7,9 @@ from lasagne.objectives import *
 from lasagne.regularization import l1, l2
 from lasagne.updates import *
 
-#from teafacto.blocks.core import Input
-from teafacto.blocks.datafeed import DataFeeder, SplitIdxIterator
-from teafacto.blocks.util import ticktock as TT
+#from core import Input
+from datafeed import DataFeeder, SplitIdxIterator
+from util import ticktock as TT
 
 
 class DynamicLearningParam(object):

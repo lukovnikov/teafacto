@@ -28,7 +28,7 @@ class Dummy(Block):
         super(Dummy, self).__init__(**kw)
         self.dim = dim
         self.indim = indim
-        self.W = Embed(indim=indim, dim=dim, normalize=normalize)
+        self.W = VectorEmbed(indim=indim, dim=dim, normalize=normalize)
         self.O = param((dim, indim), lrmul=1.).uniform()
 
     def apply(self, inptensor):

@@ -1,6 +1,6 @@
-from teafacto.blocks.core import *
-from teafacto.blocks.rnu import *
-from teafacto.blocks.core import tensorops as T
+from core import *
+from rnu import *
+from core import tensorops as T
 
 
 class RecurrentStack(RecurrentBlock):
@@ -129,9 +129,10 @@ class RNNEncoder(RecurrentBlockParameterized, Block):
     def _build(self, *inps):
         res = self.wrapply(*inps)
         if issequence(res):
-            self.output = res[0]
+            output = res[0]
         else:
-            self.output = res
+            output = res
+        return output
 
     def recwrap(self, x_t, *args): # x_t: (batsize, dim)      if input is all zeros, just return previous state
         mask = x_t.norm(2, axis=1) > 0 # (batsize, )

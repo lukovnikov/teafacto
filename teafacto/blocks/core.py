@@ -1,13 +1,14 @@
-import theano
-from theano import tensor
-from theano.tensor.var import _tensor_py_operators
 from types import ModuleType
 
-from teafacto.blocks.util import *
-from teafacto.blocks.trainer import ModelTrainer, ContrastModelTrainer
-
+import theano
 from lasagne.init import *
 from lasagne.updates import norm_constraint
+from theano import tensor
+from theano.tensor.var import _tensor_py_operators
+
+from trainer import ModelTrainer
+from util import *
+
 
 ### DON'T WORRY ABOUT THIS
 class TWrapper(type):
@@ -109,7 +110,7 @@ class TensorWrapped(object):
             dims[a] = b
             dims[b] = a
             return v.dimshuffle(*dims)
-        return wrap(tinner)(self, a, b)
+        return wrap(tinner, name="dimswap")(self, a, b)
 
 
 
@@ -335,8 +336,8 @@ def recurmap(fun, data):
 class Block(Elem, Saveable): # block with parameters
     def __init__(self, **kw):
         super(Block, self).__init__(**kw)
-        self.inputs = []
         self.params = []
+        self.inputs = []
         self.output = None
         self._predictf = None
         self._pristine = True
@@ -356,8 +357,8 @@ class Block(Elem, Saveable): # block with parameters
     def predict(self, *inputdata):
         if self._predictf is None:
             #if False or len(self.inputs) == 0 or self.output is None:
-            self.autobuild(*inputdata)
-            self._predictf = theano.function(outputs=self.output.d, inputs=[x.d for x in self.inputs])
+            inps, outp = self.autobuild(*inputdata)
+            self._predictf = theano.function(outputs=outp.d, inputs=[x.d for x in inps])
         args = [np.asarray(x) if not isinstance(x, np.ndarray) else x for x in inputdata]
         return self._predictf(*args)
 
@@ -379,17 +380,21 @@ class Block(Elem, Saveable): # block with parameters
         self._build(*self.inputs)
 
     def _build(self, *inps):
-        self.output = self.wrapply(*inps)
+        output = self.wrapply(*inps)
+        return output
 
     def autobuild(self, *inputdata):
         self.reset()
         inputdata = map(lambda x: x if isinstance(x, np.ndarray) else np.asarray(x), inputdata)
-        self.inputs = []
+        inputs = []
         inpnum = 1
         for td in inputdata:
-            self.inputs.append(Input(ndim=td.ndim, dtype=td.dtype, name="inp:%d" % inpnum))
+            inputs.append(Input(ndim=td.ndim, dtype=td.dtype, name="inp:%d" % inpnum))
             inpnum += 1
-        self._build(*self.inputs)
+        output = self._build(*inputs)
+        self.inputs = inputs
+        self.output = output
+        return inputs, output
 
     def __call__(self, *args, **kwargs):
         return self.wrapply(*args, **kwargs)
@@ -421,7 +426,7 @@ class Block(Elem, Saveable): # block with parameters
     def train(self, inputdata, gold):
         # wrap data in datafeeds, generate gold var
         goldvar = Input(gold.ndim, gold.dtype, name="gold")
-        self.autobuild(*inputdata)
+        inps, outp = self.autobuild(*inputdata)
         trainer = self.gettrainer(goldvar.d)
         trainer.traindata = inputdata
         trainer.traingold = gold

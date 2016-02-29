@@ -1,6 +1,6 @@
 import inspect
-from teafacto.blocks.core import *
-from teafacto.blocks.core import tensorops as T
+from core import *
+from core import tensorops as T
 
 
 class RecurrentBlock(Block):
