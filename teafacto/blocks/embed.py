@@ -105,11 +105,14 @@ class WordEmb(object): # unknown words are mapped to index 0, their embedding is
 
 class Glove(WordEmb):
 
-    def __init__(self, vocabsize, dim, path=None):
+    def __init__(self, vocabsize, dim, path=None, test=False):
         super(Glove, self).__init__(vocabsize, dim)
         self.path = path
-        self.load()
+        self.load(test)
 
-    def load(self):
-        path = os.path.join(os.path.dirname(__file__), "../../data/glove/glove.6B.%dd.txt" % self.dim)
+    def load(self, test=False):
+        relpath = "../../data/glove/glove.6B.%dd.txt" % self.dim
+        if test:
+            relpath = "../../data/glove/miniglove.%dd.txt" % self.dim
+        path = os.path.join(os.path.dirname(__file__), relpath)
         super(Glove, self).load(path=path)

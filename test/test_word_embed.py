@@ -1,12 +1,12 @@
 from unittest import TestCase
-from teafacto.blocks.lm import Glove
+from teafacto.blocks.embed import Glove
 import numpy as np
 
 
 class TestGlove(TestCase):
 
     def setUp(self):
-        self.glove = Glove(4000, 50)
+        self.glove = Glove(4002, 50, test=True)
 
     def test_glove(self):
         self.assertEqual(self.glove * "the", 1)
@@ -16,5 +16,7 @@ class TestGlove(TestCase):
         self.assertTrue(np.allclose(self.glove % 1, gblock.W.d.get_value()[1, :]))
         gblockpred = gblock.predict([1])
         self.assertTrue(np.allclose(gblockpred, self.glove % "the"))
+        self.assertFalse(np.allclose(gblockpred, self.glove % "a"))
+        self.assertTrue(np.allclose(self.glove % 4001, np.zeros_like(self.glove % 4001)))
 
 

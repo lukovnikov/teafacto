@@ -21,7 +21,7 @@ env/
 build/
 develop-eggs/
 dist/
-/data/glove/*
+/data/glove/glove*
 downloads/
 eggs/
 /saves
