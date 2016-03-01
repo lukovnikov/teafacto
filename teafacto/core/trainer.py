@@ -10,7 +10,7 @@ from theano import tensor as tensor
 
 #from core import Input
 from datafeed import DataFeeder, SplitIdxIterator
-from util import ticktock as TT
+from teafacto.util import ticktock as TT
 
 
 class DynamicLearningParam(object):
