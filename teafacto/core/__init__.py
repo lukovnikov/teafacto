@@ -18,6 +18,7 @@
 # TODO: CHECK SUPPORT FOR ARGS AND KWARGS IN APPLY
 ##############################################################################################
 
+# TODO: better RNU code: more flexible and less breakable param setting
 
 # TODO: implement example dynamic data feed
 # TODO/TEST: data splitting tests

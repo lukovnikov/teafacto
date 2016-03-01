@@ -22,13 +22,14 @@ class RecurrentBlock(Block):
 class RNUBase(RecurrentBlock):
     paramnames = []
 
-    def __init__(self, dim=20, innerdim=20, wreg=0.0001, initmult=0.1, nobias=False, **kw): # dim is input dimensions, innerdim = dimension of internal elements
+    def __init__(self, dim=20, innerdim=20, wreg=0.0001, initmult=0.1, nobias=False, paraminit="uniform", **kw): # dim is input dimensions, innerdim = dimension of internal elements
         super(RNUBase, self).__init__(**kw)
         self.dim = dim
         self.innerdim = innerdim
         self.wreg = wreg
         self.initmult = initmult
         self.nobias = nobias
+        self.paraminit = paraminit
         self.initparams()
 
     def initparams(self):
@@ -46,7 +47,7 @@ class RNUBase(RecurrentBlock):
                 shape = (self.dim, self.innerdim)
             else: # internal recurrent matrices
                 shape = (self.innerdim, self.innerdim)
-            params[paramname] = param(shape, name=paramname).uniform()
+            params[paramname] = param(shape, name=paramname).init(self.paraminit)
             setattr(self, paramname, params[paramname])
 
     def custom_param_shape(self, name):
@@ -70,8 +71,8 @@ class RNU(RNUBase):
     paramnames = ["u", "w", "b"]
 
     def __init__(self, outpactivation=T.tanh, **kw):
-        super(RNU, self).__init__(**kw)
         self.outpactivation = outpactivation
+        super(RNU, self).__init__(**kw)
 
     def do_get_init_info(self, initstates):    # either a list of init states or the batsize
         if issequence(initstates):

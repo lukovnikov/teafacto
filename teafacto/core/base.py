@@ -192,7 +192,7 @@ class param(object):
         self.value = None
         self.name = name
 
-    def _init_help(self, f):
+    def _init_helper(self, f):
         ret = Parameter(f(self.shape), lrmul=self.lrmul, regmul=self.regmul, name=self.name)
         ret.initializer = f
         return ret
@@ -202,14 +202,14 @@ class param(object):
             assert hasattr(self, arg)
             return getattr(self, arg)(*args, **kwargs)
         elif isfunction(arg):
-            return self._init_help(arg)
+            return self._init_helper(arg)
 
     ############## OWN INITS ###################
     def random(self, offset=0.5, scale=0.1):
-        return self._init_help(lambda shape: (np.random.random(shape).astype("float32")-offset)*scale)
+        return self._init_helper(lambda shape: (np.random.random(shape).astype("float32") - offset) * scale)
 
     def eye(self, offset=0):
-        return self._init_help(lambda shape: np.eye(shape[0], shape[1], k=offset, dtype="float32"))
+        return self._init_helper(lambda shape: np.eye(shape[0], shape[1], k=offset, dtype="float32"))
 
     ############## LASAGE INITS ################
     def _lasagne_init(self, initializer):
