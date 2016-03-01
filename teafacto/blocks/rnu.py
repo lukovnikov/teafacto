@@ -21,6 +21,7 @@ class RecurrentBlock(Block):
 
 class RNUBase(RecurrentBlock):
     paramnames = []
+    _waitforit = False
 
     def __init__(self, dim=20, innerdim=20, wreg=0.0001, initmult=0.1, nobias=False, paraminit="uniform", **kw): # dim is input dimensions, innerdim = dimension of internal elements
         super(RNUBase, self).__init__(**kw)
@@ -30,28 +31,32 @@ class RNUBase(RecurrentBlock):
         self.initmult = initmult
         self.nobias = nobias
         self.paraminit = paraminit
-        self.initparams()
+        self.rnuparams = {}
+        if not self._waitforit:
+            self.initparams()
 
     def initparams(self):
-        params = {}
+        for n, _ in self.rnuparams.items():        # delete existing params
+            if hasattr(self, n):
+                delattr(self, n)
+        self.rnuparams = {}
         for paramname in self.paramnames:
+            shape = None
+            if isinstance(paramname, tuple):
+                shape = paramname[1]
+                paramname = paramname[0]
             if paramname[0] == "b" and self.nobias is True:
                 setattr(self, paramname, 0)
                 continue
-            custom = self.custom_param_shape(paramname)
-            if custom is not None:
-                shape = custom
-            elif paramname[0] == "b" or paramname[0] == "p": # bias or peepholes, internal weights
-                shape = (self.innerdim,)
-            elif paramname[0] == "w": #input processing matrices
-                shape = (self.dim, self.innerdim)
-            else: # internal recurrent matrices
-                shape = (self.innerdim, self.innerdim)
-            params[paramname] = param(shape, name=paramname).init(self.paraminit)
-            setattr(self, paramname, params[paramname])
-
-    def custom_param_shape(self, name):
-        return None
+            if shape is None:
+                if paramname[0] == "b" or paramname[0] == "p": # bias or peepholes, internal weights
+                    shape = (self.innerdim,)
+                elif paramname[0] == "w": #input processing matrices
+                    shape = (self.dim, self.innerdim)
+                else: # internal recurrent matrices
+                    shape = (self.innerdim, self.innerdim)
+            self.rnuparams[paramname] = param(shape, name=paramname).init(self.paraminit)
+            setattr(self, paramname, self.rnuparams[paramname])
 
     def apply(self, x, initstates=None):
         if initstates is None:
@@ -118,17 +123,13 @@ class GRU(GatedRNU):
 
 
 class IFGRU(GatedRNU):      # input-modulating GRU
-    paramnames = ["um", "wm", "uhf", "whf", "uif", "wif", "u", "w", "bm", "bhf", "bif", "b"]
-
-    def custom_param_shape(self, name):
-        if name is "uif":
-            return (self.innerdim, self.dim)
-        elif name is "wif":
-            return (self.dim, self.dim)
-        elif name is "bif":
-            return (self.dim,)
-        else:
-            return None
+    def __init__(self, **kw):
+        self._waitforit = True
+        super(IFGRU, self).__init__(**kw)
+        self.paramnames = ["um", "wm", "uhf", "whf",
+                           ("uif", (self.innerdim, self.dim)), ("wif", (self.dim, self.dim)),
+                           "u", "w", "bm", "bhf", ("bif", (self.dim,)), "b"]
+        self.initparams()
 
     def rec(self, x_t, h_tm1):
         '''
