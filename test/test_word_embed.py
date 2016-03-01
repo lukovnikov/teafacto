@@ -1,6 +1,8 @@
 from unittest import TestCase
-from teafacto.core.embed import Glove
+
 import numpy as np
+
+from blocks.embed import Glove
 
 
 class TestGlove(TestCase):

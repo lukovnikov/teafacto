@@ -1,11 +1,12 @@
-from datetime import datetime as dt
-import numpy as np
 import sys
+from datetime import datetime as dt
+
+import numpy as np
 import theano
-from theano import tensor as tensor
 from lasagne.objectives import *
 from lasagne.regularization import l1, l2
 from lasagne.updates import *
+from theano import tensor as tensor
 
 #from core import Input
 from datafeed import DataFeeder, SplitIdxIterator

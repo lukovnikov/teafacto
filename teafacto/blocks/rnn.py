@@ -1,6 +1,8 @@
-from base import *
-from rnu import *
-from base import tensorops as T
+from rnu import RecurrentBlock
+from teafacto.core.base import Block
+from teafacto.core.base import tensorops as T
+from teafacto.util import issequence
+import inspect
 
 
 class RecurrentStack(RecurrentBlock):

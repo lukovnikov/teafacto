@@ -1,9 +1,10 @@
 from unittest import TestCase
 
-from teafacto.core.rnu import GRU, LSTM
+import numpy as np
+import os
+
+from blocks.rnu import GRU, LSTM
 from teafacto.core.base import param, Input
-from teafacto.core.base import tensorops as T
-import numpy as np, os
 
 
 class TestGRU(TestCase):

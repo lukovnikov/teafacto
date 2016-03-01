@@ -1,9 +1,13 @@
-from teafacto.core.rnn import *
+import re
+
+import pandas as pd
+from teafacto.lm import Glove
+
+from blocks.rnn import *
 from teafacto.core.base import *
 from teafacto.core.base import tensorops as T
-from teafacto.core.util import argparsify
-from teafacto.lm import Glove
-import re, pandas as pd
+from util import argparsify
+
 
 class RNNEncDecSM(SeqSMBase, Predictor, Saveable):
     def __init__(self, indim=50, innerdim=50, hlimit=50, **w):

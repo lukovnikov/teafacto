@@ -6,10 +6,10 @@ from datetime import datetime
 
 import numpy as np
 from matplotlib import pyplot as plt
+from teafacto.core.optimizers import SGD
 from teafacto.xxrnnkm import RNNTFSGDSM
 
-from teafacto.core.optimizers import SGD
-from teafacto.core.rnn import GRU
+from blocks.rnn import GRU
 from teafacto.models.kb.smsm import RNNESMSM
 
 

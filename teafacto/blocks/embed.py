@@ -1,7 +1,8 @@
-from base import *
-from base import tensorops as T
 from collections import OrderedDict
-from util import ticktock as TT
+
+from teafacto.core.base import Block, param, Parameter
+from teafacto.util import ticktock as TT, isnumber, isstring
+import numpy as np, os
 
 
 class VectorEmbed(Block):

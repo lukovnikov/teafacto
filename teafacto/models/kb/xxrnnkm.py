@@ -4,7 +4,7 @@ __author__ = 'denis'
 from theano import tensor as T
 import numpy as np, math
 from teafacto.core.utils import *
-from teafacto.core.rnn import GRU
+from blocks.rnn import GRU
 
 # !!!!! NOT USED?
 

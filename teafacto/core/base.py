@@ -7,7 +7,7 @@ from theano import tensor
 from theano.tensor.var import _tensor_py_operators
 
 from trainer import ModelTrainer
-from util import *
+from teafacto.util import isstring, issequence, isfunction, Saveable, isnumber
 
 
 ### DON'T WORRY ABOUT THIS

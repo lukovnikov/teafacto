@@ -1,10 +1,9 @@
 from unittest import TestCase
-from teafacto.core.base import *
-from teafacto.core.rnn import *
-from teafacto.core.rnu import *
-from teafacto.core.stack import stack
-from teafacto.core.base import tensorops as T
+
+from teafacto.blocks.rnn import RNNEncoder
+from teafacto.blocks.rnu import GRU
 import numpy as np
+from teafacto.util import issequence
 
 
 class SimpleRNNEncoderTest(TestCase):

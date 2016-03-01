@@ -1,8 +1,7 @@
-from teafacto.core.base import tensorops as T
 from teafacto.core.base import *
-from teafacto.core.datafeed import *
+from teafacto.core.base import tensorops as T
 from teafacto.core.trainer import *
-from teafacto.core.util import argparsify
+from util import argparsify
 
 
 class VectorEmbed(Block):
