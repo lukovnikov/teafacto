@@ -1,5 +1,5 @@
 from unittest import TestCase
-from teafacto.blocks.embed import Glove
+from teafacto.core.embed import Glove
 import numpy as np
 
 

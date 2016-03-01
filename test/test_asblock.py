@@ -1,6 +1,6 @@
 from unittest import TestCase
-from teafacto.blocks.core import *
-from teafacto.blocks.core import tensorops as T
+from teafacto.core.base import *
+from teafacto.core.base import tensorops as T
 
 
 class TestWrapAndAsblock(TestCase):

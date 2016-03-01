@@ -1,9 +1,9 @@
 from unittest import TestCase
-from teafacto.blocks.core import *
-from teafacto.blocks.rnn import *
-from teafacto.blocks.rnu import *
-from teafacto.blocks.stack import stack
-from teafacto.blocks.core import tensorops as T
+from teafacto.core.base import *
+from teafacto.core.rnn import *
+from teafacto.core.rnu import *
+from teafacto.core.stack import stack
+from teafacto.core.base import tensorops as T
 import numpy as np
 
 

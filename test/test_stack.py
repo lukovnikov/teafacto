@@ -1,8 +1,8 @@
 from unittest import TestCase
 
 from teafacto.examples.dummy import *
-from teafacto.blocks.rnu import *
-from teafacto.blocks.stack import *
+from teafacto.core.rnu import *
+from teafacto.core.stack import *
 
 
 class TestRecurrentStack(TestCase):

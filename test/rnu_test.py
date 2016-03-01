@@ -1,8 +1,8 @@
 from unittest import TestCase
 
-from teafacto.blocks.rnu import GRU, LSTM
-from teafacto.blocks.core import param, Input
-from teafacto.blocks.core import tensorops as T
+from teafacto.core.rnu import GRU, LSTM
+from teafacto.core.base import param, Input
+from teafacto.core.base import tensorops as T
 import numpy as np, os
 
 
