@@ -36,26 +36,27 @@ class ticktock(object):
         return self
 
     def _getdurationstr(self, duration):
-        if duration > 60:
+        if duration >= 60:
+            duration = int(round(duration))
+            seconds = duration % 60
+            minutes = (duration // 60) % 60
+            hours = (duration // 3600) % 24
+            days = duration // (3600*24)
             acc = ""
-            seconds = int(round(duration))
-            acc = "%d seconds" % (seconds % 60)
-            minutes = seconds // 60
-            acc = "%d minutes, %s" % (minutes % 60, acc)
-            if minutes < 60:
-                return acc
-            hours = minutes // 60
-            acc = "%d hours, %s" % (hours % 24, acc)
-            if hours < 24:
-                return acc
-            days = hours % 24
-            return "%d days, %s" % (days, acc)
-
+            if seconds > 0:
+                acc = ("%d second" % seconds) + ("s" if seconds > 1 else "")
+            if minutes > 0:
+                acc = ("%d minute" % minutes) + ("s" if minutes > 1 else "") + (", " + acc if len(acc) > 0 else "")
+            if hours > 0:
+                acc = ("%d hour" % hours) + ("s" if hours > 1 else "") + (", " + acc if len(acc) > 0 else "")
+            if days > 0:
+                acc = ("%d day" % days) + ("s" if days > 1 else "") + (", " + acc if len(acc) > 0 else "")
+            return acc
         else:
-            return "%f seconds" % duration
+            return ("%.3f second" % duration) + ("s" if duration > 1 else "")
 
 
-def argparsify(f):
+def argparsify(f, test=None):
     args, _, _, defaults = inspect.getargspec(f)
     assert(len(args) == len(defaults))
     parser = argparse.ArgumentParser()
@@ -63,7 +64,10 @@ def argparsify(f):
     for arg in args:
         parser.add_argument("-%s"%arg, "--%s"%arg, type=type(defaults[i]))
         i += 1
-    par = parser.parse_args()
+    if test is not None:
+        par = parser.parse_args([test])
+    else:
+        par = parser.parse_args()
     kwargs = {}
     for arg in args:
         if getattr(par, arg) is not None:
