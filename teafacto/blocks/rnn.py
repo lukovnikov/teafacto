@@ -7,17 +7,6 @@ class RecurrentStack(RecurrentBlock):
     def __init__(self, *args, **kw): # layer can be a layer or function
         super(RecurrentStack, self).__init__(**kw)
         self.layers = args
-        #self.initstates = None
-
-    def set_init_states(self, values): # one state per RNU, multiple states for a recurrent stack
-        #self.initstates = values
-        recurrentlayers = list(filter(lambda x: isinstance(x, RecurrentBlock), self.layers))
-        recurrentlayers.reverse()
-        if len(recurrentlayers) != len(values):
-            raise AssertionError("number of states should be the same as number of stateful layers in stack")
-        for recurrentlayer in recurrentlayers:  # iterating on reversed list of blocks
-            values = recurrentlayer.set_init_states(values)
-        return values
 
     def get_states_from_outputs(self, outputs):
         # outputs are ordered from topmost recurrent layer first ==> split and delegate
@@ -33,13 +22,14 @@ class RecurrentStack(RecurrentBlock):
         assert(len(outputs) == 0)
         return states
 
-    def get_init_info(self, batsize):
+    def do_get_init_info(self, initstates):    # if initstates is not a list, it must be batsize
         recurrentlayers = list(filter(lambda x: isinstance(x, RecurrentBlock), self.layers))
         recurrentlayers.reverse()
         init_infos = []
-        for recurrentlayer in recurrentlayers: # insert in the front
-            init_infos.extend(recurrentlayer.get_init_info(batsize))
-        return init_infos   # layerwise in reverse
+        for recurrentlayer in recurrentlayers:
+            initinfo, initstates = recurrentlayer.do_get_init_info(initstates)
+            init_infos.extend(initinfo)
+        return init_infos, initstates   # layerwise in reverse
 
     def rec(self, x_t, *states):
         # apply each block on x_t to get next-level input, consume states in the process
@@ -62,11 +52,12 @@ class RecurrentStack(RecurrentBlock):
                 nextinp = block(nextinp)
         return [nextinp] + nextstates
 
-    def apply(self, seq):
+    def apply(self, seq, initstates=None):
         seq = seq.dimswap(1, 0)
+        initstatearg = initstates if initstates is not None else seq.shape[1]
         outputs, _ = T.scan(fn=self.rec,
                             sequences=seq,
-                            outputs_info=[None]+self.get_init_info(seq.shape[1]))
+                            outputs_info=[None]+self.get_init_info(initstatearg))
         output = outputs[0]
         return output.dimswap(1, 0)
 
@@ -188,9 +179,8 @@ class RNNDecoder(RecurrentBlockParameterized, Block):
             del kw["initprobs"]
         else:
             initprobs = T.eye(1, self.dim).repeat(batsize, axis=0) # all TERMINUS (batsize, dim)
-        self.block.set_init_states(initstates)
         outputs, _ = T.scan(fn=self.recwrap,
-                            outputs_info=[initprobs, 0]+self.block.get_init_info(batsize),
+                            outputs_info=[initprobs, 0]+self.block.get_init_info(initstates),
                             n_steps=self.limit)
         return outputs[0].dimshuffle(1, 0, 2) # returns probabilities of symbols --> (batsize, seqlen, vocabsize)
 
@@ -205,26 +195,3 @@ class RNNDecoder(RecurrentBlockParameterized, Block):
         ret = rnuret
         i = i + 1
         return [ret[0], i] + ret[1:]#, {}, T.until( (i > 1) * T.eq(mask.norm(1), 0) )
-
-
-class RNNMask(RecurrentBlockParameterized):
-    '''
-    Puts an entry-wise RNN mask on a sequence of vectors.
-    RNU output dims must be the same as input dims
-    '''
-    def mask(self, seq): # seq: (batsize, seqlen, dim)
-        inp = seq.dimshuffle(1, 0, 2)
-        # initialize hidden states, depending on the used RNN (numstates)
-        numstates = len(inspect.getargspec(self.rnu.rec).args) - 2
-        initstate = T.zeros((inp.shape[1], self.rnu.innerdim)) # (nb_samples, dim)
-        # run RNU over it
-        outputs, _ = T.scan(fn=self.recwrap,
-                                 sequences=inp,
-                                 outputs_info=[None]+[initstate]*numstates)
-        outputs = T.nnet.sigmoid(outputs[0]).dimshuffle(1, 0, 2) # outputs: [0, 1] of (batsize, seqlen, dim)
-        mseq = seq * outputs # apply the mask
-        #embed()
-        return mseq
-
-    def recwrap(self, x_t, *args): # x_t: (batsize, dim)
-        return self.rnu.rec(x_t, *args) # list of matrices (batsize, **somedims**)

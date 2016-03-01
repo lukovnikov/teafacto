@@ -6,20 +6,14 @@ from core import tensorops as T
 class RecurrentBlock(Block):
     def __init__(self, **kw):
         super(RecurrentBlock, self).__init__(**kw)
-        self.initstates = None
 
     def rec(self, *args):
         raise NotImplementedError("use subclass")
 
-    def set_init_states(self, values):  # values can be a whole list, must take only the top state
-        if values is None:
-            return values
-        else:
-            self.initstates = values[0]
-            return values[1:]
-
-    def get_init_info(self, batsize):
-        raise NotImplementedError("use subclass")
+    def get_init_info(self, initstates):
+        info, red = self.do_get_init_info(initstates)
+        assert((issequence(red) and len(red) == 0) or (not issequence(red)))
+        return info
 
     def get_states_from_outputs(self, outputs):     # topmost layer --> first in list of states (reverse)
         raise NotImplementedError("use subclass")
@@ -53,16 +47,18 @@ class RNUBase(RecurrentBlock):
             params[paramname] = param(shape, name=paramname).uniform()
             setattr(self, paramname, params[paramname])
 
-    def recur(self, x):
+    def apply(self, x, initstates=None):
+        if initstates is None:
+            infoarg = x.shape[0]    # batsize
+        else:
+            infoarg = initstates
+            assert(issequence(infoarg))
         inputs = x.dimswap(1, 0) # inputs is (seq_len, nb_samples, dim)
         outputs, _ = T.scan(fn=self.rec,
                             sequences=inputs,
-                            outputs_info=[None]+self.get_init_info(inputs.shape[1]))
+                            outputs_info=[None]+self.get_init_info(infoarg))
         output = outputs[0]
         return output.dimswap(1, 0)
-
-    def apply(self, x):
-        return self.recur(x)
 
 
 class RNU(RNUBase):
@@ -72,11 +68,11 @@ class RNU(RNUBase):
         super(RNU, self).__init__(**kw)
         self.outpactivation = outpactivation
 
-    def get_init_info(self, batsize):
-        h_t0 = self.initstates
-        if h_t0 is None:
-            h_t0 = T.zeros((batsize, self.innerdim))
-        return [h_t0]
+    def do_get_init_info(self, initstates):    # either a list of init states or the batsize
+        if issequence(initstates):
+            return [initstates[0]], initstates[1:]
+        else:
+            return [T.zeros((initstates, self.innerdim))], initstates
 
     def get_states_from_outputs(self, outputs):
         assert(len(outputs) == 1)
@@ -156,12 +152,16 @@ class IFGRU(GatedRNU):
 class IFGRUTM(GatedRNU):
     paramnames = ["ucf, uyf, uxf, uof, ucm, uc, rcf, ryf, rxf, rof, rcm, rc, wcf, wyf, wxf, wof, wcm, wc, wo, bcf, byf, bxf, bcm, bof, bc"]
 
-    def get_init_info(self, batsize):
-        y_t0 = T.zeros((batsize, self.innerdim))
-        c_t0 = self.initstates
-        if c_t0 is None:
-            c_t0 = T.zeros((batsize, self.innerdim))
-        return [y_t0, c_t0]
+    def do_get_init_info(self, initstates):
+        if issequence(initstates):
+            c_t0 = initstates[0]
+            red = initstates[1:]
+            y_t0 = T.zeros((c_t0.shape[0], self.innerdim))
+        else:
+            c_t0 = T.zeros((initstates, self.innerdim))
+            red = initstates
+            y_t0 = T.zeros((initstates, self.innerdim))
+        return [y_t0, c_t0], red
 
     def get_states_from_outputs(self, outputs):
         assert(len(outputs) == 2)
@@ -185,12 +185,16 @@ class IFGRUTM(GatedRNU):
 class LSTM(GatedRNU):
     paramnames = ["wf", "rf", "bf", "wi", "ri", "bi", "wo", "ro", "bo", "w", "r", "b", "pf", "pi", "po"]
 
-    def get_init_info(self, batsize):
-        y_t0 = T.zeros((batsize, self.innerdim))
-        c_t0 = self.initstates
-        if c_t0 is None:
-            c_t0 = T.zeros((batsize, self.innerdim))
-        return [y_t0, c_t0]
+    def do_get_init_info(self, initstates):
+        if issequence(initstates):
+            c_t0 = initstates[0]
+            red = initstates[1:]
+            y_t0 = T.zeros((c_t0.shape[0], self.innerdim))
+        else:
+            c_t0 = T.zeros((initstates, self.innerdim))
+            red = initstates
+            y_t0 = T.zeros((initstates, self.innerdim))
+        return [y_t0, c_t0], red
 
     def get_states_from_outputs(self, outputs):
         assert(len(outputs) == 2)
