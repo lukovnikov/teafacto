@@ -1,7 +1,7 @@
-from teafacto.core.rnn import *
-from teafacto.core.trainutil import *
-from teafacto.core.init import random
-from teafacto.core.utils import argparsify
+from teafacto.blocks.rnn import *
+from teafacto.blocks.core import *
+from teafacto.blocks.core import tensorops as T
+from teafacto.blocks.util import argparsify
 from teafacto.lm import Glove
 import re, pandas as pd
 

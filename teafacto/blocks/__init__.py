@@ -22,4 +22,3 @@
 
 
 # TODO: finish and test RNN decoder
-# + TODO: implement neg log prob loss for sequences (automatic detection or explicit setting?)
