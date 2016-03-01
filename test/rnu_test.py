@@ -3,7 +3,7 @@ from unittest import TestCase
 import numpy as np
 import os
 
-from blocks.rnu import GRU, LSTM
+from teafacto.blocks.rnu import GRU, LSTM
 from teafacto.core.base import param, Input
 
 

@@ -1,6 +1,6 @@
 from unittest import TestCase
 
-from blocks.rnu import *
+from teafacto.blocks.rnu import *
 from teafacto.core.stack import *
 from teafacto.examples.dummy import *
 
