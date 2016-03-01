@@ -1,9 +1,7 @@
 [run]
 omit =
     */__init__.py
-    teafacto/lm.py
-    teafacto/models
-    teafacto/scripts
+    teafacto/scripts/*
     test
 branch = True
 
@@ -15,7 +13,5 @@ exclude_lines =
     if __name__ == .__main__.:
 omit =
     */__init__.py
-    teafacto/lm.py
-    teafacto/models
-    teafacto/scripts
+    teafacto/scripts/*
     test

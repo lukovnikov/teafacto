@@ -1,4 +1,3 @@
-# TODO: implement example dynamic data feed
 # TODO: implement more objectives
 
 # WARNING: no automatic param adding in Block.wrapply() --> might be source of bugs
@@ -11,14 +10,16 @@
 
 # TODO/TEST: Val with all the rest
 
-# TODO/TEST: data splitting tests
+# TODO/THINK: better shape management
 
 # IDEA: store parameter owners/block owners
 
 # TODO: CHECK SUPPORT FOR MULTI-OUTPUT BLOCKS
 # TODO: CHECK SUPPORT FOR ARGS AND KWARGS IN APPLY
+##############################################################################################
 
-# TODO/THINK: better shape management
 
+# TODO: implement example dynamic data feed
+# TODO/TEST: data splitting tests
 
 # TODO: finish and test RNN decoder
