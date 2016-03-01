@@ -2,6 +2,8 @@
 omit =
     */__init__.py
     teafacto/scripts/*
+    teafacto/eval/*
+    teafacto/models/*
     test
 branch = True
 
@@ -14,4 +16,6 @@ exclude_lines =
 omit =
     */__init__.py
     teafacto/scripts/*
+    teafacto/eval/*
+    teafacto/models/*
     test
