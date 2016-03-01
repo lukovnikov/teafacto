@@ -3,7 +3,7 @@ from unittest import TestCase
 import numpy as np
 import os
 
-from teafacto.blocks.rnu import GRU, LSTM
+from teafacto.blocks.rnu import GRU, LSTM, IFGRU
 from teafacto.core.base import param, Input
 
 
@@ -142,6 +142,44 @@ class TestLSTMnobias(TestLSTM, TestGRUnobias):
 
     def getbparamnames(self):
         return []
+
+
+class TestIFGRU(TestGRU):
+    def makernu(self):
+        return IFGRU(dim=self.dim, innerdim=self.innerdim)
+
+    def getparamnames(self):
+        return ["um", "wm", "uhf", "whf", "uif", "wif", "u", "w", "bm", "bhf", "bif", "b"]
+
+    def getwparamnames(self):
+        return ["wm", "whf", "w"]
+
+    def getuparamnames(self):
+        return ["uhf", "um", "u"]
+
+    def getbparamnames(self):
+        return ["bhf", "bm", "b"]
+
+    def test_special_param_shapes(self):
+        self.assertEqual(self.rnu.bif.shape, (self.dim,))
+        self.assertEqual(self.rnu.wif.shape, (self.dim, self.dim))
+        self.assertEqual(self.rnu.uif.shape, (self.innerdim, self.dim))
+
+
+class TestIFGRUnobias(TestIFGRU, TestGRUnobias):
+    def makernu(self):
+        return IFGRU(dim=self.dim, innerdim=self.innerdim, nobias=True)
+
+    def getparamnames(self):
+        return ["um", "wm", "uhf", "whf", "uif", "wif", "u", "w"]
+
+    def getbparamnames(self):
+        return []
+
+    def test_special_param_shapes(self):
+        self.assertEqual(self.rnu.bif, 0)
+        self.assertEqual(self.rnu.wif.shape, (self.dim, self.dim))
+        self.assertEqual(self.rnu.uif.shape, (self.innerdim, self.dim))
 
 
 
