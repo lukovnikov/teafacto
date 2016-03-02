@@ -8,12 +8,12 @@ from teafacto.util import ticktock as TT, isnumber, isstring
 
 
 class WordEmb(object): # unknown words are mapped to index 0, their embedding is a zero vector
-    def __init__(self, indim, dim):
+    def __init__(self, dim, vocabsize=None):    # if dim is None, import all
         self.D = OrderedDict()
         self.tt = TT(self.__class__.__name__)
         self.dim = dim
-        self.indim = indim
-        self.W = np.zeros((self.indim, self.dim))
+        self.indim = vocabsize
+        self.W = [np.zeros((1, self.dim))]
         self._block = None
 
     @property
@@ -28,13 +28,14 @@ class WordEmb(object): # unknown words are mapped to index 0, their embedding is
             path = kw["path"]
         i = 1
         for line in open(path):
-            if i >= self.indim:
+            if self.indim is not None and i >= (self.indim+1):
                 break
             ls = line.split(" ")
             word = ls[0]
             self.D[word] = i
-            self.W[i, :] = np.asarray(map(lambda x: float(x), ls[1:]))
+            self.W.append(np.asarray([map(lambda x: float(x), ls[1:])]))
             i += 1
+        self.W = np.concatenate(self.W, axis=0)
         self.tt.tock("loaded")
 
     def getindex(self, word):
@@ -85,13 +86,13 @@ class WordEmb(object): # unknown words are mapped to index 0, their embedding is
         return self._block
 
     def _getblock(self):
-        return VectorEmbed(indim=self.indim, dim=self.dim, value=self.W, name=self.__class__.__name__)
+        return VectorEmbed(indim=self.indim+1, dim=self.dim, value=self.W, name=self.__class__.__name__)
 
 
 class Glove(WordEmb):
 
-    def __init__(self, vocabsize, dim, path=None, test=False):
-        super(Glove, self).__init__(vocabsize, dim)
+    def __init__(self, dim, vocabsize=None, path=None, test=False):     # if dim=None, load all
+        super(Glove, self).__init__(dim, vocabsize)
         self.path = path
         self.load(test)
 

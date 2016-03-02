@@ -8,9 +8,11 @@ from teafacto.blocks.embed import Glove
 class TestGlove(TestCase):
 
     def setUp(self):
-        self.glove = Glove(4002, 50, test=True)
+        self.expshape = (4001, 50)
+        self.glove = Glove(self.expshape[1], self.expshape[0]-1, test=True)
 
     def test_glove(self):
+        self.assertEqual(self.glove.W.shape, self.expshape)
         self.assertEqual(self.glove * "the", 1)
         gblock = self.glove.block
         self.assertTrue(np.allclose(self.glove.W, gblock.W.d.get_value()))
@@ -19,6 +21,5 @@ class TestGlove(TestCase):
         gblockpred = gblock.predict([1])
         self.assertTrue(np.allclose(gblockpred, self.glove % "the"))
         self.assertFalse(np.allclose(gblockpred, self.glove % "a"))
-        self.assertTrue(np.allclose(self.glove % 4001, np.zeros_like(self.glove % 4001)))
 
 
