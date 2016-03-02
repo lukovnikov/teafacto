@@ -201,12 +201,8 @@ class RNNDecoder(RecurrentBlockParameterized, Block):
 
     def recwrap(self, x_t, i, *args): # once output is terminus, always terminus and previous state is returned
         chosen = x_t.argmax(axis=1, keepdims=False) # x_t = probs over symbols:: f32-(batsize, dim) ==> int32-(batsize,)
-        #eye = T.eye(x_t.shape[1], x_t.shape[1])
-        #chosen = eye[chosen]    # TODO: fix the mask
-        #mask = T.clip(chosen.reshape(chosen.shape[0], 1) + T.clip(1-i, 0, 1), 0, 1) # (batsize, ) --> only make mask if not in first iter
+        mask = T.clip(chosen.reshape(chosen.shape[0], 1) + T.clip(1-i, 0, 1), 0, 1) # (batsize,) --> only make mask if not in first iter
         rnuret = self.block.rec(chosen, *args) # list of matrices (batsize, **somedims**)
-        outprobs = rnuret[0]
-        #ret = map(lambda (a, r): (a.T * (1-mask) + r.T * mask).T, zip([x_t] + list(args), [outprobs]+rnuret[1:]))
-        ret = rnuret
+        ret = map(lambda (prevval, newval): (prevval.T * (1-mask) + newval.T * mask).T, zip([x_t] + list(args), rnuret))
         i = i + 1
         return [ret[0], i] + ret[1:]#, {}, T.until( (i > 1) * T.eq(mask.norm(1), 0) )
