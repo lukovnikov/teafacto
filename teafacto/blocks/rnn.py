@@ -1,4 +1,7 @@
-from rnu import RecurrentBlock
+from teafacto.blocks.basic import IdxToOneHot, MatDot, Softmax
+from teafacto.blocks.rnu import GRU
+from teafacto.core.base import Block
+from teafacto.blocks.rnu import RecurrentBlock
 from teafacto.core.base import Block
 from teafacto.core.base import tensorops as T
 from teafacto.blocks.basic import IdxToOneHot, VectorEmbed
@@ -175,7 +178,7 @@ class RNNDecoder(RecurrentBlockParameterized, Block):
             self.indim = kw["indim"]
             del kw["indim"]
         except Exception:
-            raise Exception("must provide input dimension with dim=<inp_dim>")
+            raise Exception("must provide input dimension with indim=<inp_dim>")
         if not(isinstance(layers[0], (IdxToOneHot, VectorEmbed))):
             layers = (IdxToOneHot(vocsize=self.indim),) + layers
         super(RNNDecoder, self).__init__(*layers, **kw)
@@ -206,3 +209,21 @@ class RNNDecoder(RecurrentBlockParameterized, Block):
         ret = map(lambda (prevval, newval): (prevval.T * (1-mask) + newval.T * mask).T, zip([x_t] + list(args), rnuret))
         i = i + 1
         return [ret[0], i] + ret[1:]#, {}, T.until( (i > 1) * T.eq(mask.norm(1), 0) )
+
+
+class RNNAutoEncoder(Block):    # tries to decode original sequence
+    def __init__(self, vocsize=25, innerdim=200, seqlen=50, **kw):
+        super(RNNAutoEncoder, self).__init__(**kw)
+        self.seqlen = seqlen
+        self.encoder = RNNEncoder(
+            IdxToOneHot(vocsize=vocsize),
+            GRU(dim=vocsize, innerdim=innerdim))
+        self.decoder = RNNDecoder(
+            GRU(dim=vocsize, innerdim=innerdim),
+            MatDot(indim=innerdim, dim=vocsize),
+            Softmax(), indim=vocsize, seqlen=seqlen)
+
+    def apply(self, inpseq):
+        enc = self.encoder(inpseq)
+        dec = self.decoder(enc, seqlen=inpseq.shape[1])
+        return dec

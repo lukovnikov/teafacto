@@ -9,7 +9,7 @@ from lasagne.updates import *
 from theano import tensor as tensor
 
 #from core import Input
-from datafeed import DataFeeder, SplitIdxIterator
+from teafacto.core.datafeed import DataFeeder, SplitIdxIterator
 from teafacto.util import ticktock as TT
 
 
@@ -81,6 +81,7 @@ class ModelTrainer(object):
             def _f(probsmat, goldvec):
                 return tensor.sum(-tensor.log(probsmat[tensor.arange(probsmat.shape[0]), goldvec]))  # ==> iter over batsize
             o, _ = theano.scan(fn=_f, sequences=[probs, gold])      # out: (batsize,)
+            return o
         self._set_objective(inner)
         return self
 

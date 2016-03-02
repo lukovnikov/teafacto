@@ -1,6 +1,6 @@
 from unittest import TestCase
 
-from teafacto.blocks.memnet import RNNAutoEncoder
+from teafacto.blocks.rnn import RNNAutoEncoder
 import numpy as np
 
 class TestRNNAutoEncoder(TestCase):
