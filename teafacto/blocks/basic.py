@@ -1,6 +1,7 @@
 from teafacto.core.base import Block, tensorops as T, param, Val, Parameter
 import numpy as np
 
+
 class Softmax(Block):
     def apply(self, inptensor): # matrix
         return T.nnet.softmax(inptensor)
