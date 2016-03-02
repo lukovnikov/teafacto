@@ -20,10 +20,12 @@ class BlockStack(Block):
         super(BlockStack, self).__init__(**kw)
         self.layers = layers
 
-    # TODO: if one of the layers is recurrent, wrap all non-recurrent layers in a scan
     def apply(self, *vars):
         ret = vars
         for layer in self.layers:
             ret = [layer(ret[0])]
             assert(len(ret) == 1)
         return ret[0]
+
+    def __getitem__(self, idx):
+        return self.layers[idx]

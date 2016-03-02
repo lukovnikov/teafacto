@@ -1,25 +1,8 @@
 from teafacto.core.base import *
 from teafacto.core.base import tensorops as T
 from teafacto.core.trainer import *
+from teafacto.blocks.basic import VectorEmbed, Softmax
 from teafacto.util import argparsify
-
-
-class VectorEmbed(Block):
-    def __init__(self, indim=1000, dim=50, normalize=False, **kw):
-        super(VectorEmbed, self).__init__(**kw)
-        self.dim = dim
-        self.indim = indim
-        self.W = param((indim, dim), lrmul=1., name="embedder").uniform()
-        if normalize:
-            self.W = self.W.normalize(axis=1)
-
-    def apply(self, inptensor):
-        return self.W[inptensor, :]
-
-
-class Softmax(Block):
-    def apply(self, inptensor): # matrix
-        return T.nnet.softmax(inptensor)
 
 
 class Dummy(Block):

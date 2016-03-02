@@ -16,7 +16,7 @@ __pycache__/
 
 # Distribution / packaging
 .Python
-/teafacto/scripts/test.py
+/oldscripts/test.py
 env/
 build/
 develop-eggs/

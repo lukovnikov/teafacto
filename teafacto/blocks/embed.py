@@ -1,26 +1,10 @@
 from collections import OrderedDict
 
-from teafacto.core.base import Block, param, Parameter
+import numpy as np
+import os
+
+from blocks.basic import VectorEmbed
 from teafacto.util import ticktock as TT, isnumber, isstring
-import numpy as np, os
-
-
-class VectorEmbed(Block):
-    def __init__(self, indim=1000, dim=50, value=None, normalize=False, **kw):
-        super(VectorEmbed, self).__init__(**kw)
-        self.dim = dim
-        self.indim = indim
-        if value is None:
-            self.W = param((indim, dim), lrmul=1., name="embedder").uniform()
-        else:
-            self.W = Parameter(value, name="embedder")
-        if normalize:
-            self.W = self.W.normalize(axis=1)
-        # assertions
-        assert(value.shape == (self.indim, self.dim))
-
-    def apply(self, inptensor):
-        return self.W[inptensor, :]
 
 
 class WordEmb(object): # unknown words are mapped to index 0, their embedding is a zero vector
