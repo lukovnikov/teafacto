@@ -51,7 +51,7 @@ class VectorEmbed(Block):
         if normalize:
             self.W = self.W.normalize(axis=1)
         # assertions
-        assert(value.shape == (self.indim, self.dim))
+        assert(self.W.d.get_value().shape == (self.indim, self.dim))
 
     def apply(self, inptensor):
         return self.W[inptensor, :]

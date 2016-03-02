@@ -3,7 +3,6 @@ from teafacto.core.stack import stack
 from teafacto.blocks.basic import Softmax, MatDot, IdxToOneHot
 from teafacto.blocks.rnn import RNNDecoder, RNNEncoder
 from teafacto.blocks.rnu import GRU, LSTM
-from blocks.basic import VectorEmbed
 
 
 class RNNAutoEncoder(Block):    # tries to decode original sequence

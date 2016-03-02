@@ -3,7 +3,7 @@ from collections import OrderedDict
 import numpy as np
 import os
 
-from blocks.basic import VectorEmbed
+from teafacto.blocks.basic import VectorEmbed
 from teafacto.util import ticktock as TT, isnumber, isstring
 
 
