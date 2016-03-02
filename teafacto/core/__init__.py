@@ -20,7 +20,5 @@
 
 # TODO: better RNU code: more flexible and less breakable param setting
 
-# TODO: implement example dynamic data feed
+# TODO: implement example dynamic data feed / look at Fuel
 # TODO/TEST: data splitting tests
-
-# TODO: finish and test RNN decoder

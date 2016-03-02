@@ -1,5 +1,4 @@
-from core.base import Block, param, Parameter
-from teafacto.core.base import Block, tensorops as T, param, Val
+from teafacto.core.base import Block, tensorops as T, param, Val, Parameter
 import numpy as np
 
 class Softmax(Block):
