@@ -9,7 +9,9 @@ class TestGlove(TestCase):
 
     def setUp(self):
         self.expshape = (4001, 50)
-        self.glove = Glove(self.expshape[1], self.expshape[0]-1, test=True)
+        Glove.defaultpath = "../../data/glove/miniglove.%dd.txt"
+        self.glove = Glove(self.expshape[1], self.expshape[0]-1)
+        print self.glove.defaultpath
 
     def test_glove(self):
         self.assertEqual(self.glove.W.shape, self.expshape)

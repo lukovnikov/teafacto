@@ -241,6 +241,7 @@ class ModelTrainer(object):
         return self.trainstrategy(self.model)
 
     def buildtrainfun(self, model):
+        self.tt.tick("compiling training function")
         params = model.output.allparams
         inputs = model.inputs
         loss, newinp = self.buildlosses(model, [self.objective])
@@ -268,6 +269,7 @@ class ModelTrainer(object):
                     updates.append((upd, upds[upd]))
         print updates
         trainf = theano.function(inputs=[x.d for x in inputs]+[self.goldvar], outputs=[cost], updates=updates)
+        self.tt.tock("training function compiled")
         return trainf
 
     def buildlosses(self, model, objs):

@@ -24,3 +24,5 @@
 # TODO/TEST: data splitting tests
 
 # TODO: consistently rename indims and outdims args
+
+# TODO: block containment
