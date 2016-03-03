@@ -14,7 +14,6 @@ Contents:
 Quickstart
 ----------
 this is a quickstart
-:tea::factory:
 
 
 
