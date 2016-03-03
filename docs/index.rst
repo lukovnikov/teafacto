@@ -11,6 +11,11 @@ Contents:
 .. toctree::
    :maxdepth: 2
 
+Quickstart
+----------
+this is a quickstart
+:tea::factory:
+
 
 
 Indices and tables
@@ -19,4 +24,6 @@ Indices and tables
 * :ref:`genindex`
 * :ref:`modindex`
 * :ref:`search`
+
+.. _Github: https://github.com/lukovnikov/teafacto
 
