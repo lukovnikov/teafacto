@@ -52,7 +52,7 @@ def run(
     #embed()
     del wldf
     print "random seq neg log prob %.3f" % math.log(vocsize**data.shape[1])
-    testneglogprob = 22
+    testneglogprob = 20
     print "%.2f neg log prob for a whole sequence is %.3f prob per slot" % (testneglogprob, math.exp(-testneglogprob/data.shape[1]))
 
     block = RNNAutoEncoder(vocsize=vocsize, innerdim=statedim, seqlen=data.shape[1])
