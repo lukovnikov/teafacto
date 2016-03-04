@@ -47,6 +47,7 @@ class ModelTrainer(object):
         self.traingold = None
         self.gradconstraints = []
         # validation settings
+        self._validinter = 1
         self.trainstrategy = self._train_full
         self.validsplits = 0
         self.validrandom = False
@@ -199,6 +200,10 @@ class ModelTrainer(object):
 
     ################### VALIDATION ####################### --> use one of following
 
+    def validinter(self, validinter=1):
+        self._validinter = validinter
+        return self
+
     def autovalidate(self): # validates on the same data as training data
         self.validate_on(self.traindata, self.traingold)
         self.validsetmode = True
@@ -267,7 +272,7 @@ class ModelTrainer(object):
                         break
                 if not broken:
                     updates.append((upd, upds[upd]))
-        print updates
+        #print updates
         trainf = theano.function(inputs=[x.d for x in inputs]+[self.goldvar], outputs=[cost], updates=updates)
         self.tt.tock("training function compiled")
         return trainf
@@ -287,8 +292,7 @@ class ModelTrainer(object):
     def _train_full(self, model): # train on all data, no validation
         trainf = self.buildtrainfun(model)
         err, _ = self.trainloop(
-                trainf=self.getbatchloop(trainf, DataFeeder(*(self.traindata + [self.traingold])).numbats(self.numbats)),
-                average_err=self.average_err)
+                trainf=self.getbatchloop(trainf, DataFeeder(*(self.traindata + [self.traingold])).numbats(self.numbats)))
         return err, None, None, None
 
     def _train_validdata(self, model):
@@ -296,8 +300,7 @@ class ModelTrainer(object):
         validf = self.buildvalidfun(model)
         err, verr = self.trainloop(
                 trainf=self.getbatchloop(trainf, DataFeeder(*(self.traindata + [self.traingold])).numbats(self.numbats)),
-                validf=self.getbatchloop(validf, DataFeeder(*(self.validdata + [self.validgold]))),
-                average_err=self.average_err)
+                validf=self.getbatchloop(validf, DataFeeder(*(self.validdata + [self.validgold]))))
         return err, verr, None, None
 
     def _train_split(self, model):
@@ -307,8 +310,7 @@ class ModelTrainer(object):
         dftrain, dfvalid = df.split(self.validsplits, self.validrandom)
         err, verr = self.trainloop(
                 trainf=self.getbatchloop(trainf, dftrain.numbats(self.numbats)),
-                validf=self.getbatchloop(validf, dfvalid),
-                average_err=self.average_err)
+                validf=self.getbatchloop(validf, dfvalid))
         return err, verr, None, None
 
     def _train_cross_valid(self, model):
@@ -323,8 +325,7 @@ class ModelTrainer(object):
             tf, vf = df.isplit(splitidxs)
             serr, sverr = self.trainloop(
                 trainf=self.getbatchloop(trainf, tf.numbats(self.numbats)),
-                validf=self.getbatchloop(validf, vf),
-                average_err=self.average_err)
+                validf=self.getbatchloop(validf, vf))
             err.append(serr)
             verr.append(sverr)
             self.resetmodel(self.model)
@@ -341,12 +342,13 @@ class ModelTrainer(object):
             param.reset()
 
     ############## TRAINING LOOPS ##################
-    def trainloop(self, trainf, validf=None, evalinter=1, average_err=True):
+    def trainloop(self, trainf, validf=None):
         self.tt.tick("training")
         err = []
         verr = []
         stop = self.maxiter == 0
         self.currentiter = 1
+        evalinter = self._validinter
         evalcount = evalinter
         while not stop:
             print("iter %d/%d" % (self.currentiter, int(self.maxiter)))

@@ -141,6 +141,7 @@ class Parameter(TensorWrapped):
         self.lrmul = lrmul
         self.regmul = regmul
         self.name = str(name) if name is not None else "auto" + str(np.random.randint(0, 10000))
+        self.value.name = self.name
         self.constraints = []
 
     def applyonval(self, f):

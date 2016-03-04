@@ -1,11 +1,11 @@
 from unittest import TestCase
-from teafacto.blocks.memnet import vec2sec
+from teafacto.blocks.attention import vec2seq
 import numpy as np
 
 
 class TestVec2sec(TestCase):
     def setUp(self):
-        self.block = vec2sec(indim=20, innerdim=50, seqlen=5, vocsize=10)
+        self.block = vec2seq(indim=20, innerdim=50, seqlen=5, vocsize=10)
         self.data = np.random.random((100, 20))
         self.out = self.block.predict(self.data)
 
