@@ -7,7 +7,7 @@ from teafacto.core.base import tensorops as T
 from teafacto.blocks.basic import IdxToOneHot, VectorEmbed
 from teafacto.util import issequence
 import inspect
-
+from IPython import embed
 
 class RecurrentStack(RecurrentBlock):
     def __init__(self, *args, **kw): # layer can be a layer or function
@@ -169,7 +169,7 @@ class RNNDecoder(RecurrentBlockParameterized, Block):
     ! first input is TERMINUS ==> suggest to set TERMINUS(0) embedding to all zeroes (in s2vf)
     ! first layer must be an embedder or IdxToOneHot, otherwise, an IdxToOneHot is created automatically based on given dim
     '''
-    def __init__(self, *layers, **kw): # limit says at most how many is produced
+    def __init__(self, idx2vec, *layers, **kw): # limit says at most how many is produced
         if "seqlen" in kw:
             self.limit = kw["seqlen"]
             del kw["seqlen"]
@@ -180,49 +180,56 @@ class RNNDecoder(RecurrentBlockParameterized, Block):
             del kw["indim"]
         except Exception:
             raise Exception("must provide input dimension with indim=<inp_dim>")
-        if not(isinstance(layers[0], (IdxToOneHot, VectorEmbed))):
-            layers = (IdxToOneHot(vocsize=self.indim),) + layers
+        self.idxtovec = idx2vec
         super(RNNDecoder, self).__init__(*layers, **kw)
+        self._mask = False
 
     def onAttach(self):
         pass
 
-    def apply(self, *initstates, **kw): # initstates: list of (batsize, innerdim), can also specify seqlen (as a var)
+    def apply(self, encoding, **kw): # encoding: Var: (batsize, innerdim) OR a block with attention that produces (batsize, innerdim) based on what decoder provides
         if "seqlen" in kw:
             seqlen = kw["seqlen"]
         else:
             seqlen = self.limit
-        batsize = initstates[0].shape[0]
+        batsize = encoding.shape[0]
         if "initprobs" in kw:
             initprobs = kw["initprobs"]
             del kw["initprobs"]
         else:
             initprobs = T.eye(1, self.indim).repeat(batsize, axis=0) # all TERMINUS (batsize, dim)
         outputs, _ = T.scan(fn=self.recwrap,
-                            non_sequences=[],
-                            outputs_info=[initprobs, 0]+self.block.get_init_info(initstates),
+                            non_sequences=[encoding],
+                            outputs_info=[initprobs, 0]+self.block.get_init_info(batsize),
                             n_steps=seqlen)
         return outputs[0].dimshuffle(1, 0, 2) # returns probabilities of symbols --> (batsize, seqlen, vocabsize)
 
-    def recwrap(self, x_t, i, *args): # once output is terminus, always terminus and previous state is returned
+    def recwrap(self, x_t, t, *args): # once output is terminus, always terminus and previous state is returned
+        encoding = args[-1]         # encoding: (batsize, encdim)
+        states = args[:-1]
         chosen = x_t.argmax(axis=1, keepdims=False) # x_t = probs over symbols:: f32-(batsize, dim) ==> int32-(batsize,)
-        #mask = T.clip(chosen.reshape(chosen.shape[0], 1) + T.clip(1-i, 0, 1), 0, 1) # (batsize,) --> only make mask if not in first iter
-        rnuret = self.block.rec(chosen, *args) # list of matrices (batsize, **somedims**)
-        #ret = map(lambda (prevval, newval): (prevval.T * (1-mask) + newval.T * mask).T, zip([x_t] + list(args), rnuret))
-        ret = rnuret
-        i = i + 1
-        return [ret[0], i] + ret[1:]#, {}, T.until( (i > 1) * T.eq(mask.norm(1), 0) )
+        chosenvec = self.idxtovec(chosen)   # chosenvec: (batsize, embdim)
+        blockarg = T.concatenate([encoding, chosenvec], axis=1)     # concat encdim of encoding and embdim of chosenvec
+        if self._mask:
+            mask = T.clip(chosen.reshape(chosen.shape[0], 1) + T.clip(1-t, 0, 1), 0, 1) # (batsize,) --> only make mask if not in first iter
+        rnuret = self.block.rec(blockarg, *states) # list of matrices (batsize, **somedims**)
+        if self._mask:
+            ret = map(lambda (prevval, newval): (prevval.T * (1-mask) + newval.T * mask).T, zip([x_t] + list(states), rnuret))
+        else:
+            ret = rnuret
+        t = t + 1
+        return [ret[0], t] + ret[1:]#, {}, T.until( (i > 1) * T.eq(mask.norm(1), 0) )
 
 
 class RNNAutoEncoder(Block):    # tries to decode original sequence
-    def __init__(self, vocsize=25, innerdim=200, seqlen=50, **kw):
+    def __init__(self, vocsize=25, encdim=200, innerdim=200, seqlen=50, **kw):
         super(RNNAutoEncoder, self).__init__(**kw)
         self.seqlen = seqlen
         self.encoder = RNNEncoder(
             IdxToOneHot(vocsize=vocsize),
-            GRU(dim=vocsize, innerdim=innerdim))
-        self.decoder = RNNDecoder(
-            GRU(dim=vocsize, innerdim=innerdim),
+            GRU(dim=vocsize, innerdim=encdim))
+        self.decoder = RNNDecoder(IdxToOneHot(vocsize),
+            GRU(dim=vocsize+encdim, innerdim=innerdim),
             MatDot(indim=innerdim, dim=vocsize),
             Softmax(), indim=vocsize, seqlen=seqlen)
 

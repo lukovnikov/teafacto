@@ -79,8 +79,8 @@ class ModelTrainer(object):
 
     def seq_neg_log_prob(self): # probs (batsize, seqlen, vocsize) + gold: (batsize, seqlen) ==> sum of neg log-probs of correct seq
         def inner(probs, gold):
-            def _f(probsmat, goldvec):
-                return tensor.sum(-tensor.log(probsmat[tensor.arange(probsmat.shape[0]), goldvec]))  # ==> iter over batsize
+            def _f(probsmat, goldvec):      # probsmat: (seqlen, vocsize), goldvec: (seqlen,)
+                return tensor.sum(-tensor.log(probsmat[tensor.arange(probsmat.shape[0]), goldvec]))
             o, _ = theano.scan(fn=_f, sequences=[probs, gold])      # out: (batsize,)
             return o
         self._set_objective(inner)

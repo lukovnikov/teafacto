@@ -88,10 +88,11 @@ def run2(
 
 def runidx2seq(
         wreg=0.0,
-        epochs=500,
+        epochs=700,
         numbats=10,
-        lr=0.01,
-        statedim=200,
+        lr=0.001,
+        statedim=100,
+        encdim=100,
     ):
     # get words
     numchars = 27
@@ -100,22 +101,25 @@ def runidx2seq(
     words = filter(lambda x: re.match("^[a-z]+$", x), lm.D.keys())
     data = words2ints(words)
     wordidxs = np.arange(0, len(words))
-    print wordidxs[:5]
-    print data[:5]
+    print wordidxs[:15]
+    print data[:15]
     numwords = wordidxs.shape[0]
     print "random seq neg log prob %.3f" % math.log(numchars**data.shape[1])
     testneglogprob = 17
     print "%.2f neg log prob for a whole sequence is %.3f prob per slot" % (testneglogprob, math.exp(-testneglogprob*1./data.shape[1]))
 
-    testpred = [0, 1, 2, 3, 4]
+    testpred = wordidxs[:15]
     #testpred = words2ints(testpred)
 
-    block = idx2seq(invocsize=numwords, outvocsize=numchars, innerdim=statedim, seqlen=data.shape[1])
+    block = idx2seq(encdim=encdim, invocsize=numwords, outvocsize=numchars, innerdim=statedim, seqlen=data.shape[1])
+    print np.argmax(block.predict(testpred), axis=2)
+    print block.output.allparams
     block.train([wordidxs], data).seq_neg_log_prob().sgd(lr=lr)\
          .train(numbats=numbats, epochs=epochs)
 
     pred = block.predict(testpred)
     print np.argmax(pred, axis=2)
+    embed()
 
 
 def run(

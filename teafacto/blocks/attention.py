@@ -5,15 +5,16 @@ from teafacto.core.base import Block
 
 
 class vec2seq(Block):
-    def __init__(self, indim=50, innerdim=300, seqlen=20, vocsize=27, **kw):
+    def __init__(self, encdim=44, indim=50, innerdim=300, seqlen=20, vocsize=27, **kw):
         super(vec2seq, self).__init__(**kw)
         self.indim = indim
         self.innerdim=innerdim
         self.seqlen = seqlen
         self.vocsize = vocsize
-        self.lin = Lin(indim=self.indim, dim=self.innerdim)
-        self.dec = RNNDecoder(                                  # IdxToOneHot inserted automatically
-            GRU(dim=self.vocsize, innerdim=self.innerdim),      # the decoding RNU
+        self.encdim = encdim
+        self.lin = Lin(indim=self.indim, dim=self.encdim)
+        self.dec = RNNDecoder(IdxToOneHot(self.vocsize),                                 # IdxToOneHot inserted automatically
+            GRU(dim=self.vocsize+self.encdim, innerdim=self.innerdim),      # the decoding RNU
             Lin(indim=self.innerdim, dim=self.vocsize),         # transforms from RNU inner dims to vocabulary
             Softmax(),                                          # softmax
                 indim=self.vocsize, seqlen=self.seqlen)
@@ -23,15 +24,16 @@ class vec2seq(Block):
 
 
 class idx2seq(Block):
-    def __init__(self, invocsize=500, outvocsize=27, innerdim=300, seqlen=20, **kw):
+    def __init__(self, encdim=44, invocsize=500, outvocsize=27, innerdim=300, seqlen=20, **kw):
         super(idx2seq, self).__init__(**kw)
         self.invocsize = invocsize
         self.outvocsize = outvocsize
         self.innerdim = innerdim
         self.seqlen = seqlen
-        self.emb = VectorEmbed(indim=self.invocsize, dim=innerdim)
-        self.dec = RNNDecoder(
-            GRU(dim=self.outvocsize, innerdim=self.innerdim),
+        self.encdim = encdim
+        self.emb = VectorEmbed(indim=self.invocsize, dim=self.encdim)
+        self.dec = RNNDecoder(IdxToOneHot(self.outvocsize),
+            GRU(dim=self.outvocsize+self.encdim, innerdim=self.innerdim, nobias=True),
             Lin(indim=self.innerdim, dim=self.outvocsize),
             Softmax(),
                 indim=self.outvocsize, seqlen=self.seqlen)

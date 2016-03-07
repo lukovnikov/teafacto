@@ -65,9 +65,10 @@ class RNUBase(RecurrentBlock):
             infoarg = initstates
             assert(issequence(infoarg))
         inputs = x.dimswap(1, 0) # inputs is (seq_len, batsize, dim)
+        init_info = self.get_init_info(infoarg)
         outputs, _ = T.scan(fn=self.rec,
                             sequences=inputs,
-                            outputs_info=[None]+self.get_init_info(infoarg))
+                            outputs_info=[None]+init_info)
         output = outputs[0]
         return output.dimswap(1, 0) # return is (batsize, seqlen, dim)
 

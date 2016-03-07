@@ -12,7 +12,7 @@ class MatDot(Block):
         super(MatDot, self).__init__(**kw)
         self.indim = indim
         self.dim = dim
-        self.W = param((self.indim, self.dim)).init(init)
+        self.W = param((self.indim, self.dim), name="matdot").init(init)
 
     def apply(self, inptensor):
         return T.dot(inptensor, self.W)

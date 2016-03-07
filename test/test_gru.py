@@ -39,9 +39,10 @@ class TestGRU(TestCase):
 
         def apply(x):
             inputs = x.dimshuffle(1, 0, 2) # inputs is (seq_len, batsize, dim)
+            init_h = T.zeros((batsize, innerdim))
             outputs, _ = theano.scan(fn=rec,
                                 sequences=inputs,
-                                outputs_info=[None, T.zeros((batsize, innerdim))])
+                                outputs_info=[None, init_h])
             output = outputs[0]
             return output[-1, :, :] #.dimshuffle(1, 0, 2) # return is (batsize, seqlen, dim)
 

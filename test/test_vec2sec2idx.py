@@ -6,6 +6,7 @@ from teafacto.blocks.attention import vec2seq, seq2idx, idx2seq
 
 class TestVecSeqIdx(TestCase):
     def setUp(self):
+        self.encdim = 44
         self.innerdim = 50
         self.seqlen = 5
         self.numchars = 7
@@ -14,7 +15,7 @@ class TestVecSeqIdx(TestCase):
         self.batsize = 100
 
     def test_vec2seq_shape(self):
-        b = vec2seq(indim=self.indim, seqlen=self.seqlen, innerdim=self.innerdim, vocsize=self.numchars)
+        b = vec2seq(encdim=self.encdim, indim=self.indim, seqlen=self.seqlen, innerdim=self.innerdim, vocsize=self.numchars)
         data = np.random.random((self.batsize, self.indim))
         p = b.predict(data)
         self.assertEqual(p.shape, (self.batsize, self.seqlen, self.numchars))
@@ -26,7 +27,7 @@ class TestVecSeqIdx(TestCase):
         self.assertEqual(p.shape, (self.batsize, self.numwords))
 
     def test_idx2seq_shape(self):
-        b = idx2seq(invocsize=self.numwords, outvocsize=self.numchars, seqlen=self.seqlen, innerdim=self.innerdim)
+        b = idx2seq(encdim=self.encdim, invocsize=self.numwords, outvocsize=self.numchars, seqlen=self.seqlen, innerdim=self.innerdim)
         data = np.random.randint(0, self.numwords, (self.batsize, ))
         p = b.predict(data)
         self.assertEqual(p.shape, (self.batsize, self.seqlen, self.numchars))
