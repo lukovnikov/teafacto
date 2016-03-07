@@ -162,8 +162,8 @@ class RNNEncoder(RecurrentBlockParameterized, Block):
 
 class RNNDecoder(RecurrentBlockParameterized, Block):
     '''
-    Decodes a sequence of symbols given initial state
-    output: probabilities over symbol space float: (batsize, seqlen, vocabsize)
+    Decodes a sequence of symbols given context
+    output: probabilities over symbol space: float: (batsize, seqlen, vocabsize)
 
     TERMINUS SYMBOL = 0
     ! first input is TERMINUS ==> suggest to set TERMINUS(0) embedding to all zeroes (in s2vf)
@@ -199,6 +199,7 @@ class RNNDecoder(RecurrentBlockParameterized, Block):
         else:
             initprobs = T.eye(1, self.indim).repeat(batsize, axis=0) # all TERMINUS (batsize, dim)
         outputs, _ = T.scan(fn=self.recwrap,
+                            non_sequences=[],
                             outputs_info=[initprobs, 0]+self.block.get_init_info(initstates),
                             n_steps=seqlen)
         return outputs[0].dimshuffle(1, 0, 2) # returns probabilities of symbols --> (batsize, seqlen, vocabsize)

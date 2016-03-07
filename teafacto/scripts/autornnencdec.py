@@ -12,6 +12,21 @@ from teafacto.util import argparsify
 
 ''' THIS SCRIPT TESTS TRAINING RNN ENCODER, RNN DECODER AND RNN AUTOENCODER '''
 
+def word2int(word):
+    return [ord(letter)-96 for letter in word]
+
+def words2ints(words):
+    wldf = pd.DataFrame(map(word2int, words)).fillna(0)
+    data = wldf.values.astype("int32")
+    del wldf
+    return data
+
+def int2word(ints):
+    chars = [chr(i+96) if i > 0 else " " for i in ints]
+    return "".join(chars)
+
+def ints2words(ints):
+    return [int2word(x) for x in ints]
 
 def run1(
         wreg=0.0,
@@ -36,22 +51,6 @@ def run1(
     block = vec2seq(indim=embdim, innerdim=statedim, vocsize=vocsize, seqlen=data.shape[1])
     block.train([embs], data).seq_neg_log_prob().adadelta(lr=lr)\
          .train(numbats=numbats, epochs=epochs)
-
-def word2int(word):
-    return [ord(letter)-96 for letter in word]
-
-def words2ints(words):
-    wldf = pd.DataFrame(map(word2int, words)).fillna(0)
-    data = wldf.values.astype("int32")
-    del wldf
-    return data
-
-def int2word(ints):
-    chars = [chr(i+96) if i > 0 else " " for i in ints]
-    return "".join(chars)
-
-def ints2words(ints):
-    return [int2word(x) for x in ints]
 
 
 def run2(
@@ -87,11 +86,11 @@ def run2(
     print ints2words(np.argmax(pred, axis=2))
 
 
-def run3(
+def runidx2seq(
         wreg=0.0,
-        epochs=200,
-        numbats=20,
-        lr=0.003,
+        epochs=500,
+        numbats=10,
+        lr=0.01,
         statedim=200,
     ):
     # get words
@@ -99,11 +98,7 @@ def run3(
     embdim = 50
     lm = Glove(embdim, 1000)
     words = filter(lambda x: re.match("^[a-z]+$", x), lm.D.keys())
-    #wldf = pd.DataFrame(map(word2int, words)).fillna(0)
-    #data = wldf.values.astype("int32")
     data = words2ints(words)
-    #embs = lm.W[map(lambda x: lm * x, words), :]
-    #embed()
     wordidxs = np.arange(0, len(words))
     print wordidxs[:5]
     print data[:5]
@@ -184,5 +179,5 @@ def run(
 
 
 if __name__ == "__main__":
-    run(**argparsify(run))
+    runidx2seq(**argparsify(runidx2seq))
     #print ints2words(np.asarray([[20,8,5,0,0,0], [1,2,3,0,0,0]]))

@@ -334,6 +334,10 @@ def recurmap(fun, data):
         return fun(data)
 
 
+class Probe(object):
+    pass
+
+
 class Block(Elem, Saveable): # block with parameters
     def __init__(self, **kw):
         super(Block, self).__init__(**kw)
@@ -433,12 +437,14 @@ class Block(Elem, Saveable): # block with parameters
         trainer.traingold = gold
         return trainer
 
+    def getcontained(self):
+        probe = Probe()
+
 
 def asblock(f):
     retblock = Block()
     retblock.apply = f
     return retblock
-
 
 
 def recurfilter(fun, data):
