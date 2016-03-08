@@ -2,7 +2,7 @@ import pandas as pd, numpy as np
 import re, math
 from IPython import embed
 
-from teafacto.blocks.attention import vec2seq, idx2seq, seq2idx, idx2seqTheano, idx2seqStupid
+from teafacto.blocks.attention import vec2seq, idx2seq, seq2idx
 from teafacto.core.stack import stack
 from teafacto.blocks.rnn import RNNAutoEncoder
 from teafacto.blocks.rnu import GRU
@@ -88,7 +88,7 @@ def run2(
 
 
 def runidx2seq(
-        wreg=0.0,
+        wreg=0.001,
         epochs=100,
         numbats=10,
         lr=0.1,
@@ -115,7 +115,8 @@ def runidx2seq(
     block = idx2seq(encdim=encdim, invocsize=numwords, outvocsize=numchars, innerdim=statedim, seqlen=data.shape[1])
     print np.argmax(block.predict(testpred), axis=2)
     print block.output.allparams
-    block.train([wordidxs], data).seq_neg_log_prob().grad_total_norm(0.5).adagrad(lr=lr)\
+    block.train([wordidxs], data).seq_neg_log_prob().grad_total_norm(0.5).adagrad(lr=lr).l2(wreg)\
+         .autovalidate().seq_accuracy().validinter(5)\
          .train(numbats=numbats, epochs=epochs)
 
     pred = block.predict(testpred)

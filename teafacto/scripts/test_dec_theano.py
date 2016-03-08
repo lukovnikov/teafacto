@@ -2,6 +2,10 @@ import theano
 from theano import tensor as T
 import numpy as np
 
+from teafacto.core.base import Block, param, Val
+from teafacto.blocks.basic import Softmax, MatDot as Lin, VectorEmbed
+from teafacto.core.stack import stack
+
 def run():
     e = T.eye(10, 10)
     w = theano.shared(np.eye(10, 10, 1))

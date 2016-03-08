@@ -35,7 +35,7 @@ class idx2seq(Block):
         self.innerdim = innerdim
         self.seqlen = seqlen
         self.encdim = encdim
-        self.emb = VectorEmbed(indim=self.invocsize, dim=self.encdim, normalize=True)
+        self.emb = VectorEmbed(indim=self.invocsize, dim=self.encdim, normalize=False)
         self.dec = RNNDecoder(IdxToOneHot(self.outvocsize),
             GRU(dim=self.outvocsize+self.encdim, innerdim=self.innerdim, nobias=True),
             Lin(indim=self.innerdim, dim=self.outvocsize),

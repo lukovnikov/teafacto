@@ -112,6 +112,22 @@ class ModelTrainer(object):
         self._set_objective(lambda x, y: categorical_accuracy(x, y, top_k=top_k))
         return self
 
+    def seq_accuracy(self): # sequences must be exactly the same
+        def inner(probs, gold):
+            if gold.ndim == probs.ndim:
+                gold = tensor.argmax(gold, axis=-1)
+            elif gold.ndim != probs.ndim - 1:
+                raise TypeError('rank mismatch between targets and predictions')
+            top = tensor.argmax(probs, axis=-1)
+            assert(gold.ndim == 2 and top.ndim == 2)
+            diff = tensor.sum(abs(top - gold), axis=1)
+            return tensor.eq(diff, tensor.zeros_like(diff))
+        self._set_objective(lambda x, y: inner(x, y))
+        return self
+
+
+
+
     def hinge_loss(self):
         # TODO
         return self
@@ -137,7 +153,7 @@ class ModelTrainer(object):
 
     #################### REGULARIZERS ####################
     def _regul(self, regf, amount, params):
-        return amount * [regf(x.d)*x.regmul for x in params]
+        return amount * reduce(lambda x, y: x+y, [regf(x.d)*x.regmul for x in params], 0)
 
     def l2(self, amount):
         self.regularizer = lambda x: self._regul(l2, amount, x)
@@ -361,7 +377,7 @@ class ModelTrainer(object):
             if validf is not None and self.currentiter % evalinter == 0: # validate and print
                 verre = validf()
                 verr.append(verre)
-                print "training error: %s \t validation error: %s" % (" - ".join(map(lambda x: "%.3f" % x, erre)), " - ".join(map(lambda x: "%.3f" % x, verre)))
+                print "training error: %s \t validation: %s" % (" - ".join(map(lambda x: "%.3f" % x, erre)), " - ".join(map(lambda x: "%.3f" % x, verre)))
             else:
                 print "training error: %s" % " - ".join(map(lambda x: "%.3f" % x, erre))
             print("iter done in %f seconds" % (dt.now() - start).total_seconds())
