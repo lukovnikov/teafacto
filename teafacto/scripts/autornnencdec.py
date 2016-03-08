@@ -2,7 +2,8 @@ import pandas as pd, numpy as np
 import re, math
 from IPython import embed
 
-from teafacto.blocks.attention import vec2seq, idx2seq, seq2idx
+from teafacto.blocks.attention import vec2seq, idx2seq, seq2idx, idx2seqTheano, idx2seqStupid
+from teafacto.core.stack import stack
 from teafacto.blocks.rnn import RNNAutoEncoder
 from teafacto.blocks.rnu import GRU
 from teafacto.blocks.basic import IdxToOneHot, VectorEmbed, Softmax, MatDot as Lin
@@ -88,11 +89,11 @@ def run2(
 
 def runidx2seq(
         wreg=0.0,
-        epochs=700,
+        epochs=100,
         numbats=10,
-        lr=0.001,
-        statedim=100,
-        encdim=100,
+        lr=0.1,
+        statedim=70,
+        encdim=70,
     ):
     # get words
     numchars = 27
@@ -114,11 +115,48 @@ def runidx2seq(
     block = idx2seq(encdim=encdim, invocsize=numwords, outvocsize=numchars, innerdim=statedim, seqlen=data.shape[1])
     print np.argmax(block.predict(testpred), axis=2)
     print block.output.allparams
-    block.train([wordidxs], data).seq_neg_log_prob().sgd(lr=lr)\
+    block.train([wordidxs], data).seq_neg_log_prob().grad_total_norm(0.5).adagrad(lr=lr)\
          .train(numbats=numbats, epochs=epochs)
 
     pred = block.predict(testpred)
     print np.argmax(pred, axis=2)
+    embed()
+
+
+def runidx2firstletter(
+        wreg=0.0,
+        epochs=1000,
+        numbats=10,
+        lr=0.1,
+        statedim=100,
+        encdim=100,
+    ):
+    # get words
+    numchars = 27
+    embdim = 50
+    lm = Glove(embdim, 1000)
+    words = filter(lambda x: re.match("^[a-z]+$", x), lm.D.keys())
+    data = words2ints(words)
+    wordidxs = np.arange(0, len(words))
+    print wordidxs[:15]
+    print data[:15]
+    numwords = wordidxs.shape[0]
+    print "random seq neg log prob %.3f" % math.log(numchars**data.shape[1])
+    testneglogprob = 17
+    print "%.2f neg log prob for a whole sequence is %.3f prob per slot" % (testneglogprob, math.exp(-testneglogprob*1./data.shape[1]))
+
+    testpred = wordidxs[:15]
+    #testpred = words2ints(testpred)
+
+    block = stack(VectorEmbed(indim=numwords, dim=encdim), Lin(indim=encdim, dim=numchars), Softmax())
+    print np.argmax(block.predict(testpred), axis=1)
+    print block.output.allparams
+    block.train([wordidxs], data[:, 0]).neg_log_prob().sgd(lr=lr)\
+         .train(numbats=numbats, epochs=epochs)
+
+    pred = block.predict(testpred)
+    print np.argmax(pred, axis=1)
+    print data[:15, 0]
     embed()
 
 
@@ -183,5 +221,5 @@ def run(
 
 
 if __name__ == "__main__":
-    runidx2seq(**argparsify(runidx2seq))
+    runidx2seq(**argparsify(runidx2seq()))
     #print ints2words(np.asarray([[20,8,5,0,0,0], [1,2,3,0,0,0]]))

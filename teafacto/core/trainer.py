@@ -81,7 +81,7 @@ class ModelTrainer(object):
         def inner(probs, gold):
             def _f(probsmat, goldvec):      # probsmat: (seqlen, vocsize), goldvec: (seqlen,)
                 return tensor.sum(-tensor.log(probsmat[tensor.arange(probsmat.shape[0]), goldvec]))
-            o, _ = theano.scan(fn=_f, sequences=[probs, gold])      # out: (batsize,)
+            o, _ = theano.scan(fn=_f, sequences=[probs, gold], outputs_info=None)      # out: (batsize,)
             return o
         self._set_objective(inner)
         return self

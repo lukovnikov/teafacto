@@ -1,7 +1,11 @@
 from teafacto.blocks.basic import MatDot as Lin, Softmax, VectorEmbed, IdxToOneHot
 from teafacto.blocks.rnn import RNNDecoder, RNNEncoder
 from teafacto.blocks.rnu import GRU
-from teafacto.core.base import Block
+from teafacto.core.stack import stack
+from teafacto.core.base import Block, param, Val
+from teafacto.core.base import tensorops as T
+import numpy as np
+import theano, theano.tensor
 
 
 class vec2seq(Block):
@@ -31,7 +35,7 @@ class idx2seq(Block):
         self.innerdim = innerdim
         self.seqlen = seqlen
         self.encdim = encdim
-        self.emb = VectorEmbed(indim=self.invocsize, dim=self.encdim)
+        self.emb = VectorEmbed(indim=self.invocsize, dim=self.encdim, normalize=True)
         self.dec = RNNDecoder(IdxToOneHot(self.outvocsize),
             GRU(dim=self.outvocsize+self.encdim, innerdim=self.innerdim, nobias=True),
             Lin(indim=self.innerdim, dim=self.outvocsize),
