@@ -2,14 +2,66 @@ import pandas as pd, numpy as np
 import re, math
 from IPython import embed
 
-from teafacto.blocks.attention import vec2seq, idx2seq, seq2idx
+from teafacto.core.base import Block
 from teafacto.core.stack import stack
-from teafacto.blocks.rnn import RNNAutoEncoder
+from teafacto.blocks.rnn import RNNAutoEncoder, RNNDecoder, RNNEncoder
 from teafacto.blocks.rnu import GRU
 from teafacto.blocks.basic import IdxToOneHot, VectorEmbed, Softmax, MatDot as Lin
 from teafacto.blocks.embed import Glove
-from teafacto.core.base import asblock
 from teafacto.util import argparsify
+
+class vec2seq(Block):
+    def __init__(self, encdim=44, indim=50, innerdim=300, seqlen=20, vocsize=27, **kw):
+        super(vec2seq, self).__init__(**kw)
+        self.indim = indim
+        self.innerdim=innerdim
+        self.seqlen = seqlen
+        self.vocsize = vocsize
+        self.encdim = encdim
+        self.lin = Lin(indim=self.indim, dim=self.encdim)
+        self.dec = RNNDecoder(IdxToOneHot(self.vocsize),                                 # IdxToOneHot inserted automatically
+            GRU(dim=self.vocsize+self.encdim, innerdim=self.innerdim),      # the decoding RNU
+            Lin(indim=self.innerdim, dim=self.vocsize),         # transforms from RNU inner dims to vocabulary
+            Softmax(),                                          # softmax
+                indim=self.vocsize, seqlen=self.seqlen)
+
+    def apply(self, vec):
+        return self.dec(self.lin(vec))
+
+
+class idx2seq(Block):
+    def __init__(self, encdim=44, invocsize=500, outvocsize=27, innerdim=300, seqlen=20, **kw):
+        super(idx2seq, self).__init__(**kw)
+        self.invocsize = invocsize
+        self.outvocsize = outvocsize
+        self.innerdim = innerdim
+        self.seqlen = seqlen
+        self.encdim = encdim
+        self.emb = VectorEmbed(indim=self.invocsize, dim=self.encdim, normalize=False)
+        self.dec = RNNDecoder(IdxToOneHot(self.outvocsize),
+            GRU(dim=self.outvocsize+self.encdim, innerdim=self.innerdim, nobias=True),
+            Lin(indim=self.innerdim, dim=self.outvocsize),
+            Softmax(),
+                indim=self.outvocsize, seqlen=self.seqlen)
+
+    def apply(self, idx):
+        return self.dec(self.emb(idx))
+
+
+class seq2idx(Block):
+    def __init__(self, invocsize=27, outvocsize=500, innerdim=300, **kw):
+        super(seq2idx, self).__init__(**kw)
+        self.invocsize = invocsize
+        self.outvocsize = outvocsize
+        self.innerdim = innerdim
+        self.enc = RNNEncoder(
+            VectorEmbed(indim=self.invocsize, dim=self.invocsize),
+            GRU(dim=self.invocsize, innerdim=self.innerdim)
+        )
+        self.outlin = Lin(indim=self.innerdim, dim=self.outvocsize)
+
+    def apply(self, seqs):
+        return Softmax()(self.outlin(self.enc(seqs)))
 
 ''' THIS SCRIPT TESTS TRAINING RNN ENCODER, RNN DECODER AND RNN AUTOENCODER '''
 
@@ -89,7 +141,7 @@ def run2(
 
 def runidx2seq(
         wreg=0.001,
-        epochs=100,
+        epochs=150,
         numbats=10,
         lr=0.1,
         statedim=70,

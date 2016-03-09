@@ -30,7 +30,12 @@ class Linear(Block):
         return T.dot(inp, self.W) + self.b
 
 
-class IdxToOneHot(Block):
+class Embedder(Block):
+    def apply(self, idxs):
+        raise NotImplementedError("use subclass")
+
+
+class IdxToOneHot(Embedder):
     def __init__(self, vocsize, **kw):
         super(IdxToOneHot, self).__init__(**kw)
         self.W = Val(np.eye(vocsize, vocsize))
@@ -39,7 +44,7 @@ class IdxToOneHot(Block):
         return self.W[inp, :]
 
 
-class VectorEmbed(Block):
+class VectorEmbed(Embedder):
     def __init__(self, indim=1000, dim=50, value=None, normalize=False, **kw):
         super(VectorEmbed, self).__init__(**kw)
         self.dim = dim

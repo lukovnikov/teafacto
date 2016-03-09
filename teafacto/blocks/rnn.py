@@ -1,4 +1,4 @@
-from teafacto.blocks.basic import IdxToOneHot, MatDot, Softmax
+from teafacto.blocks.basic import IdxToOneHot, MatDot, Softmax, Embedder
 from teafacto.blocks.rnu import GRU
 from teafacto.core.base import Block
 from teafacto.blocks.rnu import RecurrentBlock
@@ -8,6 +8,7 @@ from teafacto.blocks.basic import IdxToOneHot, VectorEmbed
 from teafacto.util import issequence
 import inspect
 from IPython import embed
+
 
 class RecurrentStack(RecurrentBlock):
     def __init__(self, *args, **kw): # layer can be a layer or function
@@ -83,6 +84,8 @@ class RecurrentBlockParameterized(object):
         else:
             self.block = None
 
+
+class AttentionParameterized(object):
     def __add__(self, other):
         assert(self.block is None)  # this block should not be parameterized already in order to parameterize it
         self.attach(other)
@@ -144,9 +147,6 @@ class RNNEncoder(RecurrentBlockParameterized, Block):
         #ret = rnuret
         return ret
 
-    def onAttach(self):
-        pass
-
     @property
     def all_states(self):
         '''Call this switch to get the final states of all recurrent layers'''
@@ -169,7 +169,7 @@ class RNNDecoder(RecurrentBlockParameterized, Block):
     ! first input is TERMINUS ==> suggest to set TERMINUS(0) embedding to all zeroes (in s2vf)
     ! first layer must be an embedder or IdxToOneHot, otherwise, an IdxToOneHot is created automatically based on given dim
     '''
-    def __init__(self, idx2vec, *layers, **kw): # limit says at most how many is produced
+    def __init__(self, *layers, **kw): # limit says at most how many is produced
         if "seqlen" in kw:
             self.limit = kw["seqlen"]
             del kw["seqlen"]
@@ -180,45 +180,49 @@ class RNNDecoder(RecurrentBlockParameterized, Block):
             del kw["indim"]
         except Exception:
             raise Exception("must provide input dimension with indim=<inp_dim>")
-        self.idxtovec = idx2vec
-        super(RNNDecoder, self).__init__(*layers, **kw)
+        self.idxtovec = layers[0]
+        if not isinstance(self.idxtovec, Embedder):
+            raise AssertionError("first layer must be an embedding block")
+        super(RNNDecoder, self).__init__(*layers[1:], **kw)
         self._mask = False
 
-    def onAttach(self):
-        pass
+    def apply(self, context, **kw): # encoding: Var: (batsize, innerdim) OR a block with attention that produces (batsize, innerdim) based on what decoder provides
+        initprobs, batsize, seqlen, context = self._get_apply_args(context, **kw)
+        outputs, _ = T.scan(fn=self.recwrap,
+                            outputs_info=[initprobs, 0, context]+self.block.get_init_info(batsize),
+                            n_steps=seqlen)
+        return outputs[0].dimshuffle(1, 0, 2) # returns probabilities of symbols --> (batsize, seqlen, vocabsize)
 
-    def apply(self, encoding, **kw): # encoding: Var: (batsize, innerdim) OR a block with attention that produces (batsize, innerdim) based on what decoder provides
+    def _get_apply_args(self, context, **kw):
         if "seqlen" in kw:
             seqlen = kw["seqlen"]
         else:
             seqlen = self.limit
-        batsize = encoding.shape[0]
+        batsize = context.shape[0]
         if "initprobs" in kw:
             initprobs = kw["initprobs"]
             del kw["initprobs"]
         else:
             initprobs = T.eye(1, self.indim).repeat(batsize, axis=0) # all TERMINUS (batsize, dim)
-        outputs, _ = T.scan(fn=self.recwrap,
-                            non_sequences=[encoding],
-                            outputs_info=[initprobs, 0]+self.block.get_init_info(batsize),
-                            n_steps=seqlen)
-        return outputs[0].dimshuffle(1, 0, 2) # returns probabilities of symbols --> (batsize, seqlen, vocabsize)
+        return initprobs, batsize, seqlen, context
 
-    def recwrap(self, x_t, t, *args): # once output is terminus, always terminus and previous state is returned
-        encoding = args[-1]         # encoding: (batsize, encdim)
-        states = args[:-1]
-        chosen = x_t.argmax(axis=1, keepdims=False) # x_t = probs over symbols:: f32-(batsize, dim) ==> int32-(batsize,)
-        chosenvec = self.idxtovec(chosen)   # chosenvec: (batsize, embdim)
-        blockarg = T.concatenate([encoding, chosenvec], axis=1)     # concat encdim of encoding and embdim of chosenvec
+    def recwrap(self, x_t, t, context_tm1, *states):   # once output is terminus, always terminus and previous state is returned
+        chosen = x_t.argmax(axis=1, keepdims=False)                 # x_t = probs over symbols:: f32-(batsize, dim) ==> int32-(batsize,)
+        chosenvec = self.idxtovec(chosen)                           # chosenvec: (batsize, embdim)
+        blockarg = T.concatenate([context_tm1, chosenvec], axis=1)     # concat encdim of encoding and embdim of chosenvec
         if self._mask:
-            mask = T.clip(chosen.reshape(chosen.shape[0], 1) + T.clip(1-t, 0, 1), 0, 1) # (batsize,) --> only make mask if not in first iter
-        rnuret = self.block.rec(blockarg, *states) # list of matrices (batsize, **somedims**)
+            mask = T.clip(chosen.reshape(chosen.shape[0], 1) + T.clip(1-t, 0, 1), 0, 1)     # (batsize,) --> only make mask if not in first iter
+        rnuret = self.block.rec(blockarg, *states)                                          # list of matrices (batsize, **somedims**)
         if self._mask:
             ret = map(lambda (prevval, newval): (prevval.T * (1-mask) + newval.T * mask).T, zip([x_t] + list(states), rnuret))
         else:
             ret = rnuret
         t = t + 1
-        return [ret[0], t] + ret[1:]#, {}, T.until( (i > 1) * T.eq(mask.norm(1), 0) )
+        context_t = self._update_context(context_tm1, *states)
+        return [ret[0], t, context_t] + ret[1:]#, {}, T.until( (i > 1) * T.eq(mask.norm(1), 0) )
+
+    def _update_context(self, context_tm1, *states):
+        return context_tm1
 
 
 class RNNAutoEncoder(Block):    # tries to decode original sequence
