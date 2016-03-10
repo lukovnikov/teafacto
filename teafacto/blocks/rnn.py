@@ -2,7 +2,7 @@ from teafacto.blocks.rnu import GRU
 from teafacto.blocks.rnu import RecurrentBlock
 from teafacto.core.base import Block, tensorops as T
 from teafacto.blocks.basic import IdxToOneHot, VectorEmbed, Embedder, Softmax, MatDot
-from teafacto.blocks.attention import DummyAttentionConsumer, DummyAttentionGen, Attention
+from teafacto.blocks.attention import WeightedSum, LinearSumAttentionGenerator, Attention, AttentionConsumer, LinearGateAttentionGenerator
 from teafacto.util import issequence
 import inspect
 from IPython import embed
@@ -100,7 +100,7 @@ class RecurrentBlockParameterized(object):
 '''
 
 
-class SeqEncoder(RecurrentBlockParameterized, Block):
+class SeqEncoder(RecurrentBlockParameterized, AttentionConsumer, Block):
     '''
     Encodes a sequence of vectors into a vector, input dims and output dims specified by the RNU unit
     Returns multiple outputs, multiple states
@@ -108,12 +108,21 @@ class SeqEncoder(RecurrentBlockParameterized, Block):
     '''
     _withoutput = False
     _all_states = False
+    _weighted = False
 
-    def apply(self, seq): # seq: (batsize, seqlen, dim)
+    def apply(self, seq, weights=None): # seq: (batsize, seqlen, dim), weights: (batsize, seqlen)
         inp = seq.dimswap(1, 0)
+        if weights is None:
+            weights = T.ones((inp.shape[0], inp.shape[1])) # (seqlen, batsize)
+        else:
+            self._weighted = True
+            weights = weights.dimswap(1, 0)
         outputs, _ = T.scan(fn=self.recwrap,
-                            sequences=inp,
+                            sequences=[inp, weights],
                             outputs_info=[None]+self.block.get_init_info(seq.shape[0]))
+        return self._get_apply_outputs(outputs)
+
+    def _get_apply_outputs(self, outputs):
         output = outputs[0]
         if self._all_states:    # get the last values of each of the states
             states = self.block.get_states_from_outputs(outputs[1:])
@@ -136,12 +145,14 @@ class SeqEncoder(RecurrentBlockParameterized, Block):
             output = res
         return output
 
-    def recwrap(self, x_t, *args): # x_t: (batsize, dim)      if input is all zeros, just return previous state
+    def recwrap(self, x_t, w_t, *args): # x_t: (batsize, dim)      if input is all zeros, just return previous state
         if x_t.ndim == 1:       # ==> indexes
             mask = x_t > 0      # 0 is TERMINUS
         else:
             mask = x_t.norm(2, axis=1) > 0 # mask: (batsize, )
         rnuret = self.block.rec(x_t, *args) # list of matrices (batsize, **somedims**)
+        if self._weighted:
+            rnuret = map(lambda (origarg, rnuretarg): (origarg.T * (1 - w_t) + rnuretarg.T * w_t).T, zip([args[0]] + list(args), rnuret))
         ret = map(lambda (origarg, rnuretarg): (origarg.T * (1 - mask) + rnuretarg.T * mask).T, zip([args[0]] + list(args), rnuret)) # TODO mask breaks multi-layered encoders (order is reversed)
         #ret = rnuret
         return ret
@@ -262,3 +273,27 @@ class RNNAutoEncoder(Block):    # tries to decode original sequence
         enc = self.encoder(inpseq)
         dec = self.decoder(enc, seqlen=inpseq.shape[1])
         return dec
+
+
+class AttentionRNNAutoEncoder(Block):
+    '''
+    Take the input index sequence as-is, transform to one-hot, feed to gate AttentionGenerator, encode with weighted SeqEncoder,
+    put everything as attention inside SeqDecoder
+    '''
+    def __init__(self, vocsize=25, encdim=200, innerdim=200, attdim=50, seqlen=50, **kw):
+        super(AttentionRNNAutoEncoder, self).__init__(**kw)
+        self.seqlen = seqlen
+        self.emb = IdxToOneHot(vocsize)
+        attgen = LinearGateAttentionGenerator(indim=innerdim+vocsize, innerdim=attdim)
+        attcon = SeqEncoder(
+            GRU(dim=vocsize, innerdim=encdim))
+        self.dec = SeqDecoder(IdxToOneHot(vocsize),
+                              GRU(dim=vocsize+encdim, innerdim=innerdim),
+                              MatDot(indim=innerdim, dim=vocsize),
+                              Softmax(), indim=vocsize, seqlen=seqlen)
+        self.dec(Attention(attgen, attcon))
+
+    def apply(self, inpseq):    # inpseq: indexes~(batsize, seqlen)
+        inp = self.emb(inpseq)  # inp:    floats~(batsize, seqlen, vocsize)
+        return self.dec(inp)
+

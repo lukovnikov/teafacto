@@ -1,6 +1,6 @@
 from unittest import TestCase
-from teafacto.blocks.attention import Attention, DummyAttentionConsumer, DummyAttentionGen
-from teafacto.blocks.rnn import SeqDecoder
+from teafacto.blocks.attention import Attention, WeightedSum, LinearSumAttentionGenerator, LinearGateAttentionGenerator
+from teafacto.blocks.rnn import SeqDecoder, AttentionRNNAutoEncoder
 from teafacto.blocks.rnu import GRU
 from teafacto.blocks.basic import Softmax, MatDot as Lin, IdxToOneHot
 import numpy as np
@@ -15,11 +15,19 @@ class DummyAttentionGeneratorConsumerTest(TestCase):
         seqlen = 11
         self.attgenshape = (batsize, seqlen)
         self.attconshape = (batsize, datadim)
-        self.attgen = DummyAttentionGen(indim=criteriondim+datadim, innerdim=innerdim)
-        self.attcon = DummyAttentionConsumer()
+        self.attgenc = self.getattgenc()
+        self.attgen = self.attgenc(indim=criteriondim + datadim, innerdim=innerdim)
+        self.attgenparams = self.getattgenparams()
+        self.attcon = WeightedSum()
         self.att = Attention(self.attgen, self.attcon)
         self.criterion_val = np.random.random((batsize, criteriondim))
         self.data_val = np.random.random((batsize, seqlen, datadim))
+
+    def getattgenc(self):
+        return LinearSumAttentionGenerator
+
+    def getattgenparams(self):
+        return {self.attgen.W}
 
     def test_generator_shape(self):
         pred = self.attgen.predict(self.criterion_val, self.data_val)
@@ -28,7 +36,7 @@ class DummyAttentionGeneratorConsumerTest(TestCase):
     def test_generator_param_prop(self):
         self.attgen.predict(self.criterion_val, self.data_val)
         allparams = self.attgen.output.allparams
-        self.assertSetEqual(allparams, {self.attgen.W})
+        self.assertSetEqual(allparams, self.attgenparams)
 
     def test_consumer_shape(self):
         pred = self.att.predict(self.criterion_val, self.data_val)
@@ -37,7 +45,15 @@ class DummyAttentionGeneratorConsumerTest(TestCase):
     def test_consumer_param_prop(self):
         self.att.predict(self.criterion_val, self.data_val)
         allparams = self.att.output.allparams
-        self.assertSetEqual(allparams, {self.attgen.W})
+        self.assertSetEqual(allparams, self.attgenparams)
+
+
+class LinearAggAttentionGenTest(DummyAttentionGeneratorConsumerTest):
+    def getattgenc(self):
+        return LinearGateAttentionGenerator
+
+    def getattgenparams(self):
+        return {self.attgen.W, self.attgen.U}
 
 
 class TestAttentionRNNDecoder(TestCase):
@@ -55,7 +71,7 @@ class TestAttentionRNNDecoder(TestCase):
             seqlen=5,
             indim=vocsize
         )
-        self.att = Attention(DummyAttentionGen(indim=innerdim+encdim), DummyAttentionConsumer())
+        self.att = Attention(LinearSumAttentionGenerator(indim=innerdim + encdim), WeightedSum())
         self.dec(self.att)
         self.data = np.random.random((batsize, seqlen, encdim))
 

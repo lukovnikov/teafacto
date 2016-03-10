@@ -1,6 +1,6 @@
 from unittest import TestCase
 
-from teafacto.blocks.rnn import RNNAutoEncoder
+from teafacto.blocks.rnn import RNNAutoEncoder, AttentionRNNAutoEncoder
 import numpy as np
 
 class TestRNNAutoEncoder(TestCase):
@@ -10,14 +10,19 @@ class TestRNNAutoEncoder(TestCase):
         encdim = 200
         batsize = 500
         seqlen = 5
-        self.uparamshape = (innerdim, innerdim)
-        self.wparamshape = (vocsize, innerdim)
-        self.bparamshape = (innerdim,)
-        self.oparamshape = (innerdim, vocsize)
         self.exppredshape = (batsize, seqlen, vocsize)
-        self.rae = RNNAutoEncoder(vocsize=vocsize, innerdim=innerdim, encdim=encdim)
+        self.rae = self.get_rae(vocsize=vocsize, innerdim=innerdim, encdim=encdim, seqlen=seqlen)
         self.dummydata = np.random.randint(0, vocsize, (batsize, seqlen))
         self.dummypred = self.rae.predict(self.dummydata)
 
+    def get_rae(self, **kwargs):
+        return RNNAutoEncoder(**kwargs)
+
     def test_dummy_prediction_output_shape(self):
         self.assertEqual(self.dummypred.shape, self.exppredshape)
+
+
+class AttentionRNNAutoEncoderTest(TestRNNAutoEncoder):
+    def get_rae(self, **kwargs):
+        kwargs["attdim"] = 33
+        return AttentionRNNAutoEncoder(**kwargs)

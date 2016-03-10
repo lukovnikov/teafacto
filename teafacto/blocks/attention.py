@@ -6,6 +6,22 @@ import numpy as np
 import theano, theano.tensor
 
 
+class Attention(Block):
+    '''
+    Block wraps both an AttentionGenerator and AttentionConsumer.
+    '''
+    def __init__(self, attentiongenerator, attentionconsumer, **kw):
+        super(Attention, self).__init__(**kw)
+        self.attentiongenerator = attentiongenerator
+        self.attentionconsumer = attentionconsumer
+
+    def apply(self, criterion, data):
+        attention = self.attentiongenerator(criterion, data)
+        return self.attentionconsumer(data, attention)
+
+
+############################## ATTENTION GENERATORS ###############################
+
 class AttentionGenerator(Block):
     '''
      An attention block takes as *data input* a data structure (Var) to whose elements it will assign a weight,
@@ -33,9 +49,9 @@ class AttentionGenerator(Block):
         raise NotImplementedError("use subclass")
 
 
-class DummyAttentionGen(AttentionGenerator):    # simple feedforward
+class LinearSumAttentionGenerator(AttentionGenerator):    # simple feedforward
     def __init__(self, indim=50, innerdim=50, **kw):
-        super(DummyAttentionGen, self).__init__(**kw)
+        super(LinearSumAttentionGenerator, self).__init__(**kw)
         self.W = param((indim, innerdim), name="attention_ff").uniform()
 
     def apply(self, criterion, data):   # data is (batsize, seqlen, elem_dim)
@@ -43,37 +59,45 @@ class DummyAttentionGen(AttentionGenerator):    # simple feedforward
             ret = T.dot(T.concatenate([x_t, crit], axis=1), self.W)     # (batsize, innerdim)
             return T.sum(ret, axis=1)       # (batsize, )
         o, _ = T.scan(fn=rec, sequences=data.dimswap(1, 0), non_sequences=criterion)    # o is (seqlen, batsize)
-        return Softmax()(o.dimswap(1, 0))       # returns (batsize, seqlen), softmaxised on seqlen
+        return Softmax()(o.dimswap(1, 0))       # returns (batsize, seqlen), softmaxed on seqlen
 
+
+class LinearGateAttentionGenerator(AttentionGenerator):
+    def __init__(self, indim=50, innerdim=50, **kw):
+        super(LinearGateAttentionGenerator, self).__init__(**kw)
+        self.W = param((indim, innerdim), name="attention_ff").uniform()
+        self.U = param((innerdim,), name="attention_agg").uniform()
+
+    def apply(self, criterion, data):
+        def rec(x_t, crit):
+            combo = self._get_combo(x_t, crit)
+            trans = T.dot(combo, self.W)   # (batsize, innerdim)
+            trans = T.tanh(trans)                                       # apply tanh
+            ret = T.dot(trans, self.U)                                  # (batsize, )
+            return T.nnet.sigmoid(ret)                                  # apply sigmoid
+        o, _ = T.scan(fn=rec, sequences=data.dimswap(1, 0), non_sequences=criterion)
+        return o.dimswap(1, 0)
+
+    def _get_combo(self, x_t, crit):
+        return T.concatenate([x_t, crit], axis=1)
+
+
+################################ ATTENTION CONSUMERS #####################################
 
 class AttentionConsumer(Block):
     '''
      A block that consumes some data and associated attention weights to generate a *context* that can be fed further.
      Subclass this for attention-consuming blocks.
     '''
-    def apply(self, attention, data):
+    def apply(self, data, weights):
         raise NotImplementedError("use subclass")
 
 
-class DummyAttentionConsumer(AttentionConsumer):    # applies attention to sequence while summing up
-    def apply(self, attention, data):   # data: (batsize, seqlen, elem_dim)
+class WeightedSum(AttentionConsumer):    # applies attention to sequence while summing up
+    def apply(self, data, weights):   # data: (batsize, seqlen, elem_dim)
         def rec(x_t, att_t, acc):       # x_t: (batsize, elem_dim), att_t: (batsize, ), acc: (batsize, elem_dim)
             acc += T.batched_dot(x_t, att_t)
             return acc  # (batsize, elem_dim)
-        o, _ = T.scan(fn=rec, sequences=[data.dimswap(1, 0), attention.T], outputs_info=T.zeros((data.shape[0], data.shape[2])))
+        o, _ = T.scan(fn=rec, sequences=[data.dimswap(1, 0), weights.T], outputs_info=T.zeros((data.shape[0], data.shape[2])))
         return o[-1, :, :]
 
-
-
-class Attention(Block):
-    '''
-    Block wraps both an AttentionGenerator and AttentionConsumer.
-    '''
-    def __init__(self, attentiongenerator, attentionconsumer, **kw):
-        super(Attention, self).__init__(**kw)
-        self.attentiongenerator = attentiongenerator
-        self.attentionconsumer = attentionconsumer
-
-    def apply(self, criterion, data):
-        attention = self.attentiongenerator(criterion, data)
-        return self.attentionconsumer(attention, data)
