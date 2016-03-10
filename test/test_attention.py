@@ -47,7 +47,8 @@ class TestAttentionRNNDecoder(TestCase):
         encdim = 30
         outvocsize = 20
         seqlen = 5
-        dec = RNNDecoder(
+        batsize = 77
+        self.dec = RNNDecoder(
             IdxToOneHot(invocsize),
             GRU(dim=invocsize+encdim, innerdim=innerdim),
             Lin(indim=innerdim, dim=outvocsize),
@@ -55,8 +56,9 @@ class TestAttentionRNNDecoder(TestCase):
             seqlen=5,
             indim=invocsize
         )
-        att = Attention(DummyAttentionGen, DummyAttentionConsumer)
-        dec(att)
+        att = Attention(DummyAttentionGen(indim=innerdim+encdim), DummyAttentionConsumer())
+        self.dec(att)
+        self.data = np.random.random((batsize, seqlen, encdim))
 
-    def test_parameters(self):
-        print "testing parameters"
+    def test_shape(self):
+        self.dec.predict(self.data)

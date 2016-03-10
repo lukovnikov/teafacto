@@ -375,7 +375,7 @@ class Block(Elem, Saveable): # block with parameters
         self.parents.extend(recurfilter(lambda x: isinstance(x, (Var, Val)), args))
         self.parents.extend(recurfilter(lambda x: isinstance(x, (Var, Val)), kwargs))
         ret = self.apply(*args, **kwargs)
-        possiblechildren = recurfilter(lambda x: isinstance(x, Elem), ret)
+        possiblechildren = recurfilter(lambda x: isinstance(x, (Var, Val)), ret)
         for p in possiblechildren:
             p.add_parent(self)
         return ret

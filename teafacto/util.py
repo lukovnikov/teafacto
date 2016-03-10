@@ -116,6 +116,13 @@ class Saveable(object):
             pkl.dump(self, f)
         return filepath
 
+    def freeze(self):
+        return pkl.dumps(self)
+
+    @staticmethod
+    def unfreeze(dumps):
+        return pkl.loads(dumps)
+
     @staticmethod
     def load(filepath):
         with open(filepath) as f:
