@@ -1,7 +1,7 @@
 from unittest import TestCase
 import numpy as np
 
-from teafacto.blocks.attention import vec2seq, seq2idx, idx2seq
+from teafacto.scripts.autornnencdec import vec2seq, seq2idx, idx2seq
 
 
 class TestVecSeqIdx(TestCase):

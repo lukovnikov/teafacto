@@ -1,6 +1,5 @@
 from teafacto.blocks.basic import MatDot as Lin, Softmax, VectorEmbed, IdxToOneHot
 from teafacto.blocks.rnu import GRU
-from teafacto.core.stack import stack
 from teafacto.core.base import Block, param, Val
 from teafacto.core.base import tensorops as T
 import numpy as np
@@ -30,6 +29,21 @@ class AttentionGenerator(Block):
      the element to be a matrix of shape (num_chars_per_word, num_chars). Then, the output dimension is still (num_words,).
      However, if we considered a letter as a single element (shape: (num_chars,)), the output would have shape (num_words, num_chars_per_word).
     '''
+    def apply(self, criterion, data):   # criterion: (
+        raise NotImplementedError("use subclass")
+
+
+class DummyAttentionGen(AttentionGenerator):    # simple feedforward
+    def __init__(self, indim=50, innerdim=50, **kw):
+        super(DummyAttentionGen, self).__init__(**kw)
+        self.W = param((indim, innerdim), name="attention_ff").uniform()
+
+    def apply(self, criterion, data):   # data is (batsize, seqlen, elem_dim)
+        def rec(x_t, crit):     # x_t is (batsize, elem_dim), crit is (batsize, crit_dim)
+            ret = T.dot(T.concatenate([x_t, crit], axis=1), self.W)     # (batsize, innerdim)
+            return T.sum(ret, axis=1)       # (batsize, )
+        o, _ = T.scan(fn=rec, sequences=data.dimswap(1, 0), non_sequences=criterion)    # o is (seqlen, batsize)
+        return Softmax()(o.dimswap(1, 0))       # returns (batsize, seqlen), softmaxised on seqlen
 
 
 class AttentionConsumer(Block):
@@ -37,23 +51,29 @@ class AttentionConsumer(Block):
      A block that consumes some data and associated attention weights to generate a *context* that can be fed further.
      Subclass this for attention-consuming blocks.
     '''
-    def apply(self, attention, *vars):
+    def apply(self, attention, data):
         raise NotImplementedError("use subclass")
 
 
-class AttentionCombo(Block):
+class DummyAttentionConsumer(AttentionConsumer):    # applies attention to sequence while summing up
+    def apply(self, attention, data):   # data: (batsize, seqlen, elem_dim)
+        def rec(x_t, att_t, acc):       # x_t: (batsize, elem_dim), att_t: (batsize, ), acc: (batsize, elem_dim)
+            acc += T.batched_dot(x_t, att_t)
+            return acc  # (batsize, elem_dim)
+        o, _ = T.scan(fn=rec, sequences=[data.dimswap(1, 0), attention.T], outputs_info=T.zeros((data.shape[0], data.shape[2])))
+        return o[-1, :, :]
+
+
+
+class Attention(Block):
     '''
     Block wraps both an AttentionGenerator and AttentionConsumer.
     '''
     def __init__(self, attentiongenerator, attentionconsumer, **kw):
-        super(AttentionCombo, self).__init__(**kw)
+        super(Attention, self).__init__(**kw)
         self.attentiongenerator = attentiongenerator
         self.attentionconsumer = attentionconsumer
 
-
-class RecurrentAttentionWrap(AttentionConsumer):
-    '''
-     Wraps a recurrent block to consume both input and associated attention weights. The wrapped block should be able to
-     consume the input. The wrapper modulates between the normal current output of the wrapped block and the previous output,
-       based on the attention weight for that element.
-    '''
+    def apply(self, criterion, data):
+        attention = self.attentiongenerator(criterion, data)
+        return self.attentionconsumer(attention, data)

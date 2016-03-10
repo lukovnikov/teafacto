@@ -1,10 +1,8 @@
-from teafacto.blocks.basic import IdxToOneHot, MatDot, Softmax, Embedder
 from teafacto.blocks.rnu import GRU
-from teafacto.core.base import Block
 from teafacto.blocks.rnu import RecurrentBlock
-from teafacto.core.base import Block
-from teafacto.core.base import tensorops as T
-from teafacto.blocks.basic import IdxToOneHot, VectorEmbed
+from teafacto.core.base import Block, tensorops as T
+from teafacto.blocks.basic import IdxToOneHot, VectorEmbed, Embedder, Softmax, MatDot
+from teafacto.blocks.attention import DummyAttentionConsumer, DummyAttentionGen, Attention
 from teafacto.util import issequence
 import inspect
 from IPython import embed
@@ -185,15 +183,30 @@ class RNNDecoder(RecurrentBlockParameterized, Block):
             raise AssertionError("first layer must be an embedding block")
         super(RNNDecoder, self).__init__(*layers[1:], **kw)
         self._mask = False
+        self._attention = None
+
+    def set_attention(self, att):
+        self._attention = att
+
+    @property
+    def has_attention(self):
+        return self._attention is not None and isinstance(self._attention, Attention)
+
+    @property
+    def attention(self):
+        return self._attention
 
     def apply(self, context, **kw): # encoding: Var: (batsize, innerdim) OR a block with attention that produces (batsize, innerdim) based on what decoder provides
-        initprobs, batsize, seqlen, context = self._get_apply_args(context, **kw)
+        if isinstance(context, Attention):
+            self.set_attention(context)
+            return self
+        initprobs, batsize, seqlen, context = self._get_scan_args(context, **kw)
         outputs, _ = T.scan(fn=self.recwrap,
                             outputs_info=[initprobs, 0, context]+self.block.get_init_info(batsize),
                             n_steps=seqlen)
         return outputs[0].dimshuffle(1, 0, 2) # returns probabilities of symbols --> (batsize, seqlen, vocabsize)
 
-    def _get_apply_args(self, context, **kw):
+    def _get_scan_args(self, context, **kw):
         if "seqlen" in kw:
             seqlen = kw["seqlen"]
         else:
@@ -206,10 +219,11 @@ class RNNDecoder(RecurrentBlockParameterized, Block):
             initprobs = T.eye(1, self.indim).repeat(batsize, axis=0) # all TERMINUS (batsize, dim)
         return initprobs, batsize, seqlen, context
 
-    def recwrap(self, x_t, t, context_tm1, *states):   # once output is terminus, always terminus and previous state is returned
+    def recwrap(self, x_t, t, context, *states):   # once output is terminus, always terminus and previous state is returned
         chosen = x_t.argmax(axis=1, keepdims=False)                 # x_t = probs over symbols:: f32-(batsize, dim) ==> int32-(batsize,)
         chosenvec = self.idxtovec(chosen)                           # chosenvec: (batsize, embdim)
-        blockarg = T.concatenate([context_tm1, chosenvec], axis=1)     # concat encdim of encoding and embdim of chosenvec
+        context_t = self._gen_context(context, *states)
+        blockarg = T.concatenate([context_t, chosenvec], axis=1)     # concat encdim of encoding and embdim of chosenvec
         if self._mask:
             mask = T.clip(chosen.reshape(chosen.shape[0], 1) + T.clip(1-t, 0, 1), 0, 1)     # (batsize,) --> only make mask if not in first iter
         rnuret = self.block.rec(blockarg, *states)                                          # list of matrices (batsize, **somedims**)
@@ -218,11 +232,15 @@ class RNNDecoder(RecurrentBlockParameterized, Block):
         else:
             ret = rnuret
         t = t + 1
-        context_t = self._update_context(context_tm1, *states)
-        return [ret[0], t, context_t] + ret[1:]#, {}, T.until( (i > 1) * T.eq(mask.norm(1), 0) )
+        return [ret[0], t, context] + ret[1:]#, {}, T.until( (i > 1) * T.eq(mask.norm(1), 0) )
 
-    def _update_context(self, context_tm1, *states):
-        return context_tm1
+    def _gen_context(self, context, *states):
+        if self.has_attention:
+            criterion = T.concatenate(self.block.get_states_from_outputs(states), axis=1)   # states are (batsize, statedim)
+            return self.attention(criterion, context)   # ==> criterion is (batsize, sum_of_statedim), context is (batsize, ...)
+            # output should be (batsize, block_input_dims)
+        else:
+            return context
 
 
 class RNNAutoEncoder(Block):    # tries to decode original sequence

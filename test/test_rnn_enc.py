@@ -15,7 +15,7 @@ class SimpleRNNEncoderTest(TestCase):
         self.outdim = 100
         batsize = 1000
         seqlen = 19
-        self.enc = RNNEncoder() + GRU(dim=dim, innerdim=self.outdim)
+        self.enc = RNNEncoder(GRU(dim=dim, innerdim=self.outdim))
         self.enc = self.doswitches(self.enc)
         self.data = np.random.random((batsize, seqlen, dim))
         self.out = self.enc.predict(self.data)

@@ -1,5 +1,5 @@
 from unittest import TestCase
-from teafacto.blocks.attention import vec2seq
+from teafacto.scripts.autornnencdec import vec2seq
 import numpy as np
 
 

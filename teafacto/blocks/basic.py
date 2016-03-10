@@ -31,13 +31,18 @@ class Linear(Block):
 
 
 class Embedder(Block):
+    def __init__(self, indim, outdim, **kw):
+        super(Embedder, self).__init__(**kw)
+        self.indim = indim
+        self.outdim = outdim
+
     def apply(self, idxs):
         raise NotImplementedError("use subclass")
 
 
 class IdxToOneHot(Embedder):
     def __init__(self, vocsize, **kw):
-        super(IdxToOneHot, self).__init__(**kw)
+        super(IdxToOneHot, self).__init__(vocsize, vocsize, **kw)
         self.W = Val(np.eye(vocsize, vocsize))
 
     def apply(self, inp):
@@ -46,7 +51,7 @@ class IdxToOneHot(Embedder):
 
 class VectorEmbed(Embedder):
     def __init__(self, indim=1000, dim=50, value=None, normalize=False, **kw):
-        super(VectorEmbed, self).__init__(**kw)
+        super(VectorEmbed, self).__init__(indim, dim, **kw)
         self.dim = dim
         self.indim = indim
         if value is None:

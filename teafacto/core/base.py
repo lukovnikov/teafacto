@@ -484,7 +484,9 @@ class scan(Block):
         def fwrapper(*args): # theano vars
             trueargs = [Var(x) for x in args]
             res = fn(*trueargs)
-            ret = tuple(recurmap(lambda x: x.d if hasattr(x, "d") else x, res))
+            ret = recurmap(lambda x: x.d if hasattr(x, "d") else x, res)
+            if issequence(ret):
+                ret = tuple(ret)
             newparents = recurfilter(lambda x: isinstance(x, (Var, Val)), res) + \
                          recurfilter(lambda x: isinstance(x, until), res)
             for npa in newparents:
