@@ -4,11 +4,11 @@ from IPython import embed
 
 from teafacto.core.base import Block
 from teafacto.core.stack import stack
-from teafacto.blocks.rnn import RNNAutoEncoder, RNNDecoder, RNNEncoder
+from teafacto.blocks.rnn import RNNAutoEncoder, SeqDecoder, SeqEncoder
 from teafacto.blocks.rnu import GRU
 from teafacto.blocks.basic import IdxToOneHot, VectorEmbed, Softmax, MatDot as Lin
 from teafacto.blocks.embed import Glove
-from teafacto.util import argparsify
+from teafacto.util import argprun
 
 class vec2seq(Block):
     def __init__(self, encdim=44, indim=50, innerdim=300, seqlen=20, vocsize=27, **kw):
@@ -19,10 +19,10 @@ class vec2seq(Block):
         self.vocsize = vocsize
         self.encdim = encdim
         self.lin = Lin(indim=self.indim, dim=self.encdim)
-        self.dec = RNNDecoder(IdxToOneHot(self.vocsize),                                 # IdxToOneHot inserted automatically
-            GRU(dim=self.vocsize+self.encdim, innerdim=self.innerdim),      # the decoding RNU
-            Lin(indim=self.innerdim, dim=self.vocsize),         # transforms from RNU inner dims to vocabulary
-            Softmax(),                                          # softmax
+        self.dec = SeqDecoder(IdxToOneHot(self.vocsize),  # IdxToOneHot inserted automatically
+            GRU(dim=self.vocsize+self.encdim, innerdim=self.innerdim),  # the decoding RNU
+            Lin(indim=self.innerdim, dim=self.vocsize),  # transforms from RNU inner dims to vocabulary
+            Softmax(),  # softmax
                 indim=self.vocsize, seqlen=self.seqlen)
 
     def apply(self, vec):
@@ -38,11 +38,11 @@ class idx2seq(Block):
         self.seqlen = seqlen
         self.encdim = encdim
         self.emb = VectorEmbed(indim=self.invocsize, dim=self.encdim, normalize=False)
-        self.dec = RNNDecoder(IdxToOneHot(self.outvocsize),
-            GRU(dim=self.outvocsize+self.encdim, innerdim=self.innerdim, nobias=True),
-            Lin(indim=self.innerdim, dim=self.outvocsize),
-            Softmax(),
-                indim=self.outvocsize, seqlen=self.seqlen)
+        self.dec = SeqDecoder(IdxToOneHot(self.outvocsize),
+                              GRU(dim=self.outvocsize+self.encdim, innerdim=self.innerdim, nobias=True),
+                              Lin(indim=self.innerdim, dim=self.outvocsize),
+                              Softmax(),
+                              indim=self.outvocsize, seqlen=self.seqlen)
 
     def apply(self, idx):
         return self.dec(self.emb(idx))
@@ -54,7 +54,7 @@ class seq2idx(Block):
         self.invocsize = invocsize
         self.outvocsize = outvocsize
         self.innerdim = innerdim
-        self.enc = RNNEncoder(
+        self.enc = SeqEncoder(
             VectorEmbed(indim=self.invocsize, dim=self.invocsize),
             GRU(dim=self.invocsize, innerdim=self.innerdim)
         )
@@ -81,7 +81,7 @@ def int2word(ints):
 def ints2words(ints):
     return [int2word(x) for x in ints]
 
-def run1(
+def run_vec2seq(
         wreg=0.0,
         epochs=20,
         numbats=20,
@@ -106,12 +106,13 @@ def run1(
          .train(numbats=numbats, epochs=epochs)
 
 
-def run2(
-        wreg=0.0,
+def run_RNNAutoEncoder(
+        wreg=0.001,
         epochs=200,
         numbats=20,
-        lr=0.003,
-        statedim=200,
+        lr=0.1,
+        statedim=70,
+        encdim=70
     ):
     # get words
     vocsize = 27
@@ -131,15 +132,16 @@ def run2(
     testpred = ["the", "alias", "mock", "test", "stalin"]
     testpred = words2ints(testpred)
 
-    block = RNNAutoEncoder(vocsize=vocsize, innerdim=statedim, seqlen=data.shape[1])
-    block.train([data], data).seq_neg_log_prob().sgd(lr=lr)\
+    block = RNNAutoEncoder(vocsize=vocsize, encdim=70, innerdim=statedim, seqlen=data.shape[1])
+    block.train([data], data).seq_neg_log_prob().grad_total_norm(1.0).adagrad(lr=lr).l2(wreg)\
+         .autovalidate().seq_accuracy().validinter(4)\
          .train(numbats=numbats, epochs=epochs)
 
     pred = block.predict(testpred)
     print ints2words(np.argmax(pred, axis=2))
 
 
-def runidx2seq(
+def run_idx2seq(
         wreg=0.001,
         epochs=150,
         numbats=10,
@@ -213,7 +215,7 @@ def runidx2firstletter(
     embed()
 
 
-def run(
+def run_seq2idx(
         wreg=0.0,
         epochs=300,
         numbats=20,
@@ -274,5 +276,5 @@ def run(
 
 
 if __name__ == "__main__":
-    runidx2seq(**argparsify(runidx2seq()))
+    argprun(run_RNNAutoEncoder)
     #print ints2words(np.asarray([[20,8,5,0,0,0], [1,2,3,0,0,0]]))

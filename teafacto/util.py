@@ -75,6 +75,10 @@ def argparsify(f, test=None):
     return kwargs
 
 
+def argprun(f):
+    f(**argparsify(f))
+
+
 def issequence(x):
     return isinstance(x, collections.Sequence) and not isinstance(x, basestring)
 

@@ -83,7 +83,7 @@ class RecurrentBlockParameterized(object):
             self.block = None
 
 
-class AttentionParameterized(object):
+'''class AttentionParameterized(object):
     def __add__(self, other):
         assert(self.block is None)  # this block should not be parameterized already in order to parameterize it
         self.attach(other)
@@ -97,9 +97,10 @@ class AttentionParameterized(object):
 
     def onAttach(self):
         raise NotImplementedError("use subclass")
+'''
 
 
-class RNNEncoder(RecurrentBlockParameterized, Block):
+class SeqEncoder(RecurrentBlockParameterized, Block):
     '''
     Encodes a sequence of vectors into a vector, input dims and output dims specified by the RNU unit
     Returns multiple outputs, multiple states
@@ -158,10 +159,12 @@ class RNNEncoder(RecurrentBlockParameterized, Block):
         return self
 
 
-class RNNDecoder(RecurrentBlockParameterized, Block):
+class SeqDecoder(RecurrentBlockParameterized, Block):
     '''
     Decodes a sequence of symbols given context
     output: probabilities over symbol space: float: (batsize, seqlen, vocabsize)
+
+    Supports attention
 
     TERMINUS SYMBOL = 0
     ! first input is TERMINUS ==> suggest to set TERMINUS(0) embedding to all zeroes (in s2vf)
@@ -181,7 +184,7 @@ class RNNDecoder(RecurrentBlockParameterized, Block):
         self.idxtovec = layers[0]
         if not isinstance(self.idxtovec, Embedder):
             raise AssertionError("first layer must be an embedding block")
-        super(RNNDecoder, self).__init__(*layers[1:], **kw)
+        super(SeqDecoder, self).__init__(*layers[1:], **kw)
         self._mask = False
         self._attention = None
 
@@ -247,13 +250,13 @@ class RNNAutoEncoder(Block):    # tries to decode original sequence
     def __init__(self, vocsize=25, encdim=200, innerdim=200, seqlen=50, **kw):
         super(RNNAutoEncoder, self).__init__(**kw)
         self.seqlen = seqlen
-        self.encoder = RNNEncoder(
+        self.encoder = SeqEncoder(
             IdxToOneHot(vocsize=vocsize),
             GRU(dim=vocsize, innerdim=encdim))
-        self.decoder = RNNDecoder(IdxToOneHot(vocsize),
-            GRU(dim=vocsize+encdim, innerdim=innerdim),
-            MatDot(indim=innerdim, dim=vocsize),
-            Softmax(), indim=vocsize, seqlen=seqlen)
+        self.decoder = SeqDecoder(IdxToOneHot(vocsize),
+                                  GRU(dim=vocsize+encdim, innerdim=innerdim),
+                                  MatDot(indim=innerdim, dim=vocsize),
+                                  Softmax(), indim=vocsize, seqlen=seqlen)
 
     def apply(self, inpseq):
         enc = self.encoder(inpseq)

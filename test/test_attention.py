@@ -1,6 +1,6 @@
 from unittest import TestCase
 from teafacto.blocks.attention import Attention, DummyAttentionConsumer, DummyAttentionGen
-from teafacto.blocks.rnn import RNNDecoder
+from teafacto.blocks.rnn import SeqDecoder
 from teafacto.blocks.rnu import GRU
 from teafacto.blocks.basic import Softmax, MatDot as Lin, IdxToOneHot
 import numpy as np
@@ -47,7 +47,7 @@ class TestAttentionRNNDecoder(TestCase):
         encdim = 30
         seqlen = 5
         batsize = 77
-        self.dec = RNNDecoder(
+        self.dec = SeqDecoder(
             IdxToOneHot(vocsize),
             GRU(dim=vocsize+encdim, innerdim=innerdim),
             Lin(indim=innerdim, dim=vocsize),

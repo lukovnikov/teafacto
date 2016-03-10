@@ -1,6 +1,6 @@
 from unittest import TestCase
 
-from teafacto.blocks.rnn import RNNEncoder
+from teafacto.blocks.rnn import SeqEncoder
 from teafacto.blocks.rnu import GRU
 import numpy as np
 from teafacto.util import issequence
@@ -15,7 +15,7 @@ class SimpleRNNEncoderTest(TestCase):
         self.outdim = 100
         batsize = 1000
         seqlen = 19
-        self.enc = RNNEncoder(GRU(dim=dim, innerdim=self.outdim))
+        self.enc = SeqEncoder(GRU(dim=dim, innerdim=self.outdim))
         self.enc = self.doswitches(self.enc)
         self.data = np.random.random((batsize, seqlen, dim))
         self.out = self.enc.predict(self.data)
@@ -70,7 +70,7 @@ class StackRNNEncoderTest(SimpleRNNEncoderTest):
         hdim = 51
         hdim2 = 61
         self.outdim = 47
-        self.enc = RNNEncoder(GRU(dim=indim, innerdim=hdim),
+        self.enc = SeqEncoder(GRU(dim=indim, innerdim=hdim),
                               GRU(dim=hdim, innerdim=hdim2),
                               GRU(dim=hdim2, innerdim=self.outdim))
         self.enc = self.doswitches(self.enc)

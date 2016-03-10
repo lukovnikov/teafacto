@@ -1,6 +1,6 @@
 from unittest import TestCase
 
-from teafacto.blocks.rnn import RNNDecoder
+from teafacto.blocks.rnn import SeqDecoder
 from teafacto.blocks.rnu import GRU, LSTM
 from teafacto.blocks.basic import MatDot, Softmax, IdxToOneHot
 from teafacto.core.base import tensorops as T
@@ -25,7 +25,7 @@ class TestSimpleRNNDecoder(TestCase):
             LSTM(dim=self.hdim, innerdim=self.statedim),
             MatDot(indim=self.statedim, dim=self.vocsize),
             Softmax())
-        self.dec = RNNDecoder(IdxToOneHot(self.vocsize), self.stk, indim=self.vocsize, seqlen=self.seqlen)
+        self.dec = SeqDecoder(IdxToOneHot(self.vocsize), self.stk, indim=self.vocsize, seqlen=self.seqlen)
 
     def test_rnndecoder_output_shape(self):
         outvals = self.dec.predict(*self.encodings_data)
