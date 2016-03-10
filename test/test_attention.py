@@ -42,24 +42,30 @@ class DummyAttentionGeneratorConsumerTest(TestCase):
 
 class TestAttentionRNNDecoder(TestCase):
     def setUp(self):
-        invocsize = 10
+        vocsize = 10
         innerdim = 50
         encdim = 30
-        outvocsize = 20
         seqlen = 5
         batsize = 77
         self.dec = RNNDecoder(
-            IdxToOneHot(invocsize),
-            GRU(dim=invocsize+encdim, innerdim=innerdim),
-            Lin(indim=innerdim, dim=outvocsize),
+            IdxToOneHot(vocsize),
+            GRU(dim=vocsize+encdim, innerdim=innerdim),
+            Lin(indim=innerdim, dim=vocsize),
             Softmax(),
             seqlen=5,
-            indim=invocsize
+            indim=vocsize
         )
-        att = Attention(DummyAttentionGen(indim=innerdim+encdim), DummyAttentionConsumer())
-        self.dec(att)
+        self.att = Attention(DummyAttentionGen(indim=innerdim+encdim), DummyAttentionConsumer())
+        self.dec(self.att)
         self.data = np.random.random((batsize, seqlen, encdim))
 
+        self.predshape = (batsize, seqlen, vocsize)
+
     def test_shape(self):
-        #self.dec.predict(self.data)
-        print "cool"
+        pred = self.dec.predict(self.data)
+        self.assertEqual(pred.shape, self.predshape)
+
+    def test_attentiongenerator_param_in_allparams(self):
+        self.dec.predict(self.data)
+        allparams = self.dec.output.allparams
+        self.assertIn(self.att.attentiongenerator.W, allparams)
