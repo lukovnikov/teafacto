@@ -4,7 +4,7 @@ from IPython import embed
 
 from teafacto.core.base import Block
 from teafacto.core.stack import stack
-from teafacto.blocks.rnn import RNNAutoEncoder, SeqDecoder, SeqEncoder
+from teafacto.blocks.rnn import RNNAutoEncoder, SeqDecoder, SeqEncoder, AttentionRNNAutoEncoder, RNNAttWSumDecoder
 from teafacto.blocks.rnu import GRU
 from teafacto.blocks.basic import IdxToOneHot, VectorEmbed, Softmax, MatDot as Lin
 from teafacto.blocks.embed import Glove
@@ -66,7 +66,7 @@ class seq2idx(Block):
 ''' THIS SCRIPT TESTS TRAINING RNN ENCODER, RNN DECODER AND RNN AUTOENCODER '''
 
 def word2int(word):
-    return [ord(letter)-96 for letter in word]
+    return [ord(letter)-96 if letter is not " " else 0 for letter in word]
 
 def words2ints(words):
     wldf = pd.DataFrame(map(word2int, words)).fillna(0)
@@ -139,6 +139,44 @@ def run_RNNAutoEncoder(
 
     pred = block.predict(testpred)
     print ints2words(np.argmax(pred, axis=2))
+
+
+def run_attentionseqdecoder(
+        wreg=0.001,
+        epochs=120,
+        numbats=20,
+        lr=0.1,
+        statedim=70,
+        encdim=70,
+        attdim=70
+    ):
+
+    # get words
+    vocsize = 27
+    embdim = 50
+    lm = Glove(embdim, 2000)
+    allwords = filter(lambda x: re.match("^[a-z]+$", x), lm.D.keys())
+    words = allwords[:1000]
+    vwords = allwords[1000:]
+    data = words2ints(words)
+    vdata = words2ints(vwords)
+    print "random seq neg log prob %.3f" % math.log(vocsize**data.shape[1])
+    testneglogprob = 17
+    print "%.2f neg log prob for a whole sequence is %.3f prob per slot" % (testneglogprob, math.exp(-testneglogprob*1./data.shape[1]))
+
+    testpred = ["the", "alias", "mock", "test", "stalin", "allahuakbar", "pythonista", " "*(data.shape[1])]
+    testpred = words2ints(testpred)
+    print testpred
+
+    block = RNNAttWSumDecoder(vocsize=vocsize, encdim=encdim, innerdim=statedim, seqlen=data.shape[1], attdim=attdim)
+    block.train([data], data).seq_neg_log_prob().grad_total_norm(1.0).adagrad(lr=lr).l2(wreg)\
+         .validate_on([vdata], vdata).seq_accuracy().validinter(4)\
+         .train(numbats=numbats, epochs=epochs)
+
+    pred = block.predict(testpred)
+    print ints2words(np.argmax(pred, axis=2))
+
+    embed()
 
 
 def run_idx2seq(
@@ -276,5 +314,5 @@ def run_seq2idx(
 
 
 if __name__ == "__main__":
-    argprun(run_RNNAutoEncoder)
+    argprun(run_attentionseqdecoder)
     #print ints2words(np.asarray([[20,8,5,0,0,0], [1,2,3,0,0,0]]))

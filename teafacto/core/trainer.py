@@ -109,7 +109,7 @@ class ModelTrainer(object):
                           [slice(-top_k, None)]]
                 targets = theano.tensor.shape_padaxis(targets, axis=-1)
                 return theano.tensor.any(theano.tensor.eq(top, targets), axis=-1)
-        self._set_objective(lambda x, y: categorical_accuracy(x, y, top_k=top_k))
+        self._set_objective(lambda x, y: 1-categorical_accuracy(x, y, top_k=top_k))
         return self
 
     def seq_accuracy(self): # sequences must be exactly the same
@@ -122,7 +122,7 @@ class ModelTrainer(object):
             assert(gold.ndim == 2 and top.ndim == 2)
             diff = tensor.sum(abs(top - gold), axis=1)
             return tensor.eq(diff, tensor.zeros_like(diff))
-        self._set_objective(lambda x, y: inner(x, y))
+        self._set_objective(lambda x, y: 1-inner(x, y))
         return self
 
 
@@ -377,7 +377,7 @@ class ModelTrainer(object):
             if validf is not None and self.currentiter % evalinter == 0: # validate and print
                 verre = validf()
                 verr.append(verre)
-                print "training error: %s \t validation: %s" % (" - ".join(map(lambda x: "%.3f" % x, erre)), " - ".join(map(lambda x: "%.3f" % x, verre)))
+                print "training error: %s \t validation error: %s" % (" - ".join(map(lambda x: "%.3f" % x, erre)), " - ".join(map(lambda x: "%.3f" % x, verre)))
             else:
                 print "training error: %s" % " - ".join(map(lambda x: "%.3f" % x, erre))
             print("iter done in %f seconds" % (dt.now() - start).total_seconds())

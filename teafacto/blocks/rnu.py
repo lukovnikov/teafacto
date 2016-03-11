@@ -4,8 +4,9 @@ from teafacto.util import issequence
 
 
 class RecurrentBlock(Block):
-    def __init__(self, **kw):
+    def __init__(self, reverse=False, **kw):
         super(RecurrentBlock, self).__init__(**kw)
+        self._reverse = reverse
 
     def rec(self, *args):
         raise NotImplementedError("use subclass")
@@ -68,7 +69,8 @@ class RNUBase(RecurrentBlock):
         init_info = self.get_init_info(infoarg)
         outputs, _ = T.scan(fn=self.rec,
                             sequences=inputs,
-                            outputs_info=[None]+init_info)
+                            outputs_info=[None]+init_info,
+                            go_backwards=self._reverse)
         output = outputs[0]
         return output.dimswap(1, 0) # return is (batsize, seqlen, dim)
 

@@ -72,6 +72,10 @@ class RecurrentStack(RecurrentBlock):
 
 class RecurrentBlockParameterized(object):
     def __init__(self, *layers, **kw):
+        self._reverse = False
+        if "reverse" in kw:
+            self._reverse = kw["reverse"]
+            del kw["reverse"]
         super(RecurrentBlockParameterized, self).__init__(**kw)
         if len(layers) > 0:
             if len(layers) == 1:
@@ -119,7 +123,8 @@ class SeqEncoder(RecurrentBlockParameterized, AttentionConsumer, Block):
             weights = weights.dimswap(1, 0)
         outputs, _ = T.scan(fn=self.recwrap,
                             sequences=[inp, weights],
-                            outputs_info=[None]+self.block.get_init_info(seq.shape[0]))
+                            outputs_info=[None]+self.block.get_init_info(seq.shape[0]),
+                            go_backwards=self._reverse)
         return self._get_apply_outputs(outputs)
 
     def _get_apply_outputs(self, outputs):
@@ -296,4 +301,21 @@ class AttentionRNNAutoEncoder(Block):
     def apply(self, inpseq):    # inpseq: indexes~(batsize, seqlen)
         inp = self.emb(inpseq)  # inp:    floats~(batsize, seqlen, vocsize)
         return self.dec(inp)
+
+
+class RNNAttWSumDecoder(Block):
+    def __init__(self, vocsize=25, encdim=200, innerdim=200, attdim=50, seqlen=50, **kw):
+        super(RNNAttWSumDecoder, self).__init__(**kw)
+        self.rnn = RecurrentStack(IdxToOneHot(vocsize), GRU(dim=vocsize, innerdim=encdim))
+        attgen = LinearGateAttentionGenerator(indim=innerdim+encdim, innerdim=attdim)
+        attcon = WeightedSum()
+        self.dec = SeqDecoder(IdxToOneHot(vocsize),
+                              GRU(dim=vocsize+encdim, innerdim=innerdim),
+                              MatDot(indim=innerdim, dim=vocsize),
+                              Softmax(), indim=vocsize, seqlen=seqlen)
+        self.dec(Attention(attgen, attcon))
+
+    def apply(self, inpseq):        # inpseq: indexes~(batsize, seqlen)
+        rnnout = self.rnn(inpseq)   # (batsize, seqlen, encdim)
+        return self.dec(rnnout, seqlen=inpseq.shape[1])     # (batsize, seqlen, vocsize)
 
