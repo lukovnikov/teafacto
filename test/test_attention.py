@@ -1,6 +1,6 @@
 from unittest import TestCase
 from teafacto.blocks.attention import Attention, WeightedSum, LinearSumAttentionGenerator, LinearGateAttentionGenerator
-from teafacto.blocks.rnn import SeqDecoder, AttentionRNNAutoEncoder
+from teafacto.blocks.rnn import SeqDecoder, AttentionRNNAutoEncoder, InConcatCRex
 from teafacto.blocks.rnu import GRU
 from teafacto.blocks.basic import Softmax, MatDot as Lin, IdxToOneHot
 import numpy as np
@@ -63,25 +63,34 @@ class TestAttentionRNNDecoder(TestCase):
         encdim = 30
         seqlen = 5
         batsize = 77
-        self.dec = SeqDecoder(
-            IdxToOneHot(vocsize),
-            GRU(dim=vocsize+encdim, innerdim=innerdim),
-            Lin(indim=innerdim, dim=vocsize),
-            Softmax(),
-            seqlen=5,
-            indim=vocsize
-        )
         self.att = Attention(LinearSumAttentionGenerator(indim=innerdim + encdim), WeightedSum())
-        self.dec(self.att)
-        self.data = np.random.random((batsize, seqlen, encdim))
-
+        self.decwatt = SeqDecoder(
+            IdxToOneHot(vocsize),
+            InConcatCRex(self.att, GRU(dim=vocsize+encdim, innerdim=innerdim), outdim=innerdim)
+        )
+        self.decwoatt = SeqDecoder(
+            IdxToOneHot(vocsize),
+            InConcatCRex(GRU(dim=vocsize+encdim, innerdim=innerdim), outdim=innerdim)
+        )
+        self.attdata = np.random.random((batsize, seqlen, encdim))
+        self.data = np.random.random((batsize, encdim))
+        self.seqdata = np.random.randint(0, vocsize, (batsize, seqlen))
         self.predshape = (batsize, seqlen, vocsize)
 
     def test_shape(self):
-        pred = self.dec.predict(self.data)
+        pred = self.decwatt.predict(self.attdata, self.seqdata)
+        self.assertEqual(pred.shape, self.predshape)
+
+    def test_shape_wo_att(self):
+        pred = self.decwoatt.predict(self.data, self.seqdata)
         self.assertEqual(pred.shape, self.predshape)
 
     def test_attentiongenerator_param_in_allparams(self):
-        self.dec.predict(self.data)
-        allparams = self.dec.output.allparams
+        self.decwatt.predict(self.attdata, self.seqdata)
+        allparams = self.decwatt.output.allparams
         self.assertIn(self.att.attentiongenerator.W, allparams)
+
+    def test_attentiongenerator_param_not_in_params_of_dec_wo_att(self):
+        self.decwoatt.predict(self.data, self.seqdata)
+        allparams = self.decwoatt.output.allparams
+        self.assertNotIn(self.att.attentiongenerator.W, allparams)

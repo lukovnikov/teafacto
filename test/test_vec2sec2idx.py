@@ -2,7 +2,7 @@ from unittest import TestCase
 import numpy as np, pandas as pd, re, math
 from teafacto.blocks.embed import Glove
 
-from teafacto.scripts.autornnencdec import vec2seq, seq2idx, idx2seq
+from teafacto.scripts.autornnencdec import seq2idx, idx2seq, shiftdata
 
 
 class TestVecSeqIdx(TestCase):
@@ -15,12 +15,6 @@ class TestVecSeqIdx(TestCase):
         self.indim = 20
         self.batsize = 100
 
-    def test_vec2seq_shape(self):
-        b = vec2seq(encdim=self.encdim, indim=self.indim, seqlen=self.seqlen, innerdim=self.innerdim, vocsize=self.numchars)
-        data = np.random.random((self.batsize, self.indim))
-        p = b.predict(data)
-        self.assertEqual(p.shape, (self.batsize, self.seqlen, self.numchars))
-
     def test_seq2idx_shape(self):
         b = seq2idx(invocsize=self.numchars, outvocsize=self.numwords, innerdim=self.innerdim)
         data = np.random.randint(0, self.numchars, (self.batsize, self.seqlen))
@@ -30,7 +24,8 @@ class TestVecSeqIdx(TestCase):
     def test_idx2seq_shape(self):
         b = idx2seq(encdim=self.encdim, invocsize=self.numwords, outvocsize=self.numchars, seqlen=self.seqlen, innerdim=self.innerdim)
         data = np.random.randint(0, self.numwords, (self.batsize, ))
-        p = b.predict(data)
+        pdata = np.random.randint(0, self.numchars, (self.batsize, self.seqlen))
+        p = b.predict(data, pdata)
         self.assertEqual(p.shape, (self.batsize, self.seqlen, self.numchars))
 
 
@@ -56,32 +51,31 @@ class TestIdx2SeqTraining(TestCase):
         # get words
         numchars = 27
         embdim = 50
-        Glove.defaultpath = "../../data/glove/miniglove.%dd.txt"
         lm = Glove(embdim, 1000)
         words = filter(lambda x: re.match("^[a-z]+$", x), lm.D.keys())
         data = words2ints(words)
+        sdata = shiftdata(data)
         wordidxs = np.arange(0, len(words))
-        print wordidxs[:15]
-        print data[:15]
         numwords = wordidxs.shape[0]
         print "random seq neg log prob %.3f" % math.log(numchars**data.shape[1])
         testneglogprob = 17
         print "%.2f neg log prob for a whole sequence is %.3f prob per slot" % (testneglogprob, math.exp(-testneglogprob*1./data.shape[1]))
 
         testpred = wordidxs[:15]
+        testdata = data[:15]
+        testsdata = sdata[:15]
+        print testpred
+        print testdata
+        print testsdata
         #testpred = words2ints(testpred)
-
         block = idx2seq(encdim=encdim, invocsize=numwords, outvocsize=numchars, innerdim=statedim, seqlen=data.shape[1])
-        print np.argmax(block.predict(testpred), axis=2)
+        print np.argmax(block.predict(testpred, testsdata), axis=2)
         self.block_before_training_frozen = block.freeze()
-        print block.output.allparams
-        block.train([wordidxs], data).seq_neg_log_prob().grad_total_norm(0.5).adagrad(lr=lr).l2(wreg)\
+        block.train([wordidxs, sdata], data).seq_neg_log_prob().grad_total_norm(0.5).adagrad(lr=lr).l2(wreg)\
              .autovalidate().seq_accuracy().validinter(5)\
              .train(numbats=numbats, epochs=epochs)
         self.block_after_training_frozen = block.freeze()
-
-        pred = block.predict(testpred)
-        print np.argmax(pred, axis=2)
+        pred = block.predict(testpred, testsdata)
 
     def test_parameters_changed(self):
         self.assertNotEqual(self.block_after_training_frozen, self.block_before_training_frozen)

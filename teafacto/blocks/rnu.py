@@ -16,6 +16,9 @@ class RecurrentBlock(Block):
         assert((issequence(red) and len(red) == 0) or (not issequence(red)))
         return info
 
+    def do_get_init_info(self, initstates):
+        raise NotImplementedError("use subclass")
+
     def get_states_from_outputs(self, outputs):     # topmost layer --> first in list of states (reverse)
         raise NotImplementedError("use subclass")
 

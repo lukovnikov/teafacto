@@ -3,6 +3,7 @@ from unittest import TestCase
 from teafacto.blocks.rnn import RNNAutoEncoder, AttentionRNNAutoEncoder, RNNAttWSumDecoder
 import numpy as np
 
+
 class TestRNNAutoEncoder(TestCase):
     def setUp(self):
         vocsize = 25

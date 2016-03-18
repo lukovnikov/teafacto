@@ -1,6 +1,6 @@
 from teafacto.blocks.rnu import GRU
 from teafacto.blocks.rnu import RecurrentBlock
-from teafacto.core.base import Block, tensorops as T
+from teafacto.core.base import Block, tensorops as T, asblock
 from teafacto.blocks.basic import IdxToOneHot, VectorEmbed, Embedder, Softmax, MatDot
 from teafacto.blocks.attention import WeightedSum, LinearSumAttentionGenerator, Attention, AttentionConsumer, LinearGateAttentionGenerator
 from teafacto.util import issequence
@@ -115,7 +115,7 @@ class SeqEncoder(RecurrentBlockParameterized, AttentionConsumer, Block):
     _weighted = False
 
     def apply(self, seq, weights=None): # seq: (batsize, seqlen, dim), weights: (batsize, seqlen)
-        inp = seq.dimswap(1, 0)
+        inp = seq.dimswap(1, 0)         # inp: (seqlen, batsize, dim)
         if weights is None:
             weights = T.ones((inp.shape[0], inp.shape[1])) # (seqlen, batsize)
         else:
@@ -180,29 +180,22 @@ class SeqDecoder(RecurrentBlockParameterized, Block):
     Decodes a sequence of symbols given context
     output: probabilities over symbol space: float: (batsize, seqlen, vocabsize)
 
-    Supports attention
-
-    TERMINUS SYMBOL = 0
+    ! must pass in a recurrent block that takes two arguments: context_t and x_t
     ! first input is TERMINUS ==> suggest to set TERMINUS(0) embedding to all zeroes (in s2vf)
     ! first layer must be an embedder or IdxToOneHot, otherwise, an IdxToOneHot is created automatically based on given dim
     '''
-    def __init__(self, *layers, **kw): # limit says at most how many is produced
-        if "seqlen" in kw:
-            self.limit = kw["seqlen"]
-            del kw["seqlen"]
-        else:
-            self.limit = 50
-        try:
-            self.indim = kw["indim"]
-            del kw["indim"]
-        except Exception:
-            raise Exception("must provide input dimension with indim=<inp_dim>")
-        self.idxtovec = layers[0]
-        if not isinstance(self.idxtovec, Embedder):
-            raise AssertionError("first layer must be an embedding block")
-        super(SeqDecoder, self).__init__(*layers[1:], **kw)
+    def __init__(self, embedder, contextrecurrentblock, softmaxoutblock=None, **kw): # limit says at most how many is produced
+        super(SeqDecoder, self).__init__(contextrecurrentblock, **kw)
         self._mask = False
         self._attention = None
+        self.embedder = embedder
+        assert(isinstance(contextrecurrentblock, ContextRecurrentBlock))
+        if softmaxoutblock is None:
+            sm = Softmax()
+            lin = MatDot(indim=contextrecurrentblock.outdim, dim=self.embedder.indim)
+            self.softmaxoutblock = asblock(lambda x: sm(lin(x)))
+        else:
+            self.softmaxoutblock = softmaxoutblock
 
     def set_attention(self, att):
         self._attention = att
@@ -215,51 +208,107 @@ class SeqDecoder(RecurrentBlockParameterized, Block):
     def attention(self):
         return self._attention
 
-    def apply(self, context, **kw): # encoding: Var: (batsize, innerdim) OR a block with attention that produces (batsize, innerdim) based on what decoder provides
-        if isinstance(context, Attention):
-            self.set_attention(context)
-            return self
-        initprobs, batsize, seqlen, context = self._get_scan_args(context, **kw)
+    def apply(self, context, seq, **kw):    # context: (batsize, enc.innerdim), seq: idxs-(batsize, seqlen)
+        sequences = [seq.dimswap(1, 0)]     # sequences: (seqlen, batsize)
         outputs, _ = T.scan(fn=self.recwrap,
-                            outputs_info=[initprobs, 0, context]+self.block.get_init_info(batsize),
-                            n_steps=seqlen)
-        return outputs[0].dimshuffle(1, 0, 2) # returns probabilities of symbols --> (batsize, seqlen, vocabsize)
+                            sequences=sequences,
+                            outputs_info=[None, context, 0]+self.block.get_init_info(context))
+        return outputs[0].dimswap(1, 0) # returns probabilities of symbols --> (batsize, seqlen, vocabsize)
 
-    def _get_scan_args(self, context, **kw):
-        if "seqlen" in kw:
-            seqlen = kw["seqlen"]
-        else:
-            seqlen = self.limit
-        batsize = context.shape[0]
-        if "initprobs" in kw:
-            initprobs = kw["initprobs"]
-            del kw["initprobs"]
-        else:
-            initprobs = T.eye(1, self.indim).repeat(batsize, axis=0) # all TERMINUS (batsize, dim)
-        return initprobs, batsize, seqlen, context
-
-    def recwrap(self, x_t, t, context, *states):   # once output is terminus, always terminus and previous state is returned
-        chosen = x_t.argmax(axis=1, keepdims=False)                 # x_t = probs over symbols:: f32-(batsize, dim) ==> int32-(batsize,)
-        chosenvec = self.idxtovec(chosen)                           # chosenvec: (batsize, embdim)
-        context_t = self._gen_context(context, *states)
-        blockarg = T.concatenate([context_t, chosenvec], axis=1)     # concat encdim of encoding and embdim of chosenvec
-        if self._mask:
-            mask = T.clip(chosen.reshape(chosen.shape[0], 1) + T.clip(1-t, 0, 1), 0, 1)     # (batsize,) --> only make mask if not in first iter
-        rnuret = self.block.rec(blockarg, *states)                                          # list of matrices (batsize, **somedims**)
-        if self._mask:
-            ret = map(lambda (prevval, newval): (prevval.T * (1-mask) + newval.T * mask).T, zip([x_t] + list(states), rnuret))
-        else:
-            ret = rnuret
+    def recwrap(self, x_t, context, t, *states_tm1):    # x_t: (batsize), context: (batsize, enc.innerdim)
+        i_t = self.embedder(x_t)                    # i_t: (batsize, embdim)
+        rnuret = self.block.rec(i_t, context, *states_tm1)     # list of matrices (batsize, **somedims**)
+        ret = rnuret
         t = t + 1
-        return [ret[0], t, context] + ret[1:]#, {}, T.until( (i > 1) * T.eq(mask.norm(1), 0) )
+        h_t = ret[0]
+        states_t = ret[1:]
+        y_t = self.softmaxoutblock(h_t)
+        return [y_t, context, t] + states_t #, {}, T.until( (i > 1) * T.eq(mask.norm(1), 0) )
 
-    def _gen_context(self, context, *states):
-        if self.has_attention:
+
+class ContextRecurrentBlock(RecurrentBlock): # responsible for using context and sequence (embedded already)
+    def __init__(self, outdim=50, **kw):
+        super(ContextRecurrentBlock, self).__init__(**kw)
+        self.outdim = outdim
+
+    def rec(self, x_t, context, *args):
+        raise NotImplementedError("use subclass")
+
+
+class RecParamCRex(RecurrentBlockParameterized, ContextRecurrentBlock):
+    def get_states_from_outputs(self, outputs):
+        return self.block.get_states_from_outputs(outputs)
+
+
+class AttRecParamCRex(RecParamCRex):    # if you use attention, provide it as first argument to constructor
+    def __init__(self, *layers, **kw):
+        self.attention = None
+        if isinstance(layers[0], Attention):
+            self.attention = layers[0]
+            layers = layers[1:]
+        super(RecParamCRex, self).__init__(*layers, **kw)
+
+    def _gen_context(self, multicontext, *states):
+        if self.attention is not None:
             criterion = T.concatenate(self.block.get_states_from_outputs(states), axis=1)   # states are (batsize, statedim)
-            return self.attention(criterion, context)   # ==> criterion is (batsize, sum_of_statedim), context is (batsize, ...)
-            # output should be (batsize, block_input_dims)
+            return self.attention(criterion, multicontext)   # ==> criterion is (batsize, sum_of_statedim), context is (batsize, ...)
         else:
-            return context
+            return multicontext
+
+
+class InConcatCRex(AttRecParamCRex):
+    def rec(self, x_t, context, *states_tm1):
+        context_t = self._gen_context(context, *states_tm1)
+        i_t = T.concatenate([x_t, context_t], axis=1)
+        rnuret = self.block.rec(i_t, *states_tm1)
+        return rnuret
+
+    def do_get_init_info(self, initstates):
+        return self.block.do_get_init_info(initstates.shape[0])
+
+
+class OutConcatCRex(AttRecParamCRex):
+    def rec(self, x_t, context, *states_tm1):   # context: (batsize, context_dim), x_t: (batsize, embdim)
+        rnuret = self.block.rec(x_t, *states_tm1)
+        h_t = rnuret[0]                         # h_t: (batsize, rnu.innerdim)
+        states_t = rnuret[1:]
+        context_t = self._gen_context(context, *states_t)
+        o_t = T.concatenate([h_t, context_t], axis=1) # o_t: (batsize, context_dim + block.outdim)
+        return [o_t] + states_t
+
+    def do_get_init_info(self, initstates):
+        return self.block.do_get_init_info(initstates.shape[0])
+
+
+class StateSetCRex(RecParamCRex):
+    def rec(self, x_t, context, *states_tm1):
+        rnuret = self.block.rec(x_t, *states_tm1)
+        return rnuret
+
+    def do_get_init_info(self, initstates):
+        return self.block.do_get_init_info([initstates])
+
+
+class SeqEncoderDecoder(Block):
+    def __init__(self, inpemb, encrec, outemb, decrec, **kw):
+        super(SeqEncoderDecoder, self).__init__(**kw)
+        self.enc = SeqEncoder(inpemb, encrec)
+        self.dec = SeqDecoder(outemb, decrec)
+
+    def apply(self, inpseq, outseq):
+        enco = self.enc(inpseq)         # (batsize, encrec.innerdim)
+        deco = self.dec(enco, outseq)   # (batsize, seqlen, outvocsize)
+        return deco
+
+
+class SimpleEncoderDecoder(SeqEncoderDecoder):  # gets two sequences of indexes for training
+    def __init__(self, innerdim=50, input_vocsize=100, output_vocsize=100, **kw):
+        input_embedder = IdxToOneHot(input_vocsize)
+        output_embedder = IdxToOneHot(output_vocsize)
+        encrec = GRU(dim=input_vocsize, innerdim=innerdim)
+        decrecrnu = GRU(dim=output_vocsize, innerdim=innerdim)
+        decrec = OutConcatCRex(decrecrnu, outdim=innerdim+innerdim)
+        super(SimpleEncoderDecoder, self).__init__(input_embedder, encrec, output_embedder, decrec, **kw)
 
 
 class RNNAutoEncoder(Block):    # tries to decode original sequence
@@ -270,14 +319,14 @@ class RNNAutoEncoder(Block):    # tries to decode original sequence
             IdxToOneHot(vocsize=vocsize),
             GRU(dim=vocsize, innerdim=encdim))
         self.decoder = SeqDecoder(IdxToOneHot(vocsize),
-                                  GRU(dim=vocsize+encdim, innerdim=innerdim),
-                                  MatDot(indim=innerdim, dim=vocsize),
-                                  Softmax(), indim=vocsize, seqlen=seqlen)
+                                  InConcatCRex(GRU(dim=vocsize+encdim, innerdim=innerdim), outdim=innerdim))
 
-    def apply(self, inpseq):
+    def apply(self, inpseq):    # inpseq: (batsize, seqlen), indexes
         enc = self.encoder(inpseq)
-        dec = self.decoder(enc, seqlen=inpseq.shape[1])
+        outseq = T.concatenate([T.zeros_like(inpseq[:, 0:1]), inpseq[:, 1:]], axis=1)
+        dec = self.decoder(enc, outseq)
         return dec
+
 
 
 class AttentionRNNAutoEncoder(Block):
@@ -293,14 +342,15 @@ class AttentionRNNAutoEncoder(Block):
         attcon = SeqEncoder(
             GRU(dim=vocsize, innerdim=encdim))
         self.dec = SeqDecoder(IdxToOneHot(vocsize),
-                              GRU(dim=vocsize+encdim, innerdim=innerdim),
-                              MatDot(indim=innerdim, dim=vocsize),
-                              Softmax(), indim=vocsize, seqlen=seqlen)
-        self.dec(Attention(attgen, attcon))
+                              InConcatCRex(
+                                  Attention(attgen, attcon),
+                                  GRU(dim=vocsize+encdim, innerdim=innerdim),
+                                  outdim=innerdim))
 
     def apply(self, inpseq):    # inpseq: indexes~(batsize, seqlen)
         inp = self.emb(inpseq)  # inp:    floats~(batsize, seqlen, vocsize)
-        return self.dec(inp)
+        outseq = T.concatenate([T.zeros_like(inpseq[:, 0:1]), inpseq[:, 1:]], axis=1)
+        return self.dec(inp, outseq)
 
 
 class RNNAttWSumDecoder(Block):
@@ -310,12 +360,10 @@ class RNNAttWSumDecoder(Block):
         attgen = LinearGateAttentionGenerator(indim=innerdim+encdim, innerdim=attdim)
         attcon = WeightedSum()
         self.dec = SeqDecoder(IdxToOneHot(vocsize),
-                              GRU(dim=vocsize+encdim, innerdim=innerdim),
-                              MatDot(indim=innerdim, dim=vocsize),
-                              Softmax(), indim=vocsize, seqlen=seqlen)
-        self.dec(Attention(attgen, attcon))
+                              InConcatCRex(Attention(attgen, attcon), GRU(dim=vocsize+encdim, innerdim=innerdim), outdim=innerdim))
 
     def apply(self, inpseq):        # inpseq: indexes~(batsize, seqlen)
         rnnout = self.rnn(inpseq)   # (batsize, seqlen, encdim)
-        return self.dec(rnnout, seqlen=inpseq.shape[1])     # (batsize, seqlen, vocsize)
+        outseq = T.concatenate([T.zeros_like(inpseq[:, 0:1]), inpseq[:, 1:]], axis=1)
+        return self.dec(rnnout, outseq)     # (batsize, seqlen, vocsize)
 

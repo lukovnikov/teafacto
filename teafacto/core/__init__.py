@@ -26,3 +26,10 @@
 # TODO: consistently rename indims and outdims args
 
 # TODO: block containment
+
+#######################################################
+############# URGENT !!!!!!!! #########################
+# TODO: change basic decoder structure (training perspective)
+# TODO: implement simple forward attention in decoder (Dong, 2016)
+# TODO: implement recurrent/forward attention in decoder (Mei, 2015)
+# TODO: implement attention over decoded sequence (Lukovnikov, 2016)
