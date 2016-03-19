@@ -301,6 +301,7 @@ class SeqEncoderDecoder(Block):
         return deco
 
 
+# TODO: travis error messages about theano optimization and shapes only involve things below
 class SimpleEncoderDecoder(SeqEncoderDecoder):  # gets two sequences of indexes for training
     def __init__(self, innerdim=50, input_vocsize=100, output_vocsize=100, **kw):
         input_embedder = IdxToOneHot(input_vocsize)

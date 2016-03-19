@@ -1,5 +1,4 @@
 Lasagne==0.1
-Theano==0.7.0
 pandas==0.17.0
 Whoosh==2.7.0
 argparse==1.2.1

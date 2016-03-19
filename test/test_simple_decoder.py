@@ -17,7 +17,7 @@ class TestSimpleEncoderDecoder(TestCase):
         self.sedoutv = self.sed.predict(inpseqv, outseqv)
         self.sedoutvshape = (batsize, seqlen, outvocsize)
 
-    def test__output_shapes(self):
+    def test_output_shapes(self):
         self.assertEqual(self.sedoutv.shape, self.sedoutvshape)
 
     def test_propagated_param_names(self):

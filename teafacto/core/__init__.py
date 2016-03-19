@@ -29,6 +29,7 @@
 
 #######################################################
 ############# URGENT !!!!!!!! #########################
+# TODO: TEST RNN_AUTO-ENCODER TRAINING, ANALYZE
 # TODO: MERGE INTO MASTER (TRAVIS GIVES WEIRD ERROR MESSAGES)
 
 # TODO: implement recurrent/forward attention in decoder (Mei, 2015)
