@@ -29,8 +29,4 @@
 
 #######################################################
 ############# URGENT !!!!!!!! #########################
-# TODO: TEST RNN_AUTO-ENCODER TRAINING, ANALYZE
-# TODO: MERGE INTO MASTER (TRAVIS GIVES WEIRD ERROR MESSAGES)
-
-# TODO: implement recurrent/forward attention in decoder (Mei, 2015)
-# TODO: implement attention over decoded sequence (Lukovnikov, 2016)
+# TODO: TEST ATTENTION INCLUSION IN DECODER PAYLOAD (something wrong with run_attentionseqdecoder)

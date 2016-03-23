@@ -4,6 +4,10 @@ from teafacto.blocks.rnn import RNNAutoEncoder, AttentionRNNAutoEncoder, RNNAttW
 import numpy as np
 
 
+def shiftdata(x):
+    return np.concatenate([np.zeros_like(x[:, 0:1]), x[:, :-1]], axis=1)
+
+
 class TestRNNAutoEncoder(TestCase):
     def setUp(self):
         vocsize = 25
@@ -14,7 +18,7 @@ class TestRNNAutoEncoder(TestCase):
         self.exppredshape = (batsize, seqlen, vocsize)
         self.rae = self.get_rae(vocsize=vocsize, innerdim=innerdim, encdim=encdim, seqlen=seqlen)
         self.dummydata = np.random.randint(0, vocsize, (batsize, seqlen))
-        self.dummypred = self.rae.predict(self.dummydata)
+        self.dummypred = self.rae.predict(self.dummydata, shiftdata(self.dummydata))
 
     def get_rae(self, **kwargs):
         return RNNAutoEncoder(**kwargs)

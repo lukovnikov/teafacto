@@ -322,9 +322,8 @@ class RNNAutoEncoder(Block):    # tries to decode original sequence
         self.decoder = SeqDecoder(IdxToOneHot(vocsize),
                                   InConcatCRex(GRU(dim=vocsize+encdim, innerdim=innerdim), outdim=innerdim))
 
-    def apply(self, inpseq):    # inpseq: (batsize, seqlen), indexes
+    def apply(self, inpseq, outseq):    # inpseq: (batsize, seqlen), indexes
         enc = self.encoder(inpseq)
-        outseq = T.concatenate([T.zeros_like(inpseq[:, 0:1]), inpseq[:, 1:]], axis=1)
         dec = self.decoder(enc, outseq)
         return dec
 
@@ -348,9 +347,8 @@ class AttentionRNNAutoEncoder(Block):
                                   GRU(dim=vocsize+encdim, innerdim=innerdim),
                                   outdim=innerdim))
 
-    def apply(self, inpseq):    # inpseq: indexes~(batsize, seqlen)
+    def apply(self, inpseq, outseq):    # inpseq: indexes~(batsize, seqlen)
         inp = self.emb(inpseq)  # inp:    floats~(batsize, seqlen, vocsize)
-        outseq = T.concatenate([T.zeros_like(inpseq[:, 0:1]), inpseq[:, 1:]], axis=1)
         return self.dec(inp, outseq)
 
 
@@ -361,10 +359,12 @@ class RNNAttWSumDecoder(Block):
         attgen = LinearGateAttentionGenerator(indim=innerdim+encdim, innerdim=attdim)
         attcon = WeightedSum()
         self.dec = SeqDecoder(IdxToOneHot(vocsize),
-                              InConcatCRex(Attention(attgen, attcon), GRU(dim=vocsize+encdim, innerdim=innerdim), outdim=innerdim))
+                              InConcatCRex(
+                                  Attention(attgen, attcon),
+                                  GRU(dim=vocsize+encdim, innerdim=innerdim),
+                                  outdim=innerdim))
 
-    def apply(self, inpseq):        # inpseq: indexes~(batsize, seqlen)
+    def apply(self, inpseq, outseq):        # inpseq: indexes~(batsize, seqlen)
         rnnout = self.rnn(inpseq)   # (batsize, seqlen, encdim)
-        outseq = T.concatenate([T.zeros_like(inpseq[:, 0:1]), inpseq[:, 1:]], axis=1)
         return self.dec(rnnout, outseq)     # (batsize, seqlen, vocsize)
 

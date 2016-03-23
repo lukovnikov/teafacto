@@ -28,6 +28,14 @@ class TestVecSeqIdx(TestCase):
         p = b.predict(data, pdata)
         self.assertEqual(p.shape, (self.batsize, self.seqlen, self.numchars))
 
+    def test_seq2idx_params(self):
+        b = seq2idx(invocsize=self.numchars, outvocsize=self.numwords, innerdim=self.innerdim)
+        data = np.random.randint(0, self.numchars, (self.batsize, self.seqlen))
+        p = b.predict(data)
+        allparams = b.output.allparams
+        for param in allparams:
+            print param
+
 
 def words2ints(words):
     wldf = pd.DataFrame(map(word2int, words)).fillna(0)

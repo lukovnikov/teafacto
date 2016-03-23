@@ -69,9 +69,9 @@ def ints2words(ints):
     return [int2word(x) for x in ints]
 
 
-def run_RNNAutoEncoder(
-        wreg=0.001,
-        epochs=200,
+def run_RNNAutoEncoder(         # works after refactoring
+        wreg=0.000001,
+        epochs=50,
         numbats=20,
         lr=0.1,
         statedim=70,
@@ -85,6 +85,7 @@ def run_RNNAutoEncoder(
     #wldf = pd.DataFrame(map(word2int, words)).fillna(0)
     #data = wldf.values.astype("int32")
     data = words2ints(words)
+    sdata = shiftdata(data)
     embs = lm.W[map(lambda x: lm * x, words), :]
     print embs.shape, data.shape
     #embed()
@@ -96,16 +97,16 @@ def run_RNNAutoEncoder(
     testpred = words2ints(testpred)
 
     block = RNNAutoEncoder(vocsize=vocsize, encdim=70, innerdim=statedim, seqlen=data.shape[1])
-    block.train([data], data).seq_neg_log_prob().grad_total_norm(1.0).adagrad(lr=lr).l2(wreg)\
+    block.train([data, sdata], data).seq_neg_log_prob().grad_total_norm(1.0).adagrad(lr=lr).l2(wreg)\
          .autovalidate().seq_accuracy().validinter(4)\
          .train(numbats=numbats, epochs=epochs)
 
-    pred = block.predict(testpred)
+    pred = block.predict(testpred, shiftdata(testpred))
     print ints2words(np.argmax(pred, axis=2))
 
 
 def run_attentionseqdecoder(
-        wreg=0.001,
+        wreg=0.0000001,
         epochs=120,
         numbats=20,
         lr=0.1,
@@ -122,7 +123,9 @@ def run_attentionseqdecoder(
     words = allwords[:1000]
     vwords = allwords[1000:]
     data = words2ints(words)
+    sdata = shiftdata(data)
     vdata = words2ints(vwords)
+    svdata = shiftdata(vdata)
     print "random seq neg log prob %.3f" % math.log(vocsize**data.shape[1])
     testneglogprob = 17
     print "%.2f neg log prob for a whole sequence is %.3f prob per slot" % (testneglogprob, math.exp(-testneglogprob*1./data.shape[1]))
@@ -132,18 +135,18 @@ def run_attentionseqdecoder(
     print testpred
 
     block = RNNAttWSumDecoder(vocsize=vocsize, encdim=encdim, innerdim=statedim, seqlen=data.shape[1], attdim=attdim)
-    block.train([data], data).seq_neg_log_prob().grad_total_norm(1.0).adagrad(lr=lr).l2(wreg)\
-         .validate_on([vdata], vdata).seq_accuracy().validinter(4)\
+    block.train([data, sdata], data).seq_neg_log_prob().grad_total_norm(1.0).adagrad(lr=lr).l2(wreg)\
+         .validate_on([vdata, svdata], vdata).seq_accuracy().validinter(4)\
          .train(numbats=numbats, epochs=epochs)
 
-    pred = block.predict(testpred)
+    pred = block.predict(testpred, shiftdata(testpred))
     print ints2words(np.argmax(pred, axis=2))
 
     embed()
 
 
-def run_idx2seq(
-        wreg=0.001,
+def run_idx2seq(        # works after refactor
+        wreg=0.000001,
         epochs=150,
         numbats=10,
         lr=0.1,
@@ -183,50 +186,14 @@ def run_idx2seq(
         print word
     embed()
 
+
 def shiftdata(x):
     return np.concatenate([np.zeros_like(x[:, 0:1]), x[:, :-1]], axis=1)
 
 
-def runidx2firstletter(
+def run_seq2idx(        # works after refactoring (with adagrad)
         wreg=0.0,
-        epochs=1000,
-        numbats=10,
-        lr=0.1,
-        statedim=100,
-        encdim=100,
-    ):
-    # get words
-    numchars = 27
-    embdim = 50
-    lm = Glove(embdim, 1000)
-    words = filter(lambda x: re.match("^[a-z]+$", x), lm.D.keys())
-    data = words2ints(words)
-    wordidxs = np.arange(0, len(words))
-    print wordidxs[:15]
-    print data[:15]
-    numwords = wordidxs.shape[0]
-    print "random seq neg log prob %.3f" % math.log(numchars**data.shape[1])
-    testneglogprob = 17
-    print "%.2f neg log prob for a whole sequence is %.3f prob per slot" % (testneglogprob, math.exp(-testneglogprob*1./data.shape[1]))
-
-    testpred = wordidxs[:15]
-    #testpred = words2ints(testpred)
-
-    block = stack(VectorEmbed(indim=numwords, dim=encdim), Lin(indim=encdim, dim=numchars), Softmax())
-    print np.argmax(block.predict(testpred), axis=1)
-    print block.output.allparams
-    block.train([wordidxs], data[:, 0]).neg_log_prob().sgd(lr=lr)\
-         .train(numbats=numbats, epochs=epochs)
-
-    pred = block.predict(testpred)
-    print np.argmax(pred, axis=1)
-    print data[:15, 0]
-    embed()
-
-
-def run_seq2idx(
-        wreg=0.0,
-        epochs=300,
+        epochs=75,
         numbats=20,
         lr=1.,
         statedim=100,
@@ -252,6 +219,7 @@ def run_seq2idx(
 
     testpred = ["the", "of", "to", "their", "in"]
     testpred = words2ints(testpred)
+    print words[:5], words[35]
     ####testpred = np.eye(numchars, numchars)[testpred, :]
 
     wordidxsonehot = np.eye(numwords, numwords)[wordidxs, :]
@@ -272,7 +240,7 @@ def run_seq2idx(
     for p in block.output.allparams:
         print p
     '''
-    block.train([data], wordidxs).neg_log_prob().sgd(lr=lr).autovalidate().accuracy().validinter(5)\
+    block.train([data], wordidxs).neg_log_prob().adagrad(lr=lr).autovalidate().accuracy().validinter(5)\
          .train(numbats=numbats, epochs=epochs)
 
     #embed()
@@ -285,5 +253,5 @@ def run_seq2idx(
 
 
 if __name__ == "__main__":
-    argprun(run_idx2seq)
+    argprun(run_attentionseqdecoder())
     #print ints2words(np.asarray([[20,8,5,0,0,0], [1,2,3,0,0,0]]))
