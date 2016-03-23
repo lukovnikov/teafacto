@@ -105,8 +105,8 @@ def run_RNNAutoEncoder(         # works after refactoring
     print ints2words(np.argmax(pred, axis=2))
 
 
-def run_attentionseqdecoder(
-        wreg=0.0000001,
+def run_attentionseqdecoder(        # seems to work
+        wreg=0.00001,       # TODO: regularization other than 0.0001 first stagnates, then goes down
         epochs=120,
         numbats=20,
         lr=0.1,
@@ -130,12 +130,12 @@ def run_attentionseqdecoder(
     testneglogprob = 17
     print "%.2f neg log prob for a whole sequence is %.3f prob per slot" % (testneglogprob, math.exp(-testneglogprob*1./data.shape[1]))
 
-    testpred = ["the", "alias", "mock", "test", "stalin", "allahuakbar", "pythonista", " "*(data.shape[1])]
+    testpred = ["the", "alias", "mock", "test", "stalin", "allahuakbar", "python", "pythonista", " "*(data.shape[1])]
     testpred = words2ints(testpred)
     print testpred
 
     block = RNNAttWSumDecoder(vocsize=vocsize, encdim=encdim, innerdim=statedim, seqlen=data.shape[1], attdim=attdim)
-    block.train([data, sdata], data).seq_neg_log_prob().grad_total_norm(1.0).adagrad(lr=lr).l2(wreg)\
+    block.train([data, sdata], data).seq_neg_log_prob().grad_total_norm(0.5).adagrad(lr=lr).l2(wreg)\
          .validate_on([vdata, svdata], vdata).seq_accuracy().validinter(4)\
          .train(numbats=numbats, epochs=epochs)
 

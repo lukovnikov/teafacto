@@ -27,6 +27,7 @@
 
 # TODO: block containment
 
+
 #######################################################
 ############# URGENT !!!!!!!! #########################
-# TODO: TEST ATTENTION INCLUSION IN DECODER PAYLOAD (something wrong with run_attentionseqdecoder)
+# TODO: TEST ATTENTION INCLUSION IN DECODER PAYLOAD
