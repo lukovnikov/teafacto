@@ -16,7 +16,7 @@ class TestRNNAutoEncoder(TestCase):
         batsize = 500
         seqlen = 5
         self.exppredshape = (batsize, seqlen, vocsize)
-        self.rae = self.get_rae(vocsize=vocsize, innerdim=innerdim, encdim=encdim, seqlen=seqlen)
+        self.rae = self.get_rae(vocsize=vocsize, outvocsize=vocsize, innerdim=innerdim, encdim=encdim)
         self.dummydata = np.random.randint(0, vocsize, (batsize, seqlen))
         self.dummypred = self.rae.predict(self.dummydata, shiftdata(self.dummydata))
 
