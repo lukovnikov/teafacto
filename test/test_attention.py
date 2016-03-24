@@ -1,6 +1,6 @@
 from unittest import TestCase
 from teafacto.blocks.attention import Attention, WeightedSum, LinearSumAttentionGenerator, LinearGateAttentionGenerator
-from teafacto.blocks.rnn import SeqDecoder, AttentionRNNAutoEncoder, InConcatCRex
+from teafacto.blocks.rnn import SeqDecoder, RewAttRNNEncDecoder, InConcatCRex
 from teafacto.blocks.rnu import GRU
 from teafacto.blocks.basic import Softmax, MatDot as Lin, IdxToOneHot
 import numpy as np

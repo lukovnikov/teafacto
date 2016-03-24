@@ -1,6 +1,6 @@
 from unittest import TestCase
 
-from teafacto.blocks.rnn import RNNAutoEncoder, AttentionRNNAutoEncoder, RNNAttWSumDecoder
+from teafacto.blocks.rnn import RNNAutoEncoder, RewAttRNNEncDecoder, RewAttSumDecoder
 import numpy as np
 
 
@@ -30,7 +30,7 @@ class TestRNNAutoEncoder(TestCase):
 class AttentionRNNAutoEncoderTest(TestRNNAutoEncoder):
     def get_rae(self, **kwargs):
         kwargs["attdim"] = 33
-        return AttentionRNNAutoEncoder(**kwargs)
+        return RewAttRNNEncDecoder(**kwargs)
 
     def test_params(self):
         print self.rae.output.allparams
@@ -39,7 +39,7 @@ class AttentionRNNAutoEncoderTest(TestRNNAutoEncoder):
 class RNNAttWSumDecoderTest(TestRNNAutoEncoder):
     def get_rae(self, **kwargs):
         kwargs["attdim"] = 33
-        return RNNAttWSumDecoder(**kwargs)
+        return RewAttSumDecoder(**kwargs)
 
     def test_params(self):
         print self.rae.output.allparams

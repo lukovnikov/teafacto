@@ -329,22 +329,21 @@ class RNNAutoEncoder(Block):    # tries to decode original sequence
 
 
 
-class AttentionRNNAutoEncoder(Block):
+class RewAttRNNEncDecoder(Block):
     '''
     Take the input index sequence as-is, transform to one-hot, feed to gate AttentionGenerator, encode with weighted SeqEncoder,
     put everything as attention inside SeqDecoder
     '''
-    def __init__(self, vocsize=25, encdim=200, innerdim=200, attdim=50, seqlen=50, **kw):
-        super(AttentionRNNAutoEncoder, self).__init__(**kw)
-        self.seqlen = seqlen
+    def __init__(self, vocsize=25, outvocsize=20, encdim=200, innerdim=200, attdim=50, **kw):
+        super(RewAttRNNEncDecoder, self).__init__(**kw)
         self.emb = IdxToOneHot(vocsize)
         attgen = LinearGateAttentionGenerator(indim=innerdim+vocsize, innerdim=attdim)
         attcon = SeqEncoder(
             GRU(dim=vocsize, innerdim=encdim))
-        self.dec = SeqDecoder(IdxToOneHot(vocsize),
+        self.dec = SeqDecoder(IdxToOneHot(outvocsize),
                               InConcatCRex(
                                   Attention(attgen, attcon),
-                                  GRU(dim=vocsize+encdim, innerdim=innerdim),
+                                  GRU(dim=outvocsize+encdim, innerdim=innerdim),
                                   outdim=innerdim))
 
     def apply(self, inpseq, outseq):    # inpseq: indexes~(batsize, seqlen)
@@ -352,19 +351,58 @@ class AttentionRNNAutoEncoder(Block):
         return self.dec(inp, outseq)
 
 
-class RNNAttWSumDecoder(Block):
-    def __init__(self, vocsize=25, encdim=200, innerdim=200, attdim=50, seqlen=50, **kw):
-        super(RNNAttWSumDecoder, self).__init__(**kw)
+class FwdAttRNNEncDecoder(Block):
+    '''
+    Take the input index sequence as-is, transform to one-hot, feed to gate AttentionGenerator, encode with weighted SeqEncoder,
+    put everything as attention inside SeqDecoder
+    '''
+    def __init__(self, vocsize=25, outvocsize=20, encdim=200, innerdim=200, attdim=50, **kw):
+        super(FwdAttRNNEncDecoder, self).__init__(**kw)
+        self.emb = IdxToOneHot(vocsize)
+        attgen = LinearGateAttentionGenerator(indim=innerdim+vocsize, innerdim=attdim)
+        attcon = SeqEncoder(
+            GRU(dim=vocsize, innerdim=encdim))
+        self.dec = SeqDecoder(IdxToOneHot(outvocsize),
+                              OutConcatCRex(
+                                  Attention(attgen, attcon),
+                                  GRU(dim=outvocsize, innerdim=innerdim),
+                                  outdim=innerdim+encdim))
+
+    def apply(self, inpseq, outseq):    # inpseq: indexes~(batsize, seqlen)
+        inp = self.emb(inpseq)  # inp:    floats~(batsize, seqlen, vocsize)
+        return self.dec(inp, outseq)
+
+
+class RewAttSumDecoder(Block):
+    def __init__(self, vocsize=25, outvocsize=25, encdim=200, innerdim=200, attdim=50, **kw):
+        super(RewAttSumDecoder, self).__init__(**kw)
         self.rnn = RecurrentStack(IdxToOneHot(vocsize), GRU(dim=vocsize, innerdim=encdim))
         attgen = LinearGateAttentionGenerator(indim=innerdim+encdim, innerdim=attdim)
         attcon = WeightedSum()
-        self.dec = SeqDecoder(IdxToOneHot(vocsize),
+        self.dec = SeqDecoder(IdxToOneHot(outvocsize),
                               InConcatCRex(
                                   Attention(attgen, attcon),
-                                  GRU(dim=vocsize+encdim, innerdim=innerdim),
+                                  GRU(dim=outvocsize+encdim, innerdim=innerdim),
                                   outdim=innerdim))
 
     def apply(self, inpseq, outseq):        # inpseq: indexes~(batsize, seqlen)
         rnnout = self.rnn(inpseq)   # (batsize, seqlen, encdim)
         return self.dec(rnnout, outseq)     # (batsize, seqlen, vocsize)
 
+
+class FwdAttSumDecoder(Block):
+    def __init__(self, vocsize=25, outvocsize=25, encdim=300, innerdim=200, attdim=50, **kw):
+        super(FwdAttSumDecoder, self).__init__(**kw)
+        self.rnn = RecurrentStack(IdxToOneHot(vocsize), GRU(dim=vocsize, innerdim=encdim))
+        attgen = LinearGateAttentionGenerator(indim=innerdim+encdim, innerdim=attdim)
+        attcon = WeightedSum()
+        self.dec = SeqDecoder(IdxToOneHot(outvocsize),
+                              OutConcatCRex(
+                                  Attention(attgen, attcon),
+                                  GRU(dim=outvocsize, innerdim=innerdim),
+                                  outdim=innerdim+encdim
+                              ))
+
+    def apply(self, inpseq, outseq):
+        rnnout = self.rnn(inpseq)
+        return self.dec(rnnout, outseq)
