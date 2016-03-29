@@ -1,5 +1,4 @@
-from teafacto.blocks.rnu import GRU
-from teafacto.blocks.rnu import RecurrentBlock
+from teafacto.blocks.rnu import GRU, ReccableBlock, RecurrentBlock, RNUBase
 from teafacto.core.base import Block, tensorops as T, asblock
 from teafacto.blocks.basic import IdxToOneHot, VectorEmbed, Embedder, Softmax, MatDot
 from teafacto.blocks.attention import WeightedSum, LinearSumAttentionGenerator, Attention, AttentionConsumer, LinearGateAttentionGenerator
@@ -8,9 +7,9 @@ import inspect
 from IPython import embed
 
 
-class RecurrentStack(RecurrentBlock):
+class ReccableStack(ReccableBlock):
     def __init__(self, *args, **kw): # layer can be a layer or function
-        super(RecurrentStack, self).__init__(**kw)
+        super(ReccableStack, self).__init__(**kw)
         self.layers = args
 
     def __getitem__(self, idx):
@@ -19,7 +18,7 @@ class RecurrentStack(RecurrentBlock):
     def get_states_from_outputs(self, outputs):
         # outputs are ordered from topmost recurrent layer first ==> split and delegate
         states = []
-        for recurrentlayer in filter(lambda x: isinstance(x, RecurrentBlock), self.layers): # from bottom -> eat from behind; insert to the front
+        for recurrentlayer in filter(lambda x: isinstance(x, ReccableBlock), self.layers): # from bottom -> eat from behind; insert to the front
             numstates = len(inspect.getargspec(recurrentlayer.rec).args) - 2
             layerstates = recurrentlayer.get_states_from_outputs(outputs[-numstates:]) # might be more than one
             i = 0
@@ -31,7 +30,7 @@ class RecurrentStack(RecurrentBlock):
         return states
 
     def do_get_init_info(self, initstates):    # if initstates is not a list, it must be batsize
-        recurrentlayers = list(filter(lambda x: isinstance(x, RecurrentBlock), self.layers))
+        recurrentlayers = list(filter(lambda x: isinstance(x, ReccableBlock), self.layers))
         recurrentlayers.reverse()
         init_infos = []
         for recurrentlayer in recurrentlayers:
@@ -44,7 +43,7 @@ class RecurrentStack(RecurrentBlock):
         nextinp = x_t
         nextstates = []
         for block in self.layers:
-            if isinstance(block, RecurrentBlock):
+            if isinstance(block, ReccableBlock):
                 numstates = len(inspect.getargspec(block.rec).args) - 2
                 # eat from behind
                 recstates = states[-numstates:]
@@ -70,19 +69,47 @@ class RecurrentStack(RecurrentBlock):
         return output.dimswap(1, 0)
 
 
-class RecurrentBlockParameterized(object):
+class RecurrentStack(Block):       # TODO: setting init states of contained recurrent blocks
+    def __init__(self, *layers, **kw):
+        super(RecurrentStack, self).__init__(**kw)
+        self.layers = layers
+
+    def apply(self, seq):
+        acc = seq
+        for layer in self.layers:
+            if isinstance(layer, RecurrentBlock):
+                acc = layer(acc)
+            elif isinstance(layer, Block): # non-recurrent ==> recur
+                acc = acc.dimswap(1, 0)
+                acc, _ = T.scan(fn=self.dummyrec(layer),
+                                  sequences=acc,
+                                  outputs_info=None)
+                acc = acc.dimswap(1, 0)
+            else:
+                raise Exception("can not apply this layer: "+str(layer))
+        return acc
+
+    def dummyrec(self, layer):
+        def innerrec(x_t):
+            return layer(x_t)
+        return innerrec
+
+
+
+
+class ReccableBlockParameterized(object):
     def __init__(self, *layers, **kw):
         self._reverse = False
         if "reverse" in kw:
             self._reverse = kw["reverse"]
             del kw["reverse"]
-        super(RecurrentBlockParameterized, self).__init__(**kw)
+        super(ReccableBlockParameterized, self).__init__(**kw)
         if len(layers) > 0:
             if len(layers) == 1:
                 self.block = layers[0]
-                assert(isinstance(self.block, RecurrentBlock))
+                assert(isinstance(self.block, ReccableBlock))
             else:
-                self.block = RecurrentStack(*layers)
+                self.block = ReccableStack(*layers)
         else:
             self.block = None
 
@@ -103,8 +130,34 @@ class RecurrentBlockParameterized(object):
         raise NotImplementedError("use subclass")
 '''
 
+class BiRNU(RecurrentBlock): # TODO: optimizer can't process this
+    def __init__(self, fwd=None, rew=None, **kw):
+        super(BiRNU, self).__init__(**kw)
+        assert(isinstance(fwd, RNUBase) and isinstance(rew, RNUBase))
+        self.fwd = fwd
+        self.rew = rew
+        assert(self.fwd.indim == self.rew.indim)
 
-class SeqEncoder(RecurrentBlockParameterized, AttentionConsumer, Block):
+    @classmethod
+    def fromrnu(cls, rnucls, *args, **kw):
+        assert(issubclass(rnucls, RNUBase))
+        kw["reverse"] = False
+        fwd = rnucls(*args, **kw)
+        kw["reverse"] = True
+        rew = rnucls(*args, **kw)
+        return cls(fwd, rew)
+
+    def apply(self, seq, init_states=None):
+        fwdout = self.fwd(seq)
+        rewout = self.rew(seq)
+        # concatenate: fwdout, rewout: (batsize, seqlen, feats) ==> (batsize, seqlen, feats_fwd+feats_rew)
+        out = T.concatenate([fwdout, rewout], axis=2)
+        return out
+
+
+
+
+class SeqEncoder(ReccableBlockParameterized, AttentionConsumer, Block):
     '''
     Encodes a sequence of vectors into a vector, input dims and output dims specified by the RNU unit
     Returns multiple outputs, multiple states
@@ -113,6 +166,11 @@ class SeqEncoder(RecurrentBlockParameterized, AttentionConsumer, Block):
     _withoutput = False
     _all_states = False
     _weighted = False
+    _nomask = False
+
+    @property
+    def nomask(self):
+        self._nomask = True
 
     def apply(self, seq, weights=None): # seq: (batsize, seqlen, dim), weights: (batsize, seqlen)
         inp = seq.dimswap(1, 0)         # inp: (seqlen, batsize, dim)
@@ -151,14 +209,18 @@ class SeqEncoder(RecurrentBlockParameterized, AttentionConsumer, Block):
         return output
 
     def recwrap(self, x_t, w_t, *args): # x_t: (batsize, dim)      if input is all zeros, just return previous state
-        if x_t.ndim == 1:       # ==> indexes
-            mask = x_t > 0      # 0 is TERMINUS
-        else:
-            mask = x_t.norm(2, axis=1) > 0 # mask: (batsize, )
+        if not self._nomask:
+            if x_t.ndim == 1:       # ==> indexes
+                mask = x_t > 0      # 0 is TERMINUS
+            else:
+                mask = x_t.norm(2, axis=1) > 0 # mask: (batsize, )
         rnuret = self.block.rec(x_t, *args) # list of matrices (batsize, **somedims**)
         if self._weighted:
             rnuret = map(lambda (origarg, rnuretarg): (origarg.T * (1 - w_t) + rnuretarg.T * w_t).T, zip([args[0]] + list(args), rnuret))
-        ret = map(lambda (origarg, rnuretarg): (origarg.T * (1 - mask) + rnuretarg.T * mask).T, zip([args[0]] + list(args), rnuret)) # TODO mask breaks multi-layered encoders (order is reversed)
+        if not self._nomask:
+            ret = map(lambda (origarg, rnuretarg): (origarg.T * (1 - mask) + rnuretarg.T * mask).T, zip([args[0]] + list(args), rnuret)) # TODO mask breaks multi-layered encoders (order is reversed)
+        else:
+            ret = rnuret
         #ret = rnuret
         return ret
 
@@ -175,7 +237,7 @@ class SeqEncoder(RecurrentBlockParameterized, AttentionConsumer, Block):
         return self
 
 
-class SeqDecoder(RecurrentBlockParameterized, Block):
+class SeqDecoder(ReccableBlockParameterized, Block):
     '''
     Decodes a sequence of symbols given context
     output: probabilities over symbol space: float: (batsize, seqlen, vocabsize)
@@ -189,7 +251,7 @@ class SeqDecoder(RecurrentBlockParameterized, Block):
         self._mask = False
         self._attention = None
         self.embedder = embedder
-        assert(isinstance(contextrecurrentblock, ContextRecurrentBlock))
+        assert(isinstance(contextrecurrentblock, ContextReccableBlock))
         if softmaxoutblock is None:
             sm = Softmax()
             lin = MatDot(indim=contextrecurrentblock.outdim, dim=self.embedder.indim)
@@ -197,22 +259,16 @@ class SeqDecoder(RecurrentBlockParameterized, Block):
         else:
             self.softmaxoutblock = softmaxoutblock
 
-    def set_attention(self, att):
-        self._attention = att
-
-    @property
-    def has_attention(self):
-        return self._attention is not None and isinstance(self._attention, Attention)
-
-    @property
-    def attention(self):
-        return self._attention
-
     def apply(self, context, seq, **kw):    # context: (batsize, enc.innerdim), seq: idxs-(batsize, seqlen)
         sequences = [seq.dimswap(1, 0)]     # sequences: (seqlen, batsize)
+        init_info = self.block.get_init_info(context)   # here is where the recurrent payload block decides how to use provided context (as init states or otherwise)
+        '''if init_states == None:
+            init_info = self.block.get_init_info(seq.shape[0])      # initial rec states initted to zeros
+        else:
+            init_info = init_states                                 # initial rec states initted to given values'''
         outputs, _ = T.scan(fn=self.recwrap,
                             sequences=sequences,
-                            outputs_info=[None, context, 0]+self.block.get_init_info(context))
+                            outputs_info=[None, context, 0]+init_info)
         return outputs[0].dimswap(1, 0) # returns probabilities of symbols --> (batsize, seqlen, vocabsize)
 
     def recwrap(self, x_t, context, t, *states_tm1):    # x_t: (batsize), context: (batsize, enc.innerdim)
@@ -226,16 +282,16 @@ class SeqDecoder(RecurrentBlockParameterized, Block):
         return [y_t, context, t] + states_t #, {}, T.until( (i > 1) * T.eq(mask.norm(1), 0) )
 
 
-class ContextRecurrentBlock(RecurrentBlock): # responsible for using context and sequence (embedded already)
+class ContextReccableBlock(ReccableBlock): # responsible for using context and sequence (embedded already)
     def __init__(self, outdim=50, **kw):
-        super(ContextRecurrentBlock, self).__init__(**kw)
+        super(ContextReccableBlock, self).__init__(**kw)
         self.outdim = outdim
 
     def rec(self, x_t, context, *args):
         raise NotImplementedError("use subclass")
 
 
-class RecParamCRex(RecurrentBlockParameterized, ContextRecurrentBlock):
+class RecParamCRex(ReccableBlockParameterized, ContextReccableBlock):
     def get_states_from_outputs(self, outputs):
         return self.block.get_states_from_outputs(outputs)
 
@@ -376,7 +432,7 @@ class FwdAttRNNEncDecoder(Block):
 class RewAttSumDecoder(Block):
     def __init__(self, vocsize=25, outvocsize=25, encdim=200, innerdim=200, attdim=50, **kw):
         super(RewAttSumDecoder, self).__init__(**kw)
-        self.rnn = RecurrentStack(IdxToOneHot(vocsize), GRU(dim=vocsize, innerdim=encdim))
+        self.rnn = ReccableStack(IdxToOneHot(vocsize), GRU(dim=vocsize, innerdim=encdim))
         attgen = LinearGateAttentionGenerator(indim=innerdim+encdim, innerdim=attdim)
         attcon = WeightedSum()
         self.dec = SeqDecoder(IdxToOneHot(outvocsize),
@@ -406,3 +462,23 @@ class FwdAttSumDecoder(Block):
     def apply(self, inpseq, outseq):
         rnnout = self.rnn(inpseq)
         return self.dec(rnnout, outseq)
+
+
+class BiFwdAttSumDecoder(Block):
+    def __init__(self, vocsize=25, outvocsize=25, encdim=300, innerdim=200, attdim=50, **kw):
+        super(BiFwdAttSumDecoder, self).__init__(**kw)
+        self.rnn = RecurrentStack(IdxToOneHot(vocsize),
+                                  BiRNU.fromrnu(GRU, dim=vocsize, innerdim=encdim))
+        attgen = LinearGateAttentionGenerator(indim=innerdim+encdim*2, innerdim=attdim)
+        attcon = WeightedSum()
+        self.dec = SeqDecoder(IdxToOneHot(outvocsize),
+                              OutConcatCRex(
+                                  Attention(attgen, attcon),
+                                  GRU(dim=outvocsize, innerdim=innerdim),
+                                  outdim=innerdim+encdim*2
+                              ))
+
+    def apply(self, inpseq, outseq):
+        rnnout = self.rnn(inpseq)
+        return self.dec(rnnout, outseq)
+

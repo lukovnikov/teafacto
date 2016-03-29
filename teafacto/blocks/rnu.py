@@ -3,10 +3,23 @@ from teafacto.core.base import tensorops as T
 from teafacto.util import issequence
 
 
-class RecurrentBlock(Block):
+class RecurrentBlock(Block):     # ancestor class for everything that consumes sequences f32~(batsize, seqlen, ...)
     def __init__(self, reverse=False, **kw):
         super(RecurrentBlock, self).__init__(**kw)
         self._reverse = reverse
+
+    @property
+    def reverse(self):
+        self._reverse = True
+        return self
+
+    def apply(self, seq):
+        raise NotImplementedError("use subclass")
+
+
+class ReccableBlock(RecurrentBlock):    # exposes a rec function
+    def __init__(self, **kw):
+        super(ReccableBlock, self).__init__(**kw)
 
     def rec(self, *args):
         raise NotImplementedError("use subclass")
@@ -23,13 +36,13 @@ class RecurrentBlock(Block):
         raise NotImplementedError("use subclass")
 
 
-class RNUBase(RecurrentBlock):
+class RNUBase(ReccableBlock):
     paramnames = []
     _waitforit = False
 
     def __init__(self, dim=20, innerdim=20, wreg=0.0001, initmult=0.1, nobias=False, paraminit="uniform", **kw): # dim is input dimensions, innerdim = dimension of internal elements
         super(RNUBase, self).__init__(**kw)
-        self.dim = dim
+        self.indim = dim
         self.innerdim = innerdim
         self.wreg = wreg
         self.initmult = initmult
@@ -56,7 +69,7 @@ class RNUBase(RecurrentBlock):
                 if paramname[0] == "b" or paramname[0] == "p": # bias or peepholes, internal weights
                     shape = (self.innerdim,)
                 elif paramname[0] == "w": #input processing matrices
-                    shape = (self.dim, self.innerdim)
+                    shape = (self.indim, self.innerdim)
                 else: # internal recurrent matrices
                     shape = (self.innerdim, self.innerdim)
             self.rnuparams[paramname] = param(shape, name=paramname).init(self.paraminit)
@@ -133,8 +146,8 @@ class IFGRU(GatedRNU):      # input-modulating GRU
         self._waitforit = True
         super(IFGRU, self).__init__(**kw)
         self.paramnames = ["um", "wm", "uhf", "whf",
-                           ("uif", (self.innerdim, self.dim)), ("wif", (self.dim, self.dim)),
-                           "u", "w", "bm", "bhf", ("bif", (self.dim,)), "b"]
+                           ("uif", (self.innerdim, self.indim)), ("wif", (self.indim, self.indim)),
+                           "u", "w", "bm", "bhf", ("bif", (self.indim,)), "b"]
         self.initparams()
 
     def rec(self, x_t, h_tm1):

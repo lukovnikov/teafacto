@@ -4,7 +4,7 @@ from IPython import embed
 
 from teafacto.core.base import Block, tensorops as T
 from teafacto.core.stack import stack
-from teafacto.blocks.rnn import RNNAutoEncoder, SeqDecoder, SeqEncoder, InConcatCRex, RewAttRNNEncDecoder, FwdAttRNNEncDecoder, RewAttSumDecoder, FwdAttSumDecoder
+from teafacto.blocks.rnn import RNNAutoEncoder, SeqDecoder, SeqEncoder, InConcatCRex, RewAttRNNEncDecoder, FwdAttRNNEncDecoder, RewAttSumDecoder, FwdAttSumDecoder, BiFwdAttSumDecoder
 from teafacto.blocks.rnu import GRU
 from teafacto.blocks.basic import IdxToOneHot, VectorEmbed, Softmax, MatDot as Lin
 from teafacto.blocks.embed import Glove
@@ -134,7 +134,7 @@ def run_attentionseqdecoder(        # seems to work
     testpred = words2ints(testpred)
     print testpred
 
-    block = FwdAttRNNEncDecoder(vocsize=vocsize, outvocsize=vocsize, encdim=encdim, innerdim=statedim, attdim=attdim)
+    block = BiFwdAttSumDecoder(vocsize=vocsize, outvocsize=vocsize, encdim=encdim, innerdim=statedim, attdim=attdim)
     block.train([data, sdata], data).seq_neg_log_prob().grad_total_norm(1.0).adagrad(lr=lr).l2(wreg)\
          .validate_on([vdata, svdata], vdata).seq_accuracy().validinter(4)\
          .train(numbats=numbats, epochs=epochs)
