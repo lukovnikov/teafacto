@@ -10,6 +10,33 @@ from teafacto.examples.dummy import *
     print np.argmax(pred, axis=1)
     #print err, verr
 '''
+
+class TestTrainingPause(TestCase):
+    def test_continued_training(self):
+        dim = 50
+        epochs1 = 3
+        epochs2 = 3
+        self.vocabsize = 2000
+        normalize = True
+        ae = Dummy(indim=self.vocabsize, dim=dim, normalize=normalize)
+        aefresh = Dummy.unfreeze(ae.freeze())
+        frozen, self.err1 = self.trainfreeze(ae, epochs1)
+        ae = Dummy.unfreeze(frozen)
+        frozen, self.err2 = self.trainfreeze(ae, epochs2)
+        frozen, self.err1p2 = self.trainfreeze(aefresh, epochs1+epochs2)
+        self.assertLess(self.err2, self.err1)
+        self.assertTrue(np.allclose(self.err1p2, self.err2))
+
+    def trainfreeze(self, ae, epochs):
+        numbats = 100
+        lr = 0.2
+        data = np.arange(0, self.vocabsize).astype("int32")
+        self.err, self.verr, _, _ = ae.train([data], data).adadelta(lr=lr).neg_log_prob().train(numbats=numbats, epochs=epochs)
+        frozen = ae.freeze()
+        err = self.err[-1]
+        return frozen, err
+
+
 class TestModelTrainer(TestCase):
     def setUp(self):
         dim=50

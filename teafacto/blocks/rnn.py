@@ -145,7 +145,7 @@ class BiRNU(RecurrentBlock): # TODO: optimizer can't process this
         fwd = rnucls(*args, **kw)
         kw["reverse"] = True
         rew = rnucls(*args, **kw)
-        return cls(fwd, rew)
+        return cls(fwd=fwd, rew=rew)
 
     def apply(self, seq, init_states=None):
         fwdout = self.fwd(seq)
