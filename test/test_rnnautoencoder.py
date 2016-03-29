@@ -1,12 +1,13 @@
 from unittest import TestCase
 
-from teafacto.blocks.rnn import RNNAutoEncoder, RewAttRNNEncDecoder, RewAttSumDecoder
+from teafacto.blocks.rnn import RNNAutoEncoder, RewAttRNNEncDecoder, RewAttSumDecoder, FwdAttRNNEncDecoder, FwdAttSumDecoder, BiFwdAttSumDecoder
 import numpy as np
 
 
 def shiftdata(x):
     return np.concatenate([np.zeros_like(x[:, 0:1]), x[:, :-1]], axis=1)
 
+# TODO: test params
 
 class TestRNNAutoEncoder(TestCase):
     def setUp(self):
@@ -32,14 +33,26 @@ class AttentionRNNAutoEncoderTest(TestRNNAutoEncoder):
         kwargs["attdim"] = 33
         return RewAttRNNEncDecoder(**kwargs)
 
-    def test_params(self):
-        print self.rae.output.allparams
-
 
 class RNNAttWSumDecoderTest(TestRNNAutoEncoder):
     def get_rae(self, **kwargs):
         kwargs["attdim"] = 33
         return RewAttSumDecoder(**kwargs)
 
-    def test_params(self):
-        print self.rae.output.allparams
+
+class FwdAttWSumDecoderTest(TestRNNAutoEncoder):
+    def get_rae(self, **kwargs):
+        kwargs["attdim"] = 33
+        return FwdAttSumDecoder(**kwargs)
+
+
+class FwdAttRNNDecoderTEst(TestRNNAutoEncoder):
+    def get_rae(self, **kwargs):
+        kwargs["attdim"] = 33
+        return FwdAttRNNEncDecoder(**kwargs)
+
+
+class BiFwdAttSumDecoderTest(TestRNNAutoEncoder):
+    def get_rae(self, **kwargs):
+        kwargs["attdim"] = 33
+        return BiFwdAttSumDecoder(**kwargs)

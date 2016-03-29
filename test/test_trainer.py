@@ -12,7 +12,7 @@ from teafacto.examples.dummy import *
 '''
 
 class TestTrainingPause(TestCase):
-    def test_continued_training(self):
+    def test_second_training_cycle(self):
         dim = 50
         epochs1 = 3
         epochs2 = 3
