@@ -513,14 +513,3 @@ class until(Elem):
     @property
     def d(self): # wrap theano.scan_module.until(cond)
         return theano.scan_module.until(self.expr.d)
-
-
-class Embed(Block):
-    def __init__(self, indim=1000, dim=50, **kw):
-        super(Embed, self).__init__(**kw)
-        self.dim = dim
-        self.indim = indim
-        self.W = param((indim, dim), lrmul=1., name="embedder").uniform().normalize(axis=1)
-
-    def apply(self, inptensor):
-        return self.W[inptensor, :]
