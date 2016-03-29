@@ -482,3 +482,22 @@ class BiFwdAttSumDecoder(Block):
         rnnout = self.rnn(inpseq)
         return self.dec(rnnout, outseq)
 
+
+class BiRewAttSumDecoder(Block):
+    def __init__(self, vocsize=25, outvocsize=25, encdim=300, innerdim=200, attdim=50, **kw):
+        super(BiRewAttSumDecoder, self).__init__(**kw)
+        self.rnn = RecurrentStack(IdxToOneHot(vocsize),
+                                  BiRNU.fromrnu(GRU, dim=vocsize, innerdim=encdim))
+        attgen = LinearGateAttentionGenerator(indim=innerdim+encdim*2, innerdim=attdim)
+        attcon = WeightedSum()
+        self.dec = SeqDecoder(IdxToOneHot(outvocsize),
+                              InConcatCRex(
+                                  Attention(attgen, attcon),
+                                  GRU(dim=outvocsize+encdim*2, innerdim=innerdim),
+                                  outdim=innerdim
+                              ))
+
+    def apply(self, inpseq, outseq):
+        rnnout = self.rnn(inpseq)
+        return self.dec(rnnout, outseq)
+

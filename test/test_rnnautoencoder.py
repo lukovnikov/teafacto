@@ -1,6 +1,6 @@
 from unittest import TestCase
 
-from teafacto.blocks.rnn import RNNAutoEncoder, RewAttRNNEncDecoder, RewAttSumDecoder, FwdAttRNNEncDecoder, FwdAttSumDecoder, BiFwdAttSumDecoder
+from teafacto.blocks.rnn import RNNAutoEncoder, RewAttRNNEncDecoder, RewAttSumDecoder, FwdAttRNNEncDecoder, FwdAttSumDecoder, BiFwdAttSumDecoder, BiRewAttSumDecoder
 import numpy as np
 
 
@@ -56,3 +56,8 @@ class BiFwdAttSumDecoderTest(TestRNNAutoEncoder):
     def get_rae(self, **kwargs):
         kwargs["attdim"] = 33
         return BiFwdAttSumDecoder(**kwargs)
+
+class BiRewAttSumDecoderTest(TestRNNAutoEncoder):
+    def get_rae(self, **kwargs):
+        kwargs["attdim"] = 33
+        return BiRewAttSumDecoder(**kwargs)
