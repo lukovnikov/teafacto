@@ -1,13 +1,15 @@
-import pandas as pd, numpy as np
-import re, math
+import math
+import re
+
+import numpy as np
+import pandas as pd
 from IPython import embed
 
-from teafacto.core.base import Block, tensorops as T
-from teafacto.core.stack import stack
-from teafacto.blocks.rnn import RNNAutoEncoder, SeqDecoder, SeqEncoder, InConcatCRex, RewAttRNNEncDecoder, FwdAttRNNEncDecoder, RewAttSumDecoder, FwdAttSumDecoder, BiFwdAttSumDecoder
-from teafacto.blocks.rnu import GRU
+from blocks.lang.wordembed import Glove
 from teafacto.blocks.basic import IdxToOneHot, VectorEmbed, Softmax, MatDot as Lin
-from teafacto.blocks.embed import Glove
+from teafacto.blocks.rnn import RNNAutoEncoder, SeqDecoder, SeqEncoder, InConcatCRex, BiFwdAttSumDecoder
+from teafacto.blocks.rnu import GRU
+from teafacto.core.base import Block
 from teafacto.util import argprun
 
 

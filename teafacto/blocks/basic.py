@@ -50,14 +50,15 @@ class IdxToOneHot(Embedder):
 
 
 class VectorEmbed(Embedder):
-    def __init__(self, indim=1000, dim=50, value=None, normalize=False, **kw):
+    def __init__(self, indim=1000, dim=50, value=None, normalize=False, trainfrac=1.0, **kw):
         super(VectorEmbed, self).__init__(indim, dim, **kw)
         self.dim = dim
         self.indim = indim
+        self.trainfrac = trainfrac
         if value is None:
-            self.W = param((indim, dim), lrmul=1., name="embedder").uniform()
+            self.W = param((indim, dim), lrmul=self.trainfrac, name="embedder").uniform()
         else:
-            self.W = Parameter(value, name="embedder")
+            self.W = Parameter(value, lrmul=self.trainfrac, name="embedder")
         if normalize:
             self.W = self.W.normalize(axis=1)
         # assertions

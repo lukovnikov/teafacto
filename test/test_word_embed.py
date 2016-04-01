@@ -2,14 +2,14 @@ from unittest import TestCase
 
 import numpy as np
 
-from teafacto.blocks.embed import Glove
+from blocks.lang.wordembed import Glove
 
 
 class TestGlove(TestCase):
 
     def setUp(self):
         self.expshape = (4001, 50)
-        Glove.defaultpath = "../../data/glove/miniglove.%dd.txt"
+        Glove.defaultpath = "../../../data/glove/miniglove.%dd.txt"
         self.glove = Glove(self.expshape[1], self.expshape[0]-1)
         print self.glove.defaultpath
 

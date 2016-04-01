@@ -8,13 +8,14 @@ from teafacto.util import ticktock as TT, isnumber, isstring
 
 
 class WordEmb(object): # unknown words are mapped to index 0, their embedding is a zero vector
-    def __init__(self, dim, vocabsize=None):    # if dim is None, import all
+    def __init__(self, dim, vocabsize=None, trainfrac=0.0):    # if dim is None, import all
         self.D = OrderedDict()
         self.tt = TT(self.__class__.__name__)
         self.dim = dim
         self.indim = vocabsize
         self.W = [np.zeros((1, self.dim))]
         self._block = None
+        self.trainfrac = trainfrac
 
     @property
     def shape(self):
@@ -86,14 +87,14 @@ class WordEmb(object): # unknown words are mapped to index 0, their embedding is
         return self._block
 
     def _getblock(self):
-        return VectorEmbed(indim=self.indim+1, dim=self.dim, value=self.W, name=self.__class__.__name__)
+        return VectorEmbed(indim=self.indim+1, dim=self.dim, value=self.W, trainfrac=self.trainfrac, name=self.__class__.__name__)
 
 
 class Glove(WordEmb):
-    defaultpath = "../../data/glove/glove.6B.%dd.txt"
+    defaultpath = "../../../data/glove/glove.6B.%dd.txt"
 
-    def __init__(self, dim, vocabsize=None, path=None):     # if dim=None, load all
-        super(Glove, self).__init__(dim, vocabsize)
+    def __init__(self, dim, vocabsize=None, path=None, **kw):     # if dim=None, load all
+        super(Glove, self).__init__(dim, vocabsize, **kw)
         self.path = path
         self.load()
 
