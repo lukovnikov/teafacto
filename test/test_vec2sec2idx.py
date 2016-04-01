@@ -63,7 +63,7 @@ class TestIdx2SeqTraining(TestCase):
         # get words
         numchars = 27
         embdim = 50
-        Glove.defaultpath = "../../data/glove/miniglove.%dd.txt"
+        Glove.defaultpath = "../../../data/glove/miniglove.%dd.txt"
         lm = Glove(embdim, 1000)
         words = filter(lambda x: re.match("^[a-z]+$", x), lm.D.keys())
         data = words2ints(words)
