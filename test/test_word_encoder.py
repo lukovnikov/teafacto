@@ -1,6 +1,6 @@
 from unittest import TestCase
-from teafacto.blocks.lang.wordencode import WordEncoder, WordEncoderPlusGlove, WordEmbedPlusGlove
-from teafacto.blocks.lang.wordembed import Glove
+from teafacto.blocks.lang.wordembed import WordEncoder, WordEncoderPlusGlove, WordEmbedPlusGlove
+from teafacto.blocks.lang.wordvec import Glove
 import numpy as np
 
 

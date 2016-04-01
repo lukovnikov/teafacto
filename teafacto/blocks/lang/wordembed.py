@@ -1,104 +1,50 @@
-from collections import OrderedDict
-
-import numpy as np
-import os
-
-from teafacto.blocks.basic import VectorEmbed
-from teafacto.util import ticktock as TT, isnumber, isstring
-
-
-class WordEmb(object): # unknown words are mapped to index 0, their embedding is a zero vector
-    def __init__(self, dim, vocabsize=None, trainfrac=0.0):    # if dim is None, import all
-        self.D = OrderedDict()
-        self.tt = TT(self.__class__.__name__)
-        self.dim = dim
-        self.indim = vocabsize
-        self.W = [np.zeros((1, self.dim))]
-        self._block = None
-        self.trainfrac = trainfrac
-
-    @property
-    def shape(self):
-        return self.W.shape
-
-    def load(self, **kw):
-        self.tt.tick("loading")
-        if "path" not in kw:
-            raise Exception("path must be specified")
-        else:
-            path = kw["path"]
-        i = 1
-        for line in open(path):
-            if self.indim is not None and i >= (self.indim+1):
-                break
-            ls = line.split(" ")
-            word = ls[0]
-            self.D[word] = i
-            self.W.append(np.asarray([map(lambda x: float(x), ls[1:])]))
-            i += 1
-        self.W = np.concatenate(self.W, axis=0)
-        self.tt.tock("loaded")
-
-    def getindex(self, word):
-        return self.D[word] if word in self.D else 0
-
-    def __mul__(self, other):
-        return self.getindex(other)
-
-    def __mod__(self, other):
-        if isinstance(other, (tuple, list)): # distance
-            assert len(other) > 1
-            if len(other) == 2:
-                return self.getdistance(other[0], other[1])
-            else:
-                y = other[0]
-                return map(lambda x: self.getdistance(y, x), other[1:])
-        else:   # embed
-            return self.__getitem__(other)
-
-    def getvector(self, word):
-        try:
-            if isstring(word):
-                return self.W[self.D[word]]
-            elif isnumber(word):
-                return self.W[word, :]
-        except Exception:
-            return None
-
-    def getdistance(self, A, B, distance=None):
-        if distance is None:
-            distance = self.cosine
-        return distance(self.getvector(A), self.getvector(B))
-
-    def cosine(self, A, B):
-        return np.dot(A, B) / (np.linalg.norm(A) * np.linalg.norm(B))
-
-    def __call__(self, A, B):
-        return self.getdistance(A, B)
-
-    def __getitem__(self, word):
-        v = self.getvector(word)
-        return v if v is not None else self.W[0, :]
-
-    @property
-    def block(self):
-        if self._block is None:
-            self._block = self._getblock()
-        return self._block
-
-    def _getblock(self):
-        return VectorEmbed(indim=self.indim+1, dim=self.dim, value=self.W, trainfrac=self.trainfrac, name=self.__class__.__name__)
+from teafacto.core.base import *
+from teafacto.core.base import tensorops as T
+from teafacto.blocks.basic import IdxToOneHot, Embedder, VectorEmbed
+from teafacto.blocks.rnn import SeqEncoder
+from teafacto.blocks.rnu import RecurrentBlock, GRU
+from teafacto.blocks.lang.wordvec import Glove
 
 
-class Glove(WordEmb):
-    defaultpath = "../../../data/glove/glove.6B.%dd.txt"
+class WordEmbedGlove(Embedder):
+    def __init__(self, indim=1000, outdim=50, trainfrac=0.0, **kw):
+        super(WordEmbedGlove, self).__init__(indim, outdim, **kw)
+        self.emb = Glove(outdim, vocabsize=indim, trainfrac=trainfrac).block
 
-    def __init__(self, dim, vocabsize=None, path=None, **kw):     # if dim=None, load all
-        super(Glove, self).__init__(dim, vocabsize, **kw)
-        self.path = path
-        self.load()
+    def apply(self, idxs):
+        return self.emb(idxs)
 
-    def load(self):
-        relpath = self.defaultpath % self.dim
-        path = os.path.join(os.path.dirname(__file__), relpath)
-        super(Glove, self).load(path=path)
+
+class WordEncoder(Block):
+    def __init__(self, indim=220, outdim=200, **kw):    # indim is number of characters
+        super(WordEncoder, self).__init__(**kw)
+        self.enc = SeqEncoder(IdxToOneHot(indim),
+                              GRU(dim=indim, innerdim=outdim))
+
+    def apply(self, seq):       # seq: (batsize, maxwordlen) of character idxs
+        enco = self.enc(seq)    # enco: (batsize, outdim) of floats
+        return enco
+
+
+class WordEmbedPlusGlove(Embedder):
+    def __init__(self, indim=4000, outdim=100, embdim=50, embtrainfrac=0.0, **kw):
+        super(WordEmbedPlusGlove, self).__init__(indim, outdim+embdim, **kw)
+        self.glove = Glove(embdim, vocabsize=indim, trainfrac=embtrainfrac).block
+        self.emb = VectorEmbed(indim=indim, dim=outdim)
+
+    def apply(self, idxs):  # (batsize,) word idxs
+        gemb = self.glove(idxs)         # (batsize, embdim)
+        oemb = self.emb(idxs)           # (batsize, outdim),
+        return T.concatenate([gemb, oemb], axis=1)  # (batsize, outdim+embdim)
+
+
+class WordEncoderPlusGlove(Block):
+    def __init__(self, numchars=220, numwords=4e5, encdim=100, embdim=50, embtrainfrac=0.0, **kw):
+        super(WordEncoderPlusGlove, self).__init__(**kw)
+        self.glove = Glove(embdim, vocabsize=numwords, trainfrac=embtrainfrac).block
+        self.enc = WordEncoder(indim=numchars, outdim=encdim)
+
+    def apply(self, seq):       # seq: (batsize, 1+maxwordlen): first column: Glove idxs, subsequent cols: char ids
+        emb = self.glove(seq[:, 0])                 # (batsize, embdim)
+        enc = self.enc(seq[:, 1:])                  # (batsize, encdim)
+        return T.concatenate([emb, enc], axis=1)    # (batsize, embdim + encdim)

@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 from IPython import embed
 
-from blocks.lang.wordembed import Glove
+from teafacto.blocks.lang.wordvec import Glove
 from teafacto.blocks.basic import IdxToOneHot, VectorEmbed, Softmax, MatDot as Lin
 from teafacto.blocks.rnn import RNNAutoEncoder, SeqDecoder, SeqEncoder, InConcatCRex, BiFwdAttSumDecoder
 from teafacto.blocks.rnu import GRU
