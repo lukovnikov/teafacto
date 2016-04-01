@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import re
 
-from blocks.lang.wordembed import Glove
+from teafacto.blocks.lang.wordembed import Glove
 from teafacto.scripts.autornnencdec import seq2idx, idx2seq, shiftdata
 
 

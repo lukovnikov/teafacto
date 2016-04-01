@@ -2,7 +2,7 @@ from unittest import TestCase
 
 import numpy as np
 
-from blocks.lang.wordembed import Glove
+from teafacto.blocks.lang.wordembed import Glove
 
 
 class TestGlove(TestCase):
