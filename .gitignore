@@ -16,16 +16,21 @@ __pycache__/
 
 # Distribution / packaging
 .Python
-/teafacto/scripts/test.py
+/oldscripts/test.py
 env/
 build/
 develop-eggs/
 dist/
-/data/glove/*
+/data/glove/glove*
 downloads/
 eggs/
-/data/wikipedia/short-abstracts_en.nt
-/data/wikipedia/idx/*
+/saves
+/models
+/teafacto/facs
+/teafacto/qa
+/teafacto/index
+/notebooks
+/data/wikipedia/*
 .eggs/
 lib/
 /data/kaggleai/*
