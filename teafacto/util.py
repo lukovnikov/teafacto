@@ -1,5 +1,59 @@
-import collections, inspect, argparse, dill as pkl, os
+import collections, inspect, argparse, dill as pkl, os, numpy as np, pandas as pd
 from datetime import datetime as dt
+
+
+def loadlexidtsv(path):
+    with open(path) as f:
+        allgloveids = []    # 2D
+        allcharmats = []    # 3D
+        allfbids = []       # 1D
+
+        c = 0
+        for line in f:
+            try:
+                ns = line[:-1].split("\t")
+                gloveids = map(int, ns[0].split(" "))
+                charmat = []
+                charsplits = ns[1].split(", ")
+                charmat.extend([[int(y) if len(y) > 0 else 0 for y in x.split(" ")] for x in charsplits])
+                fbid = int(ns[2])
+                allgloveids.append(gloveids)
+                allcharmats.append(charmat)
+                allfbids.append(fbid)
+                if c % 1e6 == 0:
+                    print "%.0fM" % (c/1e6)
+                c += 1
+            except Exception, e:
+                print line
+                raise e
+        allgloveids = makenpmatrix(allgloveids, dtype="int32")
+        allcharmats = makenptensor(allcharmats, dtype="int32")
+        allfbids = np.asarray(allfbids, dtype="int32")
+        return allgloveids, allcharmats, allfbids
+
+
+def makenpmatrix(tomat, dtype="int32"):
+    maxlen = 0
+    for x in tomat:
+        maxlen = max(len(x), maxlen)
+    for x in tomat:
+        x.extend([0]*(maxlen - len(x)))
+    return np.asarray(tomat, dtype=dtype)
+
+
+def makenptensor(toten, dtype="int32"):
+    maxlen1 = 0
+    maxlen2 = 0
+    for tomat in toten:
+        maxlen1 = max(len(tomat), maxlen1)
+        for x in tomat:
+            maxlen2 = max(len(x), maxlen2)
+    for tomat in toten:
+        for x in tomat:
+            x.extend([0]*(maxlen2 - len(x)))
+        torep = [[0]*maxlen2]
+        tomat.extend(torep*(maxlen1 - len(tomat)))
+    return np.asarray(toten, dtype=dtype)
 
 
 class ticktock(object):
@@ -137,3 +191,5 @@ class Saveable(object):
     def autosave(self): # for saving after each iter
         self._autosave = True
         return self
+
+
