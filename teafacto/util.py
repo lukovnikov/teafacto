@@ -26,31 +26,45 @@ def loadlexidtsv(path):
             except Exception, e:
                 print line
                 raise e
-        allgloveids = makenpmatrix(allgloveids, dtype="int32")
+        allgloveids = makenpmatrix(allgloveids, dtype="int32", toplen=15)
         print "allgloveids made"
-        allcharmats = makenptensor(allcharmats, dtype="int32")
+        allcharmats = makenptensor(allcharmats, dtype="int32", toplens=(15, 30))
         print "allcharmats made"
         allfbids = np.asarray(allfbids, dtype="int32")
         return allgloveids, allcharmats, allfbids
 
 
-def makenpmatrix(tomat, dtype="int32"):
-    maxlen = 0
-    for x in tomat:
-        maxlen = max(len(x), maxlen)
+def makenpmatrix(tomat, dtype="int32", toplen=None):
+    if toplen is None:
+        maxlen = 0
+        for x in tomat:
+            maxlen = max(len(x), maxlen)
+    else:
+        maxlen = toplen
     print maxlen
-    for x in tomat:
+    i = 0
+    while i < len(tomat):
+        x = tomat[i]
+        if len(x) > maxlen:
+            del tomat[i]
+            print tomat[i]
+            continue
         x.extend([0]*(maxlen - len(x)))
+        i += 1
     return np.asarray(tomat, dtype=dtype)
 
 
-def makenptensor(toten, dtype="int32"):
-    maxlen1 = 0
-    maxlen2 = 0
-    for tomat in toten:
-        maxlen1 = max(len(tomat), maxlen1)
-        for x in tomat:
-            maxlen2 = max(len(x), maxlen2)
+def makenptensor(toten, dtype="int32", toplens=None):
+    if toplens is None:
+        maxlen1 = 0
+        maxlen2 = 0
+        for tomat in toten:
+            maxlen1 = max(len(tomat), maxlen1)
+            for x in tomat:
+                maxlen2 = max(len(x), maxlen2)
+    else:
+        maxlen1 = toplens[0]
+        maxlen2 = toplens[1]
     print maxlen1, maxlen2
     for tomat in toten:
         for x in tomat:
