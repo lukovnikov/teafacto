@@ -43,14 +43,17 @@ def makenpmatrix(tomat, dtype="int32", toplen=None):
         maxlen = toplen
     print maxlen
     i = 0
+    delc = 0
     while i < len(tomat):
         x = tomat[i]
         if len(x) > maxlen:
             print tomat[i]
             del tomat[i]
+            delc += 1
             continue
         x.extend([0]*(maxlen - len(x)))
         i += 1
+    print i, delc
     return np.asarray(tomat, dtype=dtype)
 
 
