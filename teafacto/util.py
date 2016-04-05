@@ -2,7 +2,7 @@ import collections, inspect, argparse, dill as pkl, os, numpy as np, pandas as p
 from datetime import datetime as dt
 
 
-def loadlexidtsv(path):
+def loadlexidtsv(path, numwords=15, numchars=30):
     with open(path) as f:
         allgloveids = []    # 2D
         allcharmats = []    # 3D
@@ -26,7 +26,7 @@ def loadlexidtsv(path):
             except Exception, e:
                 print line
                 raise e
-        allgloveids, allcharmats, allfbids = makenpfrom(allgloveids, allcharmats, allfbids, dtype="int32", numwords=20, numchars=40)
+        allgloveids, allcharmats, allfbids = makenpfrom(allgloveids, allcharmats, allfbids, dtype="int32", numwords=numwords, numchars=numchars)
         return allgloveids, allcharmats, allfbids
 
 
