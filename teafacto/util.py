@@ -26,35 +26,38 @@ def loadlexidtsv(path):
             except Exception, e:
                 print line
                 raise e
-        allgloveids = makenpmatrix(allgloveids, dtype="int32", toplen=15)
-        print "allgloveids made"
-        allcharmats = makenptensor(allcharmats, dtype="int32", toplens=(15, 30))
-        print "allcharmats made"
-        allfbids = np.asarray(allfbids, dtype="int32")
+        allgloveids, allcharmats, allfbids = makenpfrom(allgloveids, allcharmats, allfbids, dtype="int32", numwords=20, numchars=40)
         return allgloveids, allcharmats, allfbids
 
 
-def makenpmatrix(tomat, dtype="int32", toplen=None):
-    if toplen is None:
-        maxlen = 0
-        for x in tomat:
-            maxlen = max(len(x), maxlen)
-    else:
-        maxlen = toplen
-    print maxlen
+def makenpfrom(tomat, toten, tovec, dtype="int32", numwords=20, numchars=40):
     i = 0
     delc = 0
+    truncwc = 0
+    assert(len(tomat) == len(toten) and len(toten) == len(tovec))
     while i < len(tomat):
-        x = tomat[i]
-        if len(x) > maxlen:
-            print tomat[i]
+        assert(len(tomat[i]) == len(toten[i]))
+        if len(tomat[i]) > numwords:   # drop phrases longer than <numwords> words
+            #print tovec[i]
             del tomat[i]
+            del toten[i]
+            del tovec[i]
             delc += 1
             continue
-        x.extend([0]*(maxlen - len(x)))
+        tomat[i].extend([0]*(numwords - len(tomat[i])))
+        j = 0
+        while j < len(toten[i]):
+            if len(toten[i][j]) > numchars:     # if word is too long, truncate
+                toten[i][j] = toten[i][j][:numchars]
+                truncwc += 1
+            else:
+                toten[i][j].extend([0]*(numchars-len(toten[i][j])))
+            j += 1
+        torep = [[0]*numchars]
+        toten[i].extend(torep*(numwords-len(toten[i])))
         i += 1
-    print i, delc
-    return np.asarray(tomat, dtype=dtype)
+    print i, delc, truncwc
+    return np.asarray(tomat, dtype=dtype), np.asarray(toten, dtype=dtype), np.asarray(tovec, dtype=dtype)
 
 
 def makenptensor(toten, dtype="int32", toplens=None):
@@ -69,11 +72,18 @@ def makenptensor(toten, dtype="int32", toplens=None):
         maxlen1 = toplens[0]
         maxlen2 = toplens[1]
     print maxlen1, maxlen2
-    for tomat in toten:
-        for x in tomat:
+    i = 0
+    delmatc = 0
+    while i < len(toten):
+        tomat = toten[i]
+        j = 0
+        while j < len(tomat):
+            x = tomat[j]
             x.extend([0]*(maxlen2 - len(x)))
+            j += 1
         torep = [[0]*maxlen2]
         tomat.extend(torep*(maxlen1 - len(tomat)))
+        i += 1
     return np.asarray(toten, dtype=dtype)
 
 
