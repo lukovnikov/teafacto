@@ -37,7 +37,7 @@ class TestIDTSVLoader(TestCase):
     def test_load(self):
         gids, charten, fbids = loadlexidtsv("../data/freebase/labelsrevlex.map.id.tsv.sample")
         print gids.shape, charten.shape, fbids.shape
-        self.assertEqual(gids.shape, (10000, 28))
-        self.assertEqual(charten.shape, (10000, 28, 30))
-        self.assertEqual(fbids.shape, (10000,))
+        self.assertEqual(gids.shape, (9997, 20))
+        self.assertEqual(charten.shape, (9997, 20, 40))
+        self.assertEqual(fbids.shape, (9997,))
 
