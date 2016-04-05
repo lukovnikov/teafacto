@@ -2,7 +2,7 @@ import collections, inspect, argparse, dill as pkl, os, numpy as np, pandas as p
 from datetime import datetime as dt
 
 
-def loadlexidtsv(path, numwords=15, numchars=30):
+def loadlexidtsv(path, numwords=10, numchars=30):
     with open(path) as f:
         allgloveids = []    # 2D
         allcharmats = []    # 3D
@@ -39,12 +39,11 @@ def makenpfrom(tomat, toten, tovec, dtype="int32", numwords=15, numchars=30):
         assert(len(tomat[i]) == len(toten[i]))
         if len(tomat[i]) > numwords:   # drop phrases longer than <numwords> words
             #print tovec[i]
-            del tomat[i]
-            del toten[i]
-            del tovec[i]
+            tomat[i] = tomat[i][:numwords]
+            toten[i] = toten[i][:numwords]
             delc += 1
-            continue
-        tomat[i].extend([0]*(numwords - len(tomat[i])))
+        else:
+            tomat[i].extend([0]*(numwords - len(tomat[i])))
         j = 0
         while j < len(toten[i]):
             if len(toten[i][j]) > numchars:     # if word is too long, truncate
