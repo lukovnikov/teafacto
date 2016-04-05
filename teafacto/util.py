@@ -30,7 +30,7 @@ def loadlexidtsv(path):
         return allgloveids, allcharmats, allfbids
 
 
-def makenpfrom(tomat, toten, tovec, dtype="int32", numwords=20, numchars=40):
+def makenpfrom(tomat, toten, tovec, dtype="int32", numwords=15, numchars=30):
     i = 0
     delc = 0
     truncwc = 0
