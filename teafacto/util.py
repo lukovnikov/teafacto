@@ -27,7 +27,9 @@ def loadlexidtsv(path):
                 print line
                 raise e
         allgloveids = makenpmatrix(allgloveids, dtype="int32")
+        print "allgloveids made"
         allcharmats = makenptensor(allcharmats, dtype="int32")
+        print "allcharmats made"
         allfbids = np.asarray(allfbids, dtype="int32")
         return allgloveids, allcharmats, allfbids
 
