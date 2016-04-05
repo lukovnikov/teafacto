@@ -56,6 +56,8 @@ def makenpfrom(tomat, toten, tovec, dtype="int32", numwords=20, numchars=40):
         torep = [[0]*numchars]
         toten[i].extend(torep*(numwords-len(toten[i])))
         i += 1
+        if i % 1e6 == 0:
+            print "%.0fM, %d, %d" % ((i/1e6), delc, truncwc)
     print i, delc, truncwc
     return np.asarray(tomat, dtype=dtype), np.asarray(toten, dtype=dtype), np.asarray(tovec, dtype=dtype)
 
