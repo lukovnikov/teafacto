@@ -75,11 +75,25 @@ class DataFeed(object):
     '''
     Wraps data, custom data feeders can be implemented for dynamic sampling
     '''
-    def __init__(self, data): # data: numpy array
+    def __init__(self, data, *args, **kw): # data: numpy array
+        super(DataFeed, self).__init__(*args, **kw)
         self.data = data
-        self.dtype = data.dtype
-        self.shape = data.shape
-        self.ndim = data.ndim
+
+    @property
+    def dtype(self):
+        return self.data.dtype
+
+    @property
+    def shape(self):
+        return self.data.shape
+
+    @property
+    def ndim(self):
+        return self.data.ndim
+
+    def __getitem__(self, item):
+        return self.data.__getitem__(item)
+
 
 class DynamicDataFeed(DataFeed): # a dynamic data generator (e.g. for random negative sampling)
     def __getitem__(self, item):

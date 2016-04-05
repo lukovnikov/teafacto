@@ -6,8 +6,9 @@ from lasagne.updates import norm_constraint
 from theano import tensor
 from theano.tensor.var import _tensor_py_operators
 
-from trainer import ModelTrainer
+from teafacto.core.trainer import ModelTrainer
 from teafacto.util import isstring, issequence, isfunction, Saveable, isnumber
+from teafacto.core.datafeed import DataFeed
 
 
 ### DON'T WORRY ABOUT THIS
@@ -390,7 +391,7 @@ class Block(Elem, Saveable): # block with parameters
 
     def autobuild(self, *inputdata):
         self.reset()
-        inputdata = map(lambda x: x if isinstance(x, np.ndarray) else np.asarray(x), inputdata)
+        inputdata = map(lambda x: x if isinstance(x, (np.ndarray, DataFeed)) else np.asarray(x), inputdata)
         inputs = []
         inpnum = 1
         for td in inputdata:
