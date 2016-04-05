@@ -38,6 +38,7 @@ def makenpmatrix(tomat, dtype="int32"):
     maxlen = 0
     for x in tomat:
         maxlen = max(len(x), maxlen)
+    print maxlen
     for x in tomat:
         x.extend([0]*(maxlen - len(x)))
     return np.asarray(tomat, dtype=dtype)
@@ -50,6 +51,7 @@ def makenptensor(toten, dtype="int32"):
         maxlen1 = max(len(tomat), maxlen1)
         for x in tomat:
             maxlen2 = max(len(x), maxlen2)
+    print maxlen1, maxlen2
     for tomat in toten:
         for x in tomat:
             x.extend([0]*(maxlen2 - len(x)))
