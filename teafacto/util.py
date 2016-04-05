@@ -46,8 +46,8 @@ def makenpmatrix(tomat, dtype="int32", toplen=None):
     while i < len(tomat):
         x = tomat[i]
         if len(x) > maxlen:
-            del tomat[i]
             print tomat[i]
+            del tomat[i]
             continue
         x.extend([0]*(maxlen - len(x)))
         i += 1
