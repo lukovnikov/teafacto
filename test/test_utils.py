@@ -33,11 +33,3 @@ class TestUtils(TestCase):
         self.assertEqual(argparsify(testf, test="-a 1"), {"a": 1})
 
 
-class TestIDTSVLoader(TestCase):
-    def test_load(self):
-        gids, charten, fbids = loadlexidtsv("../data/freebase/labelsrevlex.map.id.tsv.sample")
-        print gids.shape, charten.shape, fbids.shape
-        self.assertEqual(gids.shape, (10000, 10))
-        self.assertEqual(charten.shape, (10000, 10, 30))
-        self.assertEqual(fbids.shape, (10000,))
-

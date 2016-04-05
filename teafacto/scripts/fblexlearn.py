@@ -9,9 +9,9 @@ import numpy as np, pandas as pd
 from IPython import embed
 
 
-class FBLexLearn(Block):
+class FBBasicEncoder(Block):
     def __init__(self, **kw):
-        super(FBLexLearn, self).__init__(**kw)
+        super(FBBasicEncoder, self).__init__(**kw)
 
     def apply(self, inp):
         pass
@@ -173,6 +173,12 @@ def run(
     print indata.trainfeed[0:90000].shape
     tt.tock("transformed")
     #embed()
+
+    traindata = indata.trainfeed
+    golddata = indata.goldfeed
+
+    # define model  TODO
+    # train model   TODO
 
 
 if __name__ == "__main__":
