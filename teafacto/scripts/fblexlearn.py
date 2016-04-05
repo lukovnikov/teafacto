@@ -1,7 +1,9 @@
 from teafacto.core.base import tensorops as T
 from teafacto.core.base import Block
 from teafacto.core.datafeed import DataFeed
+from teafacto.blocks.basic import MatDot as Lin, Softmax
 from teafacto.blocks.rnn import SeqEncoder
+from teafacto.blocks.rnu import GRU
 from teafacto.blocks.lang.wordembed import IdxToOneHot, WordEncoderPlusGlove, WordEmbedPlusGlove
 from teafacto.blocks.lang.wordvec import Glove
 from teafacto.util import argprun, ticktock, issequence
@@ -9,12 +11,26 @@ import numpy as np, pandas as pd
 from IPython import embed
 
 
-class FBBasicEncoder(Block):
-    def __init__(self, **kw):
-        super(FBBasicEncoder, self).__init__(**kw)
+class FBBasicCompositeEncoder(Block):    # SeqEncoder of WordEncoderPlusGlove, fed to single-layer Softmax output
+    def __init__(self, wordembdim=50, wordencdim=100, innerdim=200, outdim=1e4, numwords=4e5, numchars=128, **kw):
+        super(FBBasicCompositeEncoder, self).__init__(**kw)
+        self.indim = wordembdim + wordencdim
+        self.outdim = outdim
+        self.wordembdim = wordembdim
+        self.wordencdim = wordencdim
+        self.innerdim = innerdim
+
+        self.enc = SeqEncoder(
+            WordEncoderPlusGlove(numchars=numchars, numwords=numwords, encdim=self.wordencdim, embdim=self.wordembdim, embtrainfrac=0.0),
+            GRU(dim=self.wordembdim + self.wordencdim, innerdim=self.innerdim)
+        )
+
+        self.out = Lin(indim=self.innerdim, dim=self.outdim)
 
     def apply(self, inp):
-        pass
+        enco = self.enc(inp)
+        ret = Softmax()(self.out(enco))
+        return ret
 
 
 class FBLexDataFeed(DataFeed):
@@ -132,23 +148,27 @@ class FBLexDataFeedsMaker(object):
 
 def getglovedict(path, offset=2):
     gd = {}
+    maxid = 0
     with open(path) as f:
         c = offset
         for line in f:
             ns = line.split(" ")
             w = ns[0]
             gd[w] = c
+            maxid = max(maxid, c)
             c += 1
-    return gd
+    return gd, maxid
 
 
 def getentdict(path, offset=2):
     ed = {}
+    maxid = 0
     with open(path) as f:
         for line in f:
             e, i = line[:-1].split("\t")
             ed[e] = int(i) + offset
-    return ed
+            maxid = max(ed[e], maxid)
+    return ed, maxid
 
 
 def run(
@@ -160,24 +180,35 @@ def run(
         fbentdicp="../../data/freebase/entdic.map",
         numwords=10,
         numchars=30,
+        wordembdim=50,
+        wordencdim=100,
+        innerdim=300,
     ):
-    gd = getglovedict(glovepath)
+    gd, vocnumwords = getglovedict(glovepath)
     print gd["alias"]
-    ed = getentdict(fbentdicp)
+    ed, vocnuments = getentdict(fbentdicp)
     print ed["m.0ndj09y"]
 
     indata = FBLexDataFeedsMaker(fblexpath, gd, ed, numwords=numwords, numchars=numchars)
     print indata.goldfeed.shape
     tt = ticktock("fblextranstimer")
     tt.tick()
-    print indata.trainfeed[0:90000].shape
+    print indata.trainfeed[0:9000].shape
     tt.tock("transformed")
     #embed()
 
     traindata = indata.trainfeed
     golddata = indata.goldfeed
 
-    # define model  TODO
+    # define model
+    m = FBBasicCompositeEncoder(
+        wordembdim=wordembdim,
+        wordencdim=wordencdim,
+        innerdim=innerdim,
+        outdim=vocnuments,
+        numchars=128,               # ASCII
+        numwords=vocnumwords,
+    )
     # train model   TODO
 
 

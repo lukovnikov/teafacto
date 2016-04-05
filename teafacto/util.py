@@ -61,33 +61,6 @@ def makenpfrom(tomat, toten, tovec, dtype="int32", numwords=15, numchars=30):
     return np.asarray(tomat, dtype=dtype), np.asarray(toten, dtype=dtype), np.asarray(tovec, dtype=dtype)
 
 
-def makenptensor(toten, dtype="int32", toplens=None):
-    if toplens is None:
-        maxlen1 = 0
-        maxlen2 = 0
-        for tomat in toten:
-            maxlen1 = max(len(tomat), maxlen1)
-            for x in tomat:
-                maxlen2 = max(len(x), maxlen2)
-    else:
-        maxlen1 = toplens[0]
-        maxlen2 = toplens[1]
-    print maxlen1, maxlen2
-    i = 0
-    delmatc = 0
-    while i < len(toten):
-        tomat = toten[i]
-        j = 0
-        while j < len(tomat):
-            x = tomat[j]
-            x.extend([0]*(maxlen2 - len(x)))
-            j += 1
-        torep = [[0]*maxlen2]
-        tomat.extend(torep*(maxlen1 - len(tomat)))
-        i += 1
-    return np.asarray(toten, dtype=dtype)
-
-
 class ticktock(object):
     def __init__(self, prefix="", verbose=True):
         self.prefix = prefix

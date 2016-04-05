@@ -1,6 +1,7 @@
 from unittest import TestCase
 
 from teafacto.util import ticktock as TT, argparsify, loadlexidtsv
+import os
 
 class TestUtils(TestCase):
     def test_ticktock_duration_string(self):
@@ -32,4 +33,14 @@ class TestUtils(TestCase):
             pass
         self.assertEqual(argparsify(testf, test="-a 1"), {"a": 1})
 
+
+class TestIDTSVLoader(TestCase):
+    def test_load(self):
+        p = os.path.join(os.path.dirname(__file__), "../data/freebase/labelsrevlex.map.id.tsv.sample")
+        print p
+        gids, charten, fbids = loadlexidtsv(p)
+        print gids.shape, charten.shape, fbids.shape
+        self.assertEqual(gids.shape, (10000, 10))
+        self.assertEqual(charten.shape, (10000, 10, 30))
+        self.assertEqual(fbids.shape, (10000,))
 
