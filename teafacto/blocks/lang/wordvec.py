@@ -99,6 +99,6 @@ class Glove(WordEmb):
         self.load()
 
     def load(self):
-        relpath = self.defaultpath % self.dim
+        relpath = self.path % self.dim
         path = os.path.join(os.path.dirname(__file__), relpath)
         super(Glove, self).load(path=path)
