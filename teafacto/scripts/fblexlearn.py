@@ -8,7 +8,7 @@ def run(
         lr=0.5,
         wreg=0.0001,
         numbats=100,
-        fblexpath="/media/denis/My Passport/data/freebase/labelsrevlex.map.sample",
+        fblexpath="../../data/freebase/labelsrevlex.map.sample",
         glovepath="../../data/glove/glove.6B.50d.txt",
         fbentdicp="../../data/freebase/entdic.all.map",
         numwords=10,

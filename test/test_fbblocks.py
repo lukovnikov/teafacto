@@ -22,6 +22,7 @@ class TestFBBasicCompositeEncoder(TestCase):
             outdim=datanuments,
             numchars=numchars,
             numwords=vocnumwords,
+            glovepath="../../../data/glove/miniglove.%dd.txt",
         )
 
         worddata = np.random.randint(0, vocnumwords, (batsize, wseqlen, 1))

@@ -95,7 +95,7 @@ class Glove(WordEmb):
 
     def __init__(self, dim, vocabsize=None, path=None, **kw):     # if dim=None, load all
         super(Glove, self).__init__(dim, vocabsize, **kw)
-        self.path = path
+        self.path = self.defaultpath if path is None else path
         self.load()
 
     def load(self):
