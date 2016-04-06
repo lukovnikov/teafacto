@@ -15,9 +15,11 @@ class DataFeeder(object): # contains data feeds
         self.offset = 0
         self.reset()
         self.autoreset = True
+        self._numbats = None
 
     # fluent settings
     def numbats(self, numbats):
+        self._numbats = numbats
         self.batsize = int(ceil(self.size*1./numbats))
         return self
 
@@ -65,7 +67,7 @@ class DataFeeder(object): # contains data feeds
         return dftrain, dfvalid
 
     def splitfeed(self, feed, idxs):
-        if isinstance(feed, DynamicDataFeed):
+        if isinstance(feed, DataFeed):
             return feed.get(idxs)
         else:
             return feed[idxs]
@@ -93,6 +95,9 @@ class DataFeed(object):
 
     def __getitem__(self, item):
         return self.data.__getitem__(item)
+
+    def get(self, idxs):
+        pass
 
 
 class DynamicDataFeed(DataFeed): # a dynamic data generator (e.g. for random negative sampling)

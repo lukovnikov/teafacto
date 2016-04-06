@@ -34,10 +34,11 @@ class FBBasicCompositeEncoder(Block):    # SeqEncoder of WordEncoderPlusGlove, f
 
 
 class FBLexDataFeed(DataFeed):
-    def __init__(self, data, worddic, numwords=10, numchars=30, **kw):
+    def __init__(self, data, worddic, unkwordid=1, numwords=10, numchars=30, **kw):
         super(FBLexDataFeed, self).__init__(data, **kw)
         self.worddic = worddic
-        self._shape = (data.shape[0], numwords, numchars)
+        self._shape = (data.shape[0], numwords, numchars+1)
+        self.unkwordid = unkwordid
 
     @property
     def dtype(self):
@@ -65,7 +66,7 @@ class FBLexDataFeed(DataFeed):
                 if word in self.worddic:
                     retword = [self.worddic[word]]      # get word index
                 else:
-                    retword = [1]                       # unknown word
+                    retword = [self.unkwordid]                       # unknown word
                 retword.extend(map(ord, word))
                 retword.extend([0]*(self.shape[2]-len(retword)+1))
             return retword, skip #np.asarray(retword, dtype="int32")
@@ -77,7 +78,7 @@ class FBLexDataFeed(DataFeed):
             ret[..., i] = np.vectorize(lambda z: transinner(z))(x)[i]
         return ret'''
 
-        print type(x), x.dtype
+        #print type(x), x.dtype
         ret = np.zeros((x.shape[0], self.shape[1], self.shape[2]+1), dtype="int32")
         i = 0
         while i < x.shape[0]:
@@ -95,13 +96,14 @@ class FBLexDataFeed(DataFeed):
 
 
 class FBLexDataFeedsMaker(object):
-    def __init__(self, datapath, worddic, entdic, numwords=10, numchars=30):
+    def __init__(self, datapath, worddic, entdic, numwords=10, numchars=30, unkwordid=1):
         self.path = datapath
         self.trainingdata = []
         self.golddata = []
         self.worddic = worddic
         self.numwords = numwords
         self.numchars = numchars
+        self.unkwordid = unkwordid
         self.load(entdic)
 
     def load(self, entdic):
@@ -127,7 +129,7 @@ class FBLexDataFeedsMaker(object):
 
     @property
     def trainfeed(self):
-        return FBLexDataFeed(self.trainingdata, worddic=self.worddic, numwords=self.numwords, numchars=self.numchars)
+        return FBLexDataFeed(self.trainingdata, worddic=self.worddic, unkwordid=self.unkwordid, numwords=self.numwords, numchars=self.numchars)
 
     @property
     def goldfeed(self):
@@ -172,10 +174,11 @@ def getentdict(path, offset=2):
 
 
 def run(
-        epochs=1000,
-        lr=0.1,
+        epochs=100,
+        lr=1.,
         wreg=0.0001,
-        fblexpath="/media/denis/My Passport/data/freebase/labelsrevlex.map",
+        numbats=100,
+        fblexpath="/media/denis/My Passport/data/freebase/labelsrevlex.map.sample",
         glovepath="../../data/glove/glove.6B.50d.txt",
         fbentdicp="../../data/freebase/entdic.map",
         numwords=10,
@@ -183,17 +186,20 @@ def run(
         wordembdim=50,
         wordencdim=100,
         innerdim=300,
+        wordoffset=1,
+        validinter=5
     ):
-    gd, vocnumwords = getglovedict(glovepath)
+    gd, vocnumwords = getglovedict(glovepath, offset=wordoffset)
     print gd["alias"]
-    ed, vocnuments = getentdict(fbentdicp)
+    ed, vocnuments = getentdict(fbentdicp, offset=0)
     print ed["m.0ndj09y"]
 
-    indata = FBLexDataFeedsMaker(fblexpath, gd, ed, numwords=numwords, numchars=numchars)
-    print indata.goldfeed.shape
-    tt = ticktock("fblextranstimer")
+    indata = FBLexDataFeedsMaker(fblexpath, gd, ed, numwords=numwords, numchars=numchars, unkwordid=wordoffset-1)
+    datanuments = max(indata.goldfeed)+1
+    tt = ticktock("fblextransrun")
     tt.tick()
-    print indata.trainfeed[0:9000].shape
+    print "max entity id+1: %d" % datanuments
+    print indata.trainfeed[0:9]
     tt.tock("transformed")
     #embed()
 
@@ -205,11 +211,21 @@ def run(
         wordembdim=wordembdim,
         wordencdim=wordencdim,
         innerdim=innerdim,
-        outdim=vocnuments,
+        outdim=datanuments,
         numchars=128,               # ASCII
         numwords=vocnumwords,
     )
+
+    #wenc = WordEncoderPlusGlove(numchars=numchars, numwords=vocnumwords, encdim=wordencdim, embdim=wordembdim)
+
     # train model   TODO
+    m.train([traindata], golddata).adagrad(lr=lr).grad_total_norm(1.0).neg_log_prob()\
+        .autovalidate().validinter(validinter).accuracy()\
+        .train(numbats, epochs)
+    #embed()
+    tt.tick("predicting")
+    print m.predict(traindata).shape
+    tt.tock("predicted sample")
 
 
 if __name__ == "__main__":
