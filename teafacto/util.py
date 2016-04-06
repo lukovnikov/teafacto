@@ -199,9 +199,9 @@ class Saveable(object):
 
 
 if __name__ == "__main__":
-    a, b, c = loadlexidtsv("../data/freebase/labelsrevlex.map.id.tsv")
+    a, b, c = loadlexidtsv("../data/kgraph/labelsrevlex.map.id.tsv")
     print "loaded"
-    pkl.dump((a, b, c), open("../My Passport/data/freebase/labelsrevlex.map.id.tsv.pkl", "w"))
+    pkl.dump((a, b, c), open("../My Passport/data/kgraph/labelsrevlex.map.id.tsv.pkl", "w"))
     print "dumped"
-    a, b, c = loadlexidtsv("../My Passport/data/freebase/aliasrevlex.map.id.tsv")
-    pkl.dump((a, b, c), open("../My Passport/data/freebase/aliasrevlex.map.id.tsv.pkl", "w"))
+    a, b, c = loadlexidtsv("../My Passport/data/kgraph/aliasrevlex.map.id.tsv")
+    pkl.dump((a, b, c), open("../My Passport/data/kgraph/aliasrevlex.map.id.tsv.pkl", "w"))

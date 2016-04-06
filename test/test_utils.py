@@ -36,7 +36,7 @@ class TestUtils(TestCase):
 
 class TestIDTSVLoader(TestCase):
     def test_load(self):
-        p = os.path.join(os.path.dirname(__file__), "../data/freebase/labelsrevlex.map.id.tsv.sample")
+        p = os.path.join(os.path.dirname(__file__), "../data/kgraph/labelsrevlex.map.id.tsv.sample")
         print p
         gids, charten, fbids = loadlexidtsv(p)
         print gids.shape, charten.shape, fbids.shape

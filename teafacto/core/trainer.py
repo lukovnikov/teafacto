@@ -426,7 +426,7 @@ class ModelTrainer(object):
     def save(self, model, filepath=None):
         model.save(filepath=filepath)
 
-
+'''
 class ContrastModelTrainer(ModelTrainer):
 
     def buildlosses(self, model, obj):
@@ -451,5 +451,5 @@ class ContrastModelTrainer(ModelTrainer):
         oa = aggf(o, axis=0)
         oaa = aggf(oa, axis=1)
         return oaa, newinpblocks
-
+'''
 
