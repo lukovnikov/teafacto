@@ -4,7 +4,7 @@ from teafacto.feeders.freebasefeeders import FBLexDataFeedsMaker, getentdict, ge
 
 class TestFreebaseLexFeeder(TestCase):
     def test_getentdic(self):
-        d, maxid = getentdict("../../data/freebase/entdic.map", top=50)
+        d, maxid = getentdict("../../data/freebase/entdic.small.map", top=50)
         self.assertEqual(maxid, 52)
         self.assertEqual(max(d.values()), maxid)
 

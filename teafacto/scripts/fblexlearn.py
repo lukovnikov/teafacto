@@ -10,7 +10,7 @@ def run(
         numbats=100,
         fblexpath="/media/denis/My Passport/data/freebase/labelsrevlex.map.sample",
         glovepath="../../data/glove/glove.6B.50d.txt",
-        fbentdicp="../../data/freebase/entdic.map",
+        fbentdicp="../../data/freebase/entdic.all.map",
         numwords=10,
         numchars=30,
         wordembdim=50,
