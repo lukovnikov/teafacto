@@ -1,5 +1,6 @@
 import sys
 from datetime import datetime as dt
+from IPython import embed
 
 import numpy as np
 import theano
@@ -397,13 +398,16 @@ class ModelTrainer(object):
             c = 0
             prevperc = -1.
             terr = []
+            numdigs = 2
             while datafeeder.hasnextbatch():
-                #region Percentage counting
-                perc = round(c*100./datafeeder.size)
-                if perc > prevperc: sys.stdout.write("iter progress %.0f" % perc + "% \r"); sys.stdout.flush(); prevperc = perc
-                #endregion
+                perc = round(c*100.*(10**numdigs)/datafeeder._numbats)/(10**numdigs)
+                if perc > prevperc: sys.stdout.write(("iter progress %."+str(numdigs)+"f") % perc + "% \r"); sys.stdout.flush(); prevperc = perc
                 sampleinps = datafeeder.nextbatch()
-                eterr = trainf(*sampleinps)
+                try:
+                    eterr = trainf(*sampleinps)
+                except Exception, e:
+                    embed()
+                    raise e
                 if len(terr) == 0: # new
                     terr = eterr
                 else:

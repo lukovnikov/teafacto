@@ -15,9 +15,11 @@ class DataFeeder(object): # contains data feeds
         self.offset = 0
         self.reset()
         self.autoreset = True
+        self._numbats = None
 
     # fluent settings
     def numbats(self, numbats):
+        self._numbats = numbats
         self.batsize = int(ceil(self.size*1./numbats))
         return self
 
@@ -65,7 +67,7 @@ class DataFeeder(object): # contains data feeds
         return dftrain, dfvalid
 
     def splitfeed(self, feed, idxs):
-        if isinstance(feed, DynamicDataFeed):
+        if isinstance(feed, DataFeed):
             return feed.get(idxs)
         else:
             return feed[idxs]
@@ -75,11 +77,28 @@ class DataFeed(object):
     '''
     Wraps data, custom data feeders can be implemented for dynamic sampling
     '''
-    def __init__(self, data): # data: numpy array
+    def __init__(self, data, *args, **kw): # data: numpy array
+        super(DataFeed, self).__init__(*args, **kw)
         self.data = data
-        self.dtype = data.dtype
-        self.shape = data.shape
-        self.ndim = data.ndim
+
+    @property
+    def dtype(self):
+        return self.data.dtype
+
+    @property
+    def shape(self):
+        return self.data.shape
+
+    @property
+    def ndim(self):
+        return self.data.ndim
+
+    def __getitem__(self, item):
+        return self.data.__getitem__(item)
+
+    def get(self, idxs):
+        pass
+
 
 class DynamicDataFeed(DataFeed): # a dynamic data generator (e.g. for random negative sampling)
     def __getitem__(self, item):
