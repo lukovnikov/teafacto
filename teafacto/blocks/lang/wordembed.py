@@ -39,9 +39,9 @@ class WordEmbedPlusGlove(Embedder):
 
 
 class WordEncoderPlusGlove(Block):
-    def __init__(self, numchars=220, numwords=4e5, encdim=100, embdim=50, embtrainfrac=0.0, **kw):
+    def __init__(self, numchars=220, numwords=4e5, encdim=100, embdim=50, embtrainfrac=0.0, glovepath=None, **kw):
         super(WordEncoderPlusGlove, self).__init__(**kw)
-        self.glove = Glove(embdim, vocabsize=numwords, trainfrac=embtrainfrac).block
+        self.glove = Glove(embdim, vocabsize=numwords, trainfrac=embtrainfrac, path=glovepath).block
         self.enc = WordEncoder(indim=numchars, outdim=encdim)
 
     def apply(self, seq):       # seq: (batsize, 1+maxwordlen): first column: Glove idxs, subsequent cols: char ids

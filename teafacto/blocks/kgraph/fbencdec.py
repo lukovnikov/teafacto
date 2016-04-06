@@ -6,7 +6,7 @@ from teafacto.blocks.lang.wordembed import WordEncoderPlusGlove
 
 
 class FBBasicCompositeEncoder(Block):    # SeqEncoder of WordEncoderPlusGlove, fed to single-layer Softmax output
-    def __init__(self, wordembdim=50, wordencdim=100, innerdim=200, outdim=1e4, numwords=4e5, numchars=128, **kw):
+    def __init__(self, wordembdim=50, wordencdim=100, innerdim=200, outdim=1e4, numwords=4e5, numchars=128, glovepath=None, **kw):
         super(FBBasicCompositeEncoder, self).__init__(**kw)
         self.indim = wordembdim + wordencdim
         self.outdim = outdim
@@ -15,7 +15,7 @@ class FBBasicCompositeEncoder(Block):    # SeqEncoder of WordEncoderPlusGlove, f
         self.innerdim = innerdim
 
         self.enc = SeqEncoder(
-            WordEncoderPlusGlove(numchars=numchars, numwords=numwords, encdim=self.wordencdim, embdim=self.wordembdim, embtrainfrac=0.0),
+            WordEncoderPlusGlove(numchars=numchars, numwords=numwords, encdim=self.wordencdim, embdim=self.wordembdim, embtrainfrac=0.0, glovepath=glovepath),
             GRU(dim=self.wordembdim + self.wordencdim, innerdim=self.innerdim)
         )
 
