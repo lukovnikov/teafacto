@@ -128,16 +128,16 @@ class Parameter(TensorWrapped):
             self.initializer = lambda: value.get_values()
         elif isinstance(value, Initializer):
             self.shape = shape
-            self.initializer = lambda: value.sample(shape)
-            self.value = theano.shared(np.zeros(shape))
+            self.initializer = lambda: value.sample(shape).astype(theano.config.floatX)
+            self.value = theano.shared(np.zeros(shape).astype(theano.config.floatX))
             self.reset()
         elif isinstance(value, Val):
-            self.value = value.d
+            self.value = value.d.astype(theano.config.floatX)
             self.shape = value.d.get_value().shape
             self.initializer = lambda: value.d.get_value()
         else:
-            self.value = theano.shared(value)
-            self.initializer = lambda: value
+            self.value = theano.shared(value.astype(theano.config.floatX))
+            self.initializer = lambda: value.astype(theano.config.floatX)
             self.shape = value.shape
         self.lrmul = lrmul
         self.regmul = regmul
@@ -251,7 +251,7 @@ class Val(TensorWrapped):
         self.name = name
         if not isinstance(value, np.ndarray):
             value = np.asarray(value)
-        self.value = theano.shared(value, name=name)
+        self.value = theano.shared(value.astype(dtype=theano.config.floatX), name=name)
 
     @property
     def d(self):

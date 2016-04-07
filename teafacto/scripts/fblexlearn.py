@@ -49,6 +49,7 @@ def run(
     #wenc = WordEncoderPlusGlove(numchars=numchars, numwords=vocnumwords, encdim=wordencdim, embdim=wordembdim)
 
     # train model   TODO
+    print "training"
     m.train([traindata], golddata).adagrad(lr=lr).grad_total_norm(1.0).neg_log_prob()\
         .autovalidate().validinter(validinter).accuracy()\
         .train(numbats, epochs)

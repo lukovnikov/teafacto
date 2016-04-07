@@ -3,7 +3,6 @@ import numpy as np
 from teafacto.util import ticktock
 
 
-
 class FBLexDataFeed(DataFeed):
     def __init__(self, data, worddic, unkwordid=1, numwords=10, numchars=30, **kw):
         super(FBLexDataFeed, self).__init__(data, **kw)
