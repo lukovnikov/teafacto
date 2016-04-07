@@ -18,7 +18,7 @@ class TestSimpleRNNDecoder(TestCase):
         self.hdim = 33
         self.statedim = 50
         self.seqlen = 30
-        self.encodings_data = np.random.random((self.batsize, self.encdim))
+        self.encodings_data = np.random.random((self.batsize, self.encdim)).astype("float32")
         self.sequence_data = np.random.randint(0, self.vocsize, (self.batsize, self.seqlen))
         self.dec = SeqDecoder(
             IdxToOneHot(self.vocsize),
