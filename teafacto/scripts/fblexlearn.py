@@ -18,6 +18,7 @@ def run(
         innerdim=300,
         wordoffset=1,
         validinter=3,
+        gradnorm=1.0,
     ):
     gd, vocnumwords = getglovedict(glovepath, offset=wordoffset)
     print gd["alias"]
@@ -50,7 +51,7 @@ def run(
 
     # train model   TODO
     print "training"
-    m.train([traindata], golddata).adagrad(lr=lr).grad_total_norm(1.0).neg_log_prob()\
+    m.train([traindata], golddata).adagrad(lr=lr).grad_total_norm(gradnorm).neg_log_prob()\
         .autovalidate().validinter(validinter).accuracy()\
         .train(numbats, epochs)
     #embed()
