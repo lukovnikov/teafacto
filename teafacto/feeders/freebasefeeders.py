@@ -30,7 +30,7 @@ class FBLexDataFeed(DataFeed):
         def transinner(word):
             skip = False
             if word is None:
-                retword = [0]*(self.shape[2]+1)         # missing word ==> all zeros
+                retword = [0]*(self.shape[2])         # missing word ==> all zeros
                 skip = True
             else:
                 if word in self.worddic:
@@ -38,7 +38,7 @@ class FBLexDataFeed(DataFeed):
                 else:
                     retword = [self.unkwordid]                       # unknown word
                 retword.extend(map(ord, word))
-                retword.extend([0]*(self.shape[2]-len(retword)+1))
+                retword.extend([0]*(self.shape[2]-len(retword)))
             return retword, skip #np.asarray(retword, dtype="int32")
         '''print x, type(x), x.dtype, x.shape
         ret = np.zeros((x.shape + (self.shape[1], self.shape[2]+1)))
@@ -49,7 +49,7 @@ class FBLexDataFeed(DataFeed):
         return ret'''
 
         #print type(x), x.dtype
-        ret = np.zeros((x.shape[0], self.shape[1], self.shape[2]+1), dtype="int32")
+        ret = np.zeros((x.shape[0], self.shape[1], self.shape[2]), dtype="int32")
         i = 0
         while i < x.shape[0]:
             j = 0
@@ -90,7 +90,10 @@ class FBLexDataFeedsMaker(object):
                     continue
                 sf, fb = ns
                 self.trainingdata.append(self._process_sf(sf))
-                self.golddata.append(entdic[fb])
+                if fb in entdic:
+                    self.golddata.append(entdic[fb])
+                else:
+                    self.golddata.append(0)
                 if c % 1e6 == 0:
                     tt.tock("%.0fM" % (c/1e6)).tick()
                 c += 1
