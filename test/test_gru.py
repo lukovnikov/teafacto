@@ -11,7 +11,7 @@ class TestGRU(TestCase):
         innerdim = 50
         batsize = 200
         seqlen = 5
-        data = np.random.random((batsize, seqlen, indim))
+        data = np.random.random((batsize, seqlen, indim)).astype("float32")
         gru = GRU(innerdim=innerdim, dim=indim)
         grupred = gru.predict(data)[:, -1, :]
         tgru_in, tgru_out = self.build_theano_gru(innerdim, indim, batsize, gru)

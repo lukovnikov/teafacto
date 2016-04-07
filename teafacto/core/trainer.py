@@ -169,11 +169,11 @@ class ModelTrainer(object):
         if isinstance(lr, DynamicLearningParam):
             self.dynamic_lr = lr
             lr = lr.lr
-        self.learning_rate = theano.shared(lr)
+        self.learning_rate = theano.shared(np.cast[theano.config.floatX](lr))
 
     def _update_lr(self, epoch, maxepoch, terrs, verrs):
         if self.dynamic_lr is not None:
-            self.learning_rate.set_value(self.dynamic_lr(self.learning_rate.get_value(), epoch, maxepoch, terrs, verrs))
+            self.learning_rate.set_value(np.cast[theano.config.floatX](self.dynamic_lr(self.learning_rate.get_value(), epoch, maxepoch, terrs, verrs)))
 
     def dlr_thresh(self, thresh=5):
         self.dynamic_lr = thresh_lr(self.learning_rate, thresh=thresh)

@@ -20,8 +20,8 @@ class DummyAttentionGeneratorConsumerTest(TestCase):
         self.attgenparams = self.getattgenparams()
         self.attcon = WeightedSum()
         self.att = Attention(self.attgen, self.attcon)
-        self.criterion_val = np.random.random((batsize, criteriondim))
-        self.data_val = np.random.random((batsize, seqlen, datadim))
+        self.criterion_val = np.random.random((batsize, criteriondim)).astype("float32")
+        self.data_val = np.random.random((batsize, seqlen, datadim)).astype("float32")
 
     def getattgenc(self):
         return LinearSumAttentionGenerator
@@ -72,8 +72,8 @@ class TestAttentionRNNDecoder(TestCase):
             IdxToOneHot(vocsize),
             InConcatCRex(GRU(dim=vocsize+encdim, innerdim=innerdim), outdim=innerdim)
         )
-        self.attdata = np.random.random((batsize, seqlen, encdim))
-        self.data = np.random.random((batsize, encdim))
+        self.attdata = np.random.random((batsize, seqlen, encdim)).astype("float32")
+        self.data = np.random.random((batsize, encdim)).astype("float32")
         self.seqdata = np.random.randint(0, vocsize, (batsize, seqlen))
         self.predshape = (batsize, seqlen, vocsize)
 

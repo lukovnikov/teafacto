@@ -17,7 +17,7 @@ class SimpleRNNEncoderTest(TestCase):
         seqlen = 19
         self.enc = SeqEncoder(GRU(dim=dim, innerdim=self.outdim))
         self.enc = self.doswitches(self.enc)
-        self.data = np.random.random((batsize, seqlen, dim))
+        self.data = np.random.random((batsize, seqlen, dim)).astype("float32")
         self.out = self.enc.predict(self.data)
 
     def test_output_shape(self):
@@ -74,7 +74,7 @@ class StackRNNEncoderTest(SimpleRNNEncoderTest):
                               GRU(dim=hdim, innerdim=hdim2),
                               GRU(dim=hdim2, innerdim=self.outdim))
         self.enc = self.doswitches(self.enc)
-        self.data = np.random.random((batsize, seqlen, indim))
+        self.data = np.random.random((batsize, seqlen, indim)).astype("float32")
         self.out = self.enc.predict(self.data)
 
     def doswitches(self, enc):

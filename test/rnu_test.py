@@ -15,7 +15,7 @@ class TestGRU(TestCase):
         self.batsize = 50
         self.seqlen = 10
         self.datashape = (self.batsize, self.seqlen, self.dim)
-        self.testdata = np.random.random(self.datashape)
+        self.testdata = np.random.random(self.datashape).astype("float32")
         self.paramnames = self.getparamnames()
         self.wshape = (self.dim, self.innerdim)
         self.ushape = (self.innerdim, self.innerdim)
@@ -73,13 +73,13 @@ class TestGRU(TestCase):
 
     def test_input_other_batsize(self):
         othershape = (self.batsize*25, self.seqlen, self.dim) # 25 times more batches
-        data = np.random.random(othershape)
+        data = np.random.random(othershape).astype("float32")
         outpv = self.rnu.predict(data)
         self.assertEqual(outpv.shape, (self.batsize*25, self.seqlen, self.innerdim))
 
     def test_input_other_seqlen(self):
         othershape = (self.batsize, self.seqlen*25, self.dim) # 25 times longer sequences
-        data = np.random.random(othershape)
+        data = np.random.random(othershape).astype("float32")
         outpv = self.rnu.predict(data)
         self.assertEqual(outpv.shape, (self.batsize, self.seqlen*25, self.innerdim))
 
