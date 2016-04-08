@@ -27,8 +27,8 @@ class FBLexDataFeed(DataFeed):
         ret = self.data.__getitem__(item)
         return self.transform(ret)
 
-    def get(self, idxs): # TODO write test
-        return self.data[idxs]
+    def get(self, idxs): # should return datafeed of the same type TODO write test
+        return self.__class__(self.data[idxs], self.worddic, unkwordid=self.unkwordid, numwords=self._shape[1], numchars=self._shape[2]-1)
 
     def transform(self, x):
         '''print x, type(x), x.dtype, x.shape

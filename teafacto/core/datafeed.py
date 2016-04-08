@@ -66,6 +66,7 @@ class DataFeeder(object): # contains data feeds
             np.random.shuffle(splitidxs)
         start = 0
         end = int(ceil(1.*self.size / split))
+
         return DataFeeder(*[self.splitfeed(feed, splitidxs[start:end]) for feed in self.feeds])
 
     def isplit(self, splitidxs):
@@ -104,7 +105,7 @@ class DataFeed(object):
     def __getitem__(self, item):
         return self.data.__getitem__(item)
 
-    def get(self, idxs):
+    def get(self, idxs):    # should return DataFeed of the same type
         pass
 
 
