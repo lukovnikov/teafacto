@@ -27,6 +27,9 @@ class FBLexDataFeed(DataFeed):
         ret = self.data.__getitem__(item)
         return self.transform(ret)
 
+    def get(self, idxs): # TODO write test
+        return self.data[idxs]
+
     def transform(self, x):
         '''print x, type(x), x.dtype, x.shape
         ret = np.zeros((x.shape + (self.shape[1], self.shape[2]+1)))
