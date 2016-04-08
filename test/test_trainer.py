@@ -98,7 +98,7 @@ class TestModelTrainerValidsplit(TestModelTrainerNovalidate):
         data = np.arange(0, self.vocabsize).astype("int32")
         self.err, self.verr, _, _ = \
             self.ae.train([data], data).adadelta(lr=lr).dlr_thresh(thresh=self.lrthresh).neg_log_prob() \
-            .validate(5, random=True).neg_log_prob() \
+            .split_validate(5, random=True).neg_log_prob() \
             .train(numbats=numbats, epochs=self.epochs)
 
 
@@ -111,6 +111,18 @@ class TestModelTrainerCrossValid(TestModelTrainerNovalidate):
         self.err, self.verr, _, _ = \
             self.ae.train([data], data).adadelta(lr=lr).dlr_thresh(thresh=self.lrthresh).neg_log_prob() \
             .cross_validate(5, random=True).neg_log_prob() \
+            .train(numbats=numbats, epochs=self.epochs)
+
+
+class TestModelTrainerAutovalidate(TestModelTrainerNovalidate):
+    def train(self):
+        numbats = 100
+        lr=0.02
+        lr *= numbats
+        data = np.arange(0, self.vocabsize).astype("int32")
+        self.err, self.verr, _, _ = \
+            self.ae.train([data], data).adadelta(lr=lr).dlr_thresh(thresh=self.lrthresh).neg_log_prob() \
+            .autovalidate(splits=5, random=True).neg_log_prob() \
             .train(numbats=numbats, epochs=self.epochs)
 
 

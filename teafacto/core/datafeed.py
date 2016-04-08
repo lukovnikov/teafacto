@@ -60,6 +60,14 @@ class DataFeeder(object): # contains data feeds
         dftrain = DataFeeder(*[self.splitfeed(feed, splitidxs[middle:end])   for feed in self.feeds])
         return dftrain, dfvalid
 
+    def osplit(self, split=2, random=False):
+        splitidxs = np.arange(0, self.size)
+        if random is not False:
+            np.random.shuffle(splitidxs)
+        start = 0
+        end = int(ceil(1.*self.size / split))
+        return DataFeeder(*[self.splitfeed(feed, splitidxs[start:end]) for feed in self.feeds])
+
     def isplit(self, splitidxs):
         nsplitidxs = np.setdiff1d(np.arange(0, self.size), splitidxs)
         dfvalid = DataFeeder(*[self.splitfeed(feed, splitidxs)  for feed in self.feeds])

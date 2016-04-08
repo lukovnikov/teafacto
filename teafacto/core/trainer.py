@@ -221,22 +221,24 @@ class ModelTrainer(object):
         self._validinter = validinter
         return self
 
-    def autovalidate(self): # validates on the same data as training data
-        self.validate_on(self.traindata, self.traingold)
+    def autovalidate(self, splits=5, random=True): # validates on the same data as training data
+        self.validate_on(self.traindata, self.traingold, splits=splits, random=random)
         self.validsetmode = True
         return self
 
-    def validate(self, splits=5, random=False):
+    def split_validate(self, splits=5, random=True):
         self.trainstrategy = self._train_split
         self.validsplits = splits
         self.validrandom = random
         self.validsetmode = True
         return self
 
-    def validate_on(self, data, gold):
+    def validate_on(self, data, gold, splits=1, random=True):
         self.trainstrategy = self._train_validdata
         self.validdata = data
         self.validgold = gold
+        self.validsplits = splits
+        self.validrandom = random
         self.validsetmode = True
         return self
 
@@ -315,9 +317,11 @@ class ModelTrainer(object):
     def _train_validdata(self, model):
         trainf = self.buildtrainfun(model)
         validf = self.buildvalidfun(model)
+        df = DataFeeder(*(self.traindata + [self.traingold]))
+        dfvalid = df.osplit(split=self.validsplits, random=self.validrandom)
         err, verr = self.trainloop(
-                trainf=self.getbatchloop(trainf, DataFeeder(*(self.traindata + [self.traingold])).numbats(self.numbats)),
-                validf=self.getbatchloop(validf, DataFeeder(*(self.validdata + [self.validgold]))))
+                trainf=self.getbatchloop(trainf, df.numbats(self.numbats)),
+                validf=self.getbatchloop(validf, dfvalid))
         return err, verr, None, None
 
     def _train_split(self, model):

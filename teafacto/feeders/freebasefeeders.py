@@ -1,6 +1,7 @@
 from teafacto.core.datafeed import DataFeed
 import numpy as np
 from teafacto.util import ticktock
+from multiprocessing import Pool
 
 
 class FBLexDataFeed(DataFeed):
@@ -27,19 +28,6 @@ class FBLexDataFeed(DataFeed):
         return self.transform(ret)
 
     def transform(self, x):
-        def transinner(word):
-            skip = False
-            if word is None:
-                retword = [0]*(self.shape[2])         # missing word ==> all zeros
-                skip = True
-            else:
-                if word in self.worddic:
-                    retword = [self.worddic[word]]      # get word index
-                else:
-                    retword = [self.unkwordid]                       # unknown word
-                retword.extend(map(ord, word))
-                retword.extend([0]*(self.shape[2]-len(retword)))
-            return retword, skip #np.asarray(retword, dtype="int32")
         '''print x, type(x), x.dtype, x.shape
         ret = np.zeros((x.shape + (self.shape[1], self.shape[2]+1)))
         retv = np.vectorize(transinner)(x)
@@ -50,19 +38,50 @@ class FBLexDataFeed(DataFeed):
 
         #print type(x), x.dtype
         ret = np.zeros((x.shape[0], self.shape[1], self.shape[2]), dtype="int32")
+
         i = 0
         while i < x.shape[0]:
             j = 0
+            '''
+            words = [x[i, k] for k in range(x.shape[1])]
+            args = zip(words, [self.shape]*len(words), [self.worddic]*len(words), [self.unkwordid]*len(words))
+            pool = Pool(8)
+            poolres = pool.map(transinner, args)
+            ret[i, :, :] = poolres
+            '''
             while j < x.shape[1]:
                 word = x[i, j]
-                retword, skip = transinner(word)
+                retword, skip = transinner((word, self.shape, self.worddic, self.unkwordid))
                 if skip:
                     j = x.shape[1]
                 else:
                     ret[i, j, :] = retword
                 j += 1
+
             i += 1
         return ret
+
+def iden(x):
+    return x
+
+def transinner(args):
+    #print " arg " + str(args[0])
+    word = args[0]
+    shape = args[1]
+    worddic = args[2]
+    unkwordid = args[3]
+    skip = False
+    if word is None:
+        retword = [0]*(shape[2])         # missing word ==> all zeros
+        skip = True
+    else:
+        if word in worddic:
+            retword = [worddic[word]]      # get word index
+        else:
+            retword = [unkwordid]                       # unknown word
+        retword.extend(map(ord, word))
+        retword.extend([0]*(shape[2]-len(retword)))
+    return retword, skip #np.asarray(retword, dtype="int32")
 
 
 class FBLexDataFeedsMaker(object):
