@@ -3,6 +3,27 @@ from teafacto.feeders.freebasefeeders import getentdict, getglovedict, FBLexData
 from teafacto.util import argprun, ticktock
 
 
+def loadlexdata(glovepath, fbentdicp, fblexpath, wordoffset, numwords, numchars):
+    gd, vocnumwords = getglovedict(glovepath, offset=wordoffset)
+    print gd["alias"]
+    ed, vocnuments = getentdict(fbentdicp, offset=0)
+    print ed["m.0ndj09y"]
+
+
+    indata = FBLexDataFeedsMaker(fblexpath, gd, ed, numwords=numwords, numchars=numchars, unkwordid=wordoffset-1)
+    datanuments = max(indata.goldfeed)+1
+    tt = ticktock("fblextransrun")
+    tt.tick()
+    print "max entity id+1: %d" % datanuments
+    indata.trainfeed[0:9000]
+    tt.tock("transformed")
+    #embed()
+
+    traindata = indata.trainfeed
+    golddata = indata.goldfeed
+
+    return traindata, golddata, vocnuments, vocnumwords, datanuments
+
 def run(
         epochs=100,
         lr=0.5,
@@ -21,23 +42,9 @@ def run(
         gradnorm=1.0,
         validsplit=100,
     ):
-    gd, vocnumwords = getglovedict(glovepath, offset=wordoffset)
-    print gd["alias"]
-    ed, vocnuments = getentdict(fbentdicp, offset=0)
-    print ed["m.0ndj09y"]
 
-
-    indata = FBLexDataFeedsMaker(fblexpath, gd, ed, numwords=numwords, numchars=numchars, unkwordid=wordoffset-1)
-    datanuments = max(indata.goldfeed)+1
-    tt = ticktock("fblextransrun")
-    tt.tick()
-    print "max entity id+1: %d" % datanuments
-    indata.trainfeed[0:9000]
-    tt.tock("transformed")
-    #embed()
-
-    traindata = indata.trainfeed
-    golddata = indata.goldfeed
+    traindata, golddata, vocnuments, vocnumwords, datanuments = \
+        loadlexdata(glovepath, fbentdicp, fblexpath, wordoffset, numwords, numchars)
 
     # define model
     m = FBBasicCompositeEncoder(
