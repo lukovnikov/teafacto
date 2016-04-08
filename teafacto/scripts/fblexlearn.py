@@ -1,5 +1,5 @@
 from teafacto.blocks.kgraph.fbencdec import FBBasicCompositeEncoder
-from teafacto.feeders.freebasefeeders import getentdict, getglovedict, FBLexDataFeedsMaker
+from teafacto.feed.freebasefeeders import getentdict, getglovedict, FreebaseEntFeedsMaker
 from teafacto.util import argprun, ticktock
 
 
@@ -10,7 +10,7 @@ def loadlexdata(glovepath, fbentdicp, fblexpath, wordoffset, numwords, numchars)
     print ed["m.0ndj09y"]
 
 
-    indata = FBLexDataFeedsMaker(fblexpath, gd, ed, numwords=numwords, numchars=numchars, unkwordid=wordoffset-1)
+    indata = FreebaseEntFeedsMaker(fblexpath, gd, ed, numwords=numwords, numchars=numchars, unkwordid=wordoffset - 1)
     datanuments = max(indata.goldfeed)+1
     tt = ticktock("fblextransrun")
     tt.tick()

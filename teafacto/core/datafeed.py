@@ -84,7 +84,7 @@ class DataFeeder(object): # contains data feeds
 
 class DataFeed(object):
     '''
-    Wraps data, custom data feeders can be implemented for dynamic sampling
+    Wraps data, custom data feed can be implemented for dynamic sampling
     '''
     def __init__(self, data, *args, **kw): # data: numpy array
         super(DataFeed, self).__init__(*args, **kw)
@@ -165,3 +165,14 @@ class SplitIdxIterator(object):
             return ret
         else:
             raise StopIteration
+
+
+class FeedTransform(object):
+    def __init__(self, **kw):
+        super(FeedTransform, self).__init__(**kw)
+
+    def transform(self, x):
+        return x
+
+    def getshapefor(self, datashape):
+        return datashape

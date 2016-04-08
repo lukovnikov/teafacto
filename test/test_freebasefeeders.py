@@ -1,5 +1,5 @@
 from unittest import TestCase
-from teafacto.feeders.freebasefeeders import FBLexDataFeedsMaker, getentdict, getglovedict
+from teafacto.feed.freebasefeeders import FreebaseEntFeedsMaker, getentdict, getglovedict, FreebaseSeqFeedMaker
 from teafacto.core.datafeed import DataFeeder
 import os, math
 
@@ -15,21 +15,22 @@ class TestFreebaseLexFeeder(TestCase):
         self.assertEqual(maxi, 4001)
         self.assertEqual(max(d.values()), maxi)
 
-    def test_fb_datafeed(self):
+    def test_fb_datafeed_shape(self):
         gd, gmaxi = getglovedict(os.path.join(os.path.dirname(__file__), "../data/glove/miniglove.50d.txt"))
         ed, emaxid = getentdict(os.path.join(os.path.dirname(__file__), "../data/freebase/entdic.small.map"), top=50)
         dp = os.path.join(os.path.dirname(__file__), "../data/freebase/labelsrevlex.map.sample")
-        f = FBLexDataFeedsMaker(dp, gd, ed, numwords=10, numchars=30)
+        f = FreebaseEntFeedsMaker(dp, gd, ed, numwords=10, numchars=30)
         self.assertEqual(f.worddic, gd)
 
         trainfeed = f.trainfeed
         self.assertEqual(trainfeed[0:5].shape, (5, 10, 31))
+        self.assertEqual(f.goldfeed[0:5].shape, (5,))
 
     def test_fb_datafeed_validosplit(self):
         gd, gmaxi = getglovedict(os.path.join(os.path.dirname(__file__), "../data/glove/miniglove.50d.txt"))
         ed, emaxid = getentdict(os.path.join(os.path.dirname(__file__), "../data/freebase/entdic.small.map"), top=50)
         dp = os.path.join(os.path.dirname(__file__), "../data/freebase/labelsrevlex.map.sample")
-        f = FBLexDataFeedsMaker(dp, gd, ed, numwords=10, numchars=30)
+        f = FreebaseEntFeedsMaker(dp, gd, ed, numwords=10, numchars=30)
         self.assertEqual(f.worddic, gd)
 
         dfeeder = DataFeeder(*([f.trainfeed] + [f.goldfeed]))
@@ -45,3 +46,14 @@ class TestFreebaseLexFeeder(TestCase):
                 self.assertEqual(x.shape[dim], y.shape[dim])
 
 
+class TestFreebaseSeqFeeder(TestCase):
+    def test_fb_datafeed_shape(self):
+        gd, gmaxi = getglovedict(os.path.join(os.path.dirname(__file__), "../data/glove/miniglove.50d.txt"))
+        ed, emaxid = getentdict(os.path.join(os.path.dirname(__file__), "../data/freebase/entdic.small.map"), top=50)
+        dp = os.path.join(os.path.dirname(__file__), "../data/freebase/labelsrevlex.map.sample")
+        f = FreebaseSeqFeedMaker(dp, gd, ed, numwords=10, numchars=30)
+        self.assertEqual(f.worddic, gd)
+
+        trainfeed = f.trainfeed
+        self.assertEqual(trainfeed[0:5].shape, (5, 10, 31))
+        self.assertEqual(f.goldfeed[0:5].shape, (5, 1))
