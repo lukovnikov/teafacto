@@ -4,15 +4,14 @@ from teafacto.util import argprun, ticktock
 
 
 def loadlexdata(glovepath, fbentdicp, fblexpath, wordoffset, numwords, numchars):
+    tt = ticktock("fblexdataloader") ; tt.tick()
     gd, vocnumwords = getglovedict(glovepath, offset=wordoffset)
-    print gd["alias"]
+    tt.tock("loaded %d worddic" % len(gd)).tick()
     ed, vocnuments = getentdict(fbentdicp, offset=0)
-    print ed["m.0ndj09y"]
-
+    tt.tock("loaded %d entdic" % len(ed)).tick()
 
     indata = FreebaseEntFeedsMaker(fblexpath, gd, ed, numwords=numwords, numchars=numchars, unkwordid=wordoffset - 1)
     datanuments = max(indata.goldfeed)+1
-    tt = ticktock("fblextransrun")
     tt.tick()
     print "max entity id+1: %d" % datanuments
     indata.trainfeed[0:9000]
@@ -42,9 +41,12 @@ def run(
         gradnorm=1.0,
         validsplit=100,
     ):
+    tt = ticktock("fblextransrun")
 
     traindata, golddata, vocnuments, vocnumwords, datanuments = \
         loadlexdata(glovepath, fbentdicp, fblexpath, wordoffset, numwords, numchars)
+
+    tt.tock("made data").tick()
 
     # define model
     m = FBBasicCompositeEncoder(
@@ -59,12 +61,12 @@ def run(
     #wenc = WordEncoderPlusGlove(numchars=numchars, numwords=vocnumwords, encdim=wordencdim, embdim=wordembdim)
 
     # train model   TODO
-    print "training"
+    tt.tick("training")
     m.train([traindata], golddata).adagrad(lr=lr).grad_total_norm(gradnorm).neg_log_prob()\
         .autovalidate(splits=validsplit, random=True).validinter(validinter).accuracy()\
         .train(numbats, epochs)
     #embed()
-    tt.tick("predicting")
+    tt.tock("trained").tick("predicting")
     print m.predict(traindata).shape
     tt.tock("predicted sample")
 

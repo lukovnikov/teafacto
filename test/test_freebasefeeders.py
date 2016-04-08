@@ -54,6 +54,16 @@ class TestFreebaseSeqFeeder(TestCase):
         f = FreebaseSeqFeedMaker(dp, gd, ed, numwords=10, numchars=30)
         self.assertEqual(f.worddic, gd)
 
-        trainfeed = f.trainfeed
-        self.assertEqual(trainfeed[0:5].shape, (5, 10, 31))
+        self.assertEqual(f.trainfeed[0:5].shape, (5, 10, 31))
         self.assertEqual(f.goldfeed[0:5].shape, (5, 1))
+
+    def test_fb_datafeed_mfqa_shape(self):
+        gd, gmaxi = getglovedict(os.path.join(os.path.dirname(__file__), "../data/glove/miniglove.50d.txt"))
+        ed, emaxid = getentdict(os.path.join(os.path.dirname(__file__), "../data/mfqa/mfqa.dic.map"), top=50)
+        dp = os.path.join(os.path.dirname(__file__), "../data/mfqa/mfqa.tsv.sample")
+        f = FreebaseSeqFeedMaker(dp, gd, ed, numwords=20, numchars=30)
+        self.assertEqual(f.worddic, gd)
+        print f.goldfeed
+        self.assertEqual(f.trainfeed[0:5].shape, (5, 20, 31))
+        self.assertEqual(f.goldfeed[0:5].shape, (5, 2))
+

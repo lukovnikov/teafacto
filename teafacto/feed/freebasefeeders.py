@@ -76,8 +76,8 @@ class FreebaseSeqFeedMaker(FreebaseEntFeedsMaker):
     def _process_ent(self, fb, entdic):
         ret = []
         for e in fb.split(" "):
-            if fb in entdic:
-                ret.append(entdic[fb])
+            if e in entdic:
+                ret.append(entdic[e])
             else:
                 ret.append(self.unkentid)
         return ret
