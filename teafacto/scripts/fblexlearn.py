@@ -18,6 +18,8 @@ def run(
         innerdim=300,
         wordoffset=1,
         validinter=3,
+        gradnorm=1.0,
+        validsplit=100,
     ):
     gd, vocnumwords = getglovedict(glovepath, offset=wordoffset)
     print gd["alias"]
@@ -29,7 +31,7 @@ def run(
     tt = ticktock("fblextransrun")
     tt.tick()
     print "max entity id+1: %d" % datanuments
-    indata.trainfeed[0:9]
+    indata.trainfeed[0:9000]
     tt.tock("transformed")
     #embed()
 
@@ -50,8 +52,8 @@ def run(
 
     # train model   TODO
     print "training"
-    m.train([traindata], golddata).adagrad(lr=lr).grad_total_norm(1.0).neg_log_prob()\
-        .autovalidate().validinter(validinter).accuracy()\
+    m.train([traindata], golddata).adagrad(lr=lr).grad_total_norm(gradnorm).neg_log_prob()\
+        .autovalidate(splits=validsplit, random=True).validinter(validinter).accuracy()\
         .train(numbats, epochs)
     #embed()
     tt.tick("predicting")

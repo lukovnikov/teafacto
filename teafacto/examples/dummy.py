@@ -32,7 +32,7 @@ def run(
     ae = Dummy(indim=vocabsize, dim=dim)
     err, verr, _, _ = \
         ae  .train([data], data).adadelta(lr=lr).dlr_thresh().neg_log_prob()\
-            .validate(5, random=True).neg_log_prob().accuracy().autosave\
+            .split_validate(5, random=True).neg_log_prob().accuracy().autosave\
         .train(numbats=numbats, epochs=epochs)
 
     pdata = range(100)
