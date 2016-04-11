@@ -1,4 +1,4 @@
-import numpy as np
+import numpy as np, unidecode
 
 from teafacto.core.datafeed import FeedTransform
 
@@ -22,6 +22,8 @@ class WordToWordCharTransform(FeedTransform):
             while j < x.shape[1]:
                 word = x[i, j]
                 retword, skip = transinner((word, self.numchars, self.worddic, self.unkwordid))
+                if max(retword[1:]) > 128:
+                    print x
                 if skip:
                     j = x.shape[1]
                 else:
@@ -43,6 +45,7 @@ def transinner(args):
         retword = [0]*(numchars)         # missing word ==> all zeros
         skip = True
     else:
+        word = unidecode.unidecode(word)
         if word in worddic:
             retword = [worddic[word]]      # get word index
         else:

@@ -1,7 +1,7 @@
 from unittest import TestCase
 from teafacto.feed.freebasefeeders import FreebaseEntFeedsMaker, getentdict, getglovedict, FreebaseSeqFeedMaker
 from teafacto.core.datafeed import DataFeeder
-import os, math
+import os, math, numpy as np
 
 
 class TestFreebaseLexFeeder(TestCase):
@@ -62,6 +62,7 @@ class TestFreebaseSeqFeeder(TestCase):
         ed, emaxid = getentdict(os.path.join(os.path.dirname(__file__), "../data/mfqa/mfqa.dic.map"), top=50)
         dp = os.path.join(os.path.dirname(__file__), "../data/mfqa/mfqa.tsv.sample")
         f = FreebaseSeqFeedMaker(dp, gd, ed, numwords=20, numchars=30)
+        self.assertLessEqual(np.max(f.trainfeed[:][:, :, 1:]), 128)     # ASCII range
         self.assertEqual(f.worddic, gd)
         self.assertEqual(f.trainfeed[0:5].shape, (5, 20, 31))
         self.assertEqual(f.goldfeed[0:5].shape, (5, 2))

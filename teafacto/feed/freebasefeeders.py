@@ -54,12 +54,10 @@ class FreebaseEntFeedsMaker(object):
 
     def _process_sf(self, sf):
         words = sf.split(" ")
-        if len(words) > self.numwords:
-            words = words[:self.numwords]
+        words = words[:min(len(words), self.numwords)]
         i = 0
         while i < len(words):
-            if len(words[i]) > self.numchars:
-                words[i] = words[i][:self.numchars]
+            words[i] = words[i][:min(len(words[i]), self.numchars)]
             i += 1
         words.extend([None]*max(0, (self.numwords - len(words))))
         return words

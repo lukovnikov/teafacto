@@ -2,7 +2,7 @@ from teafacto.core.base import Block
 from teafacto.blocks.basic import Softmax, MatDot as Lin, VectorEmbed
 from teafacto.blocks.rnn import SeqEncoder, SeqDecoder, InConcatCRex
 from teafacto.blocks.rnu import GRU
-from teafacto.blocks.lang.wordembed import WordEncoderPlusGlove, WordEncoderPlusEmbed
+from teafacto.blocks.lang.wordembed import WordEncoderPlusGlove
 
 
 class FBBasicCompositeEncoder(Block):    # SeqEncoder of WordEncoderPlusGlove, fed to single-layer Softmax output

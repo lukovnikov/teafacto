@@ -75,16 +75,24 @@ class ModelTrainer(object):
         return self
 
     def neg_log_prob(self):
-        self._set_objective(lambda probs, gold: -tensor.log(probs[tensor.arange(gold.shape[0]), gold]))
+        def inner(probs, gold):
+            if gold.ndim == 1:
+                return -tensor.log(probs[tensor.arange(gold.shape[0]), gold])
+            elif gold.ndim == 2:    # sequences
+                return self._inner_seq_neg_log_prob(probs, gold)
+        self._set_objective(inner)
         return self
 
+    @staticmethod
+    def _inner_seq_neg_log_prob(probs, gold):
+        #print "using inner seq neg log prob"
+        def _f(probsmat, goldvec):      # probsmat: (seqlen, vocsize), goldvec: (seqlen,)
+            return tensor.sum(-tensor.log(probsmat[tensor.arange(probsmat.shape[0]), goldvec]))
+        o, _ = theano.scan(fn=_f, sequences=[probs, gold], outputs_info=None)      # out: (batsize,)
+        return o
+
     def seq_neg_log_prob(self): # probs (batsize, seqlen, vocsize) + gold: (batsize, seqlen) ==> sum of neg log-probs of correct seq
-        def inner(probs, gold):
-            def _f(probsmat, goldvec):      # probsmat: (seqlen, vocsize), goldvec: (seqlen,)
-                return tensor.sum(-tensor.log(probsmat[tensor.arange(probsmat.shape[0]), goldvec]))
-            o, _ = theano.scan(fn=_f, sequences=[probs, gold], outputs_info=None)      # out: (batsize,)
-            return o
-        self._set_objective(inner)
+        self._set_objective(self._inner_seq_neg_log_prob)
         return self
 
     def squared_error(self):

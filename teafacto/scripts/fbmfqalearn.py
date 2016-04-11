@@ -4,7 +4,7 @@ from teafacto.util import argprun, ticktock
 import numpy as np
 
 
-def loadlexdata(glovepath, fbentdicp, fblexpath, wordoffset, numwords, numchars):
+def loaddata(glovepath, fbentdicp, fblexpath, wordoffset, numwords, numchars):
     tt = ticktock("fblexdataloader") ; tt.tick()
     gd, vocnumwords = getglovedict(glovepath, offset=wordoffset)
     tt.tock("loaded %d worddic" % len(gd)).tick()
@@ -23,6 +23,12 @@ def loadlexdata(glovepath, fbentdicp, fblexpath, wordoffset, numwords, numchars)
     golddata = indata.goldfeed
 
     return traindata, golddata, vocnuments, vocnumwords, datanuments
+
+def shiftdata(x, right=1):
+    if isinstance(x, np.ndarray):
+        return np.concatenate([np.zeros_like(x[:, 0:right]), x[:, :-right]], axis=1)
+    else:
+        raise Exception("can not shift this")
 
 def run(
         epochs=100,
@@ -46,8 +52,10 @@ def run(
     tt = ticktock("fblextransrun")
 
     traindata, golddata, vocnuments, vocnumwords, datanuments = \
-        loadlexdata(glovepath, fbentdicp, fblexpath, wordoffset, numwords, numchars)
-
+        loaddata(glovepath, fbentdicp, fblexpath, wordoffset, numwords, numchars)
+    golddata = golddata + 1
+    datanuments += 1
+    outdata = shiftdata(golddata)
     tt.tock("made data").tick()
 
     # define model
@@ -65,8 +73,8 @@ def run(
     tt.tock("model defined")
     # train model   TODO
     tt.tick("training")
-    m.train([traindata], golddata).adagrad(lr=lr).grad_total_norm(gradnorm).neg_log_prob()\
-        .autovalidate(splits=validsplit, random=True).validinter(validinter).accuracy()\
+    m.train([traindata, outdata], golddata).adagrad(lr=lr).grad_total_norm(gradnorm).seq_neg_log_prob()\
+        .autovalidate(splits=validsplit, random=True).validinter(validinter).seq_accuracy()\
         .train(numbats, epochs)
     #embed()
     tt.tock("trained").tick("predicting")
