@@ -49,7 +49,7 @@ class WordEncoderPlusGlove(Block):
         enc = self.enc(seq[:, 1:])                  # (batsize, encdim)
         return T.concatenate([emb, enc], axis=1)    # (batsize, embdim + encdim)
 
-
+'''
 class WordEncoderPlusEmbed(Block):
     def __init__(self, numchars=220, numwords=4e5, encdim=100, embdim=50, embtrainfrac=0.0, **kw):
         super(WordEncoderPlusEmbed, self).__init__(**kw)
@@ -60,3 +60,4 @@ class WordEncoderPlusEmbed(Block):
         emb = self.emb(seq[:, 0])
         enc = self.enc(seq[:, 1:])
         return T.concatenate([emb, enc], axis=1)
+'''

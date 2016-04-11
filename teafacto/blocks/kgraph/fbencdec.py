@@ -28,6 +28,13 @@ class FBBasicCompositeEncoder(Block):    # SeqEncoder of WordEncoderPlusGlove, f
 
 
 class FBSeqCompositeEncDec(Block):
+    '''
+    The input sequence is encoded into a vector with a GRU.
+    Each input sequence element is mapped to a vector with the composite Glove + character encoding block.
+    The encoding is passed to the decoder, as part of the decoder RNN's input.
+    No attention in this model.
+
+    '''
     def __init__(self, wordembdim=50, wordencdim=100, entembdim=200, innerdim=200, outdim=1e4, numwords=4e5, numchars=128, glovepath=None, **kw):
         super(FBSeqCompositeEncDec, self).__init__(**kw)
         self.indim = wordembdim + wordencdim
@@ -45,7 +52,9 @@ class FBSeqCompositeEncDec(Block):
 
         self.dec = SeqDecoder(
             VectorEmbed(indim=self.outdim, dim=self.entembdim),
-            InConcatCRex(GRU(dim=self.entembdim+self.encinnerdim, innerdim=self.decinnerdim), outdim=self.decinnerdim)
+            InConcatCRex(
+                GRU(dim=self.entembdim+self.encinnerdim, innerdim=self.decinnerdim),
+                outdim=self.decinnerdim)
         )
 
     def apply(self, inpseq, outseq):
