@@ -63,7 +63,6 @@ class TestFreebaseSeqFeeder(TestCase):
         dp = os.path.join(os.path.dirname(__file__), "../data/mfqa/mfqa.tsv.sample")
         f = FreebaseSeqFeedMaker(dp, gd, ed, numwords=20, numchars=30)
         self.assertEqual(f.worddic, gd)
-        print f.goldfeed
         self.assertEqual(f.trainfeed[0:5].shape, (5, 20, 31))
         self.assertEqual(f.goldfeed[0:5].shape, (5, 2))
 
