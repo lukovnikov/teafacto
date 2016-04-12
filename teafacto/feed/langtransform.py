@@ -45,7 +45,6 @@ def transinner(args):
         retword = [0]*(numchars)         # missing word ==> all zeros
         skip = True
     else:
-        word = unidecode.unidecode(word)
         if word in worddic:
             retword = [worddic[word]]      # get word index
         else:
