@@ -255,5 +255,5 @@ def run_seq2idx(        # works after refactoring (with adagrad)
 
 
 if __name__ == "__main__":
-    argprun(run_attentionseqdecoder)
+    argprun(run_RNNAutoEncoder)
     #print ints2words(np.asarray([[20,8,5,0,0,0], [1,2,3,0,0,0]]))

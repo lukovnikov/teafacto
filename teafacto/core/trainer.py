@@ -379,8 +379,9 @@ class ModelTrainer(object):
         self.currentiter = 1
         evalinter = self._validinter
         evalcount = evalinter
+        tt = TT("training")
         while not stop:
-            print("iter %d/%d" % (self.currentiter, int(self.maxiter)))
+            tt.tick("iter %d/%d" % (self.currentiter, int(self.maxiter)))
             start = dt.now()
             erre = trainf()
             if self.currentiter == self.maxiter:
@@ -390,10 +391,10 @@ class ModelTrainer(object):
             if validf is not None and self.currentiter % evalinter == 0: # validate and print
                 verre = validf()
                 verr.append(verre)
-                print "training error: %s \t validation error: %s" % (" - ".join(map(lambda x: "%.3f" % x, erre)), " - ".join(map(lambda x: "%.3f" % x, verre)))
+                tt.msg("error: %s \t validation error: %s" % (" - ".join(map(lambda x: "%.3f" % x, erre)), " - ".join(map(lambda x: "%.3f" % x, verre))))
             else:
-                print "training error: %s" % " - ".join(map(lambda x: "%.3f" % x, erre))
-            print("iter done in %f seconds" % (dt.now() - start).total_seconds())
+                tt.msg("error: %s" % " - ".join(map(lambda x: "%.3f" % x, erre)))
+            tt.tock("iter done")#print("iter done in %f seconds" % (dt.now() - start).total_seconds())
             self._update_lr(self.currentiter, self.maxiter, err, verr)
             evalcount += 1
             #embed()
@@ -410,25 +411,30 @@ class ModelTrainer(object):
         def batchloop():
             c = 0
             prevperc = -1.
-            terr = []
+            terr = 0.0
+            terr2 = 0.0
             numdigs = 2
+            tt = TT("iter progress")
+            tt.tick()
             while datafeeder.hasnextbatch():
                 perc = round(c*100.*(10**numdigs)/datafeeder._numbats)/(10**numdigs)
-                if perc > prevperc: sys.stdout.write(("iter progress %."+str(numdigs)+"f") % perc + "% \r"); sys.stdout.flush(); prevperc = perc
+                if perc > prevperc:
+                    s = ("%."+str(numdigs)+"f%% \t error: %.3f") % (perc, terr)
+                    tt.live(s)
+                    prevperc = perc
                 sampleinps = datafeeder.nextbatch()
                 try:
-                    eterr = trainf(*sampleinps)
+                    eterr = trainf(*sampleinps)[0]
                 except Exception, e:
                     embed()
                     raise e
-                if len(terr) == 0: # new
-                    terr = eterr
+                if self.average_err is True:
+                    terr = terr*(1.0*(c)/(c+1)) + eterr*(1.0/(c + 1))
                 else:
-                    terr = map(lambda x: x[0]+x[1], zip(terr, eterr))
+                    terr += eterr
                 c += 1
-            if self.average_err is True:
-                terr = map(lambda x: x*1./c, terr)
-            return terr
+            tt.stoplive()
+            return [terr]
         return batchloop
 
     @property

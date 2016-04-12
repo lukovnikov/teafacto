@@ -1,4 +1,4 @@
-import collections, inspect, argparse, dill as pkl, os, numpy as np, pandas as pd
+import collections, inspect, argparse, dill as pkl, os, numpy as np, pandas as pd, sys
 from datetime import datetime as dt
 
 
@@ -69,6 +69,7 @@ class ticktock(object):
         self.perc = None
         self.prevperc = None
         self._tick()
+
     def tick(self, state=None):
         if self.verbose and state is not None:
             print "%s: %s" % (self.prefix, state)
@@ -94,6 +95,13 @@ class ticktock(object):
             print "%s: %s in %s" % (prefix, action, self._getdurationstr(duration))
         return self
 
+    def msg(self, action=None, prefix=None):
+        if self.verbose:
+            prefix = prefix if prefix is not None else self.prefix
+            action = action if action is not None else self.state
+            print "%s: %s" % (prefix, action)
+        return self
+
     def _getdurationstr(self, duration):
         if duration >= 60:
             duration = int(round(duration))
@@ -113,6 +121,17 @@ class ticktock(object):
             return acc
         else:
             return ("%.3f second" % duration) + ("s" if duration > 1 else "")
+
+    def live(self, x):
+        sys.stdout.write(self.prefix + ": " + x+("\t T: %s \r" % self._getdurationstr(self._tock())))
+        sys.stdout.flush()
+
+    def stoplive(self):
+        sys.stdout.write("\r\033[K")
+        sys.stdout.flush()
+
+
+
 
 
 def argparsify(f, test=None):
