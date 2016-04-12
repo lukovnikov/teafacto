@@ -251,7 +251,12 @@ class Val(TensorWrapped):
         self.name = name
         if not isinstance(value, np.ndarray):
             value = np.asarray(value)
-        self.value = theano.shared(value.astype(dtype=theano.config.floatX), name=name)
+        dtype = value.dtype.kind
+        if dtype == "i":
+            dtype = str(value.dtype)
+        elif dtype == "f":
+            dtype = theano.config.floatX
+        self.value = theano.shared(value.astype(dtype=dtype), name=name)
 
     @property
     def d(self):
