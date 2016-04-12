@@ -62,7 +62,7 @@ def makenpfrom(tomat, toten, tovec, dtype="int32", numwords=15, numchars=30):
 
 
 class ticktock(object):
-    def __init__(self, prefix="", verbose=True):
+    def __init__(self, prefix="-", verbose=True):
         self.prefix = prefix
         self.verbose = verbose
         self.state = None

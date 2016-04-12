@@ -379,10 +379,9 @@ class ModelTrainer(object):
         self.currentiter = 1
         evalinter = self._validinter
         evalcount = evalinter
-        tt = TT("training")
+        tt = TT("iter")
         while not stop:
-            tt.tick("iter %d/%d" % (self.currentiter, int(self.maxiter)))
-            start = dt.now()
+            tt.tick("%d/%d" % (self.currentiter, int(self.maxiter)))
             erre = trainf()
             if self.currentiter == self.maxiter:
                 stop = True
@@ -391,10 +390,10 @@ class ModelTrainer(object):
             if validf is not None and self.currentiter % evalinter == 0: # validate and print
                 verre = validf()
                 verr.append(verre)
-                tt.msg("error: %s \t validation error: %s" % (" - ".join(map(lambda x: "%.3f" % x, erre)), " - ".join(map(lambda x: "%.3f" % x, verre))))
+                tt.msg("training error: %s \t validation error: %s" % (" - ".join(map(lambda x: "%.3f" % x, erre)), " - ".join(map(lambda x: "%.3f" % x, verre))), prefix="-")
             else:
-                tt.msg("error: %s" % " - ".join(map(lambda x: "%.3f" % x, erre)))
-            tt.tock("iter done")#print("iter done in %f seconds" % (dt.now() - start).total_seconds())
+                tt.msg("training error: %s" % " - ".join(map(lambda x: "%.3f" % x, erre)), prefix="-")
+            tt.tock("done", prefix="-")
             self._update_lr(self.currentiter, self.maxiter, err, verr)
             evalcount += 1
             #embed()
