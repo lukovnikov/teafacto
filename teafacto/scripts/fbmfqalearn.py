@@ -32,10 +32,10 @@ def shiftdata(x, right=1):
 
 def run(
         epochs=100,
-        lr=0.5,
+        lr=0.005,
         wreg=0.0001,
-        numbats=100,
-        fblexpath="../../data/mfqa/mfqa.tsv.sample",
+        numbats=10,
+        fblexpath="../../data/mfqa/mfqa.tsv.sample.small",
         glovepath="../../data/glove/glove.6B.50d.txt",
         fbentdicp="../../data/mfqa/mfqa.dic.map",
         numwords=20,
