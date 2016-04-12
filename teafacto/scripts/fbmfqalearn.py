@@ -22,7 +22,7 @@ def loaddata(glovepath, fbentdicp, fblexpath, wordoffset, numwords, numchars):
     traindata = indata.trainfeed
     golddata = indata.goldfeed
 
-    return traindata, golddata, vocnuments, vocnumwords, datanuments
+    return traindata, golddata, vocnuments, vocnumwords, datanuments, ed
 
 def shiftdata(x, right=1):
     if isinstance(x, np.ndarray):
@@ -32,7 +32,7 @@ def shiftdata(x, right=1):
 
 def run(
         epochs=100,
-        lr=0.005,
+        lr=0.01,
         wreg=0.0001,
         numbats=10,
         fblexpath="../../data/mfqa/mfqa.tsv.sample.small",
@@ -47,14 +47,15 @@ def run(
         wordoffset=1,
         validinter=3,
         gradnorm=1.0,
-        validsplit=100,
+        validsplit=1,
     ):
+    entidxoffset = 1
     tt = ticktock("fblextransrun")
 
-    traindata, golddata, vocnuments, vocnumwords, datanuments = \
+    traindata, golddata, vocnuments, vocnumwords, datanuments, entdic = \
         loaddata(glovepath, fbentdicp, fblexpath, wordoffset, numwords, numchars)
-    golddata = golddata + 1
-    datanuments += 1
+    golddata = golddata + entidxoffset
+    datanuments += entidxoffset
     outdata = shiftdata(golddata)
     tt.tock("made data").tick()
 
@@ -69,16 +70,26 @@ def run(
         numwords=vocnumwords,
     )
 
+    reventdic = {}
+    for k, v in entdic.items():
+        reventdic[v] = k
+
     #wenc = WordEncoderPlusGlove(numchars=numchars, numwords=vocnumwords, encdim=wordencdim, embdim=wordembdim)
     tt.tock("model defined")
-    # train model   TODO
+
+    tt.tock("trained").tick("predicting")
+    pred = m.predict(traindata[:100], outdata[:100])
+    print np.vectorize(lambda x: reventdic[x])(np.argmax(pred, axis=2)-entidxoffset)
+    tt.tock("predicted sample")
+
+    exit()
     tt.tick("training")
     m.train([traindata, outdata], golddata).adagrad(lr=lr).grad_total_norm(gradnorm).seq_neg_log_prob()\
         .autovalidate(splits=validsplit, random=True).validinter(validinter).seq_accuracy()\
         .train(numbats, epochs)
     #embed()
     tt.tock("trained").tick("predicting")
-    print m.predict(traindata).shape
+    print m.predict(traindata, outdata)
     tt.tock("predicted sample")
 
 

@@ -396,6 +396,7 @@ class ModelTrainer(object):
             print("iter done in %f seconds" % (dt.now() - start).total_seconds())
             self._update_lr(self.currentiter, self.maxiter, err, verr)
             evalcount += 1
+            #embed()
             if self._autosave:
                 self.save(self.model)
         self.tt.tock("trained").tick()
