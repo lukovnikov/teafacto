@@ -77,19 +77,15 @@ def run(
     #wenc = WordEncoderPlusGlove(numchars=numchars, numwords=vocnumwords, encdim=wordencdim, embdim=wordembdim)
     tt.tock("model defined")
 
-    tt.tock("trained").tick("predicting")
-    pred = m.predict(traindata[:100], outdata[:100])
-    print np.vectorize(lambda x: reventdic[x])(np.argmax(pred, axis=2)-entidxoffset)
-    tt.tock("predicted sample")
-
-    exit()
     tt.tick("training")
     m.train([traindata, outdata], golddata).adagrad(lr=lr).grad_total_norm(gradnorm).seq_neg_log_prob()\
         .autovalidate(splits=validsplit, random=True).validinter(validinter).seq_accuracy()\
         .train(numbats, epochs)
     #embed()
+
     tt.tock("trained").tick("predicting")
-    print m.predict(traindata, outdata)
+    pred = m.predict(traindata[:50], outdata[:50])
+    print np.vectorize(lambda x: reventdic[x])(np.argmax(pred, axis=2)-entidxoffset)
     tt.tock("predicted sample")
 
 
