@@ -1,4 +1,4 @@
-import numpy as np, unidecode
+import numpy as np
 
 from teafacto.core.datafeed import FeedTransform
 
