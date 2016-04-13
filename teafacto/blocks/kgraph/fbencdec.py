@@ -61,3 +61,9 @@ class FBSeqCompositeEncDec(Block):
         enco = self.enc(inpseq)
         deco = self.dec(enco, outseq)
         return deco
+
+
+class FBSeqCompositeEncMemDec(Block):
+    def __init__(self, wordembdim=50, wordencdim=100, entembdim=200, innerdim=200, outdim=1e4, numwords=4e5, numchars=128, glovepath=None, **kw):
+        super(FBSeqCompositeEncMemDec, self).__init__(**kw)
+
