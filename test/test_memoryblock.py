@@ -12,10 +12,23 @@ class TestMemoryBlock(TestCase):
     def setUp(self):
         Glove.defaultpath = "../../../data/glove/miniglove.%dd.txt"
 
+    def test_memory_block_with_seq_encoder_dynamic_fail(self):
+        invocabsize = 5
+        encdim = 13
+        gru = GRU(dim=invocabsize, innerdim=encdim)
+        payload = SeqEncoder(
+            IdxToOneHot(vocsize=invocabsize),
+            gru
+        )
+        dynmemb = MemoryBlock(payload, outdim=encdim)
+        idxs = [0, 2, 5]
+        #dynmemb.predict(idxs)
+        self.assertRaises(AssertionError, lambda: dynmemb.predict(idxs))
+
     def test_memory_block_with_glove_embedder(self):
         payload = WordEmbedGlove()
         original_embedding = payload.predict([6])
-        memb = MemoryBlock(payload, [1, 2, 6], outdim=payload.outdim)
+        memb = MemoryBlock(payload, np.asarray([1, 2, 6]), outdim=payload.outdim)
         memory_embedding = memb.predict([2])
         self.assertTrue(np.allclose(original_embedding, memory_embedding))
 
@@ -60,18 +73,6 @@ class TestMemoryBlock(TestCase):
         statmemb = MemoryBlock(payload, data, outdim=encdim)
         statpred = statmemb.predict(idxs)
         self.assertTrue(np.allclose(statpred, memory_element))
-
-    def test_memory_block_with_seq_encoder_dynamic_fail(self):
-        invocabsize = 5
-        encdim = 13
-        gru = GRU(dim=invocabsize, innerdim=encdim)
-        payload = SeqEncoder(
-            IdxToOneHot(vocsize=invocabsize),
-            gru
-        )
-        dynmemb = MemoryBlock(payload, outdim=encdim)
-        idxs = [0, 2, 5]
-        self.assertRaises(AssertionError, lambda: dynmemb.predict(idxs))
 
     def test_memory_block_with_seq_encoder_static_fail(self):
         invocabsize = 5

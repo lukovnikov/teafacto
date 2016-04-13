@@ -68,10 +68,10 @@ class LinearGateAttentionGenerator(AttentionGenerator):
         self.W = param((indim, innerdim), name="attention_ff").uniform()
         self.U = param((innerdim,), name="attention_agg").uniform()
 
-    def apply(self, criterion, data):
+    def apply(self, criterion, data):   # criterion: (batsize, crit_dim), data: (batsize, seqlen, datadim)
         def rec(x_t, crit):
-            combo = self._get_combo(x_t, crit)
-            trans = T.dot(combo, self.W)   # (batsize, innerdim)
+            combo = self._get_combo(x_t, crit)  # (batsize, crit_dim + datadim)
+            trans = T.dot(combo, self.W)        # (batsize, innerdim)
             trans = T.tanh(trans)                                       # apply tanh
             ret = T.dot(trans, self.U)                                  # (batsize, )
             return T.nnet.sigmoid(ret)                                  # apply sigmoid

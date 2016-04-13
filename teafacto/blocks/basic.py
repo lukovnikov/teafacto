@@ -1,6 +1,31 @@
-from teafacto.core.base import Block, tensorops as T, param, Val, Parameter
+from teafacto.core.base import Block, tensorops as T, param, Val, Var, Parameter
+from teafacto.util import issequence, isfunction
 import numpy as np
 
+
+class ConcatBlock(Block):
+    def __init__(self, *blocks, **lw):
+        super(ConcatBlock, self).__init__(**lw)
+        self.blocks = blocks
+        self.axis = lw["axis"] if "axis" in lw else 1
+        self.argfun = lw["argfun"] if "argfun" in lw else None
+
+    def apply(self, *args):  # args is a tuple of tuples of *args and **kwargs for each of the blocks in the concatenation
+        res = []
+        for block, arg in zip(self.blocks, args):
+            if self.argfun is not None:
+                arglist, argdic = self.argfun(arg)
+            elif issequence(arg):
+                assert(len(arg) < 3 and len(arg) > 0)
+                arglist = arg[0]
+                argdic = arg[1] if len(arg) > 1 else {}
+            elif isinstance(arg, (Var, Val)):
+                arglist = [arg]
+                argdic = {}
+            else:
+                raise Exception("something wrong with concat's arguments: " + str(args))
+            res.append(block(*arglist, **argdic))
+        return T.concatenate(res, axis=self.axis)
 
 class Softmax(Block):
     def apply(self, inptensor): # matrix

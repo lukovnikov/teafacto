@@ -1,8 +1,11 @@
 from teafacto.core.base import Block
-from teafacto.blocks.basic import Softmax, MatDot as Lin, VectorEmbed
-from teafacto.blocks.rnn import SeqEncoder, SeqDecoder, InConcatCRex
+from teafacto.core.stack import stack
+from teafacto.blocks.basic import Softmax, MatDot as Lin, VectorEmbed, ConcatBlock
+from teafacto.blocks.rnn import SeqEncoder, SeqDecoder, InConcatCRex, RecurrentStack
 from teafacto.blocks.rnu import GRU
 from teafacto.blocks.lang.wordembed import WordEncoderPlusGlove
+from teafacto.blocks.attention import LinearGateAttentionGenerator
+from teafacto.blocks.memory import MemoryBlock, LinearGateMemAddr
 
 
 class FBBasicCompositeEncoder(Block):    # SeqEncoder of WordEncoderPlusGlove, fed to single-layer Softmax output
@@ -64,6 +67,52 @@ class FBSeqCompositeEncDec(Block):
 
 
 class FBSeqCompositeEncMemDec(Block):
-    def __init__(self, wordembdim=50, wordencdim=100, entembdim=200, innerdim=200, outdim=1e4, numwords=4e5, numchars=128, glovepath=None, **kw):
+    def __init__(self,  wordembdim=50,
+                        wordencdim=100,
+                        entembdim=200,
+                        innerdim=200,
+                        outdim=1e4,
+                        numwords=4e5,
+                        numchars=128,
+                        glovepath=None,
+                        memdata=None,
+                        attdim=100, **kw):
         super(FBSeqCompositeEncMemDec, self).__init__(**kw)
+        self.indim = wordembdim + wordencdim
+        self.outdim = outdim
+        self.wordembdim = wordembdim
+        self.wordencdim = wordencdim
+        self.encinnerdim = innerdim
+        self.entembdim = entembdim
+        self.decinnerdim = innerdim
+
+        wencpg = WordEncoderPlusGlove(numchars=numchars, numwords=numwords, encdim=self.wordencdim, embdim=self.wordembdim, embtrainfrac=0.0, glovepath=glovepath)
+
+        memenco = SeqEncoder(
+            wencpg,
+            GRU(dim=self.wordembdim + self.wordencdim, innerdim=self.encinnerdim)
+        )
+
+        self.enc = SeqEncoder(
+            wencpg,
+            GRU(dim=self.wordembdim + self.wordencdim, innerdim=self.encinnerdim)
+        )
+
+        entemb = VectorEmbed(indim=self.outdim, dim=self.entembdim)
+        mempayload = ConcatBlock(entemb, memenco)
+        memblock = MemoryBlock(mempayload, memdata, indim=self.outdim, outdim=self.encinnerdim+self.entembdim)
+        softmaxoutblock = stack(LinearGateMemAddr(memblock, indim=self.decinnerdim, innerdim=attdim), Softmax())
+
+        self.dec = SeqDecoder(
+            memblock,
+            InConcatCRex(
+                GRU(dim=self.entembdim+self.encinnerdim, innerdim=self.decinnerdim),
+                outdim=self.decinnerdim),
+            softmaxoutblock=softmaxoutblock
+        )
+
+    def apply(self, inpseq, outseq):
+        enco = self.enc(inpseq)
+        deco = self.dec(enco, outseq)
+        return deco
 
