@@ -270,6 +270,9 @@ class Val(TensorWrapped):
     def allparams(self): # TODO: can Vals have parents?
         return set()
 
+    def reset(self):
+        pass
+
 
 ### DON'T WORRY ABOUT THIS
 class Elem(object):    # carries output shape information

@@ -71,8 +71,8 @@ class LinearGateMemAddr(MemoryAddress):
             ret = T.dot(trans, self.U)                                  # (batsize, )
             return T.nnet.sigmoid(ret)                                  # apply sigmoid
         o, _ = T.scan(fn=rec, sequences=self.memblock.innervar, non_sequences=criterion)    # (memsize, batsize)
-        return o.dimswap(1, 0)
+        return o.dimswap(1, 0)                                                              # (batsize, memsize)
 
     def _get_combo(self, x_t, crit):    # x_t: (mem_dim),   crit: (batsize, crit_dim), out: (batsize, mem_dim + crit_dim)
-        x_t_repped = T.repeat(x_t.reshape((x_t.shape[0], 1)), crit.shape[0], axis=1)
+        x_t_repped = T.repeat(x_t.reshape((x_t.shape[0], 1)), crit.shape[0], axis=1).T    # (batsize, mem_dim)
         return T.concatenate([x_t_repped, crit], axis=1)

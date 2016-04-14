@@ -70,9 +70,9 @@ class TestFBSeqCompositeEncDec(TestCase):
 
 class TestFBSeqCompositeEncMemDec(TestCase):
     def test_output_shape(self):
-        batsize = 123
+        batsize = 121
         wordembdim = 50
-        wordencdim = 29
+        wordencdim = 39
         innerdim = 47
         datanuments = 79
         vocnumwords = 97
@@ -80,9 +80,11 @@ class TestFBSeqCompositeEncMemDec(TestCase):
         wseqlen = 3
         ewseqlen = 2
         cseqlen = 5
-        entembdim = 57
+        entembdim = 53
         eseqlen = 2
         attdim = 117
+
+        entencdim = innerdim
 
         entworddata = np.random.randint(0, vocnumwords, (datanuments, ewseqlen, 1))
         entchardata = np.random.randint(0, numchars, (datanuments, ewseqlen, cseqlen))
@@ -109,6 +111,28 @@ class TestFBSeqCompositeEncMemDec(TestCase):
         data = np.concatenate([worddata, chardata], axis=2)
         outdata = np.random.randint(0, datanuments, (batsize, eseqlen))
 
+        '''
+        # test output shape of lexical encoder for entity names (will be used in the memory block)
+        print m.memenco.predict(entlexdata).shape
+        self.assertEqual(m.memenco.predict(entlexdata).shape, (datanuments, entencdim))
+        # test output shape of the whole memory payload
+        mempayloadpred = m.mempayload.predict(entdata, entlexdata)
+        print mempayloadpred.shape
+        self.assertEqual(mempayloadpred.shape, (datanuments, entencdim + entembdim))
+        # test output shape and values of the memory block
+        memblockidxdata = np.arange(0, datanuments)
+        memblockpred = m.memblock.predict(memblockidxdata)
+        print memblockpred.shape
+        self.assertEqual(memblockpred.shape, (datanuments, entencdim+entembdim))
+        self.assertTrue(np.allclose(mempayloadpred, memblockpred))
+        #'''
+        # test output shape of custom softmax output block of decoder # TODO: here is the error
+        crit = np.random.random((batsize, ))
+        sob = m.softmaxoutblock.layers[0]
+        print sob.W.shape
+        self.assertEqual(sob.W.shape, (entencdim+entembdim+innerdim, attdim))
+
+        # test output shape of the whole
         predshape = m.predict(data, outdata).shape
         print predshape
         self.assertEqual(predshape, (batsize, eseqlen, datanuments))

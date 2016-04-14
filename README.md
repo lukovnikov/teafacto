@@ -44,9 +44,9 @@ which produces a ```Parameter``` object, or by using ```Parameter```'s construct
 All blocks have an ```apply()``` method where the symbolic operations on its inputs are defined.
 
 ## How do I define a model?
-There are no dedicated models in TeaFacto.
+There is no explicit model concept in TeaFacto.
 Every block can be trained without wrapping it in a model object.
-So to declare a model, you simply need to define a new block.
+You can simply define and train a block (which can be reused).
 
 ## How do I train a block?
 Like this:
@@ -55,7 +55,7 @@ import numpy as np
 from teafacto.util import argprun
 
 def run(
-        epochs=1,
+        epochs=100,
         dim=10,
         vocabsize=2000,
         innerdim=100,
