@@ -70,26 +70,25 @@ class TestFBSeqCompositeEncDec(TestCase):
 
 class TestFBSeqCompositeEncMemDec(TestCase):
     def test_output_shape(self):
-        batsize = 100
+        batsize = 123
         wordembdim = 50
-        wordencdim = 20
-        innerdim = 40
-        datanuments = 77
-        vocnumwords = 100
-        numchars = 10
+        wordencdim = 29
+        innerdim = 47
+        datanuments = 79
+        vocnumwords = 97
+        numchars = 11
         wseqlen = 3
         ewseqlen = 2
         cseqlen = 5
-        entembdim = 50
+        entembdim = 57
         eseqlen = 2
-        attdim = 100
-
+        attdim = 117
 
         entworddata = np.random.randint(0, vocnumwords, (datanuments, ewseqlen, 1))
         entchardata = np.random.randint(0, numchars, (datanuments, ewseqlen, cseqlen))
         entlexdata = np.concatenate([entworddata, entchardata], axis=2)
         entdata = np.arange(0, datanuments)
-        print entlexdata.shape, entdata.shape
+        print entdata.shape, entlexdata.shape
         memdata = [entdata, entlexdata]
 
         m = FBSeqCompositeEncMemDec(

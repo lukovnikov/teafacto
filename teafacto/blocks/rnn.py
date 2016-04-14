@@ -82,11 +82,11 @@ class RecurrentStack(Block):       # TODO: setting init states of contained recu
             elif isinstance(layer, Block): # non-recurrent ==> recur
                 acc = acc.dimswap(1, 0)
                 acc, _ = T.scan(fn=self.dummyrec(layer),
-                                  sequences=acc,
-                                  outputs_info=None)
+                                sequences=acc,
+                                outputs_info=None)
                 acc = acc.dimswap(1, 0)
             else:
-                raise Exception("can not apply this layer: "+str(layer))
+                raise Exception("can not apply this layer: " + str(layer))
         return acc
 
     def dummyrec(self, layer):
