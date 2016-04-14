@@ -111,7 +111,7 @@ class TestFBSeqCompositeEncMemDec(TestCase):
         data = np.concatenate([worddata, chardata], axis=2)
         outdata = np.random.randint(0, datanuments, (batsize, eseqlen))
 
-        '''
+        #'''
         # test output shape of lexical encoder for entity names (will be used in the memory block)
         print m.memenco.predict(entlexdata).shape
         self.assertEqual(m.memenco.predict(entlexdata).shape, (datanuments, entencdim))
