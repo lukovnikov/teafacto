@@ -58,7 +58,10 @@ class LinearGateMemAddr(MemoryAddress):
     """
     Wraps a memory block
     """
-    def __init__(self, memblock, indim=50, innerdim=50, **kw):
+    def __init__(self, memblock, memdim=None, indim=None, attdim=None, **kw):
+        assert (indim is not None and memdim is not None and attdim is not None)
+        indim = memdim + indim
+        innerdim = attdim
         super(LinearGateMemAddr, self).__init__(memblock, **kw)
         self.W = param((indim, innerdim), name="attention_ff").uniform()
         self.U = param((innerdim,), name="attention_agg").uniform()
@@ -76,3 +79,18 @@ class LinearGateMemAddr(MemoryAddress):
     def _get_combo(self, x_t, crit):    # x_t: (mem_dim),   crit: (batsize, crit_dim), out: (batsize, mem_dim + crit_dim)
         x_t_repped = T.repeat(x_t.reshape((x_t.shape[0], 1)), crit.shape[0], axis=1).T    # (batsize, mem_dim)
         return T.concatenate([x_t_repped, crit], axis=1)
+
+
+class GeneralDotMemAddr(MemoryAddress):
+    def __init__(self, memblock, memdim=None, indim=None, attdim=None, **kw):  # indim should be mem_dim, innerdim should be crit_dim
+        assert(indim is not None and memdim is not None)     # can not specify separate attention dimensions
+        super(GeneralDotMemAddr, self).__init__(memblock, **kw)
+        self.W = param((memdim, indim), name="attention").uniform()
+
+    def apply(self, criterion):     # criterion: (batsize, innerdim), self.mem: (mem_size, mem_dim), out: (batsize, mem_size)
+        memdot = T.dot(self.memblock.innervar, self.W)  # (mem_size, innerdim)
+        def rec(x_t, crit):         # x_t: (indim),   crit: (batsize, indim)
+            d = T.dot(crit, x_t)    # (batsize, )
+            return T.nnet.sigmoid(d)
+        o, _ = T.scan(fn=rec, sequences=memdot, non_sequences=criterion)
+        return o.dimswap(1, 0)

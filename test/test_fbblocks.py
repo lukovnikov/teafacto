@@ -1,5 +1,6 @@
 from unittest import TestCase
 from teafacto.blocks.kgraph.fbencdec import FBBasicCompositeEncoder, FBSeqCompositeEncDec, FBSeqCompositeEncMemDec
+from teafacto.blocks.memory import LinearGateMemAddr, GeneralDotMemAddr
 import numpy as np
 
 
@@ -68,7 +69,7 @@ class TestFBSeqCompositeEncDec(TestCase):
         self.assertEqual(predshape, (batsize, eseqlen, datanuments))
 
 
-class TestFBSeqCompositeEncMemDec(TestCase):
+class TestFBSeqCompositeEncMemDecLinearGate(TestCase):
     def test_output_shape(self):
         batsize = 121
         wordembdim = 50
@@ -93,7 +94,7 @@ class TestFBSeqCompositeEncMemDec(TestCase):
         print entdata.shape, entlexdata.shape
         memdata = [entdata, entlexdata]
 
-        m = FBSeqCompositeEncMemDec(
+        m = self.makemodel(
             wordembdim=wordembdim,
             wordencdim=wordencdim,
             entembdim=entembdim,
@@ -103,7 +104,7 @@ class TestFBSeqCompositeEncMemDec(TestCase):
             numwords=vocnumwords,
             glovepath="../../../data/glove/miniglove.%dd.txt",
             memdata=memdata,
-            attdim=attdim
+            attdim=attdim,
         )
 
         worddata = np.random.randint(0, vocnumwords, (batsize, wseqlen, 1))
@@ -130,10 +131,26 @@ class TestFBSeqCompositeEncMemDec(TestCase):
         crit = np.random.random((batsize, ))
         sob = m.softmaxoutblock.layers[0]
         print sob.W.shape
-        self.assertEqual(sob.W.shape, (entencdim+entembdim+innerdim, attdim))
+        self.assertEqual(sob.W.shape, self._get_sob_shape(entencdim, entembdim, innerdim, attdim))
 
         # test output shape of the whole
         predshape = m.predict(data, outdata).shape
         print predshape
         self.assertEqual(predshape, (batsize, eseqlen, datanuments))
+
+    def makemodel(self, *args, **kwargs):
+        kwargs["memaddr"] = LinearGateMemAddr
+        return FBSeqCompositeEncMemDec(*args, **kwargs)
+
+    def _get_sob_shape(self, entencdim, entembdim, innerdim, attdim):
+        return (entencdim + entembdim + innerdim, attdim)
+
+
+class TestFBSeqCompositeEncMemDecGeneralDotMemAddr(TestFBSeqCompositeEncMemDecLinearGate):
+    def makemodel(self, *args, **kwargs):
+        kwargs["memaddr"] = GeneralDotMemAddr
+        return FBSeqCompositeEncMemDec(*args, **kwargs)
+
+    def _get_sob_shape(self, entencdim, entembdim, innerdim, attdim):
+        return (entencdim+entembdim, innerdim)
 

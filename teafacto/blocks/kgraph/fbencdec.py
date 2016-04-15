@@ -5,7 +5,7 @@ from teafacto.blocks.rnn import SeqEncoder, SeqDecoder, InConcatCRex, RecurrentS
 from teafacto.blocks.rnu import GRU
 from teafacto.blocks.lang.wordembed import WordEncoderPlusGlove
 from teafacto.blocks.attention import LinearGateAttentionGenerator
-from teafacto.blocks.memory import MemoryBlock, LinearGateMemAddr
+from teafacto.blocks.memory import MemoryBlock, LinearGateMemAddr, GeneralDotMemAddr
 
 
 class FBBasicCompositeEncoder(Block):    # SeqEncoder of WordEncoderPlusGlove, fed to single-layer Softmax output
@@ -76,7 +76,8 @@ class FBSeqCompositeEncMemDec(Block):
                         numchars=128,
                         glovepath=None,
                         memdata=None,
-                        attdim=100, **kw):
+                        attdim=100,
+                        memaddr=GeneralDotMemAddr, **kw):
         super(FBSeqCompositeEncMemDec, self).__init__(**kw)
         self.indim = wordembdim + wordencdim
         self.outdim = outdim
@@ -101,7 +102,7 @@ class FBSeqCompositeEncMemDec(Block):
         entemb = VectorEmbed(indim=self.outdim, dim=self.entembdim)
         self.mempayload = ConcatBlock(entemb, self.memenco)
         self.memblock = MemoryBlock(self.mempayload, memdata, indim=self.outdim, outdim=self.encinnerdim+self.entembdim)
-        self.softmaxoutblock = stack(LinearGateMemAddr(self.memblock, indim=self.decinnerdim+self.memblock.outdim, innerdim=attdim), Softmax())
+        self.softmaxoutblock = stack(memaddr(self.memblock, indim=self.decinnerdim, memdim=self.memblock.outdim, attdim=attdim), Softmax())
 
         self.dec = SeqDecoder(
             self.memblock,

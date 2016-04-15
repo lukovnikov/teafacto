@@ -84,3 +84,7 @@ data = np.arange(0, vocabsize)
 predicted_labels = block.predict(data)
 ```
 In fact, you probably won't need to create any variables at all.
+
+## Lazy parameter initialization
+(based on the shape of input data)
+TODO
