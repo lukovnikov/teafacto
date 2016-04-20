@@ -34,7 +34,7 @@ class FreebaseEntFeedsMaker(object):
                     print line, c
                     continue
                 sf, fb = ns
-                self.trainingdata.append(self._process_sf(sf))
+                self.trainingdata.append(self._process_sf(sf, self.numwords, self.numchars))
                 entids = self._process_ent(fb, entdic)
                 self.golddata.append(entids)
                 if c % 1e6 == 0:
@@ -52,14 +52,15 @@ class FreebaseEntFeedsMaker(object):
     def goldfeed(self):
         return self.golddata    # already np array of int32
 
-    def _process_sf(self, sf):
+    @staticmethod
+    def _process_sf(sf, numwords, numchars):
         words = sf.split(" ")
-        words = words[:min(len(words), self.numwords)]
+        words = words[:min(len(words), numwords)]
         i = 0
         while i < len(words):
-            words[i] = words[i][:min(len(words[i]), self.numchars)]
+            words[i] = words[i][:min(len(words[i]), numchars)]
             i += 1
-        words.extend([None]*max(0, (self.numwords - len(words))))
+        words.extend([None]*max(0, (numwords - len(words))))
         return words
 
     def _process_ent(self, fb, entdic):
@@ -80,6 +81,13 @@ class FreebaseSeqFeedMaker(FreebaseEntFeedsMaker):
                 ret.append(self.unkentid)
         return ret
 
+
+class FreebaseSeqFeedMakerEntidxs(FreebaseSeqFeedMaker):
+    def _process_ent(self, fb, entdic):
+        ret = []
+        for e in fb.split(" "):
+            ret.append(int(e))
+        return ret
 
 def getglovedict(path, offset=2, top=None):
     gd = {}

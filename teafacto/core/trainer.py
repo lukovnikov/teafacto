@@ -286,7 +286,13 @@ class ModelTrainer(object):
         else:
             cost = loss
         updates = []
+        self.tt.msg("computing gradients")
+        #grads = []
+        #for x in params:
+        #    self.tt.msg("computing gradient for %s" % str(x))
+        #    grads.append(tensor.grad(cost, x.d))
         grads = tensor.grad(cost, [x.d for x in params])  # compute gradient
+        self.tt.msg("computed gradients")
         grads = self._gradconstrain(grads)
         for param, grad in zip(params, grads):
             upds = self.optimizer([grad], [param.d], self.learning_rate*param.lrmul)
@@ -300,6 +306,7 @@ class ModelTrainer(object):
                 if not broken:
                     updates.append((upd, upds[upd]))
         #print updates
+        #embed()
         trainf = theano.function(inputs=[x.d for x in inputs]+[self.goldvar], outputs=[cost], updates=updates)
         self.tt.tock("training function compiled")
         return trainf
