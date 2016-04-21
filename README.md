@@ -68,7 +68,7 @@ def run(
     block = Dummy(indim=vocabsize, dim=innerdim, outdim=dim)
 
     block.train([data], labels).adagrad(lr=lr).neg_log_prob()\
-         .split_validate(5, random=True).neg_log_prob().accuracy().autosave\
+         .split_validate(5, random=True).cross_entropy().accuracy().autosave\
          .train(numbats=numbats, epochs=epochs)
 
 if __name__ == "__main__":
@@ -87,4 +87,4 @@ In fact, you probably won't need to create any variables at all.
 
 ## Lazy parameter initialization
 (based on the shape of input data)
-TODO
+TODO: implement and document
