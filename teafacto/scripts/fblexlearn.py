@@ -62,7 +62,7 @@ def run(
 
     # train model   TODO
     tt.tick("training")
-    m.train([traindata], golddata).adagrad(lr=lr).grad_total_norm(gradnorm).neg_log_prob()\
+    m.train([traindata], golddata).adagrad(lr=lr).grad_total_norm(gradnorm).cross_entropy()\
         .autovalidate(splits=validsplit, random=True).validinter(validinter).accuracy()\
         .train(numbats, epochs)
     #embed()

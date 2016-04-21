@@ -87,10 +87,11 @@ class GeneralDotMemAddr(MemoryAddress):
         super(GeneralDotMemAddr, self).__init__(memblock, **kw)
         self.W = param((memdim, indim), name="attention").uniform()
 
-    def apply(self, criterion):     # criterion: (batsize, innerdim), self.mem: (mem_size, mem_dim), out: (batsize, mem_size)
-        memdot = T.dot(self.memblock.innervar, self.W)  # (mem_size, innerdim)
-        def rec(x_t, crit):         # x_t: (indim),   crit: (batsize, indim)
+    def apply(self, criterion):     # criterion: (batsize, indim), self.mem: (mem_size, mem_dim), out: (batsize, mem_size)
+        memdot = T.dot(self.memblock.innervar, self.W)  # (mem_size, indim)
+        '''def rec(x_t, crit):         # x_t: (indim),   crit: (batsize, indim)
             d = T.dot(crit, x_t)    # (batsize, )
             return T.nnet.sigmoid(d)
-        o, _ = T.scan(fn=rec, sequences=memdot, non_sequences=criterion)
-        return o.dimswap(1, 0)
+        o, _ = T.scan(fn=rec, sequences=memdot, non_sequences=criterion)    # (mem_size, batsize)
+        return o.dimswap(1, 0)'''
+        return T.nnet.sigmoid(T.dot(criterion, memdot.T))   # (batsize, mem_size)

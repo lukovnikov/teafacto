@@ -74,30 +74,38 @@ class ModelTrainer(object):
         self._set_objective(lambda x, y: x * y)
         return self
 
-    def neg_log_prob(self):
-        def inner(probs, gold):
-            if gold.ndim == 1:
-                return -tensor.log(probs[tensor.arange(gold.shape[0]), gold])
-            elif gold.ndim == 2:    # sequences
-                return self._inner_seq_neg_log_prob(probs, gold)
-        self._set_objective(inner)
+    def cross_entropy(self):
+        """ own implementation of categorical cross-entropy """
+        self._set_objective(self._inner_cross_entropy)
         return self
 
-    @staticmethod
-    def _inner_seq_neg_log_prob(probs, gold):
-        #print "using inner seq neg log prob"
-        def _f(probsmat, goldvec):      # probsmat: (seqlen, vocsize), goldvec: (seqlen,)
-            return tensor.sum(-tensor.log(probsmat[tensor.arange(probsmat.shape[0]), goldvec]))
-        o, _ = theano.scan(fn=_f, sequences=[probs, gold], outputs_info=None)      # out: (batsize,)
-        return o
+    @classmethod
+    def _inner_cross_entropy(cls, probs, gold):
+        if gold.ndim == 1:
+            return tensor.nnet.categorical_crossentropy(probs, gold) #-tensor.log(probs[tensor.arange(gold.shape[0]), gold])
+        elif gold.ndim == 2:    # sequences
+            return cls._inner_seq_neg_log_prob(probs, gold)
 
-    def seq_neg_log_prob(self): # probs (batsize, seqlen, vocsize) + gold: (batsize, seqlen) ==> sum of neg log-probs of correct seq
+    def seq_cross_entropy(self): # probs (batsize, seqlen, vocsize) + gold: (batsize, seqlen) ==> sum of neg log-probs of correct seq
+        """ Own implementation of categorical cross-entropy, applied to a sequence of probabilities that should be multiplied """
         self._set_objective(self._inner_seq_neg_log_prob)
         return self
 
+    @classmethod
+    def _inner_seq_neg_log_prob(cls, probs, gold):   # probs: (batsize, seqlen, vocsize) probs, gold: (batsize, seqlen) idxs
+        #print "using inner seq neg log prob"
+        def _f(probsmat, goldvec):      # probsmat: (seqlen, vocsize), goldvec: (seqlen,)
+            ce = tensor.nnet.categorical_crossentropy(probsmat, goldvec) #-tensor.log(probsmat[tensor.arange(probsmat.shape[0]), goldvec])
+            return tensor.sum(ce)
+        o, _ = theano.scan(fn=_f, sequences=[probs, gold], outputs_info=None)      # out: (batsize,)
+        return o
+
     def squared_error(self):
-        self._set_objective(lambda x, y: squared_error(x, y))
+        self._set_objective(squared_error)
         return self
+
+    def binary_cross_entropy(self): # theano binary cross entropy (through lasagne), probs: (batsize,) float, gold: (batsize,) float
+        self._set_objective(binary_crossentropy)
 
     def accuracy(self, top_k=1):
         def categorical_accuracy(predictions, targets, top_k=1): # !!! copied from Lasagne # TODO: import properly
@@ -135,13 +143,26 @@ class ModelTrainer(object):
         return self
 
 
-
-
-    def hinge_loss(self):
-        # TODO
+    def hinge_loss(self, margin=1., labelbin=True): # gold must be -1 or 1 if labelbin if False, otherwise 0 or 1
+        def inner(preds, gold):     # preds: (batsize,), gold: (batsize,)
+            if labelbin is True:
+                gold = 2 * gold - 1
+            return tensor.nnet.relu(margin - gold * preds)
+        self._set_objective(inner)
         return self
 
-    # TODO more objectives
+    def multiclass_hinge_loss(self, margin=1.):
+        def inner(preds, gold):     # preds: (batsize, numclasses) scores, gold: int:(batsize)
+            pass
+        self._set_objective(inner)
+        return self
+
+    def log_loss(self):
+        """ NOT cross-entropy, BUT log(1+e^(-t*y))"""
+        def inner(preds, gold):     # preds: (batsize,) float, gold: (batsize,) float
+            return tensor.nnet.softplus(-gold*preds)
+        self._set_objective(inner)
+        return self
 
     #################### GRADIENT CONSTRAINTS ############ --> applied in the order that they were added
     def grad_total_norm(self, max_norm, epsilon=1e-7):
@@ -286,7 +307,13 @@ class ModelTrainer(object):
         else:
             cost = loss
         updates = []
+        self.tt.msg("computing gradients")
+        #grads = []
+        #for x in params:
+        #    self.tt.msg("computing gradient for %s" % str(x))
+        #    grads.append(tensor.grad(cost, x.d))
         grads = tensor.grad(cost, [x.d for x in params])  # compute gradient
+        self.tt.msg("computed gradients")
         grads = self._gradconstrain(grads)
         for param, grad in zip(params, grads):
             upds = self.optimizer([grad], [param.d], self.learning_rate*param.lrmul)
@@ -300,6 +327,7 @@ class ModelTrainer(object):
                 if not broken:
                     updates.append((upd, upds[upd]))
         #print updates
+        #embed()
         trainf = theano.function(inputs=[x.d for x in inputs]+[self.goldvar], outputs=[cost], updates=updates)
         self.tt.tock("training function compiled")
         return trainf

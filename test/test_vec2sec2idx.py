@@ -84,7 +84,7 @@ class TestIdx2SeqTraining(TestCase):
         block = idx2seq(encdim=encdim, invocsize=numwords, outvocsize=numchars, innerdim=statedim, seqlen=data.shape[1])
         print np.argmax(block.predict(testpred, testsdata), axis=2)
         self.block_before_training_frozen = block.freeze()
-        block.train([wordidxs, sdata], data).seq_neg_log_prob().grad_total_norm(0.5).adagrad(lr=lr).l2(wreg)\
+        block.train([wordidxs, sdata], data).seq_cross_entropy().grad_total_norm(0.5).adagrad(lr=lr).l2(wreg)\
              .autovalidate().seq_accuracy().validinter(5)\
              .train(numbats=numbats, epochs=epochs)
         self.block_after_training_frozen = block.freeze()

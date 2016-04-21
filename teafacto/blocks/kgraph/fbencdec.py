@@ -66,6 +66,15 @@ class FBSeqCompositeEncDec(Block):
         return deco
 
 
+class FBMemMatch(Block):
+    def __init__(self,  wordembdim=50,
+                        wordencdim=100,
+                        memdata=None,
+                        attdim=100,
+                        memaddr=GeneralDotMemAddr, **kw):
+        pass
+
+
 class FBSeqCompositeEncMemDec(Block):
     def __init__(self,  wordembdim=50,
                         wordencdim=100,
@@ -87,14 +96,9 @@ class FBSeqCompositeEncMemDec(Block):
         self.entembdim = entembdim
         self.decinnerdim = innerdim
 
+        #memory
         wencpg = WordEncoderPlusGlove(numchars=numchars, numwords=numwords, encdim=self.wordencdim, embdim=self.wordembdim, embtrainfrac=0.0, glovepath=glovepath)
-
         self.memenco = SeqEncoder(
-            wencpg,
-            GRU(dim=self.wordembdim + self.wordencdim, innerdim=self.encinnerdim)
-        )
-
-        self.enc = SeqEncoder(
             wencpg,
             GRU(dim=self.wordembdim + self.wordencdim, innerdim=self.encinnerdim)
         )
@@ -102,12 +106,21 @@ class FBSeqCompositeEncMemDec(Block):
         entemb = VectorEmbed(indim=self.outdim, dim=self.entembdim)
         self.mempayload = ConcatBlock(entemb, self.memenco)
         self.memblock = MemoryBlock(self.mempayload, memdata, indim=self.outdim, outdim=self.encinnerdim+self.entembdim)
-        self.softmaxoutblock = stack(memaddr(self.memblock, indim=self.decinnerdim, memdim=self.memblock.outdim, attdim=attdim), Softmax())
 
+        #encoder
+        wencpg2 = WordEncoderPlusGlove(numchars=numchars, numwords=numwords, encdim=self.wordencdim, embdim=self.wordembdim, embtrainfrac=0.0, glovepath=glovepath)
+        self.enc = SeqEncoder(
+            wencpg2,
+            GRU(dim=self.wordembdim + self.wordencdim, innerdim=self.encinnerdim)
+        )
+
+        #decoder
+        entemb2 = VectorEmbed(indim=self.outdim, dim=self.entembdim)
+        self.softmaxoutblock = stack(memaddr(self.memblock, indim=self.decinnerdim, memdim=self.memblock.outdim, attdim=attdim), Softmax())
         self.dec = SeqDecoder(
-            self.memblock,
+            entemb2, #self.memblock,
             InConcatCRex(
-                GRU(dim=self.memblock.outdim + self.encinnerdim, innerdim=self.decinnerdim),
+                GRU(dim=entemb.dim + self.encinnerdim, innerdim=self.decinnerdim), #GRU(dim=self.memblock.outdim + self.encinnerdim, innerdim=self.decinnerdim),
                 outdim=self.decinnerdim),
             softmaxoutblock=self.softmaxoutblock
         )

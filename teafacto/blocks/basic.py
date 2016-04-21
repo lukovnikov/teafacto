@@ -83,7 +83,10 @@ class VectorEmbed(Embedder):
         if value is None:
             self.W = param((indim, dim), lrmul=self.trainfrac, name="embedder").uniform()
         else:
-            self.W = Parameter(value, lrmul=self.trainfrac, name="embedder")
+            if trainfrac == 0.0:
+                self.W = Val(value, name="embedder_val")
+            else:
+                self.W = Parameter(value, lrmul=self.trainfrac, name="embedder")
         if normalize:
             self.W = self.W.normalize(axis=1)
         # assertions

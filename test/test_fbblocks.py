@@ -75,13 +75,13 @@ class TestFBSeqCompositeEncMemDecLinearGate(TestCase):
         wordembdim = 50
         wordencdim = 39
         innerdim = 47
-        datanuments = 79
+        datanuments = 200
         vocnumwords = 97
         numchars = 11
         wseqlen = 3
         ewseqlen = 2
         cseqlen = 5
-        entembdim = 53
+        entembdim = 79
         eseqlen = 2
         attdim = 117
 

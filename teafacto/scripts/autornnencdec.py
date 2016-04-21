@@ -99,7 +99,7 @@ def run_RNNAutoEncoder(         # works after refactoring
     testpred = words2ints(testpred)
 
     block = RNNAutoEncoder(vocsize=vocsize, encdim=70, innerdim=statedim, seqlen=data.shape[1])
-    block.train([data, sdata], data).seq_neg_log_prob().grad_total_norm(1.0).adagrad(lr=lr).l2(wreg)\
+    block.train([data, sdata], data).seq_cross_entropy().grad_total_norm(1.0).adagrad(lr=lr).l2(wreg)\
          .autovalidate().seq_accuracy().validinter(4)\
          .train(numbats=numbats, epochs=epochs)
 
@@ -137,7 +137,7 @@ def run_attentionseqdecoder(        # seems to work
     print testpred
 
     block = BiFwdAttSumDecoder(vocsize=vocsize, outvocsize=vocsize, encdim=encdim, innerdim=statedim, attdim=attdim)
-    block.train([data, sdata], data).seq_neg_log_prob().grad_total_norm(1.0).adagrad(lr=lr).l2(wreg)\
+    block.train([data, sdata], data).seq_cross_entropy().grad_total_norm(1.0).adagrad(lr=lr).l2(wreg)\
          .validate_on([vdata, svdata], vdata).seq_accuracy().validinter(4)\
          .train(numbats=numbats, epochs=epochs)
 
@@ -179,7 +179,7 @@ def run_idx2seq(        # works after refactor
     block = idx2seq(encdim=encdim, invocsize=numwords, outvocsize=numchars, innerdim=statedim, seqlen=data.shape[1])
     print np.argmax(block.predict(testpred, testsdata), axis=2)
     print block.output.allparams
-    block.train([wordidxs, sdata], data).seq_neg_log_prob().grad_total_norm(0.5).adagrad(lr=lr).l2(wreg)\
+    block.train([wordidxs, sdata], data).seq_cross_entropy().grad_total_norm(0.5).adagrad(lr=lr).l2(wreg)\
          .autovalidate().seq_accuracy().validinter(5)\
          .train(numbats=numbats, epochs=epochs)
 
@@ -242,7 +242,7 @@ def run_seq2idx(        # works after refactoring (with adagrad)
     for p in block.output.allparams:
         print p
     '''
-    block.train([data], wordidxs).neg_log_prob().adagrad(lr=lr).autovalidate().accuracy().validinter(5)\
+    block.train([data], wordidxs).cross_entropy().adagrad(lr=lr).autovalidate().accuracy().validinter(5)\
          .train(numbats=numbats, epochs=epochs)
 
     #embed()
