@@ -164,9 +164,6 @@ class ModelTrainer(object):
         self._set_objective(inner)
         return self
 
-
-    # TODO more objectives
-
     #################### GRADIENT CONSTRAINTS ############ --> applied in the order that they were added
     def grad_total_norm(self, max_norm, epsilon=1e-7):
         self.gradconstraints.append(lambda allgrads: total_norm_constraint(allgrads, max_norm, epsilon=epsilon))
