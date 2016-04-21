@@ -66,6 +66,15 @@ class FBSeqCompositeEncDec(Block):
         return deco
 
 
+class FBMemMatch(Block):
+    def __init__(self,  wordembdim=50,
+                        wordencdim=100,
+                        memdata=None,
+                        attdim=100,
+                        memaddr=GeneralDotMemAddr, **kw):
+        pass
+
+
 class FBSeqCompositeEncMemDec(Block):
     def __init__(self,  wordembdim=50,
                         wordencdim=100,
@@ -99,18 +108,19 @@ class FBSeqCompositeEncMemDec(Block):
         self.memblock = MemoryBlock(self.mempayload, memdata, indim=self.outdim, outdim=self.encinnerdim+self.entembdim)
 
         #encoder
-        #wencpg2 = WordEncoderPlusGlove(numchars=numchars, numwords=numwords, encdim=self.wordencdim, embdim=self.wordembdim, embtrainfrac=0.0, glovepath=glovepath)
+        wencpg2 = WordEncoderPlusGlove(numchars=numchars, numwords=numwords, encdim=self.wordencdim, embdim=self.wordembdim, embtrainfrac=0.0, glovepath=glovepath)
         self.enc = SeqEncoder(
-            wencpg,
+            wencpg2,
             GRU(dim=self.wordembdim + self.wordencdim, innerdim=self.encinnerdim)
         )
 
         #decoder
+        entemb2 = VectorEmbed(indim=self.outdim, dim=self.entembdim)
         self.softmaxoutblock = stack(memaddr(self.memblock, indim=self.decinnerdim, memdim=self.memblock.outdim, attdim=attdim), Softmax())
         self.dec = SeqDecoder(
-            self.memblock,
+            entemb2, #self.memblock,
             InConcatCRex(
-                GRU(dim=self.memblock.outdim + self.encinnerdim, innerdim=self.decinnerdim),
+                GRU(dim=entemb.dim + self.encinnerdim, innerdim=self.decinnerdim), #GRU(dim=self.memblock.outdim + self.encinnerdim, innerdim=self.decinnerdim),
                 outdim=self.decinnerdim),
             softmaxoutblock=self.softmaxoutblock
         )

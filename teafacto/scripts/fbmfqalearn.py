@@ -1,4 +1,5 @@
 from teafacto.blocks.kgraph.fbencdec import FBSeqCompositeEncDec, FBSeqCompositeEncMemDec
+from teafacto.blocks.memory import LinearGateMemAddr
 from teafacto.feed.freebasefeeders import getentdict, getglovedict, FreebaseSeqFeedMaker, FreebaseSeqFeedMakerEntidxs
 from teafacto.feed.langtransform import WordToWordCharTransform
 from teafacto.util import argprun, ticktock
@@ -99,6 +100,7 @@ def run(
             numwords=vocnumwords,
             memdata=[entids, lexdata],
             attdim=attdim,
+            memaddr=LinearGateMemAddr,
         )
     else:
         m = FBSeqCompositeEncDec(           # compiles, errors go down
@@ -126,7 +128,7 @@ def run(
     tt.tock("predicted sample")
 
     tt.tick("training")
-    m.train([traindata, outdata], golddata).adagrad(lr=lr).grad_total_norm(gradnorm).seq_neg_log_prob()\
+    m.train([traindata, outdata], golddata).adagrad(lr=lr).grad_total_norm(gradnorm).seq_cross_entropy()\
         .autovalidate(splits=validsplit, random=True).validinter(validinter).seq_accuracy()\
         .train(numbats, epochs)
     #embed()

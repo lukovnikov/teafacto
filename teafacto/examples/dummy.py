@@ -31,8 +31,8 @@ def run(
     data = np.arange(0, vocabsize).astype("int32")
     ae = Dummy(indim=vocabsize, dim=dim)
     err, verr, _, _ = \
-        ae  .train([data], data).adadelta(lr=lr).dlr_thresh().neg_log_prob()\
-            .split_validate(5, random=True).neg_log_prob().accuracy().autosave\
+        ae  .train([data], data).adadelta(lr=lr).dlr_thresh().cross_entropy()\
+            .split_validate(5, random=True).cross_entropy().accuracy().autosave\
         .train(numbats=numbats, epochs=epochs)
 
     pdata = range(100)
