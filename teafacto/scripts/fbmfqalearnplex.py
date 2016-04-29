@@ -102,7 +102,7 @@ def run(
         print np.vectorize(lambda x: reventdic[x] if x in reventdic else None)(np.argmax(pred, axis=2) - 1)
         tt.tock("predicted sample")
 
-        m.fixO(lr=0.05)
+        #m.fixO(lr=0.05)
 
     # embed()
     outdata = shiftdata(golddata)
