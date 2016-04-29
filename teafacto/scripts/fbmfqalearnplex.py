@@ -7,6 +7,7 @@ from teafacto.scripts.fbmfqalearn import load_lex_data, loaddata, shiftdata
 
 def run(
         epochs=100,
+        epochsp=10,
         lr=0.03,
         wreg=0.001,
         numbats=10,
@@ -69,12 +70,10 @@ def run(
     for k, v in entdic.items():
         reventdic[v] = k
 
-    prelex = model == "lex"
-
     #wenc = WordEncoderPlusGlove(numchars=numchars, numwords=vocnumwords, encdim=wordencdim, embdim=wordembdim)
     tt.tock("model defined")
-    if prelex:
-        tt.tick("predicting")
+    if "lex" in model:
+        tt.tick("predicting lexicon")
         print lexdata[1:5].shape, entids[1:5].shape, golddata[:5].shape
         #print lexdata[1:5]
         #print entids[:5]; exit()
@@ -90,7 +89,8 @@ def run(
         print lexgold.shape
         lexgoldshifted = shiftdata(lexgold)
         m.train([lextrain, lexgoldshifted], lexgold).adagrad(lr=lr).seq_cross_entropy().grad_total_norm(gradnorm)\
-            .autovalidate(validsplit, random=True).validinter(validinter).seq_accuracy().train(numbats, epochs)
+            .autovalidate(validsplit, random=True).validinter(validinter).seq_accuracy().seq_cross_entropy()\
+            .train(numbats, epochsp)
 
         tt.tick("predicting")
         print lexdata[1:5].shape, entids[1:5].shape, golddata[:5].shape
@@ -102,7 +102,7 @@ def run(
         print np.vectorize(lambda x: reventdic[x] if x in reventdic else None)(np.argmax(pred, axis=2) - 1)
         tt.tock("predicted sample")
 
-        #m.fixO(lr=0.05)
+        m.fixO(lr=0.01)
 
     # embed()
     outdata = shiftdata(golddata)
@@ -117,7 +117,7 @@ def run(
 
     tt.tick("training")
     m.train([traindata, outdata], golddata).adagrad(lr=lr).l2(wreg).grad_total_norm(gradnorm).seq_cross_entropy() \
-        .validate_on([validdata, shiftdata(validgold)], validgold).validinter(validinter).seq_cross_entropy() \
+        .validate_on([validdata, shiftdata(validgold)], validgold).validinter(validinter).seq_accuracy().seq_cross_entropy() \
         .train(numbats, epochs)
     # embed()
 

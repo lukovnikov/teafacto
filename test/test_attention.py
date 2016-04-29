@@ -1,5 +1,5 @@
 from unittest import TestCase
-from teafacto.blocks.attention import Attention, WeightedSum, LinearSumAttentionGenerator, LinearGateAttentionGenerator
+from teafacto.blocks.attention import Attention, WeightedSumAttCon, LinearSumAttentionGenerator, LinearGateAttentionGenerator
 from teafacto.blocks.rnn import SeqDecoder, RewAttRNNEncDecoder, InConcatCRex
 from teafacto.blocks.rnu import GRU
 from teafacto.blocks.basic import Softmax, MatDot as Lin, IdxToOneHot
@@ -18,7 +18,7 @@ class DummyAttentionGeneratorConsumerTest(TestCase):
         self.attgenc = self.getattgenc()
         self.attgen = self.attgenc(indim=criteriondim + datadim, innerdim=innerdim)
         self.attgenparams = self.getattgenparams()
-        self.attcon = WeightedSum()
+        self.attcon = WeightedSumAttCon()
         self.att = Attention(self.attgen, self.attcon)
         self.criterion_val = np.random.random((batsize, criteriondim)).astype("float32")
         self.data_val = np.random.random((batsize, seqlen, datadim)).astype("float32")
@@ -63,7 +63,7 @@ class TestAttentionRNNDecoder(TestCase):
         encdim = 30
         seqlen = 5
         batsize = 77
-        self.att = Attention(LinearSumAttentionGenerator(indim=innerdim + encdim), WeightedSum())
+        self.att = Attention(LinearSumAttentionGenerator(indim=innerdim + encdim), WeightedSumAttCon())
         self.decwatt = SeqDecoder(
             IdxToOneHot(vocsize),
             InConcatCRex(self.att, GRU(dim=vocsize+encdim, innerdim=innerdim), outdim=innerdim)

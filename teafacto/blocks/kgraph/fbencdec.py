@@ -4,7 +4,7 @@ from teafacto.blocks.basic import Softmax, MatDot as Lin, VectorEmbed, ConcatBlo
 from teafacto.blocks.rnn import SeqEncoder, SeqDecoder, InConcatCRex, RecurrentStack, OutConcatCRex
 from teafacto.blocks.rnu import GRU
 from teafacto.blocks.lang.wordembed import WordEncoderPlusGlove, WordEmbed
-from teafacto.blocks.attention import LinearGateAttentionGenerator, WeightedSum, Attention
+from teafacto.blocks.attention import LinearGateAttentionGenerator, WeightedSumAttCon, Attention
 from teafacto.blocks.memory import MemoryBlock, LinearGateMemAddr, GeneralDotMemAddr, DotMemAddr, TransDotMemAddr
 
 import numpy as np
@@ -86,7 +86,7 @@ class FBSeqCompEncDecAtt(Block):
 
         self.rnn = RecurrentStack(self.wordencoder, GRU(dim=wordembdim+wordencdim, innerdim=self.encinnerdim))
         attgen = LinearGateAttentionGenerator(indim=self.encinnerdim + self.decinnerdim, innerdim=attdim)
-        attcon = WeightedSum()
+        attcon = WeightedSumAttCon()
         self.dec = SeqDecoder(
             VectorEmbed(indim=self.outdim, dim=self.entembdim),
             OutConcatCRex(
@@ -99,6 +99,9 @@ class FBSeqCompEncDecAtt(Block):
         enco = self.rnn(inpseq)
         deco = self.dec(enco, outseq)
         return deco
+
+    def fixO(self, lr=0.0):
+        self.dec.lin.W.lrmul = lr
 
 
 class FBMemMatch(Block):

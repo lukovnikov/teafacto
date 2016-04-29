@@ -1,5 +1,4 @@
 from teafacto.blocks.basic import MatDot as Lin, Softmax, VectorEmbed, IdxToOneHot
-from teafacto.blocks.rnu import GRU
 from teafacto.core.base import Block, param, Val
 from teafacto.core.base import tensorops as T
 import numpy as np
@@ -45,14 +44,34 @@ class AttentionGenerator(Block):
      the element to be a matrix of shape (num_chars_per_word, num_chars). Then, the output dimension is still (num_words,).
      However, if we considered a letter as a single element (shape: (num_chars,)), the output would have shape (num_words, num_chars_per_word).
     '''
-    def apply(self, criterion, data):   # criterion: (
+    def __init__(self, indim=50, attdim=50, memdim=50, **kw):
+        """
+        :param indim:       dimension of the input (criterion vectors)
+        :param attdim:      inner dimension of attention generator
+        :param memdim:      dimension of memory elements
+        """
+        super(AttentionGenerator, self).__init__(**kw)
+        self.indim = indim
+        self.attdim = attdim
+        self.memdim = memdim
+
+    def apply(self, criterion, data):   # criterion: (batsize, indim), data: (batsize, seqlen, memdim)
         raise NotImplementedError("use subclass")
 
 
+class DotprodAttGen(AttentionGenerator):
+    """
+    indim and memdim should be the same, attdim is not used
+    no parameters here
+    """
+    def apply(self, criterion, data):
+        return T.batched_dot(data, criterion)
+
+
 class LinearSumAttentionGenerator(AttentionGenerator):    # simple feedforward
-    def __init__(self, indim=50, innerdim=50, **kw):
+    def __init__(self, **kw):
         super(LinearSumAttentionGenerator, self).__init__(**kw)
-        self.W = param((indim, innerdim), name="attention_ff").uniform()
+        self.W = param((self.indim, self.attdim), name="attention_ff").uniform()
 
     def apply(self, criterion, data):   # data is (batsize, seqlen, elem_dim)
         def rec(x_t, crit):     # x_t is (batsize, elem_dim), crit is (batsize, crit_dim)
@@ -63,10 +82,10 @@ class LinearSumAttentionGenerator(AttentionGenerator):    # simple feedforward
 
 
 class LinearGateAttentionGenerator(AttentionGenerator):
-    def __init__(self, indim=50, innerdim=50, **kw):
+    def __init__(self, **kw):
         super(LinearGateAttentionGenerator, self).__init__(**kw)
-        self.W = param((indim, innerdim), name="attention_ff").uniform()
-        self.U = param((innerdim,), name="attention_agg").uniform()
+        self.W = param((self.indim, self.attdim), name="attention_ff").uniform()
+        self.U = param((self.attdim,), name="attention_agg").uniform()
 
     def apply(self, criterion, data):   # criterion: (batsize, crit_dim), data: (batsize, seqlen, datadim)
         def rec(x_t, crit):
@@ -90,14 +109,24 @@ class AttentionConsumer(Block):
      Subclass this for attention-consuming blocks.
     '''
     def apply(self, data, weights):
+        """
+        :param data:    data to aggregate ->            (batsize, seqlen, memdim)
+        :param weights: weights to use to aggregate ->  (batsize, seqlen)
+        """
         raise NotImplementedError("use subclass")
 
 
-class WeightedSum(AttentionConsumer):    # applies attention to sequence while summing up
+class WeightedSumAttCon(AttentionConsumer):    # applies attention to sequence while summing up
     def apply(self, data, weights):   # data: (batsize, seqlen, elem_dim)
         def rec(x_t, att_t, acc):       # x_t: (batsize, elem_dim), att_t: (batsize, ), acc: (batsize, elem_dim)
             acc += T.batched_dot(x_t, att_t)
             return acc  # (batsize, elem_dim)
         o, _ = T.scan(fn=rec, sequences=[data.dimswap(1, 0), weights.T], outputs_info=T.zeros((data.shape[0], data.shape[2])))
         return o[-1, :, :]
+
+
+class ArgmaxAttCon(AttentionConsumer):
+    def apply(self, data, weights):
+        bestidx = T.argmax(weights, axis=1)
+        return data[T.arange(bestidx.shape[0]), bestidx, :]
 

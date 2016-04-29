@@ -1,7 +1,7 @@
 from teafacto.blocks.rnu import GRU, ReccableBlock, RecurrentBlock, RNUBase
 from teafacto.core.base import Block, tensorops as T, asblock
 from teafacto.blocks.basic import IdxToOneHot, VectorEmbed, Embedder, Softmax, MatDot
-from teafacto.blocks.attention import WeightedSum, LinearSumAttentionGenerator, Attention, AttentionConsumer, LinearGateAttentionGenerator
+from teafacto.blocks.attention import WeightedSumAttCon, LinearSumAttentionGenerator, Attention, AttentionConsumer, LinearGateAttentionGenerator
 from teafacto.util import issequence
 import inspect
 from IPython import embed
@@ -441,7 +441,7 @@ class RewAttSumDecoder(Block):
         super(RewAttSumDecoder, self).__init__(**kw)
         self.rnn = ReccableStack(IdxToOneHot(vocsize), GRU(dim=vocsize, innerdim=encdim))
         attgen = LinearGateAttentionGenerator(indim=innerdim+encdim, innerdim=attdim)
-        attcon = WeightedSum()
+        attcon = WeightedSumAttCon()
         self.dec = SeqDecoder(IdxToOneHot(outvocsize),
                               InConcatCRex(
                                   Attention(attgen, attcon),
@@ -458,7 +458,7 @@ class FwdAttSumDecoder(Block):
         super(FwdAttSumDecoder, self).__init__(**kw)
         self.rnn = RecurrentStack(IdxToOneHot(vocsize), GRU(dim=vocsize, innerdim=encdim))
         attgen = LinearGateAttentionGenerator(indim=innerdim+encdim, innerdim=attdim)
-        attcon = WeightedSum()
+        attcon = WeightedSumAttCon()
         self.dec = SeqDecoder(IdxToOneHot(outvocsize),
                               OutConcatCRex(
                                   Attention(attgen, attcon),
@@ -477,7 +477,7 @@ class BiFwdAttSumDecoder(Block):
         self.rnn = RecurrentStack(IdxToOneHot(vocsize),
                                   BiRNU.fromrnu(GRU, dim=vocsize, innerdim=encdim))
         attgen = LinearGateAttentionGenerator(indim=innerdim+encdim*2, innerdim=attdim)
-        attcon = WeightedSum()
+        attcon = WeightedSumAttCon()
         self.dec = SeqDecoder(IdxToOneHot(outvocsize),
                               OutConcatCRex(
                                   Attention(attgen, attcon),
@@ -496,7 +496,7 @@ class BiRewAttSumDecoder(Block):
         self.rnn = RecurrentStack(IdxToOneHot(vocsize),
                                   BiRNU.fromrnu(GRU, dim=vocsize, innerdim=encdim))
         attgen = LinearGateAttentionGenerator(indim=innerdim+encdim*2, innerdim=attdim)
-        attcon = WeightedSum()
+        attcon = WeightedSumAttCon()
         self.dec = SeqDecoder(IdxToOneHot(outvocsize),
                               InConcatCRex(
                                   Attention(attgen, attcon),
