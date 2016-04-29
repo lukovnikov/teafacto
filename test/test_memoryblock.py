@@ -32,6 +32,14 @@ class TestMemoryBlock(TestCase):
         memory_embedding = memb.predict([2])
         self.assertTrue(np.allclose(original_embedding, memory_embedding))
 
+    def test_memory_block_with_glove_embedder_params(self):
+        payload = WordEmbedGlove()
+        original_embedding = payload.predict([6])
+        memb = MemoryBlock(payload, np.asarray([1, 2, 6]), outdim=payload.outdim)
+        memory_embedding = memb.predict([2])
+        self.assertTrue(np.allclose(original_embedding, memory_embedding))
+        print memb.output.allparams
+
     def test_memory_block_with_seq_encoder(self):
         invocabsize = 5
         memsize = 10
@@ -88,4 +96,5 @@ class TestMemoryBlock(TestCase):
         memb = MemoryBlock(payload, data, outdim=encdim)
         idxs = [0, 2, 5]
         self.assertRaises(AssertionError, lambda: memb.predict(idxs, data))
+
 

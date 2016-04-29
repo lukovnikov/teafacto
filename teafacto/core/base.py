@@ -150,6 +150,7 @@ class Parameter(TensorWrapped):
         return self
 
     def reset(self):
+        #print "resetting param %s \n\t\t (in %s)" % (str(self), self.__class__.__name__)
         self.value.set_value(self.initializer())
 
     @property
@@ -448,6 +449,7 @@ class Block(Elem, Saveable): # block with parameters
         # wrap data in datafeeds, generate gold var
         goldvar = Input(gold.ndim, gold.dtype, name="gold")
         inps, outp = self.autobuild(*inputdata)
+
         trainer = self.gettrainer(goldvar.d)
         trainer.traindata = inputdata
         trainer.traingold = gold

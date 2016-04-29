@@ -82,10 +82,11 @@ class ticktock(object):
         return (dt.now() - self.ticktime).total_seconds()
 
     def progress(self, x, of):
-        self.perc = int(round(100.* x/of))
-        if self.perc != self.prevperc:
-            print "%s: %d" % (self.prefix, self.perc)  + "%"
-            self.prevperc = self.perc
+        if self.verbose:
+            self.perc = int(round(100.* x/of))
+            if self.perc != self.prevperc:
+                print "%s: %d" % (self.prefix, self.perc)  + "%"
+                self.prevperc = self.perc
 
     def tock(self, action=None, prefix=None):
         duration = self._tock()
@@ -123,12 +124,14 @@ class ticktock(object):
             return ("%.3f second" % duration) + ("s" if duration > 1 else "")
 
     def live(self, x):
-        sys.stdout.write(self.prefix + ": " + x+("\t T: %s \r" % self._getdurationstr(self._tock())))
-        sys.stdout.flush()
+        if self.verbose:
+            sys.stdout.write(self.prefix + ": " + x+("\t T: %s \r" % self._getdurationstr(self._tock())))
+            sys.stdout.flush()
 
     def stoplive(self):
-        sys.stdout.write("\r\033[K")
-        sys.stdout.flush()
+        if self.verbose:
+            sys.stdout.write("\r\033[K")
+            sys.stdout.flush()
 
 
 

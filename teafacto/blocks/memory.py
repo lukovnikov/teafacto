@@ -72,7 +72,7 @@ class LinearGateMemAddr(MemoryAddress):
             trans = T.dot(combo, self.W)        # (batsize, outdim)
             trans = T.tanh(trans)                                       # apply tanh
             ret = T.dot(trans, self.U)                                  # (batsize, )
-            return T.nnet.sigmoid(ret)                                  # apply sigmoid
+            return ret
         o, _ = T.scan(fn=rec, sequences=self.memblock.innervar, non_sequences=criterion)    # (memsize, batsize)
         return o.dimswap(1, 0)                                                              # (batsize, memsize)
 
@@ -81,11 +81,23 @@ class LinearGateMemAddr(MemoryAddress):
         return T.concatenate([x_t_repped, crit], axis=1)
 
 
+class TransDotMemAddr(MemoryAddress):
+    def __init__(self, memblock, memdim=None, indim=None, attdim=None, **kw):
+        super(TransDotMemAddr, self).__init__(memblock, **kw)
+        self.W = param((memdim, attdim), name="addr_memtrans").uniform()
+        self.U = param((indim, attdim), name="addr_crittrans").uniform()
+
+    def apply(self, criterion):
+        wmem = T.dot(self.memblock.innervar, self.W)
+        ucrit = T.dot(criterion, self.U)
+        return T.dot(ucrit, wmem.T)
+
+
 class GeneralDotMemAddr(MemoryAddress):
     def __init__(self, memblock, memdim=None, indim=None, attdim=None, **kw):  # indim should be mem_dim, innerdim should be crit_dim
         assert(indim is not None and memdim is not None)     # can not specify separate attention dimensions
         super(GeneralDotMemAddr, self).__init__(memblock, **kw)
-        self.W = param((memdim, indim), name="attention").uniform()
+        self.W = param((memdim, indim), name="addressing").uniform()
 
     def apply(self, criterion):     # criterion: (batsize, indim), self.mem: (mem_size, mem_dim), out: (batsize, mem_size)
         memdot = T.dot(self.memblock.innervar, self.W)  # (mem_size, indim)
@@ -94,4 +106,13 @@ class GeneralDotMemAddr(MemoryAddress):
             return T.nnet.sigmoid(d)
         o, _ = T.scan(fn=rec, sequences=memdot, non_sequences=criterion)    # (mem_size, batsize)
         return o.dimswap(1, 0)'''
-        return T.nnet.sigmoid(T.dot(criterion, memdot.T))   # (batsize, mem_size)
+        return T.dot(criterion, memdot.T)   # (batsize, mem_size)
+
+
+class DotMemAddr(MemoryAddress):
+    """ Memory cell dimension must be the same as criterion dimension !!!"""
+    def __init__(self, memblock, memdim=None, indim=None, attdim=None, **kw):
+        super(DotMemAddr, self).__init__(memblock, **kw)
+
+    def apply(self, criterion): # (batsize, encdim), memblock.var:: (memsize, encdim)
+        return T.dot(criterion, self.memblock.innervar.T)

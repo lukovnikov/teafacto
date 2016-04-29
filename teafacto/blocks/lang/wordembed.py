@@ -6,6 +6,15 @@ from teafacto.blocks.rnu import RecurrentBlock, GRU
 from teafacto.blocks.lang.wordvec import Glove
 
 
+class WordEmbed(Embedder):
+    def __init__(self, indim=1000, outdim=50, trainfrac=0.0, **kw):
+        super(WordEmbed, self).__init__(indim, outdim, **kw)
+        self.emb = VectorEmbed(indim=indim, dim=outdim, trainfrac=trainfrac)
+
+    def apply(self, idxs):
+        return self.emb(idxs)
+
+
 class WordEmbedGlove(Embedder):
     def __init__(self, indim=1000, outdim=50, trainfrac=0.0, **kw):
         super(WordEmbedGlove, self).__init__(indim, outdim, **kw)

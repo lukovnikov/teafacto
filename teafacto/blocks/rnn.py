@@ -254,8 +254,8 @@ class SeqDecoder(ReccableBlockParameterized, Block):
         assert(isinstance(contextrecurrentblock, ContextReccableBlock))
         if softmaxoutblock is None:
             sm = Softmax()
-            lin = MatDot(indim=contextrecurrentblock.outdim, dim=self.embedder.indim)
-            self.softmaxoutblock = asblock(lambda x: sm(lin(x)))
+            self.lin = MatDot(indim=contextrecurrentblock.outdim, dim=self.embedder.indim)
+            self.softmaxoutblock = asblock(lambda x: sm(self.lin(x)))
         else:
             self.softmaxoutblock = softmaxoutblock
 
@@ -281,6 +281,8 @@ class SeqDecoder(ReccableBlockParameterized, Block):
         y_t = self.softmaxoutblock(h_t)
         return [y_t, context, t] + states_t #, {}, T.until( (i > 1) * T.eq(mask.norm(1), 0) )
 
+
+#-----------------------------------------------------------------------------------------------------------------------
 
 class ContextReccableBlock(ReccableBlock): # responsible for using context and sequence (embedded already)
     def __init__(self, outdim=50, **kw):
@@ -345,6 +347,10 @@ class StateSetCRex(RecParamCRex):
         return self.block.do_get_init_info([initstates])
 
 
+class StateSetOutConcatCRex():
+    pass # TODO
+
+
 class SeqEncoderDecoder(Block):
     def __init__(self, inpemb, encrec, outemb, decrec, **kw):
         super(SeqEncoderDecoder, self).__init__(**kw)
@@ -356,6 +362,7 @@ class SeqEncoderDecoder(Block):
         deco = self.dec(enco, outseq)   # (batsize, seqlen, outvocsize)
         return deco
 
+# ----------------------------------------------------------------------------------------------------------------------
 
 # TODO: travis error messages about theano optimization and shapes only involve things below
 class SimpleEncoderDecoder(SeqEncoderDecoder):  # gets two sequences of indexes for training

@@ -307,6 +307,7 @@ class ModelTrainer(object):
         else:
             cost = loss
         updates = []
+        print "params:\n " + "".join(map(lambda x: "\t%s\n" % str(x), params)) + "\n\t\t (in Block, base.py)\n"
         self.tt.msg("computing gradients")
         #grads = []
         #for x in params:
@@ -336,12 +337,14 @@ class ModelTrainer(object):
         return [aggregate(obj(model.output.d, self.goldvar), mode='mean' if self.average_err is True else 'sum') for obj in objs], None
 
     def buildvalidfun(self, model):
+        self.tt.tick("compiling validation function")
         metrics, newinp = self.buildlosses(model, self.validators)
         inputs = newinp if newinp is not None else model.inputs
+        ret = None
         if len(metrics) > 0:
-            return theano.function(inputs=[x.d for x in inputs] + [self.goldvar], outputs=metrics)
-        else:
-            return None
+            ret = theano.function(inputs=[x.d for x in inputs] + [self.goldvar], outputs=metrics)
+        self.tt.tock("validation function compiled")
+        return ret
 
     ################### TRAINING STRATEGIES ############
     def _train_full(self, model): # train on all data, no validation
@@ -351,13 +354,14 @@ class ModelTrainer(object):
         return err, None, None, None
 
     def _train_validdata(self, model):
-        trainf = self.buildtrainfun(model)
         validf = self.buildvalidfun(model)
+        trainf = self.buildtrainfun(model)
         df = DataFeeder(*(self.traindata + [self.traingold]))
-        dfvalid = df.osplit(split=self.validsplits, random=self.validrandom)
+        vdf = DataFeeder(*(self.validdata + [self.validgold]))
+        #dfvalid = df.osplit(split=self.validsplits, random=self.validrandom)
         err, verr = self.trainloop(
                 trainf=self.getbatchloop(trainf, df.numbats(self.numbats)),
-                validf=self.getbatchloop(validf, dfvalid))
+                validf=self.getbatchloop(validf, vdf))
         return err, verr, None, None
 
     def _train_split(self, model):
@@ -415,10 +419,14 @@ class ModelTrainer(object):
                 stop = True
             self.currentiter += 1
             err.append(erre)
+            print "done training"
             if validf is not None and self.currentiter % evalinter == 0: # validate and print
                 verre = validf()
                 verr.append(verre)
-                tt.msg("training error: %s \t validation error: %s" % (" - ".join(map(lambda x: "%.3f" % x, erre)), " - ".join(map(lambda x: "%.3f" % x, verre))), prefix="-")
+                tt.msg("training error: %s \t validation error: %s"
+                       % (erre[0],
+                          " - ".join(map(lambda x: "%.3f" % x, verre))),
+                       prefix="-")
             else:
                 tt.msg("training error: %s" % " - ".join(map(lambda x: "%.3f" % x, erre)), prefix="-")
             tt.tock("done", prefix="-")
@@ -430,7 +438,7 @@ class ModelTrainer(object):
         self.tt.tock("trained").tick()
         return err, verr
 
-    def getbatchloop(self, trainf, datafeeder):
+    def getbatchloop(self, trainf, datafeeder, verbose=True):
         '''
         returns the batch loop, loaded with the provided trainf training function and samplegen sample generator
         '''
@@ -438,30 +446,30 @@ class ModelTrainer(object):
         def batchloop():
             c = 0
             prevperc = -1.
-            terr = 0.0
-            terr2 = 0.0
+            terr = [0.0]
             numdigs = 2
-            tt = TT("iter progress")
+            tt = TT("iter progress", verbose=verbose)
             tt.tick()
             while datafeeder.hasnextbatch():
                 perc = round(c*100.*(10**numdigs)/datafeeder._numbats)/(10**numdigs)
                 if perc > prevperc:
-                    s = ("%."+str(numdigs)+"f%% \t error: %.3f") % (perc, terr)
+                    s = ("%."+str(numdigs)+"f%% \t error: %.3f") % (perc, terr[0])
                     tt.live(s)
                     prevperc = perc
                 sampleinps = datafeeder.nextbatch()
                 try:
-                    eterr = trainf(*sampleinps)[0]
+                    eterr = trainf(*sampleinps)
+                    if len(terr) != len(eterr) and terr.count(0.0) == len(terr):
+                        terr = [0.0]*len(eterr)
                 except Exception, e:
-                    embed()
                     raise e
                 if self.average_err is True:
-                    terr = terr*(1.0*(c)/(c+1)) + eterr*(1.0/(c + 1))
+                    terr = [xterr*(1.0*(c)/(c+1)) + xeterr*(1.0/(c + 1)) for xterr, xeterr in zip(terr, eterr)]
                 else:
-                    terr += eterr
+                    terr = [xterr + xeterr for xterr, xeterr in zip(terr, eterr)]
                 c += 1
             tt.stoplive()
-            return [terr]
+            return terr
         return batchloop
 
     @property
