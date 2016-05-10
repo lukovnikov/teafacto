@@ -261,7 +261,7 @@ class FBSeqCompEncMemDecAtt(FBSeqCompositeEncMemDec):
             self.memblock,
             OutConcatCRex(
                 Attention(attgen, attcon),
-                GRU(dim=self.entembdim + self.wordencdim + self.wordembdim, innerdim=self.decinnerdim), #GRU(dim=self.memblock.outdim + self.encinnerdim, innerdim=self.decinnerdim),
+                GRU(dim=self.entembdim + self.encinnerdim, innerdim=self.decinnerdim), #GRU(dim=self.memblock.outdim + self.encinnerdim, innerdim=self.decinnerdim),
                 outdim=self.decinnerdim + self.encinnerdim),
             softmaxoutblock=self.softmaxoutblock
         )

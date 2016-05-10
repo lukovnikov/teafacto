@@ -1,5 +1,5 @@
 from unittest import TestCase
-from teafacto.blocks.kgraph.fbencdec import FBBasicCompositeEncoder, FBSeqCompositeEncDec, FBSeqCompositeEncMemDec
+from teafacto.blocks.kgraph.fbencdec import FBBasicCompositeEncoder, FBSeqCompositeEncDec, FBSeqCompositeEncMemDec, FBSeqCompEncMemDecAtt
 from teafacto.blocks.memory import LinearGateMemAddr, GeneralDotMemAddr
 import numpy as np
 
@@ -124,10 +124,10 @@ class TestFBSeqCompositeEncMemDecLinearGate(TestCase):
         memblockidxdata = np.arange(0, datanuments)
         memblockpred = m.memblock.predict(memblockidxdata)
         print memblockpred.shape
-        self.assertEqual(memblockpred.shape, (datanuments, entencdim+entembdim))
+        self.assertEqual(memblockpred.shape, (datanuments, entencdim + entembdim))
         self.assertTrue(np.allclose(mempayloadpred, memblockpred))
         #'''
-        # test output shape of custom softmax output block of decoder # TODO: here is the error
+        # test output shape of custom softmax output block of decoder
         crit = np.random.random((batsize, ))
         sob = m.softmaxoutblock.layers[0]
         print sob.W.shape
@@ -152,5 +152,14 @@ class TestFBSeqCompositeEncMemDecGeneralDotMemAddr(TestFBSeqCompositeEncMemDecLi
         return FBSeqCompositeEncMemDec(*args, **kwargs)
 
     def _get_sob_shape(self, entencdim, entembdim, innerdim, attdim):
-        return (entencdim+entembdim, innerdim)
+        return (entencdim + entembdim, innerdim)
+
+
+class TestFBSeqCompEncMemDecAttGeneralDotMemAddr(TestFBSeqCompositeEncMemDecLinearGate):
+    def makemodel(self, *args, **kwargs):
+        kwargs["memaddr"] = GeneralDotMemAddr
+        return FBSeqCompEncMemDecAtt(*args, **kwargs)
+
+    def _get_sob_shape(self, entencdim, entembdim, innerdim, attdim):
+        return (entencdim + entembdim, innerdim + innerdim)
 
