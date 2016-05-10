@@ -53,9 +53,9 @@ class XLTM(GatedRNU):
         """
         # read memory
         memory_addr_gate1 =     self.gateactivation(T.dot(h_tm1, self.uma) + T.dot(x_t, self.wma) + T.dot(m_tm1, self.mma) + self.bma)
-        memory_addr_gate2 =     self.gateactivation(T.dot(h_tm1, self.uma) + T.dot(x_t, self.wma) + T.dot(m_tm1, self.mma) + self.bma)
+        memory_addr_gate2 =     self.gateactivation(T.dot(h_tm1, self.uma2) + T.dot(x_t, self.wma2) + T.dot(m_tm1, self.mma2) + self.bma2)
         memaddrcan         =    memory_addr_gate1 * h_tm1 +      (1 - memory_addr_gate1) * m_tm1
-        memaddr =               memory_addr_gate2 * memaddrcan + (1 - memory_addr_gate2) * x_t
+        memaddr =               memory_addr_gate2 * memaddrcan + (1 - memory_addr_gate2) * x_t      # TODO: ERROR HERE: x_t shape incompatible with internal shapes
         memsel = self.attgen(memaddr, mem_tm1)
         m_t = self.attcon(mem_tm1, memsel)
 
