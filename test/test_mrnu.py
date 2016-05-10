@@ -17,5 +17,5 @@ class TestXLTM(TestCase):
         x = np.random.random((batsize, seqlen, indim)).astype("float32")
 
         # generate prediction
-        prediction = xltm.predict(x)
+        #prediction = xltm.predict(x)
 

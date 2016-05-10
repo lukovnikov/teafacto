@@ -203,7 +203,7 @@ class FBSeqCompositeEncMemDec(Block):
         self.memblock = MemoryBlock(self.mempayload, self.memdata, indim=self.outdim, outdim=self.encinnerdim+self.entembdim)
 
         #encoder
-        wencpg2 = WordEncoderPlusGlove(numchars=self.numchars, numwords=self.numwords, encdim=self.wordencdim, embdim=self.wordembdim, embtrainfrac=0.0, glovepath=glovepath)
+        wencpg2 = WordEncoderPlusGlove(numchars=self.numchars, numwords=self.numwords, encdim=self.wordencdim, embdim=self.wordembdim, embtrainfrac=0.0, glovepath=self.glovepath)
         self.enc = SeqEncoder(
             wencpg2,
             GRU(dim=self.wordembdim + self.wordencdim, innerdim=self.encinnerdim)
