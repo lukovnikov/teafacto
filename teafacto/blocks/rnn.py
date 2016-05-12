@@ -74,7 +74,7 @@ class RecurrentStack(Block):       # TODO: setting init states of contained recu
         super(RecurrentStack, self).__init__(**kw)
         self.layers = layers
 
-    def apply(self, seq):
+    def apply(self, seq):   # layer-wise processing of input sequence
         acc = seq
         for layer in self.layers:
             if isinstance(layer, RecurrentBlock):

@@ -1,20 +1,23 @@
-import pickle
-from teafacto.util import argprun
+import pickle, numpy as np
+from teafacto.util import argprun, issequence
+from teafacto.blocks.rnu import GRU
+from teafacto.blocks.rnn import RecurrentStack
+from teafacto.core.base import asblock, Block, tensorops as T
+from teafacto.blocks.basic import VectorEmbed, MatDot as Lin, Softmax
 
-def run(p="../../data/atis/atis.pkl"):
-    train, test, dics = pickle.load(open(p))
-    word2idx = dics["words2idx"]
-    table2idx = dics["tables2idx"]
-    label2idx = dics["labels2idx"]
-    train = zip(*train)
-    test = zip(*test)
-    print len(train)
-    print len(test)
-    tup2text(train[0], word2idx, table2idx, label2idx)
-    maxlen = 0
-    for tup in train + test:
-        maxlen = max(len(tup[0]), maxlen)
-    print maxlen
+
+def getdatamatrix(lot, maxlen, k, offset=1):
+    data = np.zeros((len(lot), maxlen))
+    i = 0
+    while i < len(lot):
+        x = lot[i][k]
+        j = 0
+        while j < x.shape[0]:
+            data[i, j] = x[j] + offset
+            j += 1
+        i += 1
+    return data
+
 
 def tup2text(tup, word2idx, table2idx, label2idx):
     word2idxrev = {v: k for k, v in word2idx.items()}
@@ -25,6 +28,155 @@ def tup2text(tup, word2idx, table2idx, label2idx):
     labels = " ".join(map(lambda x: label2idxrev[tup[2][x]], range(len(tup[0]))))
     print words
     print labels
+
+
+class SeqTransducer(Block):
+    def __init__(self, *layers, **kw):
+        """ layers must have an embedding layers first, final softmax layer is added automatically"""
+        assert("smodim" in kw and "outdim" in kw)
+        smodim = kw["smodim"]
+        outdim = kw["outdim"]
+        del kw["smodim"]; del kw["outdim"]
+        super(SeqTransducer, self).__init__(**kw)
+        self.block = RecurrentStack(*(layers + (Lin(indim=smodim, dim=outdim), Softmax())))
+
+    def apply(self, inpseq, maskseq=None):    # inpseq: idx^(batsize, seqlen), maskseq: f32^(batsize, seqlen)
+        res = self.block(inpseq)            # f32^(batsize, seqlen, outdim)
+        if maskseq is None:
+            ret = res
+        else:
+            maskseq = T.ones_like(inpseq) if maskseq is None else maskseq
+            mask = T.tensordot(maskseq, T.ones((res.shape[2],)), 0)  # f32^(batsize, seqlen, outdim) -- maskseq stacked
+            masker = T.concatenate([T.ones((res.shape[0], res.shape[1], 1)), T.zeros((res.shape[0], res.shape[1], res.shape[2] - 1))], axis=2)  # f32^(batsize, seqlen, outdim) -- gives 100% prob to output 0
+            ret = res * mask + masker * (1.0 - mask)
+        return ret
+
+
+class SimpleSeqTransducer(SeqTransducer):
+    def __init__(self, indim=400, embdim=50, innerdim=100, outdim=50, **kw):
+        self.emb = VectorEmbed(indim=indim, dim=embdim)
+        self.rnn = []
+        if not issequence(innerdim):
+            innerdim = [innerdim]
+        # create stack of recurrent layers
+        assert(len(innerdim) > 0)
+        previnnerdim = embdim
+        for currentinnerdim in innerdim:
+            self.rnn.append(GRU(dim=previnnerdim, innerdim=currentinnerdim))
+            previnnerdim = currentinnerdim
+        super(SimpleSeqTransducer, self).__init__(self.emb, *self.rnn, smodim=innerdim[-1], outdim=outdim, **kw)
+
+
+def atiseval(preds, golds, revdic):
+    """ computes accuracy, precision, recall and f-score on recognized slots"""
+    assert(preds.shape[0] == golds.shape[0])
+    i = 0
+    tp = 0
+    fp = 0
+    fn = 0
+    while i < preds.shape[0]:
+        predslots = getslots(preds[i], revdic=revdic)
+        goldslots = getslots(golds[i], revdic=revdic)
+        for predslot in predslots:
+            if predslot in goldslots:
+                tp += 1
+            else:
+                fp += 1
+        for goldslot in goldslots:
+            if goldslot not in predslots:   # FN
+                fn += 1
+        i += 1
+    precision = 1.0* tp / (tp + fp) if (tp + fp) > 0 else 0.
+    recall = 1.0* tp / (tp + fn) if (tp + fp) > 0 else 0.
+    fscore = 2.0 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0.
+    return fscore, {"p": precision, "r": recall}, {"tp": tp, "fp": fp, "fn": fn}
+
+
+def getslots(x, revdic):
+    y = np.vectorize(lambda a: revdic[a] if a in revdic else "_" )(x)
+    slots = []
+    currentslot = None
+    i = 0
+    sumtingwong = False
+    while i < len(y):
+        ye = y[i]
+        if ye == "O":   # no slot/finalize slot
+            if currentslot is not None: #finalize slot
+                slots.append(currentslot)
+                currentslot = None
+            else:   # do nothing
+                pass
+        elif ye[0] == "B":      # slot starting
+            if currentslot is not None: #finalize slot
+                slots.append(currentslot)
+            else:   # do nothing
+                pass
+            currentslot = (ye[2:], [i]) # start new slot
+        elif ye[0] == "I":      # slot continuing
+            if currentslot is not None:
+                if currentslot[0] == ye[2:]:
+                    currentslot[1].append(i)
+                else:       # wrong continuation --> finalize slot?
+                    slots.append(currentslot)
+                    currentslot = None
+            else:   # something wrong
+                print "sum ting wong"
+                sumtingwong = True
+        i += 1
+    if sumtingwong:
+        print y
+    return slots
+
+
+def run(p="../../data/atis/atis.pkl", wordembdim=100, innerdim=200, lr=0.05, numbats=100, epochs=20, validinter=1, wreg=0.0001, depth=2):
+    train, test, dics = pickle.load(open(p))
+    word2idx = dics["words2idx"]
+    table2idx = dics["tables2idx"]
+    label2idx = dics["labels2idx"]
+    label2idxrev = {v: k for k, v in label2idx.items()}
+    train = zip(*train)
+    test = zip(*test)
+    print "%d training examples, %d test examples" % (len(train), len(test))
+    #tup2text(train[0], word2idx, table2idx, label2idx)
+    maxlen = 0
+    for tup in train + test:
+        maxlen = max(len(tup[0]), maxlen)
+
+    numwords = max(word2idx.values()) + 2
+    numlabels = max(label2idx.values()) + 2
+
+    # get training data
+    traindata = getdatamatrix(train, maxlen, 0).astype("int32")
+    traingold = getdatamatrix(train, maxlen, 2).astype("int32")
+    trainmask = (traindata > 0).astype("float32")
+
+    # test data
+    testdata = getdatamatrix(test, maxlen, 0).astype("int32")
+    testgold = getdatamatrix(test, maxlen, 2).astype("int32")
+    testmask = (testdata > 0).astype("float32")
+
+    res = atiseval(testgold-1, testgold-1, label2idxrev); print res#; exit()
+
+    # define model
+    innerdim = [innerdim] * depth
+    m = SimpleSeqTransducer(indim=numwords, embdim=wordembdim, innerdim=innerdim, outdim=numlabels)
+
+    # training
+    m.train([traindata, trainmask], traingold).adagrad(lr=lr).grad_total_norm(5.0).seq_cross_entropy().l2(wreg)\
+        .validate_on([testdata, testmask], testgold).seq_cross_entropy().seq_accuracy().validinter(validinter)\
+        .train(numbats, epochs)
+
+    # predict after training
+    testpredprobs = m.predict(testdata, testmask)
+    testpred = np.argmax(testpredprobs, axis=2)-1
+    #testpred = testpred * testmask
+    #print np.vectorize(lambda x: label2idxrev[x] if x > -1 else " ")(testpred)
+
+    evalres = atiseval(testpred, testgold-1, label2idxrev); print evalres
+
+
+
+
 
 
 if __name__ == "__main__":
