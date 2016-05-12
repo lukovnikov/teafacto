@@ -1,5 +1,5 @@
 from unittest import TestCase
-from teafacto.scripts.atisslotfil import SimpleSeqTransducer
+from teafacto.blocks.rnn import SimpleSeqTransducer
 import numpy as np
 
 

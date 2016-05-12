@@ -1,9 +1,9 @@
-import pickle, numpy as np
-from teafacto.util import argprun, issequence
-from teafacto.blocks.rnu import GRU
-from teafacto.blocks.rnn import RecurrentStack
-from teafacto.core.base import asblock, Block, tensorops as T
-from teafacto.blocks.basic import VectorEmbed, MatDot as Lin, Softmax
+import pickle
+
+import numpy as np
+
+from teafacto.blocks.rnn import SimpleSeqTransducer
+from teafacto.util import argprun
 
 
 def getdatamatrix(lot, maxlen, k, offset=1):
@@ -28,43 +28,6 @@ def tup2text(tup, word2idx, table2idx, label2idx):
     labels = " ".join(map(lambda x: label2idxrev[tup[2][x]], range(len(tup[0]))))
     print words
     print labels
-
-
-class SeqTransducer(Block):
-    def __init__(self, *layers, **kw):
-        """ layers must have an embedding layers first, final softmax layer is added automatically"""
-        assert("smodim" in kw and "outdim" in kw)
-        smodim = kw["smodim"]
-        outdim = kw["outdim"]
-        del kw["smodim"]; del kw["outdim"]
-        super(SeqTransducer, self).__init__(**kw)
-        self.block = RecurrentStack(*(layers + (Lin(indim=smodim, dim=outdim), Softmax())))
-
-    def apply(self, inpseq, maskseq=None):    # inpseq: idx^(batsize, seqlen), maskseq: f32^(batsize, seqlen)
-        res = self.block(inpseq)            # f32^(batsize, seqlen, outdim)
-        if maskseq is None:
-            ret = res
-        else:
-            maskseq = T.ones_like(inpseq) if maskseq is None else maskseq
-            mask = T.tensordot(maskseq, T.ones((res.shape[2],)), 0)  # f32^(batsize, seqlen, outdim) -- maskseq stacked
-            masker = T.concatenate([T.ones((res.shape[0], res.shape[1], 1)), T.zeros((res.shape[0], res.shape[1], res.shape[2] - 1))], axis=2)  # f32^(batsize, seqlen, outdim) -- gives 100% prob to output 0
-            ret = res * mask + masker * (1.0 - mask)
-        return ret
-
-
-class SimpleSeqTransducer(SeqTransducer):
-    def __init__(self, indim=400, embdim=50, innerdim=100, outdim=50, **kw):
-        self.emb = VectorEmbed(indim=indim, dim=embdim)
-        self.rnn = []
-        if not issequence(innerdim):
-            innerdim = [innerdim]
-        # create stack of recurrent layers
-        assert(len(innerdim) > 0)
-        previnnerdim = embdim
-        for currentinnerdim in innerdim:
-            self.rnn.append(GRU(dim=previnnerdim, innerdim=currentinnerdim))
-            previnnerdim = currentinnerdim
-        super(SimpleSeqTransducer, self).__init__(self.emb, *self.rnn, smodim=innerdim[-1], outdim=outdim, **kw)
 
 
 def atiseval(preds, golds, revdic):

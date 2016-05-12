@@ -1,3 +1,6 @@
+from teafacto.blocks.basic import MatDot as Lin, Softmax, VectorEmbed
+from teafacto.blocks.rnu import GRU
+from teafacto.core.base import Block, tensorops, tensorops, tensorops, tensorops, tensorops, tensorops
 from teafacto.blocks.rnu import GRU, ReccableBlock, RecurrentBlock, RNUBase
 from teafacto.core.base import Block, tensorops as T, asblock
 from teafacto.blocks.basic import IdxToOneHot, VectorEmbed, Embedder, Softmax, MatDot
@@ -5,6 +8,8 @@ from teafacto.blocks.attention import WeightedSumAttCon, LinearSumAttentionGener
 from teafacto.util import issequence
 import inspect
 from IPython import embed
+
+from util import issequence
 
 
 class ReccableStack(ReccableBlock):
@@ -517,3 +522,39 @@ class BiRewAttSumDecoder(Block):
         rnnout = self.rnn(inpseq)
         return self.dec(rnnout, outseq)
 
+
+class SeqTransducer(Block):
+    def __init__(self, *layers, **kw):
+        """ layers must have an embedding layers first, final softmax layer is added automatically"""
+        assert("smodim" in kw and "outdim" in kw)
+        smodim = kw["smodim"]
+        outdim = kw["outdim"]
+        del kw["smodim"]; del kw["outdim"]
+        super(SeqTransducer, self).__init__(**kw)
+        self.block = RecurrentStack(*(layers + (Lin(indim=smodim, dim=outdim), Softmax())))
+
+    def apply(self, inpseq, maskseq=None):    # inpseq: idx^(batsize, seqlen), maskseq: f32^(batsize, seqlen)
+        res = self.block(inpseq)            # f32^(batsize, seqlen, outdim)
+        if maskseq is None:
+            ret = res
+        else:
+            maskseq = T.ones_like(inpseq) if maskseq is None else maskseq
+            mask = T.tensordot(maskseq, T.ones((res.shape[2],)), 0)  # f32^(batsize, seqlen, outdim) -- maskseq stacked
+            masker = T.concatenate([T.ones((res.shape[0], res.shape[1], 1)), T.zeros((res.shape[0], res.shape[1], res.shape[2] - 1))], axis=2)  # f32^(batsize, seqlen, outdim) -- gives 100% prob to output 0
+            ret = res * mask + masker * (1.0 - mask)
+        return ret
+
+
+class SimpleSeqTransducer(SeqTransducer):
+    def __init__(self, indim=400, embdim=50, innerdim=100, outdim=50, **kw):
+        self.emb = VectorEmbed(indim=indim, dim=embdim)
+        self.rnn = []
+        if not issequence(innerdim):
+            innerdim = [innerdim]
+        # create stack of recurrent layers
+        assert(len(innerdim) > 0)
+        previnnerdim = embdim
+        for currentinnerdim in innerdim:
+            self.rnn.append(GRU(dim=previnnerdim, innerdim=currentinnerdim))
+            previnnerdim = currentinnerdim
+        super(SimpleSeqTransducer, self).__init__(self.emb, *self.rnn, smodim=innerdim[-1], outdim=outdim, **kw)
