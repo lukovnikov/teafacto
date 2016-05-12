@@ -23,3 +23,5 @@ cache:
   - directories:
     - $HOME/.cache/pip
     - $HOME/.theano
+notifications:
+  slack: eisbonn:qosRnEbOef7JTnLqe8hf3rP7

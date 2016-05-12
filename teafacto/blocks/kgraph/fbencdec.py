@@ -71,6 +71,36 @@ class FBSeqCompositeEncDec(Block):
         self.dec.lin.W.lrmul = lr
 
 
+class FBSeqSimpEncDecAtt(Block):
+    def __init__(self, wordembdim=50, entembdim=200, innerdim=200, attdim=100, outdim=1e4, numwords=4e5, **kw):
+        super(FBSeqSimpEncDecAtt, self).__init__(**kw)
+        self.indim = wordembdim
+        self.outdim = outdim
+        self.wordembdim = wordembdim
+        self.encinnerdim = innerdim
+        self.decinnerdim = innerdim
+        self.entembdim = entembdim
+
+        self.wordencoder = WordEmbed(indim=numwords, outdim=self.wordembdim, trainfrac=1.0)
+        self.rnn = RecurrentStack(self.wordencoder, GRU(dim=self.wordembdim, innerdim=self.encinnerdim))
+
+        attgen = LinearGateAttentionGenerator(indim=self.encinnerdim + self.decinnerdim, innerdim=attdim)
+        attcon = WeightedSumAttCon()
+        self.dec = SeqDecoder(
+            [VectorEmbed(indim=self.outdim, dim=self.entembdim), GRU(dim=self.entembdim, innerdim=self.decinnerdim)],
+            attention=Attention(attgen, attcon),
+            outconcat=True,
+            innerdim=self.encinnerdim + self.decinnerdim
+        )
+
+    def apply(self, inpseq, outseq):
+        enco = self.rnn(inpseq)
+        self.dec.set_init_states(enco[:, -1, :])
+        deco = self.dec(enco, outseq)
+        return deco
+
+
+
 class FBSeqCompEncDecAtt(Block):
     def __init__(self, wordembdim=50, wordencdim=50, entembdim=200, innerdim=200, attdim=100, outdim=1e4, numwords=4e5, numchars=128, glovepath=None, **kw):
         super(FBSeqCompEncDecAtt, self).__init__(**kw)
@@ -88,15 +118,14 @@ class FBSeqCompEncDecAtt(Block):
         attgen = LinearGateAttentionGenerator(indim=self.encinnerdim + self.decinnerdim, innerdim=attdim)
         attcon = WeightedSumAttCon()
         self.dec = SeqDecoder(
-            VectorEmbed(indim=self.outdim, dim=self.entembdim),
-            OutConcatCRex(
-                Attention(attgen, attcon),
-                GRU(dim=self.entembdim, innerdim=self.decinnerdim),
-                outdim=self.encinnerdim + self.decinnerdim
-            ))
+            [VectorEmbed(indim=self.outdim, dim=self.entembdim), GRU(dim=self.entembdim, innerdim=self.decinnerdim)],
+            attention=Attention(attgen, attcon),
+            outconcat=True,
+            innerdim=self.encinnerdim + self.decinnerdim)
 
     def apply(self, inpseq, outseq):
-        enco = self.rnn(inpseq)
+        enco = self.rnn(inpseq)         # (batsize, inpseqlen, inpencdim)
+        self.dec.set_init_states(enco[:, -1, :])    # set init state of decoder to last encoding
         deco = self.dec(enco, outseq)
         return deco
 
@@ -158,7 +187,6 @@ class FBMemMatch(Block):
         #scores = T.nnet.sigmoid(T.dot(scores, self.memblock.innervar.T))      # (batsize, memsize)
         #return Softmax()(scores)                    #
         return Softmax()(self.mema(inpenc))
-
 
 
 class FBSeqCompositeEncMemDec(Block):

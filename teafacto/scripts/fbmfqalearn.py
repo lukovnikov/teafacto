@@ -1,4 +1,4 @@
-from teafacto.blocks.kgraph.fbencdec import FBSeqCompositeEncDec, FBSeqCompositeEncMemDec, FBMemMatch
+from teafacto.blocks.kgraph.fbencdec import FBSeqCompositeEncDec, FBSeqCompositeEncMemDec, FBMemMatch, FBSeqCompEncMemDecAtt
 from teafacto.blocks.memory import LinearGateMemAddr, GeneralDotMemAddr
 from teafacto.blocks.lang.wordvec import Glove
 from teafacto.feed.freebasefeeders import getentdict, getglovedict, FreebaseSeqFeedMaker, FreebaseSeqFeedMakerEntidxs
@@ -86,24 +86,37 @@ def run(
     outdata = shiftdata(golddata)
     tt.tock("made data").tick()
     entids, lexdata = load_lex_data(fblexpath, datanuments, worddic)
-    if model == "mem":
+    if "mem" in model:
         print lexdata.shape
         print datanuments
         #embed()
-
-    # define model
-        m = FBSeqCompositeEncMemDec(
-            wordembdim=wordembdim,
-            wordencdim=wordencdim,
-            entembdim=entembdim,
-            innerdim=innerdim,
-            outdim=datanuments,
-            numchars=128,               # ASCII
-            numwords=vocnumwords,
-            memdata=[entids, lexdata],
-            attdim=attdim,
-            memaddr=LinearGateMemAddr,
-        )
+        if "att" in model:
+            print "model with attention AND memory"
+            m = FBSeqCompEncMemDecAtt(
+                wordembdim=wordembdim,
+                wordencdim=wordencdim,
+                entembdim=entembdim,
+                innerdim=innerdim,
+                outdim=datanuments,
+                numchars=128,               # ASCII
+                numwords=vocnumwords,
+                memdata=[entids, lexdata],
+                attdim=attdim,
+                memaddr=GeneralDotMemAddr,
+            )
+        else:
+            m = FBSeqCompositeEncMemDec(
+                wordembdim=wordembdim,
+                wordencdim=wordencdim,
+                entembdim=entembdim,
+                innerdim=innerdim,
+                outdim=datanuments,
+                numchars=128,               # ASCII
+                numwords=vocnumwords,
+                memdata=[entids, lexdata],
+                attdim=attdim,
+                memaddr=LinearGateMemAddr,
+            )
     elif model=="lex":          # for testing purposes
         print lexdata.shape
         print datanuments
@@ -153,7 +166,8 @@ def run(
         tt.tock("predicted sample")
         tt.tick("training")
         m.train([lexdata[1:151]], entids[1:151]).adagrad(lr=lr).cross_entropy().grad_total_norm(0.5)\
-            .split_validate(5, random=True).validinter(validinter).accuracy().train(numbats, epochs)
+            .split_validate(5, random=True).validinter(validinter).accuracy()\
+            .train(numbats, epochs)
     else:
         #embed()
         tt.tick("predicting")
@@ -165,7 +179,7 @@ def run(
 
         tt.tick("training")
         m.train([traindata, outdata], golddata).adagrad(lr=lr).grad_total_norm(gradnorm).seq_cross_entropy()\
-            .autovalidate(splits=validsplit, random=True).validinter(validinter).seq_accuracy()\
+            .split_validate(splits=5, random=False).validinter(validinter).seq_accuracy().seq_cross_entropy()\
             .train(numbats, epochs)
         #embed()
 
@@ -176,4 +190,4 @@ def run(
 
 
 if __name__ == "__main__":
-    argprun(run, model="nomem")
+    argprun(run, model="mem att")

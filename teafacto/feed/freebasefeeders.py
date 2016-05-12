@@ -1,12 +1,67 @@
 import numpy as np
+from collections import OrderedDict
 
 from teafacto.feed.langfeeds import WordSeqFeed
-from teafacto.feed.langtransform import WordToWordCharTransform
+from teafacto.feed.langtransform import WordToWordCharTransform, WordToWordId
 from teafacto.util import ticktock
 
 
 def iden(x):
     return x
+
+class FBSeqFeedsMaker(object):  #simple feed maker transforms words to idxs
+    def __init__(self, datapath, entdic, worddic, unkentid=0, numwords=10):
+        self.path = datapath
+        self.trainingdata = []
+        self.golddata = []
+        self.numwords = numwords
+        self.unkentid = unkentid
+        self.worddic = worddic
+        self.load(entdic)
+
+    def load(self, entdic):
+        self.trainingdata = []
+        self.golddata = []
+        tt = ticktock(self.__class__.__name__)
+        tt.tick("loading kgraph")
+        with open(self.path) as f:
+            c = 0
+            for line in f:
+                ns = line[:-1].split("\t")
+                if len(ns) is not 2:
+                    print line, c
+                    continue
+                sf, fb = ns
+                self.trainingdata.append(self._process_sf(sf, self.numwords))
+                entids = self._process_ent(fb, entdic)
+                self.golddata.append(entids)
+                if c % 1e6 == 0:
+                    tt.tock("%.0fM" % (c/1e6)).tick()
+                c += 1
+        self.golddata = np.asarray(self.golddata, dtype="int32")
+        self.trainingdata = np.array(self.trainingdata)
+
+    @property
+    def trainfeed(self):
+        t = WordToWordId(numwords=self.numwords, worddic=self.worddic)
+        return WordSeqFeed(self.trainingdata, t)
+
+    @property
+    def goldfeed(self):
+        return self.golddata    # already np array of int32
+
+    @staticmethod
+    def _process_sf(sf, numwords):
+        words = sf.lower().split(" ")
+        words = words[:min(len(words), numwords)]
+        words.extend([None]*max(0, (numwords - len(words))))
+        return words
+
+    def _process_ent(self, fb, entdic):
+        ret = []
+        for e in fb.split(" "):
+            ret.append(int(e))
+        return ret
 
 
 class FreebaseEntFeedsMaker(object):
@@ -88,6 +143,7 @@ class FreebaseSeqFeedMakerEntidxs(FreebaseSeqFeedMaker):
         for e in fb.split(" "):
             ret.append(int(e))
         return ret
+
 
 def getglovedict(path, offset=2, top=None):
     gd = {}

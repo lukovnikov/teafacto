@@ -1,5 +1,5 @@
 from unittest import TestCase
-from teafacto.blocks.kgraph.fbencdec import FBBasicCompositeEncoder, FBSeqCompositeEncDec, FBSeqCompositeEncMemDec, FBSeqCompEncMemDecAtt
+from teafacto.blocks.kgraph.fbencdec import FBBasicCompositeEncoder, FBSeqCompositeEncDec, FBSeqCompositeEncMemDec, FBSeqCompEncMemDecAtt, FBSeqCompEncDecAtt, FBSeqSimpEncDecAtt
 from teafacto.blocks.memory import LinearGateMemAddr, GeneralDotMemAddr
 import numpy as np
 
@@ -144,6 +144,83 @@ class TestFBSeqCompositeEncMemDecLinearGate(TestCase):
 
     def _get_sob_shape(self, entencdim, entembdim, innerdim, attdim):
         return (entencdim + entembdim + innerdim, attdim)
+
+
+class TestFBSeqSimpEncDecAtt(TestCase):
+    def test_output_shape(self):
+        batsize = 121
+        wordembdim = 50
+        wordencdim = 39
+        innerdim = 47
+        datanuments = 200
+        vocnumwords = 97
+        wseqlen = 3
+        entembdim = 79
+        eseqlen = 2
+        attdim = 117
+
+        m = self.makemodel(
+            wordembdim=wordembdim,
+            wordencdim=wordencdim,
+            entembdim=entembdim,
+            innerdim=innerdim,
+            outdim=datanuments,
+            numwords=vocnumwords,
+            attdim=attdim,
+        )
+
+        worddata = np.random.randint(0, vocnumwords, (batsize, wseqlen))
+        outdata = np.random.randint(0, datanuments, (batsize, eseqlen))
+
+        pred = m.predict(worddata, outdata)
+        print pred.shape
+        self.assertEqual(pred.shape, (batsize, eseqlen, datanuments))
+
+    def makemodel(self, *args, **kwargs):
+        kwargs["memaddr"] = LinearGateMemAddr
+        return FBSeqSimpEncDecAtt(*args, **kwargs)
+
+
+class TestFBSeqCompEncDecAtt(TestCase):
+    def test_output_shape(self):
+        batsize = 121
+        wordembdim = 50
+        wordencdim = 39
+        innerdim = 47
+        datanuments = 200
+        vocnumwords = 97
+        numchars = 11
+        wseqlen = 3
+        ewseqlen = 2
+        cseqlen = 5
+        entembdim = 79
+        eseqlen = 2
+        attdim = 117
+
+        m = self.makemodel(
+            wordembdim=wordembdim,
+            wordencdim=wordencdim,
+            entembdim=entembdim,
+            innerdim=innerdim,
+            outdim=datanuments,
+            numchars=numchars,
+            numwords=vocnumwords,
+            glovepath="../../../data/glove/miniglove.%dd.txt",
+            attdim=attdim,
+        )
+
+        worddata = np.random.randint(0, vocnumwords, (batsize, wseqlen, 1))
+        chardata = np.random.randint(0, numchars, (batsize, wseqlen, cseqlen))
+        data = np.concatenate([worddata, chardata], axis=2)
+        outdata = np.random.randint(0, datanuments, (batsize, eseqlen))
+
+        pred = m.predict(data, outdata)
+        print pred.shape
+        self.assertEqual(pred.shape, (batsize, eseqlen, datanuments))
+
+    def makemodel(self, *args, **kwargs):
+        kwargs["memaddr"] = LinearGateMemAddr
+        return FBSeqCompEncDecAtt(*args, **kwargs)
 
 
 class TestFBSeqCompositeEncMemDecGeneralDotMemAddr(TestFBSeqCompositeEncMemDecLinearGate):

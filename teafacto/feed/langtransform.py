@@ -1,6 +1,32 @@
 import numpy as np
+from collections import OrderedDict
 
 from teafacto.core.datafeed import FeedTransform
+
+
+class WordToWordId(FeedTransform):
+    def __init__(self, worddic, numwords=10, **kw):
+        super(WordToWordId, self).__init__(**kw)
+        self.worddic = worddic
+        self.numwords = numwords
+
+    def getshapefor(self, datashape):
+        return (datashape[0], self.numwords)
+
+    def transform(self, x):     # x is batch of lists of words
+        ret = np.zeros((x.shape[0], self.numwords), dtype="int32")
+        i = 0
+        while i < x.shape[0]:
+            j = 0
+            while j < x.shape[1]:
+                word = x[i, j]
+                if word is None:
+                    j = x.shape[1]  #skip
+                else:
+                    ret[i, j] = self.worddic[word.lower()]
+                j += 1
+            i += 1
+        return ret
 
 
 class WordToWordCharTransform(FeedTransform):
@@ -45,6 +71,7 @@ def transinner(args):
         retword = [0]*(numchars)         # missing word ==> all zeros
         skip = True
     else:
+        word = word.lower()
         if word in worddic:
             retword = [worddic[word]]      # get word index
         else:

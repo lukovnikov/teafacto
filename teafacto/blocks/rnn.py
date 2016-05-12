@@ -97,7 +97,7 @@ class RecurrentStack(Block):       # TODO: setting init states of contained recu
 
 
 
-class ReccableBlockParameterized(object):
+class ReccableBlockParameterized(object):       # superclass for classes that take a reccable block as init param
     def __init__(self, *layers, **kw):
         self._reverse = False
         if "reverse" in kw:
@@ -153,8 +153,6 @@ class BiRNU(RecurrentBlock): # TODO: optimizer can't process this
         # concatenate: fwdout, rewout: (batsize, seqlen, feats) ==> (batsize, seqlen, feats_fwd+feats_rew)
         out = T.concatenate([fwdout, rewout], axis=2)
         return out
-
-
 
 
 class SeqEncoder(ReccableBlockParameterized, AttentionConsumer, Block):
@@ -246,45 +244,71 @@ class SeqDecoder(ReccableBlockParameterized, Block):
     ! first input is TERMINUS ==> suggest to set TERMINUS(0) embedding to all zeroes (in s2vf)
     ! first layer must be an embedder or IdxToOneHot, otherwise, an IdxToOneHot is created automatically based on given dim
     '''
-    def __init__(self, embedder, contextrecurrentblock, softmaxoutblock=None, **kw): # limit says at most how many is produced
-        super(SeqDecoder, self).__init__(contextrecurrentblock, **kw)
+    def __init__(self, layers, softmaxoutblock=None, innerdim=None, attention=None, inconcat=False, outconcat=False, **kw): # limit says at most how many is produced
+        self.embedder = layers[0]
+        self.outdim = innerdim
+        self.inconcat = inconcat
+        self.outconcat = outconcat
+        self.attention = attention
+        super(SeqDecoder, self).__init__(*layers[1:], **kw)     # puts layers into a ReccableBlock
         self._mask = False
         self._attention = None
-        self.embedder = embedder
-        assert(isinstance(contextrecurrentblock, ContextReccableBlock))
-        if softmaxoutblock is None:
+        assert(isinstance(self.block, ReccableBlock))
+        if softmaxoutblock is None: # default softmax out block
             sm = Softmax()
-            self.lin = MatDot(indim=contextrecurrentblock.outdim, dim=self.embedder.indim)
+            self.lin = MatDot(indim=self.outdim, dim=self.embedder.indim)
             self.softmaxoutblock = asblock(lambda x: sm(self.lin(x)))
         else:
             self.softmaxoutblock = softmaxoutblock
+        self.init_states = None
 
-    def apply(self, context, seq, **kw):    # context: (batsize, enc.innerdim), seq: idxs-(batsize, seqlen)
+    def set_init_states(self, *states):
+        self.init_states = states
+
+    def apply(self, context, seq, context_0=None, **kw):    # context: (batsize, enc.innerdim), seq: idxs-(batsize, seqlen)
         sequences = [seq.dimswap(1, 0)]     # sequences: (seqlen, batsize)
-        init_info = self.block.get_init_info(context)   # here is where the recurrent payload block decides how to use provided context (as init states or otherwise)
-        '''if init_states == None:
-            init_info = self.block.get_init_info(seq.shape[0])      # initial rec states initted to zeros
+        if context_0 is None:
+            if context.d.ndim == 2:     # static context
+                context_0 = context
+            elif context.d.ndim == 3:   # (batsize, inseqlen, inencdim)
+                context_0 = context[:, -1, :]       # take the last context as initial input
+            else:
+                print "sum ting wong in SeqDecoder apply()"
+        if self.init_states is not None:
+            init_info = self.block.get_init_info(self.init_states)  # sets init states to provided ones
         else:
-            init_info = init_states                                 # initial rec states initted to given values'''
+            init_info = self.block.get_init_info(seq.shape[0])           # initializes zero init states
         outputs, _ = T.scan(fn=self.recwrap,
                             sequences=sequences,
-                            outputs_info=[None, context, 0]+init_info)
-        return outputs[0].dimswap(1, 0) # returns probabilities of symbols --> (batsize, seqlen, vocabsize)
+                            outputs_info=[None, context, context_0, 0] + init_info)
+        return outputs[0].dimswap(1, 0)     # returns probabilities of symbols --> (batsize, seqlen, vocabsize)
 
-    def recwrap(self, x_t, context, t, *states_tm1):    # x_t: (batsize), context: (batsize, enc.innerdim)
-        i_t = self.embedder(x_t)                    # i_t: (batsize, embdim)
-        rnuret = self.block.rec(i_t, context, *states_tm1)     # list of matrices (batsize, **somedims**)
+    def recwrap(self, x_t, ctx, ctx_tm1, t, *states_tm1):  # x_t: (batsize), context: (batsize, enc.innerdim)
+        i_t = self.embedder(x_t)                             # i_t: (batsize, embdim)
+        j_t = self._get_j_t(i_t, ctx_tm1)
+        rnuret = self.block.rec(j_t, *states_tm1)     # list of matrices (batsize, **somedims**)
         ret = rnuret
         t = t + 1
         h_t = ret[0]
         states_t = ret[1:]
-        y_t = self.softmaxoutblock(h_t)
-        return [y_t, context, t] + states_t #, {}, T.until( (i > 1) * T.eq(mask.norm(1), 0) )
+        ctx_t = self._gen_context(ctx, h_t)
+        g_t = self._get_g_t(h_t, ctx_t)
+        y_t = self.softmaxoutblock(g_t)
+        return [y_t, ctx, ctx_t, t] + states_t #, {}, T.until( (i > 1) * T.eq(mask.norm(1), 0) )
+
+    def _get_j_t(self, i_t, ctx_tm1):
+        return T.concatenate([i_t, ctx_tm1], axis=1) if self.inconcat else i_t
+
+    def _get_g_t(self, h_t, ctx_t):
+        return T.concatenate([h_t, ctx_t], axis=1) if self.outconcat else h_t
+
+    def _gen_context(self, multicontext, criterion):
+        return self.attention(criterion, multicontext) if self.attention is not None else multicontext
 
 
 #-----------------------------------------------------------------------------------------------------------------------
 
-class ContextReccableBlock(ReccableBlock): # responsible for using context and sequence (embedded already)
+class ContextReccableBlock(ReccableBlock): # reccable block that takes a context in rec()
     def __init__(self, outdim=50, **kw):
         super(ContextReccableBlock, self).__init__(**kw)
         self.outdim = outdim
@@ -306,12 +330,15 @@ class AttRecParamCRex(RecParamCRex):    # if you use attention, provide it as fi
             layers = layers[1:]
         super(RecParamCRex, self).__init__(*layers, **kw)
 
-    def _gen_context(self, multicontext, *states):
-        if self.attention is not None:
-            criterion = T.concatenate(self.block.get_states_from_outputs(states), axis=1)   # states are (batsize, statedim)
+    def _gen_context(self, multicontext, criterion):
+        if self.attention is not None:  # criterion should be the top-level output
+            #criterion = T.concatenate(self.block.get_states_from_outputs(states), axis=1)   # states are (batsize, statedim)
             return self.attention(criterion, multicontext)   # ==> criterion is (batsize, sum_of_statedim), context is (batsize, ...)
         else:
             return multicontext
+
+    def do_get_init_info(self, initstates):
+        return self.block.do_get_init_info(initstates)
 
 
 class InConcatCRex(AttRecParamCRex):
@@ -321,35 +348,18 @@ class InConcatCRex(AttRecParamCRex):
         rnuret = self.block.rec(i_t, *states_tm1)
         return rnuret
 
-    def do_get_init_info(self, initstates):
-        return self.block.do_get_init_info(initstates.shape[0])
-
 
 class OutConcatCRex(AttRecParamCRex):
     def rec(self, x_t, context, *states_tm1):   # context: (batsize, context_dim), x_t: (batsize, embdim)
         rnuret = self.block.rec(x_t, *states_tm1)
         h_t = rnuret[0]                         # h_t: (batsize, rnu.innerdim)
         states_t = rnuret[1:]
-        context_t = self._gen_context(context, *states_t)
+        context_t = self._gen_context(context, h_t)
         o_t = T.concatenate([h_t, context_t], axis=1) # o_t: (batsize, context_dim + block.outdim)
         return [o_t] + states_t
 
-    def do_get_init_info(self, initstates):
-        return self.block.do_get_init_info(initstates.shape[0])
 
-
-class StateSetCRex(RecParamCRex):
-    def rec(self, x_t, context, *states_tm1):
-        rnuret = self.block.rec(x_t, *states_tm1)
-        return rnuret
-
-    def do_get_init_info(self, initstates):
-        return self.block.do_get_init_info([initstates])
-
-
-class StateSetOutConcatCRex():
-    pass # TODO
-
+# ----------------------------------------------------------------------------------------------------------------------
 
 class SeqEncoderDecoder(Block):
     def __init__(self, inpemb, encrec, outemb, decrec, **kw):
@@ -362,7 +372,6 @@ class SeqEncoderDecoder(Block):
         deco = self.dec(enco, outseq)   # (batsize, seqlen, outvocsize)
         return deco
 
-# ----------------------------------------------------------------------------------------------------------------------
 
 # TODO: travis error messages about theano optimization and shapes only involve things below
 class SimpleEncoderDecoder(SeqEncoderDecoder):  # gets two sequences of indexes for training
