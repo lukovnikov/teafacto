@@ -80,7 +80,7 @@ def run(p="../../../data/atis/atis.pkl", wordembdim=70, lablembdim=70, innerdim=
     m = SimpleSeqTransDec(indim=numwords, inpembdim=wordembdim, outembdim=lablembdim, innerdim=innerdim, outdim=numlabels)
 
     # training
-    m.train([traindata, shiftdata(traingold), trainmask], traingold).adagrad(lr=lr).grad_total_norm(5.0).seq_cross_entropy().l2(wreg)\
+    m = m.train([traindata, shiftdata(traingold), trainmask], traingold).adagrad(lr=lr).grad_total_norm(5.0).seq_cross_entropy().l2(wreg)\
         .cross_validate(splits=5, random=True).seq_cross_entropy().seq_accuracy().validinter(validinter).takebest()\
         .train(numbats, epochs)
 

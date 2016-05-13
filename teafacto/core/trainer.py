@@ -298,11 +298,18 @@ class ModelTrainer(object):
         assert(self.traindata is not None)
         assert(self.traingold is not None)
 
-    def train(self, numbats, epochs):
+    def train(self, numbats, epochs, returnerrors=False):
         self.traincheck()
         self.numbats = numbats
         self.maxiter = epochs
-        return (self.model, ) + self.trainstrategy()
+        errors = self.trainstrategy()       # trains according to chosen training strategy, returns errors
+        if self.besttaker is not None:      # unfreezes best model if best choosing was chosen
+            self.model = self.model.__class__.unfreeze(self.bestmodel[0])
+            self.tt.tock("unfroze best model (%.3f) - " % self.bestmodel[1]).tick()
+        ret = self.model
+        if returnerrors:
+            ret = (ret,) + errors
+        return ret
 
     def buildtrainfun(self, model):
         self.tt.tick("compiling training function")
@@ -457,9 +464,6 @@ class ModelTrainer(object):
             if self._autosave:
                 self.save(self.model)
         self.tt.tock("trained").tick()
-        if self.besttaker is not None:
-            self.model = self.model.__class__.unfreeze(self.bestmodel[0])
-            self.tt.tock("unfroze best model (%.3f) - " % self.bestmodel[1]).tick()
         return err, verr
 
     def getbatchloop(self, trainf, datafeeder, verbose=True):
