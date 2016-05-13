@@ -84,6 +84,8 @@ def run(p="../../../data/atis/atis.pkl", wordembdim=70, lablembdim=70, innerdim=
         .cross_validate(splits=5, random=True).seq_cross_entropy().seq_accuracy().validinter(validinter).takebest()\
         .train(numbats, epochs)
 
+    # TODO: something wrong - maybe in unfreezing
+
     # predict after training
     s = SeqTransDecSearch(m)
     testpred = s.decode(testdata)
