@@ -91,7 +91,7 @@ def getslots(x, revdic):
     return slots
 
 
-def run(p="../../data/atis/atis.pkl", wordembdim=100, innerdim=200, lr=0.05, numbats=100, epochs=20, validinter=1, wreg=0.0001, depth=2):
+def run(p="../../../data/atis/atis.pkl", wordembdim=100, innerdim=200, lr=0.05, numbats=100, epochs=20, validinter=1, wreg=0.0003, depth=1):
     train, test, dics = pickle.load(open(p))
     word2idx = dics["words2idx"]
     table2idx = dics["tables2idx"]

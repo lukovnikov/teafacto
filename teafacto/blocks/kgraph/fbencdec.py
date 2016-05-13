@@ -84,7 +84,7 @@ class FBSeqSimpEncDecAtt(Block):
         self.wordencoder = WordEmbed(indim=numwords, outdim=self.wordembdim, trainfrac=1.0)
         self.rnn = RecurrentStack(self.wordencoder, GRU(dim=self.wordembdim, innerdim=self.encinnerdim))
 
-        attgen = LinearGateAttentionGenerator(indim=self.encinnerdim + self.decinnerdim, innerdim=attdim)
+        attgen = LinearGateAttentionGenerator(indim=self.encinnerdim + self.decinnerdim, attdim=attdim)
         attcon = WeightedSumAttCon()
         self.dec = SeqDecoder(
             [VectorEmbed(indim=self.outdim, dim=self.entembdim), GRU(dim=self.entembdim, innerdim=self.decinnerdim)],

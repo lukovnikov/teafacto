@@ -57,6 +57,9 @@ class ModelTrainer(object):
         self.validation = None
         self.validators = []
         self.tt = TT("FluentTrainer")
+        # taking best
+        self.besttaker = None
+        self.bestmodel = None
 
 
     ############################################################################## settings ############################
@@ -278,6 +281,14 @@ class ModelTrainer(object):
         self.validsetmode = True
         return self
 
+    ########################## SELECTING THE BEST ######################
+    def takebest(self, f=None):
+        if f is None:
+            f = lambda x: x[1]   # pick the model with the best first validation score
+        self.besttaker = f
+        self.bestmodel = (None, float("inf"))
+        return self
+
     ############################################################# execution ############################################
 
     ########################## ACTUAL TRAINING #########################
@@ -291,7 +302,7 @@ class ModelTrainer(object):
         self.traincheck()
         self.numbats = numbats
         self.maxiter = epochs
-        return self.trainstrategy(self.model)
+        return (self.model, ) + self.trainstrategy()
 
     def buildtrainfun(self, model):
         self.tt.tick("compiling training function")
@@ -347,15 +358,15 @@ class ModelTrainer(object):
         return ret
 
     ################### TRAINING STRATEGIES ############
-    def _train_full(self, model): # train on all data, no validation
-        trainf = self.buildtrainfun(model)
+    def _train_full(self): # train on all data, no validation
+        trainf = self.buildtrainfun(self.model)
         err, _ = self.trainloop(
                 trainf=self.getbatchloop(trainf, DataFeeder(*(self.traindata + [self.traingold])).numbats(self.numbats)))
         return err, None, None, None
 
-    def _train_validdata(self, model):
-        validf = self.buildvalidfun(model)
-        trainf = self.buildtrainfun(model)
+    def _train_validdata(self):
+        validf = self.buildvalidfun(self.model)
+        trainf = self.buildtrainfun(self.model)
         df = DataFeeder(*(self.traindata + [self.traingold]))
         vdf = DataFeeder(*(self.validdata + [self.validgold]))
         #dfvalid = df.osplit(split=self.validsplits, random=self.validrandom)
@@ -364,9 +375,9 @@ class ModelTrainer(object):
                 validf=self.getbatchloop(validf, vdf))
         return err, verr, None, None
 
-    def _train_split(self, model):
-        trainf = self.buildtrainfun(model)
-        validf = self.buildvalidfun(model)
+    def _train_split(self):
+        trainf = self.buildtrainfun(self.model)
+        validf = self.buildvalidfun(self.model)
         df = DataFeeder(*(self.traindata + [self.traingold]))
         dftrain, dfvalid = df.split(self.validsplits, self.validrandom)
         err, verr = self.trainloop(
@@ -374,15 +385,15 @@ class ModelTrainer(object):
                 validf=self.getbatchloop(validf, dfvalid))
         return err, verr, None, None
 
-    def _train_cross_valid(self, model):
+    def _train_cross_valid(self):
         df = DataFeeder(*(self.traindata + [self.traingold]))
         splitter = SplitIdxIterator(df.size, split=self.validsplits, random=self.validrandom, folds=self.validsplits)
         err = []
         verr = []
         c = 0
         for splitidxs in splitter:
-            trainf = self.buildtrainfun(model)
-            validf = self.buildvalidfun(model)
+            trainf = self.buildtrainfun(self.model)
+            validf = self.buildvalidfun(self.model)
             tf, vf = df.isplit(splitidxs)
             serr, sverr = self.trainloop(
                 trainf=self.getbatchloop(trainf, tf.numbats(self.numbats)),
@@ -397,8 +408,9 @@ class ModelTrainer(object):
         self.tt.tock("done")
         return avgerr, avgverr, err, verr
 
-    def resetmodel(self, model):
-        params = model.allparams
+    @staticmethod
+    def resetmodel(model):
+        params = model.output.allparams
         for param in params:
             param.reset()
 
@@ -412,6 +424,7 @@ class ModelTrainer(object):
         evalinter = self._validinter
         evalcount = evalinter
         tt = TT("iter")
+        prevverre = [float("inf")] * len(self.validators)
         while not stop:
             tt.tick("%d/%d" % (self.currentiter, int(self.maxiter)))
             erre = trainf()
@@ -420,8 +433,10 @@ class ModelTrainer(object):
             self.currentiter += 1
             err.append(erre)
             print "done training"
+            verre = prevverre
             if validf is not None and self.currentiter % evalinter == 0: # validate and print
                 verre = validf()
+                prevverre = verre
                 verr.append(verre)
                 tt.msg("training error: %s \t validation error: %s"
                        % (erre[0],
@@ -429,6 +444,12 @@ class ModelTrainer(object):
                        prefix="-")
             else:
                 tt.msg("training error: %s" % " - ".join(map(lambda x: "%.3f" % x, erre)), prefix="-")
+            # retaining the best
+            if self.besttaker is not None:
+                modelscore = self.besttaker(([erre]+verre+[self.currentiter]))
+                if modelscore < self.bestmodel[1]:
+                    #tt.tock("freezing best with score %.3f (prev: %.3f)" % (modelscore, self.bestmodel[1]), prefix="-").tick()
+                    self.bestmodel = (self.model.freeze(), modelscore)
             tt.tock("done", prefix="-")
             self._update_lr(self.currentiter, self.maxiter, err, verr)
             evalcount += 1
@@ -436,6 +457,9 @@ class ModelTrainer(object):
             if self._autosave:
                 self.save(self.model)
         self.tt.tock("trained").tick()
+        if self.besttaker is not None:
+            self.model = self.model.__class__.unfreeze(self.bestmodel[0])
+            self.tt.tock("unfroze best model (%.3f) - " % self.bestmodel[1]).tick()
         return err, verr
 
     def getbatchloop(self, trainf, datafeeder, verbose=True):

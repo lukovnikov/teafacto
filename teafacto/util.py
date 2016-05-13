@@ -205,6 +205,7 @@ class Saveable(object):
             pkl.dump(self, f)
         return filepath
 
+    # TODO: WILL FREEZE/UNFREEZE WORK WITH GPU?
     def freeze(self):
         return pkl.dumps(self)
 
