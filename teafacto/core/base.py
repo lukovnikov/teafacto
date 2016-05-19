@@ -31,7 +31,7 @@ class TWrapper(type):
 
 def wrapf(attr, root=None):
     if isfunction(attr): # real function
-        innerwrap = lambda *args, **kwargs: fwrap(attr, root, *args, **kwargs)
+        innerwrap = prefwrap(attr, root)    #lambda *args, **kwargs: fwrap(attr, root, *args, **kwargs)
     elif isnumber(attr) or isstring(attr): # or other literals/non-syms/modules/properties/...
         return attr
     elif isinstance(attr, ModuleType):
@@ -47,9 +47,15 @@ def vwrap(attr, root):
     return Var(attr, parent=root)
 
 
+def prefwrap(attr, root):
+    def innerprefwrap(*args, **kwargs):
+        return fwrap(attr, root, *args, **kwargs)
+    return innerprefwrap
+
+
 def fwrap(attr, root, *args, **kwargs):
-    params = [x for x in args if isinstance(x, Parameter)]
-    kwparams = [x for x in kwargs.values() if isinstance(x, Parameter)]
+    params = recurfilter(lambda x: isinstance(x, Parameter), args)
+    kwparams = recurfilter(lambda x: isinstance(x, Parameter), kwargs)
     wrapper = wrap(lambda *args, **kwargs: attr(*args, **kwargs), *(params+kwparams))
     ret = wrapper(*args, **kwargs)
     if root is not None:
@@ -77,7 +83,7 @@ class TensorWrapper(type):
     """Wrapper class that provides proxy access to an instance of some
        internal instance."""
 
-    __ignore__ = "class mro new init setattr getattr getattribute getstate setstate"
+    __ignore__ = "class mro new init setattr getattr getattribute getstate setstate dict"
 
     def __init__(cls, name, bases, dct):
 
@@ -88,7 +94,7 @@ class TensorWrapper(type):
             return proxy
 
         ignore = set("__%s__" % n for n in cls.__ignore__.split())
-        for name in dir(_tensor_py_operators):
+        for name in _tensor_py_operators.__dict__:      #dir(_tensor_py_operators):
             if name.startswith("__"):
                 if name not in ignore and name not in dct:
                     setattr(cls, name, property(make_proxy(name)))
@@ -101,6 +107,10 @@ class TensorWrapped(object):
     def __getattr__(self, item):
         if item in ["__%s__" % a for a in self.__metaclass__.__ignore__.split(" ")]:
             raise AttributeError()
+        if item == "allparams":
+            print self._name if hasattr(self, "_name") else "- - nameless - -"
+            print self.dtype, type(self), dir(self)
+
         ret = getattr(self.d, item)
 
         return wrapf(ret, root=self)
@@ -298,8 +308,11 @@ class Elem(object):    # carries output shape information
         acc = set()
         if hasattr(self, "params"):
             acc.update(set(self.params))
+
         for parent in self.getparents():
-            acc.update(parent.allparams)
+            #print "allparams" in parent.__dict__, "allparams" in dir(parent), str(parent)
+            parentparams = parent.allparams
+            acc.update(parentparams)
         return acc
 
     def reset(self):
@@ -310,8 +323,9 @@ class Elem(object):    # carries output shape information
 
 ### WORRY ABOUT THIS
 class Var(Elem, TensorWrapped): # result of applying a block on theano variables
-    def __init__(self, value, parent=None, **kw):
-        super(Var, self).__init__(name=value.name, **kw)
+    def __init__(self, value, parent=None, name=None, **kw):
+        nam = name if name is not None else value.name
+        super(Var, self).__init__(name=nam, **kw)
         assert(isinstance(value, theano.Variable))
         self.value = value
         if parent is not None:
@@ -500,13 +514,13 @@ class scan(Block):
     def fnwrap(self, fn): # enables writing fn in blocks level
         scanblock = self
         def fwrapper(*args): # theano vars
-            trueargs = [Var(x) for x in args]
+            trueargs = [Var(x, name="innerrecwrapvarwrap") for x in args]
             res = fn(*trueargs)
             ret = recurmap(lambda x: x.d if hasattr(x, "d") else x, res)
             if issequence(ret):
                 ret = tuple(ret)
-            newparents = recurfilter(lambda x: isinstance(x, (Var, Val)), res) + \
-                         recurfilter(lambda x: isinstance(x, until), res)
+            newparents = recurfilter(lambda x: isinstance(x, (Var, Val, until)), res)
+
             for npa in newparents:
                 scanblock.add_parent(npa)
             #self.add_params(reduce(lambda x, y: set(x).union(set(y)),

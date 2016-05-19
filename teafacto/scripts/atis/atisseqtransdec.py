@@ -1,6 +1,8 @@
 import pickle
 
 import numpy as np
+from pympler.tracker import SummaryTracker
+from pympler.asizeof import asizeof
 
 from teafacto.blocks.rnn import SimpleSeqTransducer, SimpleSeqTransDec
 from teafacto.util import argprun
@@ -45,8 +47,8 @@ class SeqTransDecSearch(Searcher):
         return ret
 
 
-
 def run(p="../../../data/atis/atis.pkl", wordembdim=70, lablembdim=70, innerdim=300, lr=0.05, numbats=100, epochs=20, validinter=1, wreg=0.0003, depth=1):
+    tracker = SummaryTracker()
     train, test, dics = pickle.load(open(p))
     word2idx = dics["words2idx"]
     table2idx = dics["tables2idx"]
@@ -75,6 +77,8 @@ def run(p="../../../data/atis/atis.pkl", wordembdim=70, lablembdim=70, innerdim=
 
     res = atiseval(testgold-1, testgold-1, label2idxrev); print res#; exit()
 
+    print asizeof(traindata)
+
     # define model
     innerdim = [innerdim] * depth
     m = SimpleSeqTransDec(indim=numwords, inpembdim=wordembdim, outembdim=lablembdim, innerdim=innerdim, outdim=numlabels)
@@ -88,12 +92,15 @@ def run(p="../../../data/atis/atis.pkl", wordembdim=70, lablembdim=70, innerdim=
     s = SeqTransDecSearch(m)
     testpred = s.decode(testdata)
     testpred = testpred * testmask
+
+    evalres = atiseval(testpred-1, testgold-1, label2idxrev); print evalres
+
     #testpredprobs = m.predict(testdata, shiftdata(testgold), testmask)
     #testpred = np.argmax(testpredprobs, axis=2)-1
     #testpred = testpred * testmask
     #print np.vectorize(lambda x: label2idxrev[x] if x > -1 else " ")(testpred)
 
-    evalres = atiseval(testpred-1, testgold-1, label2idxrev); print evalres
+
 
 
 if __name__ == "__main__":

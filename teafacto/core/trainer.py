@@ -1,4 +1,5 @@
-import sys
+import sys, gc
+from pympler import asizeof
 from datetime import datetime as dt
 from IPython import embed
 
@@ -398,9 +399,9 @@ class ModelTrainer(object):
         err = []
         verr = []
         c = 0
+        trainf = self.buildtrainfun(self.model)
+        validf = self.buildvalidfun(self.model)
         for splitidxs in splitter:
-            trainf = self.buildtrainfun(self.model)
-            validf = self.buildvalidfun(self.model)
             tf, vf = df.isplit(splitidxs)
             serr, sverr = self.trainloop(
                 trainf=self.getbatchloop(trainf, tf.numbats(self.numbats)),

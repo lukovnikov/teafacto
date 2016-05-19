@@ -93,4 +93,4 @@ class VectorEmbed(Embedder):
         assert(self.W.d.get_value().shape == (self.indim, self.dim))
 
     def apply(self, inptensor):
-        return self.W[inptensor, :]
+        return self.W[inptensor]

@@ -62,8 +62,8 @@ class ReccableStack(ReccableBlock):
                 nextinp = block(nextinp)
         return [nextinp] + nextstates
 
-    def apply(self, seq, initstates=None):
-        seq = seq.dimswap(1, 0)
+    def apply(self, se, initstates=None):
+        seq = se.dimswap(1, 0)
         initstatearg = initstates if initstates is not None else seq.shape[1]
         outputs, _ = T.scan(fn=self.rec,
                             sequences=seq,
@@ -96,11 +96,10 @@ class RecurrentStack(Block):       # TODO: setting init states of contained recu
 
     @classmethod
     def recurnonreclayer(cls, x, layer):
-        x = x.dimswap(1, 0)
-        x, _ = T.scan(fn=cls.dummyrec(layer),
-                        sequences=x,
+        y, _ = T.scan(fn=cls.dummyrec(layer),
+                        sequences=x.dimswap(1, 0),
                         outputs_info=None)
-        return x.dimswap(1, 0)
+        return y.dimswap(1, 0)
 
 
 
@@ -181,12 +180,12 @@ class SeqEncoder(ReccableBlockParameterized, AttentionConsumer, Block):
     def apply(self, seq, weights=None): # seq: (batsize, seqlen, dim), weights: (batsize, seqlen)
         inp = seq.dimswap(1, 0)         # inp: (seqlen, batsize, dim)
         if weights is None:
-            weights = T.ones((inp.shape[0], inp.shape[1])) # (seqlen, batsize)
+            w = T.ones((inp.shape[0], inp.shape[1])) # (seqlen, batsize)
         else:
             self._weighted = True
-            weights = weights.dimswap(1, 0)
+            w = weights.dimswap(1, 0)
         outputs, _ = T.scan(fn=self.recwrap,
-                            sequences=[inp, weights],
+                            sequences=[inp, w],
                             outputs_info=[None]+self.block.get_init_info(seq.shape[0]),
                             go_backwards=self._reverse)
         return self._get_apply_outputs(outputs)
@@ -527,9 +526,10 @@ class BiRewAttSumDecoder(Block):
 
 
 class SeqTransducer(Block):
-    def __init__(self, *layers, **kw):
+    def __init__(self, embedder, *layers, **kw):
         """ layers must have an embedding layers first, final softmax layer is added automatically"""
         assert("smodim" in kw and "outdim" in kw)
+        self.embedder = embedder
         smodim = kw["smodim"]
         outdim = kw["outdim"]
         del kw["smodim"]; del kw["outdim"]
@@ -537,7 +537,8 @@ class SeqTransducer(Block):
         self.block = RecurrentStack(*(layers + (Lin(indim=smodim, dim=outdim), Softmax())))
 
     def apply(self, inpseq, maskseq=None):    # inpseq: idx^(batsize, seqlen), maskseq: f32^(batsize, seqlen)
-        res = self.block(inpseq)            # f32^(batsize, seqlen, outdim)
+        embseq = self.embedder(inpseq)
+        res = self.block(embseq)            # f32^(batsize, seqlen, outdim)
         ret = self.applymask(res, maskseq=maskseq)
         return ret
 
@@ -566,8 +567,8 @@ class SeqTransDec(Block):
 
     def apply(self, inpseq, outseq, maskseq=None):
         # embed with the two embedding layers
-        iemb = RecurrentStack.recurnonreclayer(inpseq, self.inpemb)     # (batsize, seqlen, inpembdim)
-        oemb = RecurrentStack.recurnonreclayer(outseq, self.outemb)     # (batsize, seqlen, outembdim)
+        iemb = self.inpemb(inpseq)     # (batsize, seqlen, inpembdim)
+        oemb = self.outemb(outseq)     # (batsize, seqlen, outembdim)
         emb = T.concatenate([iemb, oemb], axis=2)                       # (batsize, seqlen, inpembdim+outembdim)
         res = self.block(emb)
         ret = SeqTransducer.applymask(res, maskseq=maskseq)
