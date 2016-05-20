@@ -21,10 +21,10 @@ class TestSimpleRNNDecoder(TestCase):
         self.encodings_data = np.random.random((self.batsize, self.encdim)).astype("float32")
         self.sequence_data = np.random.randint(0, self.vocsize, (self.batsize, self.seqlen))
         self.dec = SeqDecoder(
-            IdxToOneHot(self.vocsize),
-            InConcatCRex(GRU(dim=self.vocsize+self.encdim, innerdim=self.hdim),
-                         LSTM(dim=self.hdim, innerdim=self.statedim),
-                         outdim=self.statedim))
+            [IdxToOneHot(self.vocsize), GRU(dim=self.vocsize+self.encdim, innerdim=self.hdim), LSTM(dim=self.hdim, innerdim=self.statedim)],
+            inconcat=True,
+            innerdim=self.statedim
+        )
 
     def test_rnndecoder_output_shape(self):
         outvals = self.dec.predict(self.encodings_data, self.sequence_data)

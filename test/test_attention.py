@@ -65,12 +65,15 @@ class TestAttentionRNNDecoder(TestCase):
         batsize = 77
         self.att = Attention(LinearSumAttentionGenerator(indim=innerdim + encdim), WeightedSumAttCon())
         self.decwatt = SeqDecoder(
-            IdxToOneHot(vocsize),
-            InConcatCRex(self.att, GRU(dim=vocsize+encdim, innerdim=innerdim), outdim=innerdim)
+            [IdxToOneHot(vocsize), GRU(dim=vocsize+encdim, innerdim=innerdim)],
+            inconcat=True,
+            attention=self.att,
+            innerdim=innerdim
         )
         self.decwoatt = SeqDecoder(
-            IdxToOneHot(vocsize),
-            InConcatCRex(GRU(dim=vocsize+encdim, innerdim=innerdim), outdim=innerdim)
+            [IdxToOneHot(vocsize), GRU(dim=vocsize+encdim, innerdim=innerdim)],
+            inconcat=True,
+            innerdim=innerdim
         )
         self.attdata = np.random.random((batsize, seqlen, encdim)).astype("float32")
         self.data = np.random.random((batsize, encdim)).astype("float32")

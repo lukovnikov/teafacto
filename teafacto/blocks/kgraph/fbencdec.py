@@ -56,10 +56,9 @@ class FBSeqCompositeEncDec(Block):
         )
 
         self.dec = SeqDecoder(
-            VectorEmbed(indim=self.outdim, dim=self.entembdim),
-            InConcatCRex(
-                GRU(dim=self.entembdim+self.encinnerdim, innerdim=self.decinnerdim),
-                outdim=self.decinnerdim)
+            [VectorEmbed(indim=self.outdim, dim=self.entembdim), GRU(dim=self.entembdim+self.encinnerdim, innerdim=self.decinnerdim)],
+            inconcat=True,
+            innerdim=self.decinnerdim,
         )
 
     def apply(self, inpseq, outseq):
@@ -241,10 +240,11 @@ class FBSeqCompositeEncMemDec(Block):
         entemb2 = VectorEmbed(indim=self.outdim, dim=self.entembdim)
         self.softmaxoutblock = stack(self.memaddr(self.memblock, indim=self.decinnerdim, memdim=self.memblock.outdim, attdim=self.attdim), Softmax())
         self.dec = SeqDecoder(
-            entemb2, #self.memblock,
-            InConcatCRex(
-                GRU(dim=entemb.dim + self.encinnerdim, innerdim=self.decinnerdim), #GRU(dim=self.memblock.outdim + self.encinnerdim, innerdim=self.decinnerdim),
-                outdim=self.decinnerdim),
+            [entemb2,  #self.memblock,
+             GRU(dim=entemb.dim + self.encinnerdim, innerdim=self.decinnerdim),             # GRU(dim=self.memblock.outdim + self.encinnerdim, innerdim=self.decinnerdim),
+             ],
+            inconcat=True,
+            innerdim=self.decinnerdim,
             softmaxoutblock=self.softmaxoutblock
         )
 
@@ -286,11 +286,10 @@ class FBSeqCompEncMemDecAtt(FBSeqCompositeEncMemDec):
             Softmax())
 
         self.dec = SeqDecoder(
-            self.memblock,
-            OutConcatCRex(
-                Attention(attgen, attcon),
-                GRU(dim=self.entembdim + self.encinnerdim, innerdim=self.decinnerdim), #GRU(dim=self.memblock.outdim + self.encinnerdim, innerdim=self.decinnerdim),
-                outdim=self.decinnerdim + self.encinnerdim),
+            [self.memblock, GRU(dim=self.entembdim + self.encinnerdim, innerdim=self.decinnerdim)],
+            outconcat=True,
+            attention=Attention(attgen, attcon),
+            innerdim=self.decinnerdim + self.encinnerdim,
             softmaxoutblock=self.softmaxoutblock
         )
 

@@ -22,11 +22,9 @@ class idx2seq(Block):
         self.seqlen = seqlen
         self.encdim = encdim
         self.emb = VectorEmbed(indim=self.invocsize, dim=self.encdim, normalize=False)
-        self.dec = SeqDecoder(IdxToOneHot(self.outvocsize),
-                              InConcatCRex(
-                                  GRU(dim=self.outvocsize+self.encdim, innerdim=self.innerdim, nobias=True),
-                                  outdim=self.innerdim
-                                )
+        self.dec = SeqDecoder([IdxToOneHot(self.outvocsize), GRU(dim=self.outvocsize+self.encdim, innerdim=self.innerdim, nobias=True)],
+                              inconcat=True,
+                              innerdim=self.innerdim
                               )
 
     def apply(self, idxs, seq): # seq: (batsize, seqlen)

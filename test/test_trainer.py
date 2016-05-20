@@ -32,7 +32,7 @@ class TestTrainingPause(TestCase):
         numbats = 100
         lr = 0.2
         data = np.arange(0, self.vocabsize).astype("int32")
-        self.err, self.verr, _, _ = ae.train([data], data).adadelta(lr=lr).cross_entropy().train(numbats=numbats, epochs=epochs)
+        _, self.err, self.verr, _, _ = ae.train([data], data).adadelta(lr=lr).cross_entropy().train(numbats=numbats, epochs=epochs, returnerrors=True)
         frozen = ae.freeze()
         err = self.err[-1]
         return frozen, err
@@ -53,10 +53,10 @@ class TestModelTrainer(TestCase):
         lr=0.02
         lr *= numbats
         data = np.arange(0, self.vocabsize).astype("int32")
-        self.err, self.verr, _, _ = \
+        _, self.err, self.verr, _, _ = \
             self.ae.train([data], data).adadelta(lr=lr).dlr_thresh(thresh=self.lrthresh).cross_entropy() \
                 .autovalidate().cross_entropy().accuracy()\
-            .train(numbats=numbats, epochs=self.epochs)
+            .train(numbats=numbats, epochs=self.epochs, returnerrors=True)
 
     def test_embeddings_normalized(self):
         pdata = range(self.vocabsize)
@@ -83,9 +83,9 @@ class TestModelTrainerNovalidate(TestModelTrainer):
         lr=0.02
         lr *= numbats
         data = np.arange(0, self.vocabsize).astype("int32")
-        self.err, self.verr, _, _ = \
+        _, self.err, self.verr, _, _ = \
             self.ae.train([data], data).adadelta(lr=lr).dlr_thresh(thresh=self.lrthresh).cross_entropy() \
-            .train(numbats=numbats, epochs=self.epochs)
+            .train(numbats=numbats, epochs=self.epochs, returnerrors=True)
 
     def test_embeddings_normalized(self):
         pass
@@ -97,10 +97,10 @@ class TestModelTrainerValidsplit(TestModelTrainerNovalidate):
         lr=0.02
         lr *= numbats
         data = np.arange(0, self.vocabsize).astype("int32")
-        self.err, self.verr, _, _ = \
+        _, self.err, self.verr, _, _ = \
             self.ae.train([data], data).adadelta(lr=lr).dlr_thresh(thresh=self.lrthresh).cross_entropy() \
             .split_validate(5, random=True).cross_entropy() \
-            .train(numbats=numbats, epochs=self.epochs)
+            .train(numbats=numbats, epochs=self.epochs, returnerrors=True)
 
 
 class TestModelTrainerCrossValid(TestModelTrainerNovalidate):
@@ -109,10 +109,10 @@ class TestModelTrainerCrossValid(TestModelTrainerNovalidate):
         lr=0.02
         lr *= numbats
         data = np.arange(0, self.vocabsize).astype("int32")
-        self.err, self.verr, _, _ = \
+        _, self.err, self.verr, _, _ = \
             self.ae.train([data], data).adadelta(lr=lr).dlr_thresh(thresh=self.lrthresh).cross_entropy() \
             .cross_validate(5, random=True).cross_entropy() \
-            .train(numbats=numbats, epochs=self.epochs)
+            .train(numbats=numbats, epochs=self.epochs, returnerrors=True)
 
 
 class TestModelTrainerAutovalidate(TestModelTrainerNovalidate):
@@ -121,10 +121,10 @@ class TestModelTrainerAutovalidate(TestModelTrainerNovalidate):
         lr=0.02
         lr *= numbats
         data = np.arange(0, self.vocabsize).astype("int32")
-        self.err, self.verr, _, _ = \
+        _, self.err, self.verr, _, _ = \
             self.ae.train([data], data).adadelta(lr=lr).dlr_thresh(thresh=self.lrthresh).cross_entropy() \
             .autovalidate(splits=5, random=True).cross_entropy() \
-            .train(numbats=numbats, epochs=self.epochs)
+            .train(numbats=numbats, epochs=self.epochs, returnerrors=True)
 
 
 

@@ -30,8 +30,7 @@ def run(
     lr *= numbats
     data = np.arange(0, vocabsize).astype("int32")
     ae = Dummy(indim=vocabsize, dim=dim)
-    err, verr, _, _ = \
-        ae  .train([data], data).adadelta(lr=lr).dlr_thresh().cross_entropy()\
+    ae = ae.train([data], data).adadelta(lr=lr).dlr_thresh().cross_entropy()\
             .split_validate(5, random=True).cross_entropy().accuracy().autosave\
         .train(numbats=numbats, epochs=epochs)
 
