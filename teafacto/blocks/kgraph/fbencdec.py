@@ -1,7 +1,7 @@
 from teafacto.core.base import Block, asblock, tensorops as T, param, Val
 from teafacto.core.stack import stack
 from teafacto.blocks.basic import Softmax, MatDot as Lin, VectorEmbed, ConcatBlock
-from teafacto.blocks.rnn import SeqEncoder, SeqDecoder, InConcatCRex, RecurrentStack, OutConcatCRex
+from teafacto.blocks.rnn import SeqEncoder, SeqDecoder, RecurrentStack
 from teafacto.blocks.rnu import GRU
 from teafacto.blocks.lang.wordembed import WordEncoderPlusGlove, WordEmbed
 from teafacto.blocks.attention import LinearGateAttentionGenerator, WeightedSumAttCon, Attention

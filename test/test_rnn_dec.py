@@ -1,6 +1,6 @@
 from unittest import TestCase
 
-from teafacto.blocks.rnn import SeqDecoder, InConcatCRex
+from teafacto.blocks.rnn import SeqDecoder
 from teafacto.blocks.rnu import GRU, LSTM
 from teafacto.blocks.basic import MatDot, Softmax, IdxToOneHot
 from teafacto.core.base import tensorops as T
