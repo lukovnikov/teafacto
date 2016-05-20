@@ -7,7 +7,7 @@ from IPython import embed
 
 from teafacto.blocks.lang.wordvec import Glove
 from teafacto.blocks.basic import IdxToOneHot, VectorEmbed, Softmax, MatDot as Lin
-from teafacto.blocks.rnn import RNNAutoEncoder, SeqDecoder, SeqEncoder, InConcatCRex, BiFwdAttSumDecoder
+from teafacto.blocks.rnn import RNNAutoEncoder, SeqDecoder, SeqEncoder, BiFwdAttSumDecoder
 from teafacto.blocks.rnu import GRU
 from teafacto.core.base import Block
 from teafacto.util import argprun
