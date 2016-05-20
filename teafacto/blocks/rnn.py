@@ -339,7 +339,9 @@ class RNNAutoEncoder(Block):    # tries to decode original sequence
             IdxToOneHot(vocsize=vocsize),
             GRU(dim=vocsize, innerdim=encdim))
         self.decoder = SeqDecoder([IdxToOneHot(vocsize), GRU(dim=vocsize+encdim, innerdim=innerdim)],
-                                  innerdim=innerdim)
+                                  innerdim=innerdim,
+                                  inconcat=True
+                                  )
 
     def apply(self, inpseq, outseq):    # inpseq: (batsize, seqlen), indexes
         enc = self.encoder(inpseq)
