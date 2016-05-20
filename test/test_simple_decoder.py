@@ -11,6 +11,7 @@ class TestSimpleEncoderDecoder(TestCase):
         inpvocsize = 27
         innerdim = 7
         outvocsize = 17
+
         self.sed = SimpleEncoderDecoder(innerdim=innerdim, input_vocsize=inpvocsize, output_vocsize=outvocsize)
         inpseqv = np.random.randint(0, inpvocsize, (batsize, seqlen))
         outseqv = np.random.randint(0, outvocsize, (batsize, seqlen))

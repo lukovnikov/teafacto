@@ -312,83 +312,23 @@ class SeqDecoder(ReccableBlockParameterized, Block):
     def _gen_context(self, multicontext, criterion):
         return self.attention(criterion, multicontext) if self.attention is not None else multicontext
 
-
-#-----------------------------------------------------------------------------------------------------------------------
-
-class ContextReccableBlock(ReccableBlock): # reccable block that takes a context in rec()
-    def __init__(self, outdim=50, **kw):
-        super(ContextReccableBlock, self).__init__(**kw)
-        self.outdim = outdim
-
-    def rec(self, x_t, context, *args):
-        raise NotImplementedError("use subclass")
-
-
-class RecParamCRex(ReccableBlockParameterized, ContextReccableBlock):
-    def get_states_from_outputs(self, outputs):
-        return self.block.get_states_from_outputs(outputs)
-
-
-class AttRecParamCRex(RecParamCRex):    # if you use attention, provide it as first argument to constructor
-    def __init__(self, *layers, **kw):
-        self.attention = None
-        if isinstance(layers[0], Attention):
-            self.attention = layers[0]
-            layers = layers[1:]
-        super(RecParamCRex, self).__init__(*layers, **kw)
-
-    def _gen_context(self, multicontext, criterion):
-        if self.attention is not None:  # criterion should be the top-level output
-            #criterion = T.concatenate(self.block.get_states_from_outputs(states), axis=1)   # states are (batsize, statedim)
-            return self.attention(criterion, multicontext)   # ==> criterion is (batsize, sum_of_statedim), context is (batsize, ...)
-        else:
-            return multicontext
-
-    def do_get_init_info(self, initstates):
-        return self.block.do_get_init_info(initstates)
-
-
-class InConcatCRex(AttRecParamCRex):
-    def rec(self, x_t, context, *states_tm1):
-        context_t = self._gen_context(context, *states_tm1)
-        i_t = T.concatenate([x_t, context_t], axis=1)
-        rnuret = self.block.rec(i_t, *states_tm1)
-        return rnuret
-
-
-class OutConcatCRex(AttRecParamCRex):
-    def rec(self, x_t, context, *states_tm1):   # context: (batsize, context_dim), x_t: (batsize, embdim)
-        rnuret = self.block.rec(x_t, *states_tm1)
-        h_t = rnuret[0]                         # h_t: (batsize, rnu.innerdim)
-        states_t = rnuret[1:]
-        context_t = self._gen_context(context, h_t)
-        o_t = T.concatenate([h_t, context_t], axis=1) # o_t: (batsize, context_dim + block.outdim)
-        return [o_t] + states_t
-
-
 # ----------------------------------------------------------------------------------------------------------------------
 
-class SeqEncoderDecoder(Block):
-    def __init__(self, inpemb, encrec, outemb, decrec, **kw):
-        super(SeqEncoderDecoder, self).__init__(**kw)
-        self.enc = SeqEncoder(inpemb, encrec)
-        self.dec = SeqDecoder(outemb, decrec)
-
-    def apply(self, inpseq, outseq):
-        enco = self.enc(inpseq)         # (batsize, encrec.innerdim)
-        deco = self.dec(enco, outseq)   # (batsize, seqlen, outvocsize)
-        return deco
-
-
 # TODO: travis error messages about theano optimization and shapes only involve things below
-class SimpleEncoderDecoder(SeqEncoderDecoder):  # gets two sequences of indexes for training
+class SimpleEncoderDecoder(Block):  # gets two sequences of indexes for training
     def __init__(self, innerdim=50, input_vocsize=100, output_vocsize=100, **kw):
+        super(SimpleEncoderDecoder, self).__init__(**kw)
         input_embedder = IdxToOneHot(input_vocsize)
         output_embedder = IdxToOneHot(output_vocsize)
         encrec = GRU(dim=input_vocsize, innerdim=innerdim)
         decrecrnu = GRU(dim=output_vocsize, innerdim=innerdim)
-        decrec = OutConcatCRex(decrecrnu, outdim=innerdim+innerdim)
-        super(SimpleEncoderDecoder, self).__init__(input_embedder, encrec, output_embedder, decrec, **kw)
+        self.enc = SeqEncoder(input_embedder, encrec)
+        self.dec = SeqDecoder([output_embedder, decrecrnu], outconcat=True, innerdim=innerdim+innerdim)
+
+    def apply(self, inpseq, outseq):
+        enco = self.enc(inpseq)
+        deco = self.dec(enco, outseq)
+        return deco
 
 
 class RNNAutoEncoder(Block):    # tries to decode original sequence
@@ -517,6 +457,14 @@ class BiRewAttSumDecoder(Block):
     def apply(self, inpseq, outseq):
         rnnout = self.rnn(inpseq)
         return self.dec(rnnout, outseq)
+
+
+
+
+
+
+
+
 
 
 class SeqTransducer(Block):

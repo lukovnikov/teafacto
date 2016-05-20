@@ -1,9 +1,12 @@
 from unittest import TestCase
+from theano import config
+config.floatX = "float32"
 from teafacto.blocks.attention import Attention, WeightedSumAttCon, LinearSumAttentionGenerator, LinearGateAttentionGenerator
 from teafacto.blocks.rnn import SeqDecoder, RewAttRNNEncDecoder, InConcatCRex
 from teafacto.blocks.rnu import GRU
 from teafacto.blocks.basic import Softmax, MatDot as Lin, IdxToOneHot
 import numpy as np
+
 
 
 class DummyAttentionGeneratorConsumerTest(TestCase):
