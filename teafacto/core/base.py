@@ -17,6 +17,10 @@ class TWrapper(type):
         top = getattr(tensor, item)
         return wrapf(top)
 
+    @property
+    def config(cls):
+        return theano.config
+
     def scan(cls, fn, sequences=None, outputs_info=None, non_sequences=None, n_steps=None, truncate_gradient=-1, go_backwards=False,mode=None, name=None, profile=False, allow_gc=None, strict=False):
         return scan()(fn, sequences=sequences, outputs_info=outputs_info, non_sequences=non_sequences, n_steps=n_steps,
                       truncate_gradient=truncate_gradient, go_backwards=go_backwards,mode=mode, name=name, profile=profile,
@@ -78,6 +82,7 @@ class WrappedAttr():
 
 class tensorops:
     __metaclass__ = TWrapper
+
 
 class TensorWrapper(type):
     """Wrapper class that provides proxy access to an instance of some

@@ -11,9 +11,9 @@ def shiftdata(x):
 
 class TestRNNAutoEncoder(TestCase):
     def setUp(self):
-        vocsize = 25
+        vocsize = 24
         innerdim = 200
-        encdim = 200
+        encdim = 190
         batsize = 500
         seqlen = 5
         self.exppredshape = (batsize, seqlen, vocsize)

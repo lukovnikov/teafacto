@@ -274,13 +274,7 @@ class SeqDecoder(ReccableBlockParameterized, Block):
 
     def apply(self, context, seq, context_0=None, **kw):    # context: (batsize, enc.innerdim), seq: idxs-(batsize, seqlen)
         sequences = [seq.dimswap(1, 0)]     # sequences: (seqlen, batsize)
-        if context_0 is None:
-            if context.d.ndim == 2:     # static context
-                context_0 = context
-            elif context.d.ndim == 3:   # (batsize, inseqlen, inencdim)
-                context_0 = context[:, -1, :]       # take the last context as initial input
-            else:
-                print "sum ting wong in SeqDecoder apply()"
+        context_0 = self._get_ctx_t0(context, context_0)
         if self.init_states is not None:
             init_info = self.block.get_init_info(self.init_states)  # sets init states to provided ones
         else:
@@ -289,6 +283,20 @@ class SeqDecoder(ReccableBlockParameterized, Block):
                             sequences=sequences,
                             outputs_info=[None, context, context_0, 0] + init_info)
         return outputs[0].dimswap(1, 0)     # returns probabilities of symbols --> (batsize, seqlen, vocabsize)
+
+    def _get_ctx_t0(self, ctx, ctx_0=None):
+        if ctx_0 is None:
+            if ctx.d.ndim == 2:     # static context
+                ctx_0 = ctx
+            elif ctx.d.ndim > 2:   # dynamic context (batsize, inseqlen, inencdim)
+                assert(self.attention is not None)      # 3D context only processable with attention (dynamic context)
+                w_0 = T.ones((ctx.shape[0], ctx.shape[1]), dtype=T.config.floatX) / ctx.shape[1].astype(T.config.floatX)    #  ==> make uniform weights (??)
+                ctx_0 = self.attention.attentionconsumer(ctx, w_0)
+                '''else:
+                    ctx_0 = ctx[:, -1, :]       # take the last context'''
+            else:
+                print "sum ting wong in SeqDecoder _get_ctx_t0()"
+        return ctx_0
 
     def recwrap(self, x_t, ctx, ctx_tm1, t, *states_tm1):  # x_t: (batsize), context: (batsize, enc.innerdim)
         i_t = self.embedder(x_t)                             # i_t: (batsize, embdim)
