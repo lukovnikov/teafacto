@@ -1,6 +1,4 @@
 from unittest import TestCase
-from theano import config
-config.floatX = "float32"
 from teafacto.blocks.attention import Attention, WeightedSumAttCon, LinearSumAttentionGenerator, LinearGateAttentionGenerator
 from teafacto.blocks.rnn import SeqDecoder, RewAttRNNEncDecoder
 from teafacto.blocks.rnu import GRU
