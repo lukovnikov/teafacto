@@ -8,7 +8,7 @@ setup(name="teafacto",
       packages=find_packages(),
       entry_points={
         'nose.plugins.0.10': [
-            'theanoinit = theanoinit:TheanoConfigNosePlugin'
+            'theanoinit = teafacto.test.theanotestplugin:TheanoConfigNosePlugin'
             ]
         },
       )
