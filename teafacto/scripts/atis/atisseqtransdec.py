@@ -25,21 +25,25 @@ class Searcher(object):
         self.mu = RecPredictor(model)
 
 
-class SeqTransDecSearch(Searcher):  # TODO: use recappl interface
+class SeqTransDecSearch(Searcher):
     # responsible for generating recappl prediction function from recappl of decoder
     """ Default: greedy search strategy """
     def decode(self, inpseq):
         stop = False
         i = 0
         curout = np.zeros((inpseq.shape[0])).astype("int32")
+        accprobs = np.ones((inpseq.shape[0]))
         outs = []
         while not stop:
             curinp = inpseq[:, i]
             curprobs = self.mu.feed(curinp, curout)
+            accprobs *= np.max(curprobs, axis=1)
             curout = np.argmax(curprobs, axis=1).astype("int32")
             outs.append(curout)
+            i += 1
             stop = i == inpseq.shape[1]
-        return outs     # TODO
+        #print accprobs
+        return np.stack(outs).T     # TODO: check with previous impl
 
     def decode2(self, inpseq):       # inpseq: idx^(batsize, seqlen)
         i = 0
