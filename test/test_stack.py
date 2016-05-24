@@ -1,14 +1,13 @@
 from unittest import TestCase
 
 import numpy as np
-import theano
 
 from teafacto.blocks.basic import Softmax, VectorEmbed
 from teafacto.blocks.rnn import RecurrentStack, SimpleSeqTransDec
 from teafacto.blocks.rnu import GRU
 from teafacto.core.base import Input, param, asblock, tensorops as T
 from teafacto.core.stack import stack
-from teafacto.users.modelusers import RecApplicator
+from teafacto.users.modelusers import RecPredictor
 
 
 class TestRecurrentStack(TestCase):
@@ -30,7 +29,7 @@ class TestRecurrentStackRecappl(TestCase):
         batsize = 100
         self.dims = [50, 20, 30, 40]
         recstack = RecurrentStack(*[GRU(dim=self.dims[i], innerdim=self.dims[i+1]) for i in range(len(self.dims)-1)])
-        mu = RecApplicator(recstack)
+        mu = RecPredictor(recstack)
         for i in range(3):
             inpval = np.random.random((batsize, 50)).astype("float32")
             outpvals = mu.feed(inpval)
@@ -41,7 +40,7 @@ class TestSeqTransDecRecappl(TestCase):     # TODO: move this test
     def test_recappl_shapes_model_user(self):
         batsize = 100
         model = SimpleSeqTransDec(indim=200, outdim=50, inpembdim=20, outembdim=20, innerdim=[40, 30])
-        mu = RecApplicator(model)
+        mu = RecPredictor(model)
         inpval2 = np.random.randint(0, 50, (batsize,)).astype("int32")
         for i in range(5):
             inpval = np.random.randint(0, 200, (batsize,)).astype("int32")

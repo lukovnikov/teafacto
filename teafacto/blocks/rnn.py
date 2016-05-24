@@ -5,6 +5,7 @@ from teafacto.blocks.rnu import GRU, ReccableBlock, RecurrentBlock, RNUBase
 from teafacto.core.base import Block, tensorops as T, asblock
 from teafacto.blocks.basic import IdxToOneHot, VectorEmbed, Embedder, Softmax, MatDot, ConcatBlock
 from teafacto.blocks.attention import WeightedSumAttCon, LinearSumAttentionGenerator, Attention, AttentionConsumer, LinearGateAttentionGenerator
+from teafacto.users.modelusers import RecUsable
 from teafacto.util import issequence
 import inspect
 from IPython import embed
@@ -538,7 +539,7 @@ class SeqTransducer(Block):
         return ret
 
 
-class SeqTransDec(Block):
+class SeqTransDec(Block, RecUsable):
     def __init__(self, *layers, **kw):
         """ first two layers must be embedding layers. Final softmax is added automatically"""
         assert("smodim" in kw and "outdim" in kw)

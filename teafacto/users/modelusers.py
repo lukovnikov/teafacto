@@ -10,9 +10,9 @@ class ModelUser(object):
         self.f = None
 
 
-class RecApplicator(ModelUser):
+class RecPredictor(ModelUser):
     def __init__(self, model, **kw):
-        super(RecApplicator, self).__init__(model, **kw)
+        super(RecPredictor, self).__init__(model, **kw)
         self.statevals = None
 
     def build(self, inps):  # data: (batsize, ...)
@@ -34,3 +34,11 @@ class RecApplicator(ModelUser):
         outpvals = self.f(*inpvals)
         self.statevals = outpvals[1:]
         return outpvals[0]
+
+
+class RecUsable(object):
+    def recappl(self, inps, states):
+        raise NotImplementedError("use subclass")
+
+    def recappl_init(self, ist):
+        raise NotImplementedError("use subclass")

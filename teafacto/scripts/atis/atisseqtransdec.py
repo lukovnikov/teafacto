@@ -7,6 +7,7 @@ from pympler.asizeof import asizeof
 from teafacto.blocks.rnn import SimpleSeqTransducer, SimpleSeqTransDec
 from teafacto.util import argprun
 from teafacto.scripts.atis.atisseqtrans import getdatamatrix, atiseval
+from teafacto.users.modelusers import RecPredictor
 
 
 def shiftdata(x, right=1):
@@ -21,12 +22,26 @@ class Searcher(object):
         super(Searcher, self).__init__(**kw)
         self.beamsize = beamsize
         self.model = model
+        self.mu = RecPredictor(model)
 
 
 class SeqTransDecSearch(Searcher):  # TODO: use recappl interface
     # responsible for generating recappl prediction function from recappl of decoder
     """ Default: greedy search strategy """
-    def decode(self, inpseq):       # inpseq: idx^(batsize, seqlen)
+    def decode(self, inpseq):
+        stop = False
+        i = 0
+        curout = np.zeros((inpseq.shape[0])).astype("int32")
+        outs = []
+        while not stop:
+            curinp = inpseq[:, i]
+            curprobs = self.mu.feed(curinp, curout)
+            curout = np.argmax(curprobs, axis=1).astype("int32")
+            outs.append(curout)
+            stop = i == inpseq.shape[1]
+        return outs     # TODO
+
+    def decode2(self, inpseq):       # inpseq: idx^(batsize, seqlen)
         i = 0
         stop = False
         # prevpreds = [np.zeros((inpseq.shape[0], 1))]*self.beamsize
@@ -86,7 +101,7 @@ def run(p="../../../data/atis/atis.pkl", wordembdim=70, lablembdim=70, innerdim=
 
     # training
     m = m.train([traindata, shiftdata(traingold), trainmask], traingold).adagrad(lr=lr).grad_total_norm(5.0).seq_cross_entropy().l2(wreg)\
-        .cross_validate(splits=5, random=True).seq_cross_entropy().seq_accuracy().validinter(validinter).takebest()\
+        .split_validate(splits=5, random=True).seq_cross_entropy().seq_accuracy().validinter(validinter).takebest()\
         .train(numbats, epochs)
 
     # predict after training
@@ -105,4 +120,4 @@ def run(p="../../../data/atis/atis.pkl", wordembdim=70, lablembdim=70, innerdim=
 
 
 if __name__ == "__main__":
-    argprun(run, epochs=0)
+    argprun(run, epochs=1)
