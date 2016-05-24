@@ -1,7 +1,7 @@
+from teafacto.modelusers import RecUsable
 from teafacto.core.base import Block, param
 from teafacto.core.base import tensorops as T
 from teafacto.util import issequence, getnumargs
-from teafacto.users.modelusers import RecUsable
 
 
 class RecurrentBlock(Block):     # ancestor class for everything that consumes sequences f32~(batsize, seqlen, ...)
@@ -24,9 +24,6 @@ class ReccableBlock(RecurrentBlock, RecUsable):    # exposes a rec function
 
     def rec(self, *args):
         raise NotImplementedError("use subclass")
-
-    def recappl_init(self, ist):
-        return self.get_init_info(ist)
 
     def get_init_info(self, initstates):
         info, red = self.do_get_init_info(initstates)

@@ -1,13 +1,13 @@
 import pickle
 
 import numpy as np
-from pympler.tracker import SummaryTracker
 from pympler.asizeof import asizeof
+from pympler.tracker import SummaryTracker
 
-from teafacto.blocks.rnn import SimpleSeqTransducer, SimpleSeqTransDec
-from teafacto.util import argprun
+from search import SeqTransDecSearch
+from teafacto.blocks.rnn import SimpleSeqTransDec
 from teafacto.scripts.atis.atisseqtrans import getdatamatrix, atiseval
-from teafacto.users.modelusers import RecPredictor
+from teafacto.util import argprun
 
 
 def shiftdata(x, right=1):
@@ -15,56 +15,6 @@ def shiftdata(x, right=1):
         return np.concatenate([np.zeros_like(x[:, 0:right]), x[:, :-right]], axis=1)
     else:
         raise Exception("can not shift this")
-
-
-class Searcher(object):
-    def __init__(self, model, beamsize=1, **kw):
-        super(Searcher, self).__init__(**kw)
-        self.beamsize = beamsize
-        self.model = model
-        self.mu = RecPredictor(model)
-
-
-class SeqTransDecSearch(Searcher):
-    # responsible for generating recappl prediction function from recappl of decoder
-    """ Default: greedy search strategy """
-    def decode(self, inpseq):
-        stop = False
-        i = 0
-        curout = np.zeros((inpseq.shape[0])).astype("int32")
-        accprobs = np.ones((inpseq.shape[0]))
-        outs = []
-        while not stop:
-            curinp = inpseq[:, i]
-            curprobs = self.mu.feed(curinp, curout)
-            accprobs *= np.max(curprobs, axis=1)
-            curout = np.argmax(curprobs, axis=1).astype("int32")
-            outs.append(curout)
-            i += 1
-            stop = i == inpseq.shape[1]
-        #print accprobs
-        return np.stack(outs).T     # TODO: check with previous impl
-
-    def decode2(self, inpseq):       # inpseq: idx^(batsize, seqlen)
-        i = 0
-        stop = False
-        # prevpreds = [np.zeros((inpseq.shape[0], 1))]*self.beamsize
-        acc = np.zeros((inpseq.shape[0], 1)).astype("int32")
-        accprobs = np.ones((inpseq.shape[0]))
-        while not stop:
-            curinpseq = inpseq[:, :i+1]
-            print curinpseq.shape
-            curprobs = self.model.predict(curinpseq, acc)   # curpred: f32^(batsize, prevpred.seqlen, numlabels)
-            curpreds = np.argmax(curprobs, axis=2).astype("int32")
-            accprobs = np.max(curprobs, axis=2)[:, -1] * accprobs
-            acc = np.concatenate([acc, curpreds[:, -1:]], axis=1)
-            i += 1
-            stop = i == inpseq.shape[1]
-        ret = acc[:, 1:]
-        finalprobs = np.max(curprobs, axis=2).prod(axis=1)
-        print np.linalg.norm(finalprobs - accprobs), np.allclose(finalprobs, accprobs)
-        assert(ret.shape == inpseq.shape)
-        return ret
 
 
 def run(p="../../../data/atis/atis.pkl", wordembdim=70, lablembdim=70, innerdim=300, lr=0.05, numbats=100, epochs=20, validinter=1, wreg=0.0003, depth=1):
@@ -105,12 +55,12 @@ def run(p="../../../data/atis/atis.pkl", wordembdim=70, lablembdim=70, innerdim=
 
     # training
     m = m.train([traindata, shiftdata(traingold), trainmask], traingold).adagrad(lr=lr).grad_total_norm(5.0).seq_cross_entropy().l2(wreg)\
-        .split_validate(splits=5, random=True).seq_cross_entropy().seq_accuracy().validinter(validinter).takebest()\
+        .cross_validate(splits=5, random=True).seq_cross_entropy().seq_accuracy().validinter(validinter).takebest()\
         .train(numbats, epochs)
 
     # predict after training
     s = SeqTransDecSearch(m)
-    testpred = s.decode(testdata)
+    testpred, _ = s.decode(testdata)
     testpred = testpred * testmask
 
     evalres = atiseval(testpred-1, testgold-1, label2idxrev); print evalres
@@ -122,6 +72,5 @@ def run(p="../../../data/atis/atis.pkl", wordembdim=70, lablembdim=70, innerdim=
 
 
 
-
 if __name__ == "__main__":
-    argprun(run, epochs=1)
+    argprun(run, epochs=10)

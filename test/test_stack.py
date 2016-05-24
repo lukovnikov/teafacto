@@ -2,12 +2,12 @@ from unittest import TestCase
 
 import numpy as np
 
+from teafacto.modelusers import RecPredictor
 from teafacto.blocks.basic import Softmax, VectorEmbed
 from teafacto.blocks.rnn import RecurrentStack, SimpleSeqTransDec
 from teafacto.blocks.rnu import GRU
 from teafacto.core.base import Input, param, asblock, tensorops as T
 from teafacto.core.stack import stack
-from teafacto.users.modelusers import RecPredictor
 
 
 class TestRecurrentStack(TestCase):

@@ -1,14 +1,12 @@
-from teafacto.blocks.basic import MatDot as Lin, Softmax, VectorEmbed
-from teafacto.blocks.rnu import GRU
-from teafacto.core.base import Block, tensorops, tensorops, tensorops, tensorops, tensorops, tensorops
+import inspect
+
+from teafacto.modelusers import RecUsable
+from teafacto.blocks.attention import WeightedSumAttCon, Attention, AttentionConsumer, LinearGateAttentionGenerator
+from teafacto.blocks.basic import IdxToOneHot, VectorEmbed, Softmax, MatDot
+from teafacto.blocks.basic import MatDot as Lin
 from teafacto.blocks.rnu import GRU, ReccableBlock, RecurrentBlock, RNUBase
 from teafacto.core.base import Block, tensorops as T, asblock
-from teafacto.blocks.basic import IdxToOneHot, VectorEmbed, Embedder, Softmax, MatDot, ConcatBlock
-from teafacto.blocks.attention import WeightedSumAttCon, LinearSumAttentionGenerator, Attention, AttentionConsumer, LinearGateAttentionGenerator
-from teafacto.users.modelusers import RecUsable
 from teafacto.util import issequence
-import inspect
-from IPython import embed
 
 
 class ReccableStack(ReccableBlock):
@@ -91,9 +89,6 @@ class RecurrentStack(Block):       # TODO: setting init states of contained recu
             else:
                 raise Exception("can not apply this layer: " + str(layer))
         return acc
-
-    def recappl_init(self, ist):
-        return self.get_init_info(ist)
 
     def get_init_info(self, initstates):
         recurrentlayers = list(filter(lambda x: isinstance(x, ReccableBlock), self.layers))
@@ -568,9 +563,6 @@ class SeqTransDec(Block, RecUsable):
         emb = self._get_emb(*inps)
         inps, heads, tail = self.block.recappl(emb, states)
         return inps, heads, tail
-
-    def recappl_init(self, ist):
-        return self.block.get_init_info(ist)
 
     def get_init_info(self, initstates):
         return self.block.get_init_info(initstates)

@@ -17,7 +17,7 @@ class RecPredictor(ModelUser):
 
     def build(self, inps):  # data: (batsize, ...)
         batsize = inps[0].shape[0]
-        inits, _ = self.model.recappl_init(batsize)
+        inits, _ = self.model.get_init_info(batsize)
         inpvars = [Input(ndim=inp.ndim, dtype=inp.dtype) for inp in inps]
         statevars = [Input(ndim=x.d.ndim, dtype=x.d.dtype) for x in inits]
         allinpvars = inpvars + statevars
@@ -38,7 +38,4 @@ class RecPredictor(ModelUser):
 
 class RecUsable(object):
     def recappl(self, inps, states):
-        raise NotImplementedError("use subclass")
-
-    def recappl_init(self, ist):
         raise NotImplementedError("use subclass")
