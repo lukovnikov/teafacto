@@ -24,6 +24,7 @@ class Searcher(object):
 
 
 class SeqTransDecSearch(Searcher):  # TODO: use recappl interface
+    # responsible for generating recappl prediction function from recappl of decoder
     """ Default: greedy search strategy """
     def decode(self, inpseq):       # inpseq: idx^(batsize, seqlen)
         i = 0

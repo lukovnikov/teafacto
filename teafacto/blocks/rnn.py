@@ -91,6 +91,9 @@ class RecurrentStack(Block):       # TODO: setting init states of contained recu
                 raise Exception("can not apply this layer: " + str(layer))
         return acc
 
+    def recappl_init(self, ist):
+        return self.get_init_info(ist)
+
     def get_init_info(self, initstates):
         recurrentlayers = list(filter(lambda x: isinstance(x, ReccableBlock), self.layers))
         assert(len(filter(lambda x: isinstance(x, RecurrentBlock) and not isinstance(x, ReccableBlock), self.layers)) == 0)       # no non-reccable blocks allowed
@@ -564,6 +567,9 @@ class SeqTransDec(Block):
         emb = self._get_emb(*inps)
         inps, heads, tail = self.block.recappl(emb, states)
         return inps, heads, tail
+
+    def recappl_init(self, ist):
+        return self.block.get_init_info(ist)
 
     def get_init_info(self, initstates):
         return self.block.get_init_info(initstates)

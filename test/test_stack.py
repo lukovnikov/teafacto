@@ -1,13 +1,14 @@
 from unittest import TestCase
 
 import numpy as np
-
-from teafacto.blocks.rnu import GRU
-from teafacto.blocks.rnn import RecurrentStack, ReccableStack, SimpleSeqTransDec
-from teafacto.core.stack import stack
-from teafacto.core.base import Input, param, asblock, tensorops as T
-from teafacto.blocks.basic import Softmax, VectorEmbed
 import theano
+
+from teafacto.blocks.basic import Softmax, VectorEmbed
+from teafacto.blocks.rnn import RecurrentStack, SimpleSeqTransDec
+from teafacto.blocks.rnu import GRU
+from teafacto.core.base import Input, param, asblock, tensorops as T
+from teafacto.core.stack import stack
+from teafacto.users.modelusers import RecApplicator
 
 
 class TestRecurrentStack(TestCase):
@@ -29,51 +30,24 @@ class TestRecurrentStackRecappl(TestCase):
         batsize = 100
         self.dims = [50, 20, 30, 40]
         recstack = RecurrentStack(*[GRU(dim=self.dims[i], innerdim=self.dims[i+1]) for i in range(len(self.dims)-1)])
-        recapplestates, _ = recstack.get_init_info(batsize)
-        for recapplestate in recapplestates:
-            print recapplestate.d.eval().shape
-        inp = Input(ndim=2, dtype="float32", name="stack_input")
-        stateinps = [Input(ndim=x.d.ndim, dtype="float32") for x in recapplestates]
-        allinps = [inp] + stateinps
-        out, states, tail = recstack.recappl(inp, stateinps)
-        allouts = out + states
-        assert(len(tail) == 0)
-        f = theano.function(inputs=[x.d for x in allinps], outputs=[x.d for x in allouts])
-
-        statevals = [recapplestate.d.eval() for recapplestate in recapplestates]
+        mu = RecApplicator(recstack)
         for i in range(3):
             inpval = np.random.random((batsize, 50)).astype("float32")
-            inpvals = [inpval] + statevals
-            outpvals = f(*inpvals)
-            print [x.shape for x in outpvals]
-            statevals = outpvals[1:]
+            outpvals = mu.feed(inpval)
+            self.assertEqual(outpvals.shape, (batsize, self.dims[-1]))
 
 
 class TestSeqTransDecRecappl(TestCase):     # TODO: move this test
-    def test_recappl_shapes(self):
+    def test_recappl_shapes_model_user(self):
         batsize = 100
-        recstack = SimpleSeqTransDec(indim=200, outdim=50, inpembdim=20, outembdim=20, innerdim=[40, 30])
-        recapplestates, _ = recstack.get_init_info(batsize)
-        inpinp = Input(ndim=1, dtype="int32", name="stack_input")
-        outinp = Input(ndim=1, dtype="int32", name="stack_input_2")
-        stateinps = [Input(ndim=x.d.ndim, dtype="float32") for x in recapplestates]
-        allinps = [inpinp, outinp] + stateinps
-        out, states, tail = recstack.recappl([inpinp, outinp], stateinps)
-        allouts = out + states
-        assert(len(tail) == 0)
-        f = theano.function(inputs=[x.d for x in allinps], outputs=[x.d for x in allouts])
-
-        statevals = [recapplestate.d.eval() for recapplestate in recapplestates]
+        model = SimpleSeqTransDec(indim=200, outdim=50, inpembdim=20, outembdim=20, innerdim=[40, 30])
+        mu = RecApplicator(model)
+        inpval2 = np.random.randint(0, 50, (batsize,)).astype("int32")
         for i in range(5):
             inpval = np.random.randint(0, 200, (batsize,)).astype("int32")
-            inpval2 = np.random.randint(0, 50, (batsize,)).astype("int32")
-            inpvals = [inpval, inpval2] + statevals
-            outpvals = f(*inpvals)
-            self.assertEqual(outpvals[0].shape, (batsize, 50))
-            for x, y in zip([40, 30], outpvals[1:]):
-                self.assertEqual(y.shape, (batsize, x))
-            print [x.shape for x in outpvals]
-            statevals = outpvals[1:]
+            outpval = mu.feed(inpval, inpval2)
+            inpval2 = np.argmax(outpval, axis=1).astype("int32")
+            self.assertEqual(outpval.shape, (batsize, 50))
 
 
 
