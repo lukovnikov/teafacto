@@ -62,6 +62,9 @@ class ReccableStack(ReccableBlock):
                 nextinp = block(nextinp)
         return [nextinp] + nextstates
 
+    def recappl(self, inp, *states):
+        return self.rec(inp, *states)
+
     def apply(self, se, initstates=None):
         seq = se.dimswap(1, 0)
         initstatearg = initstates if initstates is not None else seq.shape[1]
@@ -87,6 +90,33 @@ class RecurrentStack(Block):       # TODO: setting init states of contained recu
             else:
                 raise Exception("can not apply this layer: " + str(layer))
         return acc
+
+    def get_init_info(self, initstates):
+        recurrentlayers = list(filter(lambda x: isinstance(x, ReccableBlock), self.layers))
+        assert(len(filter(lambda x: isinstance(x, RecurrentBlock) and not isinstance(x, ReccableBlock), self.layers)) == 0)       # no non-reccable blocks allowed
+        init_infos = []
+        for recurrentlayer in recurrentlayers:
+            initinfo, initstates = recurrentlayer.do_get_init_info(initstates)
+            init_infos.extend(initinfo)
+        return init_infos, initstates   # layerwise in reverse
+
+
+    def recappl(self, inps, states):       # what happens in one iteration ==> inside the scan #TODO: REMOVE
+        # first inp is a var or a tuple of vars, after that follows layer-wise state vars
+        # each block gives only one output or a tuple of outputs
+        heads = []
+        tail = states
+        for layer in self.layers:
+            if isinstance(layer, ReccableBlock):
+                inps, head, tail = layer.recappl(inps, tail)   # flattened
+                heads.extend(head)
+            elif isinstance(layer, RecurrentBlock):
+                raise AssertionError("no non-reccable recurrent blocks allowed")
+            elif isinstance(layer, Block):
+                inps = layer(*inps)
+            if not issequence(inps):
+                inps = [inps]
+        return inps, heads, tail
 
     @classmethod
     def dummyrec(cls, layer):
@@ -242,7 +272,7 @@ class SeqEncoder(ReccableBlockParameterized, AttentionConsumer, Block):
         return self
 
 
-class SeqDecoder(ReccableBlockParameterized, Block):
+class SeqDecoder(ReccableBlockParameterized, Block):        # TODO: make recappl-able
     '''
     Decodes a sequence of symbols given context
     output: probabilities over symbol space: float: (batsize, seqlen, vocabsize)
@@ -519,12 +549,24 @@ class SeqTransDec(Block):
 
     def apply(self, inpseq, outseq, maskseq=None):
         # embed with the two embedding layers
-        iemb = self.inpemb(inpseq)     # (batsize, seqlen, inpembdim)
-        oemb = self.outemb(outseq)     # (batsize, seqlen, outembdim)
-        emb = T.concatenate([iemb, oemb], axis=2)                       # (batsize, seqlen, inpembdim+outembdim)
+        emb = self._get_emb(inpseq, outseq)
         res = self.block(emb)
         ret = SeqTransducer.applymask(res, maskseq=maskseq)
         return ret
+
+    def _get_emb(self, inpseq, outseq):
+        iemb = self.inpemb(inpseq)     # (batsize, seqlen, inpembdim)
+        oemb = self.outemb(outseq)     # (batsize, seqlen, outembdim)
+        emb = T.concatenate([iemb, oemb], axis=iemb.ndim-1)                       # (batsize, seqlen, inpembdim+outembdim)
+        return emb
+
+    def recappl(self, inps, states):
+        emb = self._get_emb(*inps)
+        inps, heads, tail = self.block.recappl(emb, states)
+        return inps, heads, tail
+
+    def get_init_info(self, initstates):
+        return self.block.get_init_info(initstates)
 
 
 class SimpleSeqTransducer(SeqTransducer):

@@ -23,7 +23,7 @@ class Searcher(object):
         self.model = model
 
 
-class SeqTransDecSearch(Searcher):
+class SeqTransDecSearch(Searcher):  # TODO: use recappl interface
     """ Default: greedy search strategy """
     def decode(self, inpseq):       # inpseq: idx^(batsize, seqlen)
         i = 0

@@ -1,6 +1,6 @@
 from teafacto.core.base import Block, param
 from teafacto.core.base import tensorops as T
-from teafacto.util import issequence
+from teafacto.util import issequence, getnumargs
 
 
 class RecurrentBlock(Block):     # ancestor class for everything that consumes sequences f32~(batsize, seqlen, ...)
@@ -22,6 +22,9 @@ class ReccableBlock(RecurrentBlock):    # exposes a rec function
         super(ReccableBlock, self).__init__(**kw)
 
     def rec(self, *args):
+        raise NotImplementedError("use subclass")
+
+    def recappl(self, inps, states):
         raise NotImplementedError("use subclass")
 
     def get_init_info(self, initstates):
@@ -51,6 +54,14 @@ class RNUBase(ReccableBlock):
         self.rnuparams = {}
         if not self._waitforit:
             self.initparams()
+
+    def recappl(self, inps, states):
+        numrecargs = getnumargs(self.rec) - 2       # how much to pop from states
+        mystates = states[:numrecargs]
+        tail = states[numrecargs:]
+        inps = [inps] if not issequence(inps) else inps
+        outs = self.rec(*(inps + mystates))
+        return outs[0], outs[1:], tail
 
     def initparams(self):
         for n, _ in self.rnuparams.items():        # delete existing params

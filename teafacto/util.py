@@ -179,6 +179,9 @@ def isstring(x):
 def isfunction(x):
     return hasattr(x, "__call__")
 
+def getnumargs(f):
+    return len(inspect.getargspec(f).args)
+
 
 class Saveable(object):
     def __init__(self, autosave=False, **kw):
