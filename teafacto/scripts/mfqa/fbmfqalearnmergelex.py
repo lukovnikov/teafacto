@@ -1,27 +1,26 @@
+import numpy as np
+
+from scripts.mfqa.fbmfqalearn import load_lex_data, loaddata, shiftdata
 from teafacto.blocks.kgraph.fbencdec import FBSeqCompositeEncDec, FBSeqCompEncDecAtt
 from teafacto.util import argprun, ticktock
-import numpy as np
-from IPython import embed
 
-from teafacto.scripts.fbmfqalearn import load_lex_data, loaddata, shiftdata
 
 def run(
         epochs=100,
-        epochsp=10,
         lr=0.03,
-        wreg=0.001,
+        wreg=0.0001,
         numbats=10,
-        fbdatapath="../../data/mfqa/mfqa.tsv.sample.small",
+        fbdatapath="../../data/mfqa/mfqa.tsv.sample",
         fblexpath="../../data/mfqa/mfqa.labels.idx.map",
         glovepath="../../data/glove/glove.6B.50d.txt",
         fbentdicp="../../data/mfqa/mfqa.dic.map",
         numwords=20,
         numchars=30,
         wordembdim=50,
-        wordencdim=100,
-        entembdim=100,
-        innerdim=400,
-        attdim=200,
+        wordencdim=50,
+        entembdim=101,
+        innerdim=100,
+        attdim=100,
         wordoffset=1,
         validinter=1,
         gradnorm=1.0,
@@ -36,6 +35,7 @@ def run(
     tt.tock("made data").tick()
     entids, lexdata = load_lex_data(fblexpath, datanuments, worddic)
 
+
     # manual split # TODO: do split in feeder
     splitpoint = int(traindata.shape[0]*(1. - 1./validsplit))
     print splitpoint
@@ -43,6 +43,17 @@ def run(
     validgold = golddata[splitpoint:]
     traindata = traindata[:splitpoint]
     golddata = golddata[:splitpoint]
+
+    print traindata.shape, golddata.shape
+    print validdata.shape, validgold.shape
+
+    if "lex" in model:      # append lexdata
+        traindata = np.concatenate([traindata, lexdata], axis=0)
+        print traindata.shape
+        entids = entids.reshape((entids.shape[0], 1))
+        golddata = np.concatenate([golddata, np.concatenate([entids, np.zeros_like(entids, dtype="int32")], axis=1)], axis=0)
+        print golddata.shape
+    #exit()
 
     if "att" in model:
         m = FBSeqCompEncDecAtt(
@@ -52,57 +63,29 @@ def run(
             innerdim=innerdim,
             outdim=datanuments,
             numchars=128,
+            numwords=vocnumwords,
             attdim=attdim,
-            numwords=vocnumwords
         )
+
     else:
-        m = FBSeqCompositeEncDec(  # compiles, errors go down
+        m = FBSeqCompositeEncDec(
             wordembdim=wordembdim,
             wordencdim=wordencdim,
             entembdim=entembdim,
             innerdim=innerdim,
             outdim=datanuments,
             numchars=128,
-            numwords=vocnumwords
+            numwords=vocnumwords,
         )
 
     reventdic = {}
     for k, v in entdic.items():
         reventdic[v] = k
 
+    prelex = "lex" in model
+
     #wenc = WordEncoderPlusGlove(numchars=numchars, numwords=vocnumwords, encdim=wordencdim, embdim=wordembdim)
     tt.tock("model defined")
-    if "lex" in model:
-        tt.tick("predicting lexicon")
-        print lexdata[1:5].shape, entids[1:5].shape, golddata[:5].shape
-        #print lexdata[1:5]
-        #print entids[:5]; exit()
-        pred = m.predict(lexdata[1:5], np.zeros((entids[1:5].shape[0], 1), dtype="int32"))
-        print pred.shape
-        print np.argmax(pred, axis=2)-1
-        print np.vectorize(lambda x: reventdic[x] if x in reventdic else None)(np.argmax(pred, axis=2)-1)
-        tt.tock("predicted sample")
-        tt.tick("training")
-        lextrain = lexdata
-        print lextrain.shape
-        lexgold = entids.reshape((entids.shape[0], 1))
-        print lexgold.shape
-        lexgoldshifted = shiftdata(lexgold)
-        m.train([lextrain, lexgoldshifted], lexgold).adagrad(lr=lr).seq_cross_entropy().grad_total_norm(gradnorm)\
-            .autovalidate(validsplit, random=True).validinter(validinter).seq_accuracy().seq_cross_entropy()\
-            .train(numbats, epochsp)
-
-        tt.tick("predicting")
-        print lexdata[1:5].shape, entids[1:5].shape, golddata[:5].shape
-        # print lexdata[1:5]
-        # print entids[:5]; exit()
-        pred = m.predict(lexdata[1:5], np.zeros((entids[1:5].shape[0], 1), dtype="int32"))
-        print pred.shape
-        print np.argmax(pred, axis=2) - 1
-        print np.vectorize(lambda x: reventdic[x] if x in reventdic else None)(np.argmax(pred, axis=2) - 1)
-        tt.tock("predicted sample")
-
-        m.fixO(lr=0.01)
 
     # embed()
     outdata = shiftdata(golddata)
@@ -122,7 +105,7 @@ def run(
     # embed()
 
     tt.tock("trained").tick("predicting")
-    pred = m.predict(traindata[:50], outdata[:50])
+    pred = m.predict(validdata, shiftdata(validgold))
     print np.argmax(pred, axis=2) - 1
     #print np.vectorize(lambda x: reventdic[x])(np.argmax(pred, axis=2) - 1)
     tt.tock("predicted sample")
