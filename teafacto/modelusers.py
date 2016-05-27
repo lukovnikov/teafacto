@@ -17,13 +17,12 @@ class RecPredictor(ModelUser):
 
     def build(self, inps):  # data: (batsize, ...)
         batsize = inps[0].shape[0]
-        inits, _ = self.model.get_init_info(batsize)
+        inits = self.model.get_init_info(batsize)
         inpvars = [Input(ndim=inp.ndim, dtype=inp.dtype) for inp in inps]
         statevars = [Input(ndim=x.d.ndim, dtype=x.d.dtype) for x in inits]
         allinpvars = inpvars + statevars
-        out, states, tail = self.model.recappl(inpvars, statevars)
-        alloutvars = out + states
-        assert(len(tail) == 0)
+        out = self.model.rec(*(inpvars+statevars))
+        alloutvars = out
         self.f = theano.function(inputs=[x.d for x in allinpvars], outputs=[x.d for x in alloutvars])
         self.statevals = [x.d.eval() for x in inits]
 
@@ -34,8 +33,3 @@ class RecPredictor(ModelUser):
         outpvals = self.f(*inpvals)
         self.statevals = outpvals[1:]
         return outpvals[0]
-
-
-class RecUsable(object):
-    def recappl(self, inps, states):
-        raise NotImplementedError("use subclass")

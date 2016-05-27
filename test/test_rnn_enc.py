@@ -15,13 +15,16 @@ class SimpleRNNEncoderTest(TestCase):
         self.outdim = 100
         batsize = 1000
         seqlen = 19
-        self.enc = SeqEncoder(GRU(dim=dim, innerdim=self.outdim))
+        self.enc = SeqEncoder(None, GRU(dim=dim, innerdim=self.outdim))
         self.enc = self.doswitches(self.enc)
         self.data = np.random.random((batsize, seqlen, dim)).astype("float32")
         self.out = self.enc.predict(self.data)
 
     def test_output_shape(self):
-        self.assertEqual(self.out.shape, (self.data.shape[0], self.outdim))
+        self.assertEqual(self.out.shape, self.expectshape(self.data.shape, self.outdim))
+
+    def expectshape(self, datashape, outdim):
+        return (datashape[0], outdim)
 
     def test_all_output_parameters(self):
         outputs = self.enc.wrapply(*self.enc.inputs)
@@ -52,12 +55,18 @@ class SimpleRNNEncoderTestAllStates(SimpleRNNEncoderTest):
 
 class SimpleRNNEncoderTestWithOutputs(SimpleRNNEncoderTest):
     def doswitches(self, enc):
-        return enc.with_outputs
+        return enc.all_outputs
+
+    def expectshape(self, datashape, outdim):
+        return (datashape[0], datashape[1], outdim)
 
 
 class SimpleRNNEncoderTestAllStatesWithOutputs(SimpleRNNEncoderTest):
     def doswitches(self, enc):
-        return enc.all_states.with_outputs
+        return enc.all_states.all_outputs
+
+    def expectshape(self, datashape, outdim):
+        return (datashape[0], datashape[1], outdim)
 
 
 class StackRNNEncoderTest(SimpleRNNEncoderTest):
@@ -70,7 +79,8 @@ class StackRNNEncoderTest(SimpleRNNEncoderTest):
         hdim = 51
         hdim2 = 61
         self.outdim = 47
-        self.enc = SeqEncoder(GRU(dim=indim, innerdim=hdim),
+        self.enc = SeqEncoder(None,
+                              GRU(dim=indim, innerdim=hdim),
                               GRU(dim=hdim, innerdim=hdim2),
                               GRU(dim=hdim2, innerdim=self.outdim))
         self.enc = self.doswitches(self.enc)
@@ -88,11 +98,17 @@ class StackRNNEncoderTestAllStates(StackRNNEncoderTest):
 
 class StackRNNEncoderTestWithOutputs(StackRNNEncoderTest):
     def doswitches(self, enc):
-        return enc.with_outputs
+        return enc.all_outputs
+
+    def expectshape(self, datashape, outdim):
+        return (datashape[0], datashape[1], outdim)
 
 
 class StackRNNEncoderTestAllStatesWithOutputs(StackRNNEncoderTest):
     def doswitches(self, enc):
-        return enc.all_states.with_outputs
+        return enc.all_states.all_outputs
+
+    def expectshape(self, datashape, outdim):
+        return (datashape[0], datashape[1], outdim)
 
 

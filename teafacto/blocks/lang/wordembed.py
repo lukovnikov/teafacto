@@ -31,7 +31,7 @@ class WordEncoder(Block):
                               GRU(dim=indim, innerdim=outdim))
 
     def apply(self, seq):       # seq: (batsize, maxwordlen) of character idxs
-        enco = self.enc(seq)    # enco: (batsize, outdim) of floats
+        enco = self.enc(seq, mask="auto")    # enco: (batsize, outdim) of floats
         return enco
 
 
@@ -54,9 +54,18 @@ class WordEncoderPlusGlove(Block):
         self.enc = WordEncoder(indim=numchars, outdim=encdim)
 
     def apply(self, seq):       # seq: (batsize, 1+maxwordlen): first column: Glove idxs, subsequent cols: char ids
-        emb = self.glove(seq[:, 0])                 # (batsize, embdim)
-        enc = self.enc(seq[:, 1:])                  # (batsize, encdim)
-        return T.concatenate([emb, enc], axis=1)    # (batsize, embdim + encdim)
+        if seq.ndim == 2:
+            emb = self.glove(seq[:, 0])                 # (batsize, embdim)
+            enc = self.enc(seq[:, 1:])                  # (batsize, encdim)
+            return T.concatenate([emb, enc], axis=1)    # (batsize, embdim + encdim)
+        elif seq.ndim == 3:     # (batsize, seqlen, 1+maxwordlen)
+            emb = self.glove(seq[:, :, 0])
+            o, _ = T.scan(fn=self.recenc, sequences=seq[:, :, 1:].dimswap(1, 0), outputs_info=None)
+            enc = o.dimswap(1, 0)
+            return T.concatenate([emb, enc], axis=2)    # (batsize, seqlen, embdim + encdim)
+
+    def recenc(self, seq):  # (batsize, 1+maxwordlen)
+        return self.enc(seq)
 
 '''
 class WordEncoderPlusEmbed(Block):

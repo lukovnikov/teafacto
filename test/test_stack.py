@@ -4,7 +4,7 @@ import numpy as np
 
 from teafacto.modelusers import RecPredictor
 from teafacto.blocks.basic import Softmax, VectorEmbed
-from teafacto.blocks.rnn import RecurrentStack, SimpleSeqTransDec
+from teafacto.blocks.rnn import RecStack, SimpleSeqTransDec
 from teafacto.blocks.rnu import GRU
 from teafacto.core.base import Input, param, asblock, tensorops as T
 from teafacto.core.stack import stack
@@ -28,7 +28,7 @@ class TestRecurrentStackRecappl(TestCase):
     def test_recappl(self):
         batsize = 100
         self.dims = [50, 20, 30, 40]
-        recstack = RecurrentStack(*[GRU(dim=self.dims[i], innerdim=self.dims[i+1]) for i in range(len(self.dims)-1)])
+        recstack = RecStack(*[GRU(dim=self.dims[i], innerdim=self.dims[i+1]) for i in range(len(self.dims)-1)])
         mu = RecPredictor(recstack)
         for i in range(3):
             inpval = np.random.random((batsize, 50)).astype("float32")

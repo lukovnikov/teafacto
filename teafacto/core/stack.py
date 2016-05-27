@@ -1,5 +1,5 @@
 from base import Block
-from teafacto.blocks.rnn import ReccableStack
+from teafacto.blocks.rnn import RecStack
 from teafacto.blocks.rnu import RNUBase
 
 
@@ -10,7 +10,7 @@ def stack(*layers, **kw):
             rec = True
             break
     if rec is True:
-        return ReccableStack(*layers, **kw)
+        return RecStack(*layers, **kw)
     else:
         return BlockStack(*layers, **kw)
 

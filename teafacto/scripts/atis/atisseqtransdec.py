@@ -4,7 +4,7 @@ import numpy as np
 from pympler.asizeof import asizeof
 from pympler.tracker import SummaryTracker
 
-from search import SeqTransDecSearch
+from teafacto.search import SeqTransDecSearch
 from teafacto.blocks.rnn import SimpleSeqTransDec
 from teafacto.scripts.atis.atisseqtrans import getdatamatrix, atiseval
 from teafacto.util import argprun
@@ -55,7 +55,7 @@ def run(p="../../../data/atis/atis.pkl", wordembdim=70, lablembdim=70, innerdim=
 
     # training
     m = m.train([traindata, shiftdata(traingold), trainmask], traingold).adagrad(lr=lr).grad_total_norm(5.0).seq_cross_entropy().l2(wreg)\
-        .cross_validate(splits=5, random=True).seq_cross_entropy().seq_accuracy().validinter(validinter).takebest()\
+        .split_validate(splits=5, random=True).seq_cross_entropy().seq_accuracy().validinter(validinter).takebest()\
         .train(numbats, epochs)
 
     # predict after training

@@ -1,7 +1,7 @@
 from teafacto.core.base import Block, asblock, tensorops as T, param, Val
 from teafacto.core.stack import stack
 from teafacto.blocks.basic import Softmax, MatDot as Lin, VectorEmbed, ConcatBlock
-from teafacto.blocks.rnn import SeqEncoder, SeqDecoder, RecurrentStack
+from teafacto.blocks.rnn import SeqEncoder, SeqDecoder, RecStack
 from teafacto.blocks.rnu import GRU
 from teafacto.blocks.lang.wordembed import WordEncoderPlusGlove, WordEmbed
 from teafacto.blocks.attention import LinearGateAttentionGenerator, WeightedSumAttCon, Attention
@@ -81,7 +81,7 @@ class FBSeqSimpEncDecAtt(Block):
         self.entembdim = entembdim
 
         self.wordencoder = WordEmbed(indim=numwords, outdim=self.wordembdim, trainfrac=1.0)
-        self.rnn = RecurrentStack(self.wordencoder, GRU(dim=self.wordembdim, innerdim=self.encinnerdim))
+        self.rnn = RecStack(self.wordencoder, GRU(dim=self.wordembdim, innerdim=self.encinnerdim))
 
         attgen = LinearGateAttentionGenerator(indim=self.encinnerdim + self.decinnerdim, attdim=attdim)
         attcon = WeightedSumAttCon()
@@ -94,8 +94,7 @@ class FBSeqSimpEncDecAtt(Block):
 
     def apply(self, inpseq, outseq):
         enco = self.rnn(inpseq)
-        self.dec.set_init_states(enco[:, -1, :])
-        deco = self.dec(enco, outseq)
+        deco = self.dec(enco, outseq, initstates=[enco[:, -1, :]])
         return deco
 
 
@@ -113,7 +112,7 @@ class FBSeqCompEncDecAtt(Block):
 
         self.wordencoder = WordEncoderPlusGlove(numchars=numchars, numwords=numwords, encdim=self.wordencdim, embdim=self.wordembdim, embtrainfrac=0.0, glovepath=glovepath)
 
-        self.rnn = RecurrentStack(self.wordencoder, GRU(dim=wordembdim+wordencdim, innerdim=self.encinnerdim))
+        self.rnn = RecStack(self.wordencoder, GRU(dim=wordembdim+wordencdim, innerdim=self.encinnerdim))
         attgen = LinearGateAttentionGenerator(indim=self.encinnerdim + self.decinnerdim, innerdim=attdim)
         attcon = WeightedSumAttCon()
         self.dec = SeqDecoder(
@@ -123,9 +122,8 @@ class FBSeqCompEncDecAtt(Block):
             innerdim=self.encinnerdim + self.decinnerdim)
 
     def apply(self, inpseq, outseq):
-        enco = self.rnn(inpseq)         # (batsize, inpseqlen, inpencdim)
-        self.dec.set_init_states(enco[:, -1, :])    # set init state of decoder to last encoding
-        deco = self.dec(enco, outseq)
+        enco = self.rnn(inpseq)         # (batsize, inpseqlen, inpencdim)# set init state of decoder to last encoding
+        deco = self.dec(enco, outseq, initstates=[enco[:, -1, :]])
         return deco
 
     def fixO(self, lr=0.0):
@@ -269,7 +267,7 @@ class FBSeqCompEncMemDecAtt(FBSeqCompositeEncMemDec):
 
         #ENCODER: uses the same language encoder as memory
         #wencpg2 = WordEncoderPlusGlove(numchars=self.numchars, numwords=self.numwords, encdim=self.wordencdim, embdim=self.wordembdim, embtrainfrac=0.0, glovepath=glovepath)
-        self.enc = RecurrentStack(wencpg, GRU(dim=self.wordembdim + self.wordencdim, innerdim=self.encinnerdim))
+        self.enc = RecStack(wencpg, GRU(dim=self.wordembdim + self.wordencdim, innerdim=self.encinnerdim))
 
         #ATTENTION
         attgen = LinearGateAttentionGenerator(indim=self.encinnerdim + self.decinnerdim, innerdim=self.attdim)

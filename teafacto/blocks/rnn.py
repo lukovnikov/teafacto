@@ -1,44 +1,83 @@
 import inspect
 
-from teafacto.modelusers import RecUsable
 from teafacto.blocks.attention import WeightedSumAttCon, Attention, AttentionConsumer, LinearGateAttentionGenerator
 from teafacto.blocks.basic import IdxToOneHot, VectorEmbed, Softmax, MatDot
 from teafacto.blocks.basic import MatDot as Lin
 from teafacto.blocks.rnu import GRU, ReccableBlock, RecurrentBlock, RNUBase
 from teafacto.core.base import Block, tensorops as T, asblock
-from teafacto.util import issequence
+from teafacto.util import issequence, getnumargs
 
 
-class ReccableStack(ReccableBlock):
-    def __init__(self, *args, **kw): # layer can be a layer or function
-        super(ReccableStack, self).__init__(**kw)
-        self.layers = args
+class RecStack(ReccableBlock):
+    # must handle RecurrentBlocks ==> can not recappl, if all ReccableBlocks ==> can do recappl
+    # must give access to final states of internal layers
+    # must give access to all outputs of top layer
+    # must handle masks
+    def __init__(self, *layers, **kw):
+        super(RecStack, self).__init__(**kw)
+        self.layers = layers
 
-    def __getitem__(self, idx):
-        return self.layers[idx]
+    @property
+    def numstates(self):
+        return reduce(lambda x, y: x.numstates + y.numstates, [x for x in self.layers if isinstance(x, RecurrentBlock)], 0)
 
-    def get_states_from_outputs(self, outputs):
-        # outputs are ordered from topmost recurrent layer first ==> split and delegate
+    # FWD API. initial states can be set, mask is accepted, everything is returned. Works for all RecurrentBlocks
+    # FWD API IMPLEMENTED USING FWD API
+    def innerapply(self, seq, mask=None, initstates=None):
         states = []
-        for recurrentlayer in filter(lambda x: isinstance(x, ReccableBlock), self.layers): # from bottom -> eat from behind; insert to the front
-            numstates = len(inspect.getargspec(recurrentlayer.rec).args) - 2
-            layerstates = recurrentlayer.get_states_from_outputs(outputs[-numstates:]) # might be more than one
-            i = 0
-            for layerstate in layerstates:
-                states.insert(i, layerstate)
-                i += 1
-            outputs = outputs[:-numstates]
-        assert(len(outputs) == 0)
-        return states
+        for layer in self.layers:
+            if isinstance(layer, RecurrentBlock):
+                if initstates is not None:
+                    layerinpstates = initstates[:layer.numstates]
+                    initstates = initstates[layer.numstates:]
+                else:
+                    layerinpstates = None
+                seq, layerstates = layer.innerapply(seq, mask=mask, initstates=layerinpstates)
+                states.extend(layerstates)
+            elif isinstance(layer, Block):
+                seq = self.recurnonreclayer(seq, layer)
+            else:
+                raise Exception("can not apply this layer: " + str(layer) + " in RecStack")
+        return seq, states           # full history of final output and all states (ordered from bottom layer to top)
 
-    def do_get_init_info(self, initstates):    # if initstates is not a list, it must be batsize
+    @classmethod
+    def apply_mask(cls, xseq, maskseq=None):
+        if maskseq is None:
+            ret = xseq
+        else:
+            mask = T.tensordot(maskseq, T.ones((xseq.shape[2],)), 0)  # f32^(batsize, seqlen, outdim) -- maskseq stacked
+            ret = mask * xseq
+        return ret
+
+    @classmethod
+    def dummyrec(cls, layer):
+        def innerrec(x_t):
+            return layer(x_t)
+
+        return innerrec
+
+    @classmethod
+    def recurnonreclayer(cls, x, layer):
+        y, _ = T.scan(fn=cls.dummyrec(layer),
+                      sequences=x.dimswap(1, 0),
+                      outputs_info=None)
+        return y.dimswap(1, 0)
+
+    # REC API: only works with ReccableBlocks
+    def get_init_info(self, initstates):
         recurrentlayers = list(filter(lambda x: isinstance(x, ReccableBlock), self.layers))
-        recurrentlayers.reverse()
+        assert (len(filter(lambda x: isinstance(x, RecurrentBlock) and not isinstance(x, ReccableBlock),
+                           self.layers)) == 0)  # no non-reccable blocks allowed
         init_infos = []
         for recurrentlayer in recurrentlayers:
-            initinfo, initstates = recurrentlayer.do_get_init_info(initstates)
+            if issequence(initstates):
+                arg = initstates[:recurrentlayer.numstates]
+                initstates = initstates[recurrentlayer.numstates:]
+            else:
+                arg = initstates
+            initinfo = recurrentlayer.get_init_info(arg)
             init_infos.extend(initinfo)
-        return init_infos, initstates   # layerwise in reverse
+        return init_infos
 
     def rec(self, x_t, *states):
         # apply each block on x_t to get next-level input, consume states in the process
@@ -46,125 +85,16 @@ class ReccableStack(ReccableBlock):
         nextstates = []
         for block in self.layers:
             if isinstance(block, ReccableBlock):
-                numstates = len(inspect.getargspec(block.rec).args) - 2
-                # eat from behind
-                recstates = states[-numstates:]
-                states = states[:-numstates]
+                numstates = block.numstates
+                recstates = states[:numstates]
+                states = states[numstates:]
                 rnuret = block.rec(nextinp, *recstates)
-                # insert from behind
-                i = 0
-                for nextstate in rnuret[1:]:
-                    nextstates.insert(i, nextstate)
-                    i += 1
+                nextstates.extend(rnuret[1:])
                 nextinp = rnuret[0]
             elif isinstance(block, Block): # block is a function
                 nextinp = block(nextinp)
         return [nextinp] + nextstates
 
-    def recappl(self, inp, *states):
-        return self.rec(inp, *states)
-
-    def apply(self, se, initstates=None):
-        seq = se.dimswap(1, 0)
-        initstatearg = initstates if initstates is not None else seq.shape[1]
-        outputs, _ = T.scan(fn=self.rec,
-                            sequences=seq,
-                            outputs_info=[None]+self.get_init_info(initstatearg))
-        output = outputs[0]
-        return output.dimswap(1, 0)
-
-
-class RecurrentStack(Block):       # TODO: setting init states of contained recurrent blocks
-    def __init__(self, *layers, **kw):
-        super(RecurrentStack, self).__init__(**kw)
-        self.layers = layers
-
-    def apply(self, seq):   # layer-wise processing of input sequence
-        acc = seq
-        for layer in self.layers:
-            if isinstance(layer, RecurrentBlock):
-                acc = layer(acc)
-            elif isinstance(layer, Block): # non-recurrent ==> recur
-                acc = self.recurnonreclayer(acc, layer)
-            else:
-                raise Exception("can not apply this layer: " + str(layer))
-        return acc
-
-    def get_init_info(self, initstates):
-        recurrentlayers = list(filter(lambda x: isinstance(x, ReccableBlock), self.layers))
-        assert(len(filter(lambda x: isinstance(x, RecurrentBlock) and not isinstance(x, ReccableBlock), self.layers)) == 0)       # no non-reccable blocks allowed
-        init_infos = []
-        for recurrentlayer in recurrentlayers:
-            initinfo, initstates = recurrentlayer.do_get_init_info(initstates)
-            init_infos.extend(initinfo)
-        return init_infos, initstates   # layerwise in reverse
-
-
-    def recappl(self, inps, states):       # what happens in one iteration ==> inside the scan #TODO: REMOVE
-        # first inp is a var or a tuple of vars, after that follows layer-wise state vars
-        # each block gives only one output or a tuple of outputs
-        heads = []
-        tail = states
-        for layer in self.layers:
-            if isinstance(layer, ReccableBlock):
-                inps, head, tail = layer.recappl(inps, tail)   # flattened
-                heads.extend(head)
-            elif isinstance(layer, RecurrentBlock):
-                raise AssertionError("no non-reccable recurrent blocks allowed")
-            elif isinstance(layer, Block):
-                inps = layer(*inps)
-            if not issequence(inps):
-                inps = [inps]
-        return inps, heads, tail
-
-    @classmethod
-    def dummyrec(cls, layer):
-        def innerrec(x_t):
-            return layer(x_t)
-        return innerrec
-
-    @classmethod
-    def recurnonreclayer(cls, x, layer):
-        y, _ = T.scan(fn=cls.dummyrec(layer),
-                        sequences=x.dimswap(1, 0),
-                        outputs_info=None)
-        return y.dimswap(1, 0)
-
-
-
-
-class ReccableBlockParameterized(object):       # superclass for classes that take a reccable block as init param
-    def __init__(self, *layers, **kw):
-        self._reverse = False
-        if "reverse" in kw:
-            self._reverse = kw["reverse"]
-            del kw["reverse"]
-        super(ReccableBlockParameterized, self).__init__(**kw)
-        if len(layers) > 0:
-            if len(layers) == 1:
-                self.block = layers[0]
-                assert(isinstance(self.block, ReccableBlock))
-            else:
-                self.block = ReccableStack(*layers)
-        else:
-            self.block = None
-
-
-'''class AttentionParameterized(object):
-    def __add__(self, other):
-        assert(self.block is None)  # this block should not be parameterized already in order to parameterize it
-        self.attach(other)
-        return self
-
-    def attach(self, other):
-        if isinstance(other, RecurrentBlock):
-            self.block = other
-            self.onAttach()
-        return self
-
-    def onAttach(self):
-        raise NotImplementedError("use subclass")
-'''
 
 class BiRNU(RecurrentBlock): # TODO: optimizer can't process this
     def __init__(self, fwd=None, rew=None, **kw):
@@ -183,15 +113,23 @@ class BiRNU(RecurrentBlock): # TODO: optimizer can't process this
         rew = rnucls(*args, **kw)
         return cls(fwd=fwd, rew=rew)
 
-    def apply(self, seq, init_states=None):
-        fwdout = self.fwd(seq)
-        rewout = self.rew(seq)
+    @property
+    def numstates(self):
+        return self.fwd.numstates + self.rew.numstates
+
+    def innerapply(self, seq, mask=None, initstates=None):
+        initstatesfwd = initstates[:self.fwd.numstates] if initstates is not None else initstates
+        initstates = initstates[self.fwd.numstates:] if initstates is not None else initstates
+        assert(initstates is None or len(initstates) == self.rew.numstates)
+        initstatesrew = initstates
+        fwdout, fwdstates = self.fwd.innerapply(seq, mask=mask, initstates=initstatesfwd)
+        rewout, rewstates = self.rew.innerapply(seq, mask=mask, initstates=initstatesrew)
         # concatenate: fwdout, rewout: (batsize, seqlen, feats) ==> (batsize, seqlen, feats_fwd+feats_rew)
         out = T.concatenate([fwdout, rewout], axis=2)
-        return out
+        return out, fwdstates+rewstates
 
 
-class SeqEncoder(ReccableBlockParameterized, AttentionConsumer, Block):
+class SeqEncoder(AttentionConsumer, Block):
     '''
     Encodes a sequence of vectors into a vector, input dims and output dims specified by the RNU unit
     Returns multiple outputs, multiple states
@@ -202,30 +140,60 @@ class SeqEncoder(ReccableBlockParameterized, AttentionConsumer, Block):
     _weighted = False
     _nomask = False
 
-    @property
-    def nomask(self):
-        self._nomask = True
+    def __init__(self, embedder, *layers, **kw):
+        super(SeqEncoder, self).__init__(**kw)
+        self.embedder = embedder
+        if len(layers) > 0:
+            if len(layers) == 1:
+                self.block = layers[0]
+                assert(isinstance(self.block, RecurrentBlock))
+            else:
+                self.block = RecStack(*layers)
+        else:
+            self.block = None
 
-    def apply(self, seq, weights=None): # seq: (batsize, seqlen, dim), weights: (batsize, seqlen)
-        inp = seq.dimswap(1, 0)         # inp: (seqlen, batsize, dim)
+    def apply(self, seq, weights=None, mask="auto"): # seq: (batsize, seqlen, dim), weights: (batsize, seqlen) OR (batsize, seqlen, seqlen*, dim) ==> reduce the innermost seqlen
+        if self.embedder is not None:
+            seqemb = self.embedder(seq)
+        else:
+            seqemb = seq
         if weights is None:
-            w = T.ones((inp.shape[0], inp.shape[1])) # (seqlen, batsize)
+            weights = T.ones(seqemb.shape[:-1]) # (batsize, seqlen)
         else:
             self._weighted = True
-            w = weights.dimswap(1, 0)
-        outputs, _ = T.scan(fn=self.recwrap,
-                            sequences=[inp, w],
-                            outputs_info=[None]+self.block.get_init_info(seq.shape[0]),
-                            go_backwards=self._reverse)
-        return self._get_apply_outputs(outputs)
+        mask = self._generate_mask(mask, seq, seqemb)
+        mask = mask * weights
+        outputs, states = self.block.innerapply(seqemb, mask=mask)
+        return self._get_apply_outputs(outputs, states)
 
-    def _get_apply_outputs(self, outputs):
+    def _generate_mask(self, maskinp, seq, seqemb): # seq: (batsize, seqlen, dim)
+        if maskinp is None:     # generate default all-ones mask
+            mask = T.ones(seqemb.shape[:2])
+            self._nomask = True
+        elif maskinp is "auto": # generate mask based on seq data and seqemb's shape
+            axes = range(2, seq.ndim)       # mask must be 2D
+            if "int" in seq.dtype:       # ==> indexes  # mask must be 2D
+                mask = seq.sum(axis=axes) > 0      # 0 is TERMINUS
+            else:
+                mask = seq.norm(2, axis=axes) > 0
+        else:
+            mask = maskinp
+        return mask     # (batsize, seqlen)
+
+    def _get_apply_outputs(self, outputs, states):
+        if self._withoutput:
+            ret = outputs
+        else:
+            ret = outputs[:, -1, :]
+        return ret
+
+    def _get_apply_outputs_old(self, outputs):
         output = outputs[0]
         if self._all_states:    # get the last values of each of the states
             states = self.block.get_states_from_outputs(outputs[1:])
             ret = [s[-1, :, :] for s in states]
         else:                   # get the last state of the final state
-            ret = [output[-1, :, :]] #output is (batsize, innerdim)
+            ret = [output[:, -1, :]] #output is (batsize, innerdim)
         if self._withoutput:    # include stack output
             return ret + [output]
         else:
@@ -242,36 +210,20 @@ class SeqEncoder(ReccableBlockParameterized, AttentionConsumer, Block):
             output = res
         return output
 
-    def recwrap(self, x_t, w_t, *args): # x_t: (batsize, dim)      if input is all zeros, just return previous state
-        if not self._nomask:
-            if x_t.ndim == 1:       # ==> indexes
-                mask = x_t > 0      # 0 is TERMINUS
-            else:
-                mask = x_t.norm(2, axis=1) > 0 # mask: (batsize, )
-        rnuret = self.block.rec(x_t, *args) # list of matrices (batsize, **somedims**)
-        if self._weighted:
-            rnuret = map(lambda (origarg, rnuretarg): (origarg.T * (1 - w_t) + rnuretarg.T * w_t).T, zip([args[0]] + list(args), rnuret))
-        if not self._nomask:
-            ret = map(lambda (origarg, rnuretarg): (origarg.T * (1 - mask) + rnuretarg.T * mask).T, zip([args[0]] + list(args), rnuret)) # TODO mask breaks multi-layered encoders (order is reversed)
-        else:
-            ret = rnuret
-        #ret = rnuret
-        return ret
-
     @property
-    def all_states(self):
+    def all_states(self):       # TODO
         '''Call this switch to get the final states of all recurrent layers'''
         self._all_states = True
         return self
 
     @property
-    def with_outputs(self):
+    def all_outputs(self):
         '''Call this switch to get the actual output of top layer as the last outputs'''
         self._withoutput = True
         return self
 
 
-class SeqDecoder(ReccableBlockParameterized, Block):        # TODO: make recappl-able
+class SeqDecoder(Block):
     '''
     Decodes a sequence of symbols given context
     output: probabilities over symbol space: float: (batsize, seqlen, vocabsize)
@@ -281,12 +233,13 @@ class SeqDecoder(ReccableBlockParameterized, Block):        # TODO: make recappl
     ! first layer must be an embedder or IdxToOneHot, otherwise, an IdxToOneHot is created automatically based on given dim
     '''
     def __init__(self, layers, softmaxoutblock=None, innerdim=None, attention=None, inconcat=False, outconcat=False, **kw): # limit says at most how many is produced
+        super(SeqDecoder, self).__init__(**kw)
         self.embedder = layers[0]
+        self.block = RecStack(*layers[1:])
         self.outdim = innerdim
         self.inconcat = inconcat
         self.outconcat = outconcat
         self.attention = attention
-        super(SeqDecoder, self).__init__(*layers[1:], **kw)     # puts layers into a ReccableBlock
         self._mask = False
         self._attention = None
         assert(isinstance(self.block, ReccableBlock))
@@ -296,22 +249,20 @@ class SeqDecoder(ReccableBlockParameterized, Block):        # TODO: make recappl
             self.softmaxoutblock = asblock(lambda x: sm(self.lin(x)))
         else:
             self.softmaxoutblock = softmaxoutblock
-        self.init_states = None
 
-    def set_init_states(self, *states):
-        self.init_states = states
-
-    def apply(self, context, seq, context_0=None, **kw):    # context: (batsize, enc.innerdim), seq: idxs-(batsize, seqlen)
-        sequences = [seq.dimswap(1, 0)]     # sequences: (seqlen, batsize)
-        context_0 = self._get_ctx_t0(context, context_0)
-        if self.init_states is not None:
-            init_info = self.block.get_init_info(self.init_states)  # sets init states to provided ones
-        else:
-            init_info = self.block.get_init_info(seq.shape[0])           # initializes zero init states
-        outputs, _ = T.scan(fn=self.recwrap,
-                            sequences=sequences,
-                            outputs_info=[None, context, context_0, 0] + init_info)
+    def apply(self, context, seq, context_0=None, initstates=None, **kw):    # context: (batsize, enc.innerdim), seq: idxs-(batsize, seqlen)
+        if initstates is None:
+            initstates = seq.shape[0]
+        init_info = self.get_init_info(context, context_0, initstates)  # sets init states to provided ones
+        outputs, _ = T.scan(fn=self.rec,
+                            sequences=seq.dimswap(1, 0),
+                            outputs_info=[None] + init_info)
         return outputs[0].dimswap(1, 0)     # returns probabilities of symbols --> (batsize, seqlen, vocabsize)
+
+    def get_init_info(self, context, context_0, initstates):
+        ret = self.block.get_init_info(initstates)
+        context_0 = self._get_ctx_t0(context, context_0)
+        return [context, context_0, 0] + ret
 
     def _get_ctx_t0(self, ctx, ctx_0=None):
         if ctx_0 is None:
@@ -327,7 +278,7 @@ class SeqDecoder(ReccableBlockParameterized, Block):        # TODO: make recappl
                 print "sum ting wong in SeqDecoder _get_ctx_t0()"
         return ctx_0
 
-    def recwrap(self, x_t, ctx, ctx_tm1, t, *states_tm1):  # x_t: (batsize), context: (batsize, enc.innerdim)
+    def rec(self, x_t, ctx, ctx_tm1, t, *states_tm1):  # x_t: (batsize), context: (batsize, enc.innerdim)
         i_t = self.embedder(x_t)                             # i_t: (batsize, embdim)
         j_t = self._get_j_t(i_t, ctx_tm1)
         rnuret = self.block.rec(j_t, *states_tm1)     # list of matrices (batsize, **somedims**)
@@ -386,7 +337,6 @@ class RNNAutoEncoder(Block):    # tries to decode original sequence
         return dec
 
 
-
 class RewAttRNNEncDecoder(Block):
     '''
     Take the input index sequence as-is, transform to one-hot, feed to gate AttentionGenerator, encode with weighted SeqEncoder,
@@ -396,7 +346,7 @@ class RewAttRNNEncDecoder(Block):
         super(RewAttRNNEncDecoder, self).__init__(**kw)
         self.emb = IdxToOneHot(vocsize)
         attgen = LinearGateAttentionGenerator(indim=innerdim+vocsize, innerdim=attdim)
-        attcon = SeqEncoder(
+        attcon = SeqEncoder(None,
             GRU(dim=vocsize, innerdim=encdim))
         self.dec = SeqDecoder([IdxToOneHot(outvocsize), GRU(dim=outvocsize+encdim, innerdim=innerdim)],
                               attention=Attention(attgen, attcon),
@@ -417,7 +367,7 @@ class FwdAttRNNEncDecoder(Block):
         super(FwdAttRNNEncDecoder, self).__init__(**kw)
         self.emb = IdxToOneHot(vocsize)
         attgen = LinearGateAttentionGenerator(indim=innerdim+vocsize, innerdim=attdim)
-        attcon = SeqEncoder(
+        attcon = SeqEncoder(None,
             GRU(dim=vocsize, innerdim=encdim))
         self.dec = SeqDecoder([IdxToOneHot(outvocsize), GRU(dim=outvocsize, innerdim=innerdim)],
                               outconcat=True,
@@ -432,7 +382,7 @@ class FwdAttRNNEncDecoder(Block):
 class RewAttSumDecoder(Block):
     def __init__(self, vocsize=25, outvocsize=25, encdim=200, innerdim=200, attdim=50, **kw):
         super(RewAttSumDecoder, self).__init__(**kw)
-        self.rnn = ReccableStack(IdxToOneHot(vocsize), GRU(dim=vocsize, innerdim=encdim))
+        self.rnn = SeqEncoder(IdxToOneHot(vocsize), GRU(dim=vocsize, innerdim=encdim)).all_outputs
         attgen = LinearGateAttentionGenerator(indim=innerdim+encdim, innerdim=attdim)
         attcon = WeightedSumAttCon()
         self.dec = SeqDecoder([IdxToOneHot(outvocsize), GRU(dim=outvocsize+encdim, innerdim=innerdim)],
@@ -448,7 +398,7 @@ class RewAttSumDecoder(Block):
 class FwdAttSumDecoder(Block):
     def __init__(self, vocsize=25, outvocsize=25, encdim=300, innerdim=200, attdim=50, **kw):
         super(FwdAttSumDecoder, self).__init__(**kw)
-        self.rnn = RecurrentStack(IdxToOneHot(vocsize), GRU(dim=vocsize, innerdim=encdim))
+        self.rnn = SeqEncoder(IdxToOneHot(vocsize), GRU(dim=vocsize, innerdim=encdim)).all_outputs
         attgen = LinearGateAttentionGenerator(indim=innerdim+encdim, innerdim=attdim)
         attcon = WeightedSumAttCon()
         self.dec = SeqDecoder([IdxToOneHot(outvocsize), GRU(dim=outvocsize, innerdim=innerdim)],
@@ -465,8 +415,8 @@ class FwdAttSumDecoder(Block):
 class BiFwdAttSumDecoder(Block):
     def __init__(self, vocsize=25, outvocsize=25, encdim=300, innerdim=200, attdim=50, **kw):
         super(BiFwdAttSumDecoder, self).__init__(**kw)
-        self.rnn = RecurrentStack(IdxToOneHot(vocsize),
-                                  BiRNU.fromrnu(GRU, dim=vocsize, innerdim=encdim))
+        self.rnn = SeqEncoder(IdxToOneHot(vocsize),
+                                  BiRNU.fromrnu(GRU, dim=vocsize, innerdim=encdim)).all_outputs
         attgen = LinearGateAttentionGenerator(indim=innerdim+encdim*2, innerdim=attdim)
         attcon = WeightedSumAttCon()
         self.dec = SeqDecoder([IdxToOneHot(outvocsize), GRU(dim=outvocsize, innerdim=innerdim)],
@@ -483,8 +433,8 @@ class BiFwdAttSumDecoder(Block):
 class BiRewAttSumDecoder(Block):
     def __init__(self, vocsize=25, outvocsize=25, encdim=300, innerdim=200, attdim=50, **kw):
         super(BiRewAttSumDecoder, self).__init__(**kw)
-        self.rnn = RecurrentStack(IdxToOneHot(vocsize),
-                                  BiRNU.fromrnu(GRU, dim=vocsize, innerdim=encdim))
+        self.rnn = SeqEncoder(IdxToOneHot(vocsize),
+                                  BiRNU.fromrnu(GRU, dim=vocsize, innerdim=encdim)).all_outputs
         attgen = LinearGateAttentionGenerator(indim=innerdim+encdim*2, innerdim=attdim)
         attcon = WeightedSumAttCon()
         self.dec = SeqDecoder([IdxToOneHot(outvocsize), GRU(dim=outvocsize+encdim*2, innerdim=innerdim)],
@@ -515,11 +465,11 @@ class SeqTransducer(Block):
         outdim = kw["outdim"]
         del kw["smodim"]; del kw["outdim"]
         super(SeqTransducer, self).__init__(**kw)
-        self.block = RecurrentStack(*(layers + (Lin(indim=smodim, dim=outdim), Softmax())))
+        self.block = RecStack(*(layers + (Lin(indim=smodim, dim=outdim), Softmax())))
 
     def apply(self, inpseq, maskseq=None):    # inpseq: idx^(batsize, seqlen), maskseq: f32^(batsize, seqlen)
         embseq = self.embedder(inpseq)
-        res = self.block(embseq)            # f32^(batsize, seqlen, outdim)
+        res = self.block(embseq, mask=maskseq)            # f32^(batsize, seqlen, outdim)
         ret = self.applymask(res, maskseq=maskseq)
         return ret
 
@@ -532,40 +482,6 @@ class SeqTransducer(Block):
             masker = T.concatenate([T.ones((xseq.shape[0], xseq.shape[1], 1)), T.zeros((xseq.shape[0], xseq.shape[1], xseq.shape[2] - 1))], axis=2)  # f32^(batsize, seqlen, outdim) -- gives 100% prob to output 0
             ret = xseq * mask + masker * (1.0 - mask)
         return ret
-
-
-class SeqTransDec(Block, RecUsable):
-    def __init__(self, *layers, **kw):
-        """ first two layers must be embedding layers. Final softmax is added automatically"""
-        assert("smodim" in kw and "outdim" in kw)
-        smodim = kw["smodim"]
-        outdim = kw["outdim"]
-        del kw["smodim"]; del kw["outdim"]
-        super(SeqTransDec, self).__init__(**kw)
-        self.inpemb = layers[0]
-        self.outemb = layers[1]
-        self.block = RecurrentStack(*(layers[2:] + (Lin(indim=smodim, dim=outdim), Softmax())))
-
-    def apply(self, inpseq, outseq, maskseq=None):
-        # embed with the two embedding layers
-        emb = self._get_emb(inpseq, outseq)
-        res = self.block(emb)
-        ret = SeqTransducer.applymask(res, maskseq=maskseq)
-        return ret
-
-    def _get_emb(self, inpseq, outseq):
-        iemb = self.inpemb(inpseq)     # (batsize, seqlen, inpembdim)
-        oemb = self.outemb(outseq)     # (batsize, seqlen, outembdim)
-        emb = T.concatenate([iemb, oemb], axis=iemb.ndim-1)                       # (batsize, seqlen, inpembdim+outembdim)
-        return emb
-
-    def recappl(self, inps, states):
-        emb = self._get_emb(*inps)
-        inps, heads, tail = self.block.recappl(emb, states)
-        return inps, heads, tail
-
-    def get_init_info(self, initstates):
-        return self.block.get_init_info(initstates)
 
 
 class SimpleSeqTransducer(SeqTransducer):
@@ -586,6 +502,39 @@ class SimpleSeqTransducer(SeqTransducer):
             rnn.append(rnu(dim=innerdim[i-1], innerdim=innerdim[i]))
             i += 1
         return rnn
+
+
+class SeqTransDec(Block):
+    def __init__(self, *layers, **kw):
+        """ first two layers must be embedding layers. Final softmax is added automatically"""
+        assert("smodim" in kw and "outdim" in kw)
+        smodim = kw["smodim"]
+        outdim = kw["outdim"]
+        del kw["smodim"]; del kw["outdim"]
+        super(SeqTransDec, self).__init__(**kw)
+        self.inpemb = layers[0]
+        self.outemb = layers[1]
+        self.block = RecStack(*(layers[2:] + (Lin(indim=smodim, dim=outdim), Softmax())))
+
+    def apply(self, inpseq, outseq, maskseq=None):
+        # embed with the two embedding layers
+        emb = self._get_emb(inpseq, outseq)
+        res = self.block(emb)
+        ret = SeqTransducer.applymask(res, maskseq=maskseq)
+        return ret
+
+    def _get_emb(self, inpseq, outseq):
+        iemb = self.inpemb(inpseq)     # (batsize, seqlen, inpembdim)
+        oemb = self.outemb(outseq)     # (batsize, seqlen, outembdim)
+        emb = T.concatenate([iemb, oemb], axis=iemb.ndim-1)                       # (batsize, seqlen, inpembdim+outembdim)
+        return emb
+
+    def rec(self, inpa, inpb, *states):
+        emb = self._get_emb(inpa, inpb)
+        return self.block.rec(emb, *states)
+
+    def get_init_info(self, initstates):
+        return self.block.get_init_info(initstates)
 
 
 class SimpleSeqTransDec(SeqTransDec):

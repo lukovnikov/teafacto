@@ -1,4 +1,4 @@
-from teafacto.modelusers import RecUsable
+
 from teafacto.core.base import Block, param
 from teafacto.core.base import tensorops as T
 from teafacto.util import issequence, getnumargs
@@ -14,27 +14,66 @@ class RecurrentBlock(Block):     # ancestor class for everything that consumes s
         self._reverse = True
         return self
 
-    def apply(self, seq):
+    @property
+    def numstates(self):
+        raise NotImplementedError("use subclass")
+
+    # FWD API
+    def apply(self, x, mask=None, initstates=None):
+        output, states = self.innerapply(x, mask, initstates)
+        return output  # return is (batsize, seqlen, dim)
+
+    def innerapply(self, x, mask=None, initstates=None):
         raise NotImplementedError("use subclass")
 
 
-class ReccableBlock(RecurrentBlock, RecUsable):    # exposes a rec function
+class ReccableBlock(RecurrentBlock):    # exposes a rec function
     def __init__(self, **kw):
         super(ReccableBlock, self).__init__(**kw)
 
+    @property
+    def numstates(self):
+        return getnumargs(self.rec) - 2
+
+    # REC API
     def rec(self, *args):
         raise NotImplementedError("use subclass")
 
     def get_init_info(self, initstates):
-        info, red = self.do_get_init_info(initstates)
-        assert((issequence(red) and len(red) == 0) or (not issequence(red)))
-        return info
-
-    def do_get_init_info(self, initstates):
         raise NotImplementedError("use subclass")
 
-    def get_states_from_outputs(self, outputs):     # topmost layer --> first in list of states (reverse)
-        raise NotImplementedError("use subclass")
+    # FWD API IMPLEMENTATION USING REC API
+    def innerapply(self, x, mask=None, initstates=None):
+        assert(x.ndim == 3 and (mask is None or mask.ndim == 2))
+        if initstates is None:
+            infoarg = x.shape[0]    # batsize
+        else:
+            infoarg = initstates
+            assert(issequence(infoarg))
+        inputs = x.dimswap(1, 0) # inputs is (seq_len, batsize, dim)
+        init_info = self.get_init_info(infoarg)
+        if mask is None:
+            outputs, _ = T.scan(fn=self.rec,
+                                sequences=inputs,
+                                outputs_info=[None]+init_info,
+                                go_backwards=self._reverse)
+        else:
+            outputs, _ = T.scan(fn=self.recwmask,
+                                sequences=[inputs, mask.dimswap(1, 0)],
+                                outputs_info=[None] + init_info,
+                                go_backwards=self._reverse)
+        outputs = [x.dimswap(1, 0) for x in outputs]
+        return outputs[0], outputs[1:]
+
+    def recwmask(self, x_t, m_t, *states):   # m_t: (batsize, ), x_t: (batsize, dim), states: (batsize, **somedim**)
+        recout = self.rec(x_t, *states)
+        y_t = recout[0]
+        newstates = recout[1:]
+        y_tm1 = T.zeros_like(y_t)
+        y_tm1 = states[0]
+        y_t_out = (y_t.T * m_t + y_tm1.T * (1 - m_t)).T
+        states_out = [(a.T * m_t + b.T * (1 - m_t)).T for a, b in zip(newstates, states)]
+        return [y_t_out] + states_out
 
 
 class RNUBase(ReccableBlock):
@@ -84,21 +123,6 @@ class RNUBase(ReccableBlock):
             self.rnuparams[paramname] = param(shape, name=paramname).init(self.paraminit)
             setattr(self, paramname, self.rnuparams[paramname])
 
-    def apply(self, x, initstates=None):
-        if initstates is None:
-            infoarg = x.shape[0]    # batsize
-        else:
-            infoarg = initstates
-            assert(issequence(infoarg))
-        inputs = x.dimswap(1, 0) # inputs is (seq_len, batsize, dim)
-        init_info = self.get_init_info(infoarg)
-        outputs, _ = T.scan(fn=self.rec,
-                            sequences=inputs,
-                            outputs_info=[None]+init_info,
-                            go_backwards=self._reverse)
-        output = outputs[0]
-        return output.dimswap(1, 0) # return is (batsize, seqlen, dim)
-
 
 class RNU(RNUBase):
     paramnames = ["u", "w", "b"]
@@ -107,15 +131,11 @@ class RNU(RNUBase):
         self.outpactivation = outpactivation
         super(RNU, self).__init__(**kw)
 
-    def do_get_init_info(self, initstates):    # either a list of init states or the batsize
+    def get_init_info(self, initstates):    # either a list of init states or the batsize
         if issequence(initstates):
-            return [initstates[0]], initstates[1:]
+            return [initstates[0]]
         else:
-            return [T.zeros((initstates, self.innerdim))], initstates
-
-    def get_states_from_outputs(self, outputs):
-        assert(len(outputs) == 1)
-        return [outputs[0]]
+            return [T.zeros((initstates, self.innerdim))]
 
     def rec(self, x_t, h_tm1):      # x_t: (batsize, dim), h_tm1: (batsize, innerdim)
         inp = T.dot(x_t, self.w)    # w: (dim, innerdim) ==> inp: (batsize, innerdim)
@@ -176,20 +196,14 @@ class IFGRU(GatedRNU):      # input-modulating GRU
 class LSTM(GatedRNU):
     paramnames = ["wf", "rf", "bf", "wi", "ri", "bi", "wo", "ro", "bo", "w", "r", "b", "pf", "pi", "po"]
 
-    def do_get_init_info(self, initstates):
+    def get_init_info(self, initstates):
         if issequence(initstates):
-            c_t0 = initstates[0]
-            red = initstates[1:]
-            y_t0 = T.zeros((c_t0.shape[0], self.innerdim))
+            c_t0 = initstates[1]
+            y_t0 = initstates[0]
         else:
             c_t0 = T.zeros((initstates, self.innerdim))
-            red = initstates
             y_t0 = T.zeros((initstates, self.innerdim))
-        return [y_t0, c_t0], red
-
-    def get_states_from_outputs(self, outputs):
-        assert(len(outputs) == 2)
-        return [outputs[1]]
+        return [y_t0, c_t0]
 
     def rec(self, x_t, y_tm1, c_tm1):
         fgate = self.gateactivation(c_tm1*self.pf + self.bf + T.dot(x_t, self.wf) + T.dot(y_tm1, self.rf))

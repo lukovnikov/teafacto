@@ -4,7 +4,7 @@ import numpy as np
 
 from teafacto.core.base import Block
 from teafacto.blocks.basic import VectorEmbed, Softmax
-from teafacto.blocks.rnn import SimpleSeqTransducer, SimpleSeqTransDec, RecurrentStack, BiRNU, SeqDecoder, SeqTransducer
+from teafacto.blocks.rnn import SimpleSeqTransducer, SimpleSeqTransDec, RecStack, BiRNU, SeqDecoder, SeqTransducer
 from teafacto.blocks.attention import Attention, WeightedSumAttCon, DotprodAttGen, LinearGateAttentionGenerator
 from teafacto.blocks.rnu import GRU
 from teafacto.util import argprun, issequence
@@ -47,7 +47,7 @@ class SeqEncDecAtt(Block):
                 rnu = self.rnu(dim=dims[i-1], innerdim=dims[i])
             self.encrnus.append(rnu)
             i += 1
-        self.encoder = RecurrentStack(*([self.inpemb] + self.encrnus))
+        self.encoder = RecStack(*([self.inpemb] + self.encrnus))
 
         # attention
         self.attgen = LinearGateAttentionGenerator(indim=self.encinnerdim[-1] + self.decinnerdim[-1], attdim=self.attdim)
