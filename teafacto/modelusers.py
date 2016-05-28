@@ -11,13 +11,14 @@ class ModelUser(object):
 
 
 class RecPredictor(ModelUser):
-    def __init__(self, model, **kw):
+    def __init__(self, model, *buildargs, **kw):
         super(RecPredictor, self).__init__(model, **kw)
         self.statevals = None
+        self.buildargs = buildargs
 
     def build(self, inps):  # data: (batsize, ...)
         batsize = inps[0].shape[0]
-        inits = self.model.get_init_info(batsize)
+        inits = self.model.get_init_info(*(list(self.buildargs)+[batsize]))
         inpvars = [Input(ndim=inp.ndim, dtype=inp.dtype) for inp in inps]
         statevars = [Input(ndim=x.d.ndim, dtype=x.d.dtype) for x in inits]
         allinpvars = inpvars + statevars

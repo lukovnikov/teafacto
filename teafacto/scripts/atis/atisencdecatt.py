@@ -2,79 +2,9 @@ import pickle
 
 import numpy as np
 
-from teafacto.core.base import Block
-from teafacto.blocks.basic import VectorEmbed, Softmax
-from teafacto.blocks.rnn import SimpleSeqTransducer, SimpleSeqTransDec, RecStack, BiRNU, SeqDecoder, SeqTransducer
-from teafacto.blocks.attention import Attention, WeightedSumAttCon, DotprodAttGen, LinearGateAttentionGenerator
-from teafacto.blocks.rnu import GRU
-from teafacto.util import argprun, issequence
+from teafacto.blocks.encdec import SimpleSeqEncDecAtt
 from teafacto.scripts.atis.atisseqtrans import getdatamatrix, atiseval
-
-
-class SeqEncDecAtt(Block):
-    def __init__(self,
-                 inpvocsize=400,
-                 inpembdim=50,
-                 outvocsize=100,
-                 outembdim=50,
-                 encdim=100,
-                 decdim=100,
-                 attdim=100,
-                 bidir=False,
-                 rnu=GRU,
-                 outconcat=True,
-                 inconcat=True, **kw):
-        super(SeqEncDecAtt, self).__init__(**kw)
-        self.inpvocsize = inpvocsize
-        self.outvocsize = outvocsize
-        self.inpembdim = inpembdim
-        self.outembdim = outembdim
-        self.encinnerdim = [encdim] if not issequence(encdim) else encdim
-        self.decinnerdim = [decdim] if not issequence(decdim) else decdim
-        self.attdim = attdim
-        self.rnu = rnu
-        self.bidir = bidir
-
-        # encoder stack
-        self.inpemb = VectorEmbed(indim=self.inpvocsize, dim=self.inpembdim)
-        self.encrnus = []
-        dims = [self.inpembdim] + self.encinnerdim
-        i = 1
-        while i < len(dims):
-            if self.bidir:
-                rnu = BiRNU.fromrnu(self.rnu, dim=dims[i-1], innerdim=dims[i])
-            else:
-                rnu = self.rnu(dim=dims[i-1], innerdim=dims[i])
-            self.encrnus.append(rnu)
-            i += 1
-        self.encoder = RecStack(*([self.inpemb] + self.encrnus))
-
-        # attention
-        self.attgen = LinearGateAttentionGenerator(indim=self.encinnerdim[-1] + self.decinnerdim[-1], attdim=self.attdim)
-        self.attcon = WeightedSumAttCon()
-
-        # decoder
-        self.outemb = VectorEmbed(indim=self.outvocsize, dim=self.outembdim)
-        self.decrnus = []
-        dims = [self.outembdim + self.encinnerdim[-1]] + self.decinnerdim
-        i = 1
-        while i < len(dims):
-            self.decrnus.append(self.rnu(dim=dims[i-1], innerdim=dims[i]))
-            i += 1
-        self.decoder = SeqDecoder(
-            [self.outemb] + self.decrnus,
-            attention=Attention(self.attgen, self.attcon),
-            innerdim=self.encinnerdim[-1] + self.decinnerdim[-1],
-            outconcat=outconcat,
-            inconcat=inconcat,
-        )
-
-    def apply(self, inpseq, outseq, maskseq=None):
-        enco = self.encoder(inpseq)
-        deco = self.decoder(enco, outseq)
-        ret = SeqTransducer.applymask(deco, maskseq)
-        return ret
-
+from teafacto.util import argprun
 
 
 def shiftdata(x, right=1):
@@ -145,7 +75,7 @@ def run(p="../../../data/atis/atis.pkl", wordembdim=70, lablembdim=70, innerdim=
 
     # define model
     innerdim = [innerdim] * depth
-    m = SeqEncDecAtt(
+    m = SimpleSeqEncDecAtt(
         inpvocsize=numwords,
         inpembdim=wordembdim,
         outvocsize=numlabels,
