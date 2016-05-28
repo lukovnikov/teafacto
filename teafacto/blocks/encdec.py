@@ -1,4 +1,3 @@
-# TODO move all encoder/decoders here
 from teafacto.blocks.attention import Attention, LinearGateAttentionGenerator, WeightedSumAttCon
 from teafacto.blocks.basic import VectorEmbed
 from teafacto.blocks.rnn import SeqTransducer, RecStack, SeqDecoder, BiRNU
