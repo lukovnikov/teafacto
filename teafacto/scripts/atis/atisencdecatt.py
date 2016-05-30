@@ -44,7 +44,7 @@ class SeqEncDecAttSearch(Searcher):
 
 
 
-def run(p="../../../data/atis/atis.pkl", wordembdim=70, lablembdim=70, innerdim=300, lr=0.05, numbats=100, epochs=20, validinter=1, wreg=0.0003, depth=1, attdim=300):
+def run(p="../../../data/atis/atis.pkl", wordembdim=70, lablembdim=70, innerdim=300, lr=0.01, numbats=100, epochs=20, validinter=1, wreg=0.0001, depth=1, attdim=300):
     train, test, dics = pickle.load(open(p))
     word2idx = dics["words2idx"]
     table2idx = dics["tables2idx"]
@@ -83,10 +83,11 @@ def run(p="../../../data/atis/atis.pkl", wordembdim=70, lablembdim=70, innerdim=
         encdim=innerdim,
         decdim=innerdim,
         attdim=attdim,
+        inconcat=False
     )
 
     # training
-    m.train([traindata, shiftdata(traingold), trainmask], traingold).adagrad(lr=lr).grad_total_norm(5.0).seq_cross_entropy().l2(wreg)\
+    m.train([traindata, shiftdata(traingold), trainmask], traingold).adagrad(lr=lr).grad_total_norm(1.).seq_cross_entropy().l2(wreg)\
         .validate_on([testdata, shiftdata(testgold), testmask], testgold).seq_cross_entropy().seq_accuracy().validinter(validinter)\
         .train(numbats, epochs)
 
@@ -103,4 +104,4 @@ def run(p="../../../data/atis/atis.pkl", wordembdim=70, lablembdim=70, innerdim=
 
 
 if __name__ == "__main__":
-    argprun(run, epochs=0)
+    argprun(run, epochs=1)

@@ -1,8 +1,8 @@
 from teafacto.blocks.attention import Attention, LinearGateAttentionGenerator, WeightedSumAttCon
-from teafacto.blocks.basic import VectorEmbed
-from teafacto.blocks.rnn import SeqTransducer, RecStack, SeqDecoder, BiRNU
+from teafacto.blocks.basic import VectorEmbed, IdxToOneHot
+from teafacto.blocks.rnn import SeqTransducer, RecStack, SeqDecoder, BiRNU, SeqEncoder
 from teafacto.blocks.rnu import GRU
-from teafacto.core.base import Block
+from teafacto.core.base import Block, tensorops as T
 from teafacto.util import issequence
 
 
@@ -14,9 +14,8 @@ class SeqEncDec(Block):
 
     def apply(self, inpseq, outseq, maskseq=None):
         enco = self.enc(inpseq, mask=maskseq)
-        deco = self.dec(enco, outseq)
-        ret = SeqTransducer.applymask(deco, maskseq)
-        return ret
+        deco = self.dec(enco, outseq, mask=maskseq)
+        return deco
 
     def get_init_info(self, inpseq, initstates, maskseq=None):
         enco = self.enc(inpseq, mask=maskseq)
@@ -28,7 +27,7 @@ class SeqEncDec(Block):
 
 class SeqEncDecAtt(SeqEncDec):
     def __init__(self, enclayers, declayers, attgen, attcon, decinnerdim, inconcat, outconcat, **kw):
-        enc = RecStack(*enclayers)
+        enc = SeqEncoder(*enclayers).all_outputs.zeromask
         dec = SeqDecoder(
             declayers,
             attention=Attention(attgen, attcon),
@@ -42,9 +41,9 @@ class SeqEncDecAtt(SeqEncDec):
 class SimpleSeqEncDecAtt(SeqEncDecAtt):
     def __init__(self,
                  inpvocsize=400,
-                 inpembdim=50,
+                 inpembdim=None,
                  outvocsize=100,
-                 outembdim=50,
+                 outembdim=None,
                  encdim=100,
                  decdim=100,
                  attdim=100,
@@ -57,7 +56,11 @@ class SimpleSeqEncDecAtt(SeqEncDecAtt):
         decinnerdim = [decdim] if not issequence(decdim) else decdim
 
         # encoder stack
-        inpemb = VectorEmbed(indim=inpvocsize, dim=inpembdim)
+        if inpembdim is None:
+            inpemb = IdxToOneHot(inpvocsize)
+            inpembdim = inpvocsize
+        else:
+            inpemb = VectorEmbed(indim=inpvocsize, dim=inpembdim)
         encrnus = []
         dims = [inpembdim] + encinnerdim
         i = 1
@@ -75,7 +78,11 @@ class SimpleSeqEncDecAtt(SeqEncDecAtt):
         attcon = WeightedSumAttCon()
 
         # decoder
-        outemb = VectorEmbed(indim=outvocsize, dim=outembdim)
+        if outembdim is None:
+            outemb = IdxToOneHot(outvocsize)
+            outembdim = outvocsize
+        else:
+            outemb = VectorEmbed(indim=outvocsize, dim=outembdim)
         decrnus = []
         firstdecdim = outembdim if inconcat is False else outembdim + encinnerdim[-1]
         dims = [firstdecdim] + decinnerdim

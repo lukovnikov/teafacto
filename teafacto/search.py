@@ -32,3 +32,24 @@ class SeqTransDecSearch(Searcher):
         ret = np.stack(outs).T
         assert (ret.shape == inpseq.shape)
         return ret, accprobs
+
+
+class SeqEncDecSearch(Searcher):
+    def decode(self, inpseq, maxlen=100):
+        self.mu.setbuildargs(inpseq)
+        stop = False
+        i = 0
+        curout = np.zeros((inpseq.shape[0])).astype("int32")
+        accprobs = np.ones((inpseq.shape[0]))
+        outs = []
+        while not stop:
+            curprobs = self.mu.feed(curout)
+            accprobs *= np.max(curprobs, axis=1)
+            curout = np.argmax(curprobs, axis=1).astype("int32")
+            outs.append(curout)
+            i += 1
+            stop = i == maxlen
+        #print accprobs
+        ret = np.stack(outs).T
+        assert (ret.shape == inpseq.shape)
+        return ret, accprobs

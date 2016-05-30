@@ -8,9 +8,11 @@ from IPython import embed
 from teafacto.blocks.lang.wordvec import Glove
 from teafacto.blocks.basic import IdxToOneHot, VectorEmbed, Softmax, MatDot as Lin
 from teafacto.blocks.rnn import RNNAutoEncoder, SeqDecoder, SeqEncoder, BiFwdAttSumDecoder
+from teafacto.blocks.encdec import SimpleSeqEncDecAtt
 from teafacto.blocks.rnu import GRU
 from teafacto.core.base import Block
 from teafacto.util import argprun
+from teafacto.search import SeqEncDecSearch
 
 
 class idx2seq(Block):
@@ -145,6 +147,43 @@ def run_attentionseqdecoder(        # seems to work
     embed()
 
 
+def run_seqdecatt(  # seems to work
+        wreg=0.00001,  # TODO: regularization other than 0.0001 first stagnates, then goes down
+        epochs=50,
+        numbats=20,
+        lr=0.1,
+        statedim=50,
+        encdim=50,
+        attdim=50
+    ):
+    # get words
+    vocsize = 27
+    embdim = 50
+    lm = Glove(embdim, 2000)
+    allwords = filter(lambda x: re.match("^[a-z]+$", x), lm.D.keys())
+    words = allwords[1000:]
+    vwords = allwords[:1000]
+    data = words2ints(words)
+    sdata = shiftdata(data)
+    vdata = words2ints(vwords)
+    svdata = shiftdata(vdata)
+    testneglogprob = 17
+
+    testpred = ["the", "alias", "mock", "test", "stalin", "allahuakbar", "python", "pythonista", " " * (data.shape[1])]
+    testpred = words2ints(testpred)
+    print testpred
+
+    block = SimpleSeqEncDecAtt(inpvocsize=vocsize, outvocsize=vocsize, encdim=encdim, decdim=statedim, attdim=attdim, inconcat=False)
+    block.train([data, sdata], data).seq_cross_entropy().grad_total_norm(1.0).adagrad(lr=lr).l2(wreg) \
+        .validate_on([vdata, svdata], vdata).seq_cross_entropy().seq_accuracy().validinter(4) \
+        .train(numbats=numbats, epochs=epochs)
+
+    s = SeqEncDecSearch(block)
+    pred, probs = s.decode(testpred, testpred.shape[1])
+    print ints2words(pred)
+    embed()
+
+
 def run_idx2seq(        # works after refactor
         wreg=0.000001,
         epochs=150,
@@ -253,5 +292,5 @@ def run_seq2idx(        # works after refactoring (with adagrad)
 
 
 if __name__ == "__main__":
-    argprun(run_RNNAutoEncoder)
+    argprun(run_seqdecatt, epochs=50)
     #print ints2words(np.asarray([[20,8,5,0,0,0], [1,2,3,0,0,0]]))

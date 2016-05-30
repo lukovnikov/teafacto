@@ -139,6 +139,7 @@ class SeqEncoder(AttentionConsumer, Block):
     _all_states = False
     _weighted = False
     _nomask = False
+    _zeromask = False
 
     def __init__(self, embedder, *layers, **kw):
         super(SeqEncoder, self).__init__(**kw)
@@ -162,9 +163,9 @@ class SeqEncoder(AttentionConsumer, Block):
         else:
             self._weighted = True
         mask = self._generate_mask(mask, seq, seqemb)
-        mask = mask * weights
-        outputs, states = self.block.innerapply(seqemb, mask=mask)
-        return self._get_apply_outputs(outputs, states)
+        fullmask = mask * weights
+        outputs, states = self.block.innerapply(seqemb, mask=fullmask)
+        return self._get_apply_outputs(outputs, states, mask)
 
     def _generate_mask(self, maskinp, seq, seqemb): # seq: (batsize, seqlen, dim)
         if maskinp is None:     # generate default all-ones mask
@@ -180,9 +181,12 @@ class SeqEncoder(AttentionConsumer, Block):
             mask = maskinp
         return mask     # (batsize, seqlen)
 
-    def _get_apply_outputs(self, outputs, states):
+    def _get_apply_outputs(self, outputs, states, mask):
         if self._withoutput:
-            ret = outputs
+            ret = outputs       # (batsize, seqlen, dim) --> zero-fy according to mask
+            if self._zeromask:
+                fmask = T.tensordot(mask, T.ones((outputs.shape[2],)), 0)
+                ret = ret * fmask
         else:
             ret = outputs[:, -1, :]
         return ret
@@ -214,6 +218,11 @@ class SeqEncoder(AttentionConsumer, Block):
     def all_states(self):       # TODO
         '''Call this switch to get the final states of all recurrent layers'''
         self._all_states = True
+        return self
+
+    @property
+    def zeromask(self):
+        self._zeromask = True
         return self
 
     @property
@@ -250,14 +259,28 @@ class SeqDecoder(Block):
         else:
             self.softmaxoutblock = softmaxoutblock
 
-    def apply(self, context, seq, context_0=None, initstates=None, **kw):    # context: (batsize, enc.innerdim), seq: idxs-(batsize, seqlen)
+    def apply(self, context, seq, context_0=None, initstates=None, mask=None, **kw):    # context: (batsize, enc.innerdim), seq: idxs-(batsize, seqlen)
         if initstates is None:
             initstates = seq.shape[0]
         init_info = self.get_init_info(context, context_0, initstates)  # sets init states to provided ones
         outputs, _ = T.scan(fn=self.rec,
                             sequences=seq.dimswap(1, 0),
                             outputs_info=[None] + init_info)
-        return outputs[0].dimswap(1, 0)     # returns probabilities of symbols --> (batsize, seqlen, vocabsize)
+        ret = outputs[0].dimswap(1, 0)     # returns probabilities of symbols --> (batsize, seqlen, vocabsize)
+        ret = self.applymask(ret, mask)
+        return ret
+
+    @classmethod
+    def applymask(cls, xseq, maskseq):
+        if maskseq is None:
+            return xseq
+        else:
+            mask = T.tensordot(maskseq, T.ones((xseq.shape[2],)), 0)  # f32^(batsize, seqlen, outdim) -- maskseq stacked
+            masker = T.concatenate(
+                [T.ones((xseq.shape[0], xseq.shape[1], 1)), T.zeros((xseq.shape[0], xseq.shape[1], xseq.shape[2] - 1))],
+                axis=2)  # f32^(batsize, seqlen, outdim) -- gives 100% prob to output 0
+            ret = xseq * mask + masker * (1.0 - mask)
+            return ret
 
     def get_init_info(self, context, context_0, initstates):
         ret = self.block.get_init_info(initstates)
