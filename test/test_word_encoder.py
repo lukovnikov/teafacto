@@ -4,6 +4,7 @@ from teafacto.blocks.lang.wordvec import Glove
 import numpy as np
 
 
+
 class TestWordEncoder(TestCase):
     def test_word_encoder_output_shape(self):
         batsize = 111
