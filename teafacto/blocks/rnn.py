@@ -194,7 +194,7 @@ class SeqEncoder(AttentionConsumer, Block):
             ret.append(rete)
         if "states" in self._return:    # final states (over all layers)???
             pass # TODO: do we need to support this?
-        return tuple(ret)
+        return ret[0] if len(ret) == 1 else ret
 
     def _get_apply_outputs_old(self, outputs):
         output = outputs[0]
