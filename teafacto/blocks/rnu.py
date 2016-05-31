@@ -132,10 +132,15 @@ class RNU(RNUBase):
         super(RNU, self).__init__(**kw)
 
     def get_init_info(self, initstates):    # either a list of init states or the batsize
-        if issequence(initstates):
-            return [initstates[0]]
-        else:
-            return [T.zeros((initstates, self.innerdim))]
+        if not issequence(initstates):
+            initstates = [initstates] * self.numstates
+        acc = []
+        for initstate in initstates:
+            if isinstance(initstate, int) or initstate.ndim == 0:
+                acc.append(T.zeros((initstate, self.innerdim)))
+            else:
+                acc.append(initstate)
+        return acc
 
     def rec(self, x_t, h_tm1):      # x_t: (batsize, dim), h_tm1: (batsize, innerdim)
         inp = T.dot(x_t, self.w)    # w: (dim, innerdim) ==> inp: (batsize, innerdim)
@@ -195,15 +200,6 @@ class IFGRU(GatedRNU):      # input-modulating GRU
 
 class LSTM(GatedRNU):
     paramnames = ["wf", "rf", "bf", "wi", "ri", "bi", "wo", "ro", "bo", "w", "r", "b", "pf", "pi", "po"]
-
-    def get_init_info(self, initstates):
-        if issequence(initstates):
-            c_t0 = initstates[1]
-            y_t0 = initstates[0]
-        else:
-            c_t0 = T.zeros((initstates, self.innerdim))
-            y_t0 = T.zeros((initstates, self.innerdim))
-        return [y_t0, c_t0]
 
     def rec(self, x_t, y_tm1, c_tm1):
         fgate = self.gateactivation(c_tm1*self.pf + self.bf + T.dot(x_t, self.wf) + T.dot(y_tm1, self.rf))

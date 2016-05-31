@@ -19,7 +19,7 @@ class RecStack(ReccableBlock):
 
     @property
     def numstates(self):
-        return reduce(lambda x, y: x.numstates + y.numstates, [x for x in self.layers if isinstance(x, RecurrentBlock)], 0)
+        return reduce(lambda x, y: x + y, [x.numstates for x in self.layers if isinstance(x, RecurrentBlock)], 0)
 
     # FWD API. initial states can be set, mask is accepted, everything is returned. Works for all RecurrentBlocks
     # FWD API IMPLEMENTED USING FWD API
@@ -68,13 +68,15 @@ class RecStack(ReccableBlock):
         recurrentlayers = list(filter(lambda x: isinstance(x, ReccableBlock), self.layers))
         assert (len(filter(lambda x: isinstance(x, RecurrentBlock) and not isinstance(x, ReccableBlock),
                            self.layers)) == 0)  # no non-reccable blocks allowed
+        if issequence(initstates):
+            if len(initstates) < self.numstates:
+                initstates = [initstates.shape[0]] * (self.numstates - len(initstates)) + initstates
+        else:
+            initstates = [initstates] * self.numstates
         init_infos = []
-        for recurrentlayer in recurrentlayers:
-            if issequence(initstates):
-                arg = initstates[:recurrentlayer.numstates]
-                initstates = initstates[recurrentlayer.numstates:]
-            else:
-                arg = initstates
+        for recurrentlayer in recurrentlayers:  # from bottom layers to top
+            arg = initstates[:recurrentlayer.numstates]
+            initstates = initstates[recurrentlayer.numstates:]
             initinfo = recurrentlayer.get_init_info(arg)
             init_infos.extend(initinfo)
         return init_infos
@@ -135,8 +137,7 @@ class SeqEncoder(AttentionConsumer, Block):
     Returns multiple outputs, multiple states
     Builds for one output
     '''
-    _withoutput = False
-    _all_states = False
+    _return = {"enc"}
     _weighted = False
     _nomask = False
     _zeromask = False
@@ -182,14 +183,18 @@ class SeqEncoder(AttentionConsumer, Block):
         return mask     # (batsize, seqlen)
 
     def _get_apply_outputs(self, outputs, states, mask):
-        if self._withoutput:
-            ret = outputs       # (batsize, seqlen, dim) --> zero-fy according to mask
+        ret = []
+        if "enc" in self._return:       # final states of topmost layer
+            ret.append(outputs[:, -1, :])
+        if "all" in self._return:       # states (over all time) of topmost layer
+            rete = outputs       # (batsize, seqlen, dim) --> zero-fy according to mask
             if self._zeromask:
                 fmask = T.tensordot(mask, T.ones((outputs.shape[2],)), 0)
-                ret = ret * fmask
-        else:
-            ret = outputs[:, -1, :]
-        return ret
+                rete = rete * fmask
+            ret.append(rete)
+        if "states" in self._return:    # final states (over all layers)???
+            pass # TODO: do we need to support this?
+        return tuple(ret)
 
     def _get_apply_outputs_old(self, outputs):
         output = outputs[0]
@@ -198,7 +203,7 @@ class SeqEncoder(AttentionConsumer, Block):
             ret = [s[-1, :, :] for s in states]
         else:                   # get the last state of the final state
             ret = [output[:, -1, :]] #output is (batsize, innerdim)
-        if self._withoutput:    # include stack output
+        if self._alloutput:    # include stack output
             return ret + [output]
         else:
             if len(ret) == 1:   # if only topmost last state or only one stateful layer --> one output
@@ -215,9 +220,9 @@ class SeqEncoder(AttentionConsumer, Block):
         return output
 
     @property
-    def all_states(self):       # TODO
+    def with_states(self):       # TODO
         '''Call this switch to get the final states of all recurrent layers'''
-        self._all_states = True
+        self._return.add("states")
         return self
 
     @property
@@ -228,7 +233,16 @@ class SeqEncoder(AttentionConsumer, Block):
     @property
     def all_outputs(self):
         '''Call this switch to get the actual output of top layer as the last outputs'''
-        self._withoutput = True
+        self._return = {"all"}
+        return self
+
+    @property
+    def with_outputs(self):
+        self._return.add("all")
+        return self
+
+    def setreturn(self, *args):
+        self._return = args
         return self
 
 
@@ -259,13 +273,21 @@ class SeqDecoder(Block):
         else:
             self.softmaxoutblock = softmaxoutblock
 
+    @property
+    def numstates(self):
+        return self.block.numstates
+
     def apply(self, context, seq, context_0=None, initstates=None, mask=None, **kw):    # context: (batsize, enc.innerdim), seq: idxs-(batsize, seqlen)
         if initstates is None:
             initstates = seq.shape[0]
-        init_info = self.get_init_info(context, context_0, initstates)  # sets init states to provided ones
+        elif issequence(initstates):
+            if len(initstates) < self.numstates:    # fill up with batsizes for lower layers
+                initstates = [seq.shape[0]]*(self.numstates - len(initstates)) + initstates
+        init_info, ctx = self.get_init_info(context, context_0, initstates)  # sets init states to provided ones
         outputs, _ = T.scan(fn=self.rec,
                             sequences=seq.dimswap(1, 0),
-                            outputs_info=[None] + init_info)
+                            outputs_info=[None] + init_info,
+                            non_sequences=ctx)
         ret = outputs[0].dimswap(1, 0)     # returns probabilities of symbols --> (batsize, seqlen, vocabsize)
         ret = self.applymask(ret, mask)
         return ret
@@ -285,7 +307,7 @@ class SeqDecoder(Block):
     def get_init_info(self, context, context_0, initstates):
         ret = self.block.get_init_info(initstates)
         context_0 = self._get_ctx_t0(context, context_0)
-        return [context, context_0, 0] + ret
+        return [context_0, 0] + ret, [context]
 
     def _get_ctx_t0(self, ctx, ctx_0=None):
         if ctx_0 is None:
@@ -301,7 +323,9 @@ class SeqDecoder(Block):
                 print "sum ting wong in SeqDecoder _get_ctx_t0()"
         return ctx_0
 
-    def rec(self, x_t, ctx, ctx_tm1, t, *states_tm1):  # x_t: (batsize), context: (batsize, enc.innerdim)
+    def rec(self, x_t, ctx_tm1, t, *args):  # x_t: (batsize), context: (batsize, enc.innerdim)
+        states_tm1 = args[:-1]
+        ctx = args[-1]
         i_t = self.embedder(x_t)                             # i_t: (batsize, embdim)
         j_t = self._get_j_t(i_t, ctx_tm1)
         rnuret = self.block.rec(j_t, *states_tm1)     # list of matrices (batsize, **somedims**)
@@ -312,7 +336,7 @@ class SeqDecoder(Block):
         ctx_t = self._gen_context(ctx, h_t)
         g_t = self._get_g_t(h_t, ctx_t)
         y_t = self.softmaxoutblock(g_t)
-        return [y_t, ctx, ctx_t, t] + states_t #, {}, T.until( (i > 1) * T.eq(mask.norm(1), 0) )
+        return [y_t, ctx_t, t] + states_t #, {}, T.until( (i > 1) * T.eq(mask.norm(1), 0) )
 
     def _get_j_t(self, i_t, ctx_tm1):
         return T.concatenate([i_t, ctx_tm1], axis=1) if self.inconcat else i_t

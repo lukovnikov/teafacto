@@ -159,28 +159,38 @@ def run_seqdecatt(  # seems to work
     # get words
     vocsize = 27
     embdim = 50
-    lm = Glove(embdim, 2000)
+    lm = Glove(embdim, 5000)
     allwords = filter(lambda x: re.match("^[a-z]+$", x), lm.D.keys())
+    invwords = [word[::-1] for word in allwords]
     words = allwords[1000:]
+    iwords = invwords[1000:]
     vwords = allwords[:1000]
+    ivwords = invwords[:1000]
     data = words2ints(words)
-    sdata = shiftdata(data)
     vdata = words2ints(vwords)
-    svdata = shiftdata(vdata)
-    testneglogprob = 17
+    idata = words2ints(iwords)
+    ivdata = words2ints(ivwords)
 
-    testpred = ["the", "alias", "mock", "test", "stalin", "allahuakbar", "python", "pythonista", " " * (data.shape[1])]
-    testpred = words2ints(testpred)
+    golddata = data
+    goldvdata = vdata
+
+    golddata = idata
+    goldvdata = ivdata
+
+    testwords = ["the", "alias", "mock", "test", "stalin", "allahuakbar", "python", "pythonista"]
+    itestwords = [x[::-1] for x in testwords]
+    testpred = words2ints(testwords)
+    itestpred = words2ints(itestwords)
     print testpred
 
-    block = SimpleSeqEncDecAtt(inpvocsize=vocsize, outvocsize=vocsize, encdim=encdim, decdim=statedim, attdim=attdim, inconcat=False)
-    block.train([data, sdata], data).seq_cross_entropy().grad_total_norm(1.0).adagrad(lr=lr).l2(wreg) \
-        .validate_on([vdata, svdata], vdata).seq_cross_entropy().seq_accuracy().validinter(4) \
+    block = SimpleSeqEncDecAtt(inpvocsize=vocsize, outvocsize=vocsize, encdim=encdim, decdim=statedim, attdim=attdim, inconcat=False,       statetrans=True)
+    block.train([data, shiftdata(golddata)], golddata).seq_cross_entropy().grad_total_norm(1.0).adagrad(lr=lr).l2(wreg) \
+        .validate_on([vdata, shiftdata(goldvdata)], goldvdata).seq_cross_entropy().seq_accuracy().validinter(4) \
         .train(numbats=numbats, epochs=epochs)
 
     s = SeqEncDecSearch(block)
     pred, probs = s.decode(testpred, testpred.shape[1])
-    print ints2words(pred)
+    print ints2words(pred), probs
     embed()
 
 

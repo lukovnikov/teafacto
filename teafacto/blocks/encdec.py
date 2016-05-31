@@ -7,27 +7,42 @@ from teafacto.util import issequence
 
 
 class SeqEncDec(Block):
-    def __init__(self, enc, dec, **kw):
+    def __init__(self, enc, dec, statetrans=None, **kw):
         super(SeqEncDec, self).__init__(**kw)
         self.enc = enc
         self.dec = dec
+        if isinstance(statetrans, Block):
+            self.statetrans = lambda x, y: statetrans(x)
+        elif statetrans is True:
+            self.statetrans = lambda x, y: x
+        else:
+            self.statetrans = statetrans
 
     def apply(self, inpseq, outseq, maskseq=None):
-        enco = self.enc(inpseq, mask=maskseq)
-        deco = self.dec(enco, outseq, mask=maskseq)
+        enco, allenco = self.enc(inpseq, mask=maskseq)
+        if self.statetrans is not None:
+            topstate = self.statetrans(enco, allenco)
+            deco = self.dec(allenco, outseq, mask=maskseq, initstates=[topstate])
+        else:
+            deco = self.dec(allenco, outseq, mask=maskseq)      # no state transfer
         return deco
 
-    def get_init_info(self, inpseq, initstates, maskseq=None):
-        enco = self.enc(inpseq, mask=maskseq)
-        return self.dec.get_init_info(enco, None, initstates)
+    def get_init_info(self, inpseq, batsize, maskseq=None):
+        enco, allenco = self.enc(inpseq, mask=maskseq)
+        if self.statetrans is not None:
+            topstate = self.statetrans(enco, allenco)
+            initstates = [topstate]
+        else:
+            initstates = batsize
+        return self.dec.get_init_info(allenco, None, initstates)
 
     def rec(self, x_t, *states):
         return self.dec.rec(x_t, *states)
 
 
 class SeqEncDecAtt(SeqEncDec):
-    def __init__(self, enclayers, declayers, attgen, attcon, decinnerdim, inconcat, outconcat, **kw):
-        enc = SeqEncoder(*enclayers).all_outputs.zeromask
+    def __init__(self, enclayers, declayers, attgen, attcon, decinnerdim, inconcat, outconcat, statetrans=None, **kw):
+        enc = SeqEncoder(*enclayers).with_outputs.zeromask
         dec = SeqDecoder(
             declayers,
             attention=Attention(attgen, attcon),
@@ -35,7 +50,7 @@ class SeqEncDecAtt(SeqEncDec):
             outconcat=outconcat,
             inconcat=inconcat
         )
-        super(SeqEncDecAtt, self).__init__(enc, dec, **kw)
+        super(SeqEncDecAtt, self).__init__(enc, dec, statetrans=statetrans, **kw)
 
 
 class SimpleSeqEncDecAtt(SeqEncDecAtt):
@@ -51,6 +66,7 @@ class SimpleSeqEncDecAtt(SeqEncDecAtt):
                  rnu=GRU,
                  outconcat=True,
                  inconcat=True,
+                 statetrans=None,
                  **kw):
         encinnerdim = [encdim] if not issequence(encdim) else encdim
         decinnerdim = [decdim] if not issequence(decdim) else decdim
@@ -92,4 +108,5 @@ class SimpleSeqEncDecAtt(SeqEncDecAtt):
             i += 1
         declayers = [outemb] + decrnus
         decinnerdim = encinnerdim[-1] if outconcat is False else encinnerdim[-1] + decinnerdim[-1]
-        super(SimpleSeqEncDecAtt, self).__init__(enclayers, declayers, attgen, attcon, decinnerdim, inconcat, outconcat, **kw)
+
+        super(SimpleSeqEncDecAtt, self).__init__(enclayers, declayers, attgen, attcon, decinnerdim, inconcat, outconcat, statetrans=statetrans, **kw)
