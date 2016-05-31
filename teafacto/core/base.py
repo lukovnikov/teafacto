@@ -128,6 +128,22 @@ class TensorWrapped(object):
             return v.dimshuffle(*dims)
         return wrap(tinner, name="dimswap")(self, a, b)
 
+    def reverse(self, *axes):
+        """ axis can be an *int* or a sequence of *int*s"""
+        if len(axes) == 0:
+            axes = [0]
+        for a in axes:
+            assert(isinstance(a, int))
+        def rinner(v, a):
+            slices = []
+            for i in range(v.ndim):
+                if i in a:
+                    slices.append(slice(None, None, -1))
+                else:
+                    slices.append(slice(None, None, None))
+            return v[tuple(slices)]
+        return wrap(rinner, name="reverse")(self, axes)
+
 
 
 ### WORRY ABOUT THIS

@@ -32,13 +32,14 @@ class RecStack(ReccableBlock):
                     initstates = initstates[layer.numstates:]
                 else:
                     layerinpstates = None
-                seq, layerstates = layer.innerapply(seq, mask=mask, initstates=layerinpstates)
+                final, seq, layerstates = layer.innerapply(seq, mask=mask, initstates=layerinpstates)
                 states.extend(layerstates)
             elif isinstance(layer, Block):
                 seq = self.recurnonreclayer(seq, layer)
+                final = seq[:, -1, :]
             else:
                 raise Exception("can not apply this layer: " + str(layer) + " in RecStack")
-        return seq, states           # full history of final output and all states (ordered from bottom layer to top)
+        return final, seq, states           # full history of final output and all states (ordered from bottom layer to top)
 
     @classmethod
     def apply_mask(cls, xseq, maskseq=None):
@@ -124,11 +125,12 @@ class BiRNU(RecurrentBlock): # TODO: optimizer can't process this
         initstates = initstates[self.fwd.numstates:] if initstates is not None else initstates
         assert(initstates is None or len(initstates) == self.rew.numstates)
         initstatesrew = initstates
-        fwdout, fwdstates = self.fwd.innerapply(seq, mask=mask, initstates=initstatesfwd)
-        rewout, rewstates = self.rew.innerapply(seq, mask=mask, initstates=initstatesrew)
+        fwdfinal, fwdout, fwdstates = self.fwd.innerapply(seq, mask=mask, initstates=initstatesfwd)   # (batsize, seqlen, innerdim)
+        rewfinal, rewout, rewstates = self.rew.innerapply(seq, mask=mask, initstates=initstatesrew) # TODO: reverse
         # concatenate: fwdout, rewout: (batsize, seqlen, feats) ==> (batsize, seqlen, feats_fwd+feats_rew)
-        out = T.concatenate([fwdout, rewout], axis=2)
-        return out, fwdstates+rewstates
+        finalout = T.concatenate([fwdfinal, rewfinal], axis=1)
+        out = T.concatenate([fwdout, rewout.reverse(1)], axis=2)
+        return finalout, out, fwdstates+rewstates
 
 
 class SeqEncoder(AttentionConsumer, Block):
@@ -165,8 +167,8 @@ class SeqEncoder(AttentionConsumer, Block):
             self._weighted = True
         mask = self._generate_mask(mask, seq, seqemb)
         fullmask = mask * weights
-        outputs, states = self.block.innerapply(seqemb, mask=fullmask)
-        return self._get_apply_outputs(outputs, states, mask)
+        final, outputs, states = self.block.innerapply(seqemb, mask=fullmask)
+        return self._get_apply_outputs(final, outputs, states, mask)
 
     def _generate_mask(self, maskinp, seq, seqemb): # seq: (batsize, seqlen, dim)
         if maskinp is None:     # generate default all-ones mask
@@ -182,10 +184,10 @@ class SeqEncoder(AttentionConsumer, Block):
             mask = maskinp
         return mask     # (batsize, seqlen)
 
-    def _get_apply_outputs(self, outputs, states, mask):
+    def _get_apply_outputs(self, final, outputs, states, mask):
         ret = []
         if "enc" in self._return:       # final states of topmost layer
-            ret.append(outputs[:, -1, :])
+            ret.append(final)
         if "all" in self._return:       # states (over all time) of topmost layer
             rete = outputs       # (batsize, seqlen, dim) --> zero-fy according to mask
             if self._zeromask:

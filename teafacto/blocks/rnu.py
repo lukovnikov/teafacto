@@ -20,7 +20,7 @@ class RecurrentBlock(Block):     # ancestor class for everything that consumes s
 
     # FWD API
     def apply(self, x, mask=None, initstates=None):
-        output, states = self.innerapply(x, mask, initstates)
+        final, output, states = self.innerapply(x, mask, initstates)
         return output  # return is (batsize, seqlen, dim)
 
     def innerapply(self, x, mask=None, initstates=None):
@@ -63,14 +63,14 @@ class ReccableBlock(RecurrentBlock):    # exposes a rec function
                                 outputs_info=[None] + init_info,
                                 go_backwards=self._reverse)
         outputs = [x.dimswap(1, 0) for x in outputs]
-        return outputs[0], outputs[1:]
+        return outputs[0][:, -1, :], outputs[0], outputs[1:]
 
     def recwmask(self, x_t, m_t, *states):   # m_t: (batsize, ), x_t: (batsize, dim), states: (batsize, **somedim**)
         recout = self.rec(x_t, *states)
         y_t = recout[0]
         newstates = recout[1:]
         y_tm1 = T.zeros_like(y_t)
-        y_tm1 = states[0]
+        y_tm1 = states[0]               # TODO: beware with multiple layers (here will be the bottom first)
         y_t_out = (y_t.T * m_t + y_tm1.T * (1 - m_t)).T
         states_out = [(a.T * m_t + b.T * (1 - m_t)).T for a, b in zip(newstates, states)]
         return [y_t_out] + states_out

@@ -150,8 +150,8 @@ def run_attentionseqdecoder(        # seems to work
 def run_seqdecatt(  # seems to work
         wreg=0.00001,  # TODO: regularization other than 0.0001 first stagnates, then goes down
         epochs=50,
-        numbats=20,
-        lr=0.1,
+        numbats=50,
+        lr=0.03,
         statedim=50,
         encdim=50,
         attdim=50
@@ -161,31 +161,21 @@ def run_seqdecatt(  # seems to work
     embdim = 50
     lm = Glove(embdim, 5000)
     allwords = filter(lambda x: re.match("^[a-z]+$", x), lm.D.keys())
+    #embed()
     invwords = [word[::-1] for word in allwords]
-    words = allwords[1000:]
-    iwords = invwords[1000:]
-    vwords = allwords[:1000]
-    ivwords = invwords[:1000]
-    data = words2ints(words)
-    vdata = words2ints(vwords)
-    idata = words2ints(iwords)
-    ivdata = words2ints(ivwords)
+    data = words2ints(allwords)
+    idata = words2ints(invwords)
 
     golddata = data
-    goldvdata = vdata
 
     golddata = idata
-    goldvdata = ivdata
 
     testwords = ["the", "alias", "mock", "test", "stalin", "allahuakbar", "python", "pythonista"]
-    itestwords = [x[::-1] for x in testwords]
     testpred = words2ints(testwords)
-    itestpred = words2ints(itestwords)
-    print testpred
 
-    block = SimpleSeqEncDecAtt(inpvocsize=vocsize, outvocsize=vocsize, encdim=encdim, decdim=statedim, attdim=attdim, inconcat=False,       statetrans=True)
+    block = SimpleSeqEncDecAtt(inpvocsize=vocsize, outvocsize=vocsize, encdim=encdim, decdim=statedim, attdim=attdim, inconcat=False, bidir=True, statetrans=True)
     block.train([data, shiftdata(golddata)], golddata).seq_cross_entropy().grad_total_norm(1.0).adagrad(lr=lr).l2(wreg) \
-        .validate_on([vdata, shiftdata(goldvdata)], goldvdata).seq_cross_entropy().seq_accuracy().validinter(4) \
+        .split_validate(splits=5, random=True).seq_cross_entropy().seq_accuracy().validinter(4) \
         .train(numbats=numbats, epochs=epochs)
 
     s = SeqEncDecSearch(block)
