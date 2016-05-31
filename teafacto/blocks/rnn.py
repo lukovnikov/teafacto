@@ -137,13 +137,13 @@ class SeqEncoder(AttentionConsumer, Block):
     Returns multiple outputs, multiple states
     Builds for one output
     '''
-    _return = {"enc"}
-    _weighted = False
-    _nomask = False
-    _zeromask = False
 
     def __init__(self, embedder, *layers, **kw):
         super(SeqEncoder, self).__init__(**kw)
+        self._return = {"enc"}
+        self._weighted = False
+        self._nomask = False
+        self._zeromask = False
         self.embedder = embedder
         if len(layers) > 0:
             if len(layers) == 1:
@@ -194,7 +194,10 @@ class SeqEncoder(AttentionConsumer, Block):
             ret.append(rete)
         if "states" in self._return:    # final states (over all layers)???
             pass # TODO: do we need to support this?
-        return ret[0] if len(ret) == 1 else ret
+        if len(ret) == 1:
+            return ret[0]
+        else:
+            return ret
 
     def _get_apply_outputs_old(self, outputs):
         output = outputs[0]
