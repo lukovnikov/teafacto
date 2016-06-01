@@ -1,8 +1,6 @@
 import pickle
 
 import numpy as np
-from pympler.asizeof import asizeof
-from pympler.tracker import SummaryTracker
 
 from teafacto.search import SeqTransDecSearch
 from teafacto.blocks.seqproc import SimpleSeqTransDec
@@ -18,7 +16,6 @@ def shiftdata(x, right=1):
 
 
 def run(p="../../../data/atis/atis.pkl", wordembdim=70, lablembdim=70, innerdim=300, lr=0.05, numbats=100, epochs=20, validinter=1, wreg=0.0003, depth=1):
-    tracker = SummaryTracker()
     train, test, dics = pickle.load(open(p))
     word2idx = dics["words2idx"]
     table2idx = dics["tables2idx"]
@@ -46,8 +43,6 @@ def run(p="../../../data/atis/atis.pkl", wordembdim=70, lablembdim=70, innerdim=
     testmask = (testdata > 0).astype("float32")
 
     res = atiseval(testgold-1, testgold-1, label2idxrev); print res#; exit()
-
-    print asizeof(traindata)
 
     # define model
     innerdim = [innerdim] * depth
