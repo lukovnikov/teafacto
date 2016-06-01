@@ -1,6 +1,6 @@
 from unittest import TestCase
 from teafacto.search import SeqEncDecSearch
-from teafacto.blocks.encdec import SimpleSeqEncDecAtt
+from teafacto.blocks.seqproc import SimpleSeqEncDecAtt
 from teafacto.blocks.lang.wordembed import Glove
 import re, pandas as pd, numpy as np
 

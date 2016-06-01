@@ -8,7 +8,7 @@ import theano
 from teafacto.core.base import Block, param, tensorops as T
 from teafacto.blocks.basic import Softmax
 
-from teafacto.blocks.rnn import SimpleSeqTransducer
+from teafacto.blocks.seqproc import SimpleSeqTransducer
 from teafacto.util import argprun
 
 

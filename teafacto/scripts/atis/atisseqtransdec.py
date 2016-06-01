@@ -5,7 +5,7 @@ from pympler.asizeof import asizeof
 from pympler.tracker import SummaryTracker
 
 from teafacto.search import SeqTransDecSearch
-from teafacto.blocks.rnn import SimpleSeqTransDec
+from teafacto.blocks.seqproc import SimpleSeqTransDec
 from teafacto.scripts.atis.atisseqtrans import getdatamatrix, atiseval
 from teafacto.util import argprun
 

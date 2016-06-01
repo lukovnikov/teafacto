@@ -1,5 +1,6 @@
 from unittest import TestCase
-from teafacto.blocks.rnn import SimpleSeqTransducer, SimpleSeqTransDec
+from teafacto.blocks.rnn import SimpleSeqTransDec
+from blocks.seqproc import SimpleSeqTransducer, SimpleSeqTransDec
 import numpy as np
 
 

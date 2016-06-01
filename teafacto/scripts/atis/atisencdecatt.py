@@ -2,7 +2,7 @@ import pickle
 
 import numpy as np
 
-from teafacto.blocks.encdec import SimpleSeqEncDecAtt
+from teafacto.blocks.seqproc import SimpleSeqEncDecAtt
 from teafacto.scripts.atis.atisseqtrans import getdatamatrix, atiseval
 from teafacto.util import argprun
 

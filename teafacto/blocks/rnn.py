@@ -1,11 +1,8 @@
-import inspect
-
 from teafacto.blocks.attention import WeightedSumAttCon, Attention, AttentionConsumer, LinearGateAttentionGenerator
-from teafacto.blocks.basic import IdxToOneHot, VectorEmbed, Softmax, MatDot
-from teafacto.blocks.basic import MatDot as Lin
+from teafacto.blocks.basic import IdxToOneHot, Softmax, MatDot
 from teafacto.blocks.rnu import GRU, ReccableBlock, RecurrentBlock, RNUBase
 from teafacto.core.base import Block, tensorops as T, asblock
-from teafacto.util import issequence, getnumargs
+from teafacto.util import issequence
 
 
 class RecStack(ReccableBlock):
@@ -175,6 +172,7 @@ class SeqEncoder(AttentionConsumer, Block):
             mask = T.ones(seqemb.shape[:2])
             self._nomask = True
         elif maskinp is "auto": # generate mask based on seq data and seqemb's shape
+            print "automasking in SeqEncoder (rnn.py)"
             axes = range(2, seq.ndim)       # mask must be 2D
             if "int" in seq.dtype:       # ==> indexes  # mask must be 2D
                 mask = seq.sum(axis=axes) > 0      # 0 is TERMINUS
@@ -294,6 +292,8 @@ class SeqDecoder(Block):
                             outputs_info=[None] + init_info,
                             non_sequences=ctx)
         ret = outputs[0].dimswap(1, 0)     # returns probabilities of symbols --> (batsize, seqlen, vocabsize)
+        if mask == "auto":
+            mask = (seq > 0).astype("int32")
         ret = self.applymask(ret, mask)
         return ret
 
@@ -498,104 +498,3 @@ class BiRewAttSumDecoder(Block):
     def apply(self, inpseq, outseq):
         rnnout = self.rnn(inpseq)
         return self.dec(rnnout, outseq)
-
-
-
-
-
-
-
-
-
-
-class SeqTransducer(Block):
-    def __init__(self, embedder, *layers, **kw):
-        """ layers must have an embedding layers first, final softmax layer is added automatically"""
-        assert("smodim" in kw and "outdim" in kw)
-        self.embedder = embedder
-        smodim = kw["smodim"]
-        outdim = kw["outdim"]
-        del kw["smodim"]; del kw["outdim"]
-        super(SeqTransducer, self).__init__(**kw)
-        self.block = RecStack(*(layers + (Lin(indim=smodim, dim=outdim), Softmax())))
-
-    def apply(self, inpseq, maskseq=None):    # inpseq: idx^(batsize, seqlen), maskseq: f32^(batsize, seqlen)
-        embseq = self.embedder(inpseq)
-        res = self.block(embseq, mask=maskseq)            # f32^(batsize, seqlen, outdim)
-        ret = self.applymask(res, maskseq=maskseq)
-        return ret
-
-    @classmethod
-    def applymask(cls, xseq, maskseq=None):
-        if maskseq is None:
-            ret = xseq
-        else:
-            mask = T.tensordot(maskseq, T.ones((xseq.shape[2],)), 0)  # f32^(batsize, seqlen, outdim) -- maskseq stacked
-            masker = T.concatenate([T.ones((xseq.shape[0], xseq.shape[1], 1)), T.zeros((xseq.shape[0], xseq.shape[1], xseq.shape[2] - 1))], axis=2)  # f32^(batsize, seqlen, outdim) -- gives 100% prob to output 0
-            ret = xseq * mask + masker * (1.0 - mask)
-        return ret
-
-
-class SimpleSeqTransducer(SeqTransducer):
-    def __init__(self, indim=400, embdim=50, innerdim=100, outdim=50, **kw):
-        self.emb = VectorEmbed(indim=indim, dim=embdim)
-        if not issequence(innerdim):
-            innerdim = [innerdim]
-        innerdim = [embdim] + innerdim
-        self.rnn = self.getrnnfrominnerdim(innerdim)
-        super(SimpleSeqTransducer, self).__init__(self.emb, *self.rnn, smodim=innerdim[-1], outdim=outdim, **kw)
-
-    @classmethod
-    def getrnnfrominnerdim(self, innerdim, rnu=GRU):
-        rnn = []
-        assert(len(innerdim) >= 2)
-        i = 1
-        while i < len(innerdim):
-            rnn.append(rnu(dim=innerdim[i-1], innerdim=innerdim[i]))
-            i += 1
-        return rnn
-
-
-class SeqTransDec(Block):
-    def __init__(self, *layers, **kw):
-        """ first two layers must be embedding layers. Final softmax is added automatically"""
-        assert("smodim" in kw and "outdim" in kw)
-        smodim = kw["smodim"]
-        outdim = kw["outdim"]
-        del kw["smodim"]; del kw["outdim"]
-        super(SeqTransDec, self).__init__(**kw)
-        self.inpemb = layers[0]
-        self.outemb = layers[1]
-        self.block = RecStack(*(layers[2:] + (Lin(indim=smodim, dim=outdim), Softmax())))
-
-    def apply(self, inpseq, outseq, maskseq=None):
-        # embed with the two embedding layers
-        emb = self._get_emb(inpseq, outseq)
-        res = self.block(emb)
-        ret = SeqTransducer.applymask(res, maskseq=maskseq)
-        return ret
-
-    def _get_emb(self, inpseq, outseq):
-        iemb = self.inpemb(inpseq)     # (batsize, seqlen, inpembdim)
-        oemb = self.outemb(outseq)     # (batsize, seqlen, outembdim)
-        emb = T.concatenate([iemb, oemb], axis=iemb.ndim-1)                       # (batsize, seqlen, inpembdim+outembdim)
-        return emb
-
-    def rec(self, inpa, inpb, *states):
-        emb = self._get_emb(inpa, inpb)
-        return self.block.rec(emb, *states)
-
-    def get_init_info(self, initstates):
-        return self.block.get_init_info(initstates)
-
-
-class SimpleSeqTransDec(SeqTransDec):
-    def __init__(self, indim=400, outdim=50, inpembdim=50, outembdim=50, innerdim=100, **kw):
-        self.inpemb = VectorEmbed(indim=indim, dim=inpembdim)
-        self.outemb = VectorEmbed(indim=outdim, dim=outembdim)
-        self.rnn = []
-        if not issequence(innerdim):
-            innerdim = [innerdim]
-        innerdim = [inpembdim+outembdim] + innerdim
-        self.rnn = SimpleSeqTransducer.getrnnfrominnerdim(innerdim)
-        super(SimpleSeqTransDec, self).__init__(self.inpemb, self.outemb, *self.rnn, smodim=innerdim[-1], outdim=outdim, **kw)

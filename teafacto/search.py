@@ -35,11 +35,11 @@ class SeqTransDecSearch(Searcher):
 
 
 class SeqEncDecSearch(Searcher):
-    def decode(self, inpseq, maxlen=100):
+    def decode(self, inpseq, initsymbol, maxlen=100):
         self.mu.setbuildargs(inpseq)
         stop = False
         i = 0
-        curout = np.zeros((inpseq.shape[0])).astype("int32")
+        curout = np.repeat([initsymbol], inpseq.shape[0]).astype("int32")
         accprobs = np.ones((inpseq.shape[0]))
         outs = []
         while not stop:

@@ -447,11 +447,11 @@ class ModelTrainer(object):
                 prevverre = verre
                 verr.append(verre)
                 tt.msg("training error: %s \t validation error: %s"
-                       % (erre[0],
-                          " - ".join(map(lambda x: "%.3f" % x, verre))),
+                       % ("%.4f" % erre[0],
+                          " - ".join(map(lambda x: "%.4f" % x, verre))),
                        prefix="-")
             else:
-                tt.msg("training error: %s" % " - ".join(map(lambda x: "%.3f" % x, erre)), prefix="-")
+                tt.msg("training error: %s" % " - ".join(map(lambda x: "%.4f" % x, erre)), prefix="-")
             # retaining the best
             if self.besttaker is not None:
                 modelscore = self.besttaker(([erre]+verre+[self.currentiter]))

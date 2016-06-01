@@ -8,7 +8,7 @@ from IPython import embed
 from teafacto.blocks.lang.wordvec import Glove
 from teafacto.blocks.basic import IdxToOneHot, VectorEmbed, Softmax, MatDot as Lin
 from teafacto.blocks.rnn import RNNAutoEncoder, SeqDecoder, SeqEncoder, BiFwdAttSumDecoder
-from teafacto.blocks.encdec import SimpleSeqEncDecAtt
+from teafacto.blocks.seqproc import SimpleSeqEncDecAtt
 from teafacto.blocks.rnu import GRU
 from teafacto.core.base import Block
 from teafacto.util import argprun
@@ -48,11 +48,10 @@ class seq2idx(Block):
     def apply(self, seqs):
         return Softmax()(self.outlin(self.enc(seqs)))
 
-''' THIS SCRIPT TESTS TRAINING RNN ENCODER, RNN DECODER AND RNN AUTOENCODER '''
 
 
 def word2int(word):
-    return [ord(letter)-96 if letter is not " " else 0 for letter in word]
+    return [ord(letter)-95 if letter is not " " else 0 for letter in word]+[0]*2
 
 
 def words2ints(words):
@@ -63,7 +62,7 @@ def words2ints(words):
 
 
 def int2word(ints):
-    chars = [chr(i+96) if i > 0 else " " for i in ints]
+    chars = [chr(i+95) if i > 1 else " " if i == 0 else "-" for i in ints]
     return "".join(chars)
 
 
@@ -148,40 +147,43 @@ def run_attentionseqdecoder(        # seems to work
 
 
 def run_seqdecatt(  # seems to work
-        wreg=0.00001,  # TODO: regularization other than 0.0001 first stagnates, then goes down
+        wreg=0.00001,
         epochs=50,
         numbats=50,
-        lr=0.03,
+        lr=0.1,
         statedim=50,
         encdim=50,
         attdim=50
     ):
     # get words
-    vocsize = 27
-    embdim = 50
-    lm = Glove(embdim, 5000)
+    vocsize = 28
+    lm = Glove(50, 5000)
     allwords = filter(lambda x: re.match("^[a-z]+$", x), lm.D.keys())
     #embed()
     invwords = [word[::-1] for word in allwords]
     data = words2ints(allwords)
     idata = words2ints(invwords)
+    startsym = 0
 
     golddata = data
 
-    golddata = idata
+    #golddata = idata
+
+    print data[:10]
+    print shiftdata(data, startsym)[:10]
 
     testwords = ["the", "alias", "mock", "test", "stalin", "allahuakbar", "python", "pythonista"]
     testpred = words2ints(testwords)
 
-    block = SimpleSeqEncDecAtt(inpvocsize=vocsize, outvocsize=vocsize, encdim=encdim, decdim=statedim, attdim=attdim, inconcat=False, bidir=True, statetrans=True)
-    block.train([data, shiftdata(golddata)], golddata).seq_cross_entropy().grad_total_norm(1.0).adagrad(lr=lr).l2(wreg) \
-        .split_validate(splits=5, random=True).seq_cross_entropy().seq_accuracy().validinter(4) \
+    block = SimpleSeqEncDecAtt(inpvocsize=vocsize, outvocsize=vocsize, encdim=encdim, decdim=statedim, attdim=attdim, inconcat=False, bidir=False, statetrans=None)
+    block.train([data, shiftdata(golddata, startsym)], golddata).seq_cross_entropy().grad_total_norm(1.0).adagrad(lr=lr).l2(wreg) \
+        .split_validate(splits=5, random=True).seq_cross_entropy().seq_accuracy().validinter(2) \
         .train(numbats=numbats, epochs=epochs)
 
     s = SeqEncDecSearch(block)
-    pred, probs = s.decode(testpred, testpred.shape[1])
+    pred, probs = s.decode(testpred, startsym, testpred.shape[1])
     print ints2words(pred), probs
-    embed()
+    #embed()
 
 
 def run_idx2seq(        # works after refactor
@@ -226,8 +228,8 @@ def run_idx2seq(        # works after refactor
     embed()
 
 
-def shiftdata(x):
-    return np.concatenate([np.zeros_like(x[:, 0:1]), x[:, :-1]], axis=1)
+def shiftdata(x, filler=0):
+    return np.concatenate([np.repeat([filler], x.shape[0]).reshape((x.shape[0], 1)), x[:, :-1]], axis=1)
 
 
 def run_seq2idx(        # works after refactoring (with adagrad)
