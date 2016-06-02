@@ -4,6 +4,7 @@ from teafacto.blocks.basic import VectorEmbed, IdxToOneHot, MatDot
 from teafacto.blocks.rnn import RecStack, SeqDecoder, BiRNU, SeqEncoder
 from teafacto.blocks.rnu import GRU
 from teafacto.core.base import Block, tensorops as T
+from teafacto.core.stack import stack
 from teafacto.util import issequence
 
 
@@ -215,3 +216,33 @@ class SimpleSeqTransDec(SeqTransDec):
         innerdim = [inpembdim+outembdim] + innerdim
         self.rnn = SimpleSeqTransducer.getrnnfrominnerdim(innerdim)
         super(SimpleSeqTransDec, self).__init__(self.inpemb, self.outemb, *self.rnn, smodim=innerdim[-1], outdim=outdim, **kw)
+
+
+class Seq2Idx(Block):
+    def __init__(self, inpemb, enclayers, outlayers, maskid=0, **kw):
+        super(Seq2Idx, self).__init__(**kw)
+        self.maskid = maskid
+        if not issequence(enclayers):
+            enclayers = [enclayers]
+        self.enc = SeqEncoder(inpemb, *enclayers)
+        if not issequence(outlayers):
+            outlayers = [outlayers]
+        if type(outlayers[-1]) is not Softmax:
+            outlayers.append(Softmax())
+        self.out = stack(*outlayers)
+
+    def apply(self, x, mask="auto"):         # x: idx^(batsize, seqlen)
+        enco = self.enc(x, mask=mask, maskid=self.maskid)      # (batsize, innerdim)
+        out = self.out(enco)    # (batsize, probs)
+        return out
+
+
+class SimpleSeq2Idx(Seq2Idx):
+    def __init__(self, indim=400, outdim=100, inpembdim=50, innerdim=100, maskid=0, **kw):
+        if not issequence(innerdim):
+            innerdim = [innerdim]
+        innerdim = [inpembdim] + innerdim
+        rnn = SimpleSeqTransducer.getrnnfrominnerdim(innerdim)
+        inpemb = VectorEmbed(indim=indim, dim=inpembdim)
+        outl = MatDot(indim=innerdim[-1], dim=outdim)
+        super(SimpleSeq2Idx, self).__init__(inpemb, rnn, [outl], maskid=maskid, **kw)

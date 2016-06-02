@@ -153,7 +153,7 @@ class SeqEncoder(AttentionConsumer, Block):
         else:
             self.block = None
 
-    def apply(self, seq, weights=None, mask="auto"): # seq: (batsize, seqlen, dim), weights: (batsize, seqlen) OR (batsize, seqlen, seqlen*, dim) ==> reduce the innermost seqlen
+    def apply(self, seq, weights=None, mask="auto", maskid=0): # seq: (batsize, seqlen, dim), weights: (batsize, seqlen) OR (batsize, seqlen, seqlen*, dim) ==> reduce the innermost seqlen
         if self.embedder is not None:
             seqemb = self.embedder(seq)
         else:
