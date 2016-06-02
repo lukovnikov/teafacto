@@ -37,7 +37,8 @@ class TestSeqDecSearch(TestCase):
             lr=0.1,
             statedim=50,
             encdim=50,
-            attdim=50
+            attdim=50,
+            startsym=0,
     ):
         # get words
         vocsize = 27
@@ -61,5 +62,5 @@ class TestSeqDecSearch(TestCase):
                                    attdim=attdim, inconcat=False)
 
         s = SeqEncDecSearch(block)
-        pred, probs = s.decode(testpred, testpred.shape[1])
+        pred, probs = s.decode(testpred, startsym, testpred.shape[1])
         print ints2words(pred), probs

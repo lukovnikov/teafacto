@@ -5,7 +5,7 @@ import numpy as np
 from teafacto.modelusers import RecPredictor
 from teafacto.blocks.basic import Softmax, VectorEmbed
 from teafacto.blocks.rnn import RecStack
-from blocks.seqproc import SimpleSeqTransDec
+from teafacto.blocks.seqproc import SimpleSeqTransDec
 from teafacto.blocks.rnu import GRU
 from teafacto.core.base import Input, param, asblock, tensorops as T
 from teafacto.core.stack import stack
