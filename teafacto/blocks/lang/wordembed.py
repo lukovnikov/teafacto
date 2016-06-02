@@ -1,7 +1,7 @@
 from teafacto.core.base import *
 from teafacto.core.base import tensorops as T
 from teafacto.blocks.basic import IdxToOneHot, Embedder, VectorEmbed
-from teafacto.blocks.rnn import SeqEncoder
+from teafacto.blocks.rnn import SeqEncoder, MaskMode
 from teafacto.blocks.rnu import RecurrentBlock, GRU
 from teafacto.blocks.lang.wordvec import Glove
 
@@ -28,10 +28,10 @@ class WordEncoder(Block):
     def __init__(self, indim=220, outdim=200, **kw):    # indim is number of characters
         super(WordEncoder, self).__init__(**kw)
         self.enc = SeqEncoder(IdxToOneHot(indim),
-                              GRU(dim=indim, innerdim=outdim))
+                              GRU(dim=indim, innerdim=outdim)).maskoption(MaskMode.AUTO)
 
     def apply(self, seq):       # seq: (batsize, maxwordlen) of character idxs
-        enco = self.enc(seq, mask="auto")    # enco: (batsize, outdim) of floats
+        enco = self.enc(seq)    # enco: (batsize, outdim) of floats
         return enco
 
 

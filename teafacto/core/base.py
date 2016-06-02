@@ -1,4 +1,5 @@
 from types import ModuleType
+from collections import OrderedDict
 
 import theano
 from lasagne.init import *
@@ -388,13 +389,18 @@ class Block(Elem, Saveable): # block with parameters
         super(Block, self).__init__(**kw)
         self.params = []
         self.inputs = []
-        self.output = None
+        self.outputs = []
         self._predictf = None
         self._pristine = True
 
+    @property
+    def output(self):
+        assert(len(self.outputs) == 1)
+        return self.outputs[0]
+
     def reset(self): # clear all non-param info in whole expression structure that ends in this block
         self.inputs = []
-        self.output = None
+        self.outputs = []
         super(Block, self).reset()
 
     def apply(self, *vars, **kwargs):
@@ -404,20 +410,28 @@ class Block(Elem, Saveable): # block with parameters
         return Var(result)#, parent=self)
 
     # may override: -------------------------------------------------
-    def predict(self, *inputdata):
+    def predict(self, *inputdata, **kwinputdata):
         if self._predictf is None:
             #if False or len(self.inputs) == 0 or self.output is None:
-            inps, outp = self.autobuild(*inputdata)
-            self._predictf = theano.function(outputs=outp.d, inputs=[x.d for x in inps])
+            inps, outp = self.autobuild(*inputdata, **kwinputdata)
+            self._predictf = theano.function(outputs=[o.d for o in outp], inputs=[x.d for x in inps])
         args = []
-        for x in inputdata:
+        def _inner(x):
             if isinstance(x, DataFeed):
-                args.append(x[:])
+                return x[:]
             elif not isinstance(x, np.ndarray):
-                args.append(np.asarray(x))
+                return np.asarray(x)
             else:
-                args.append(x)
-        return self._predictf(*args)
+                return x
+        kwn = []
+        for k in sorted(kwinputdata.keys()):
+            kwn.append(kwinputdata[k])
+        allinputdata = inputdata + tuple(kwn)
+        allinputdata = filter(lambda x: x is not None, allinputdata)
+        args = map(_inner, allinputdata)
+        valret = self._predictf(*args)
+        ret = valret[0] if len(valret) == 1 else tuple(valret)
+        return ret
 
     def gettrainer(self, goldvar):
         return ModelTrainer(self, goldvar)
@@ -436,22 +450,39 @@ class Block(Elem, Saveable): # block with parameters
         self.inputs = self.initinputs()
         self._build(*self.inputs)
 
-    def _build(self, *inps):
-        output = self.wrapply(*inps)
+    def _build(self, *inps, **kwinps):
+        output = self.wrapply(*inps, **kwinps)
         return output
 
-    def autobuild(self, *inputdata):
+    def autobuild(self, *inputdata, **kwinputdata):
         self.reset()
-        inputdata = map(lambda x: x if isinstance(x, (np.ndarray, DataFeed)) else np.asarray(x), inputdata)
+        inputdata = map(lambda x:
+                        x if isinstance(x, (np.ndarray, DataFeed)) else (np.asarray(x) if x is not None else None),
+                        inputdata)
+        for k in kwinputdata:
+            x = kwinputdata[k]
+            kwinputdata[k] = x if isinstance(x, (np.ndarray, DataFeed)) else (np.asarray(x) if x is not None else None)
         inputs = []
+        kwinputs = {}
         inpnum = 1
         for td in inputdata:
-            inputs.append(Input(ndim=td.ndim, dtype=td.dtype, name="inp:%d" % inpnum))
+            inputs.append(None if td is None else Input(ndim=td.ndim, dtype=td.dtype, name="inp:%d" % inpnum))
             inpnum += 1
-        output = self._build(*inputs)
-        self.inputs = inputs
-        self.output = output
-        return inputs, output
+        for k in kwinputdata:
+            td = kwinputdata[k]
+            kwinputs[k] = None if td is None else Input(ndim=td.ndim, dtype=td.dtype, name="kwinp:%s" % k)
+        output = self._build(*inputs, **kwinputs)
+
+        kwn = []
+        for k in sorted(kwinputs.keys()):
+            kwn.append(kwinputs[k])
+
+        outinputs = inputs + kwn
+        outinputs = filter(lambda x: x is not None, outinputs)
+        output = (output,) if not issequence(output) else output
+        self.inputs = outinputs
+        self.outputs = output
+        return outinputs, output
 
     def __call__(self, *args, **kwargs):
         return self.wrapply(*args, **kwargs)

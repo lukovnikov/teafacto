@@ -1,9 +1,9 @@
 from teafacto.blocks.basic import MatDot as Lin, Softmax, VectorEmbed
 from teafacto.blocks.attention import Attention, LinearGateAttentionGenerator, WeightedSumAttCon
 from teafacto.blocks.basic import VectorEmbed, IdxToOneHot, MatDot
-from teafacto.blocks.rnn import RecStack, SeqDecoder, BiRNU, SeqEncoder
+from teafacto.blocks.rnn import RecStack, SeqDecoder, BiRNU, SeqEncoder, MaskSetMode
 from teafacto.blocks.rnu import GRU
-from teafacto.core.base import Block, tensorops as T
+from teafacto.core.base import Block, tensorops as T, Val
 from teafacto.core.stack import stack
 from teafacto.util import issequence
 
@@ -34,14 +34,14 @@ class SeqEncDec(Block):
             deco = self.dec(allenco, outseq, mask=mask)      # no state transfer
         return deco
 
-    def get_init_info(self, inpseq, batsize, maskseq=None):
-        enco, allenco = self.enc(inpseq, mask=maskseq)
+    def get_init_info(self, inpseq, batsize, maskseq=None):     # TODO: must evaluate enc here, in place, without any side effects
+        enco, allenco = self.enc.predict(inpseq, mask=maskseq)
         if self.statetrans is not None:
-            topstate = self.statetrans(enco, allenco)
+            topstate = self.statetrans.predict(enco, allenco)
             initstates = [topstate]
         else:
             initstates = batsize
-        return self.dec.get_init_info(allenco, None, initstates)
+        return self.dec.get_init_info(Val(allenco), None, Val(initstates))
 
     def rec(self, x_t, *states):
         return self.dec.rec(x_t, *states)
@@ -49,7 +49,7 @@ class SeqEncDec(Block):
 
 class SeqEncDecAtt(SeqEncDec):
     def __init__(self, enclayers, declayers, attgen, attcon, decinnerdim, inconcat, outconcat, statetrans=None, **kw):
-        enc = SeqEncoder(*enclayers).with_outputs.zeromask
+        enc = SeqEncoder(*enclayers).with_outputs.maskoption(MaskSetMode.ZERO)
         dec = SeqDecoder(
             declayers,
             attention=Attention(attgen, attcon),

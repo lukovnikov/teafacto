@@ -3,6 +3,7 @@ from teafacto.blocks.basic import IdxToOneHot, Softmax, MatDot
 from teafacto.blocks.rnu import GRU, ReccableBlock, RecurrentBlock, RNUBase
 from teafacto.core.base import Block, tensorops as T, asblock
 from teafacto.util import issequence
+from enum import Enum
 
 
 class RecStack(ReccableBlock):
@@ -130,6 +131,35 @@ class BiRNU(RecurrentBlock): # TODO: optimizer can't process this
         return finalout, out, fwdstates+rewstates
 
 
+
+class MaskMode(Enum):
+    NONE = 0
+    AUTO = 1
+    AUTO_FORCE = 2
+
+class MaskSetMode(Enum):
+    NONE = 0
+    ZERO = 1
+    MASKID = 2
+
+
+class MaskConfig(object):
+    def __init__(self, maskmode=MaskMode.NONE, maskid=0, maskset=MaskSetMode.NONE):
+        self.maskmode = maskmode
+        self.maskid = maskid
+        self.maskset = maskset
+
+    def option(self, o):
+        if isinstance(o, MaskSetMode):
+            self.maskset = o
+        elif isinstance(o, MaskMode):
+            self.maskmode = o
+        elif isinstance(o, int):
+            self.maskid = o
+        else:
+            raise NotImplementedError("unrecognized mask configuration option")
+
+
 class SeqEncoder(AttentionConsumer, Block):
     '''
     Encodes a sequence of vectors into a vector, input dims and output dims specified by the RNU unit
@@ -140,9 +170,8 @@ class SeqEncoder(AttentionConsumer, Block):
     def __init__(self, embedder, *layers, **kw):
         super(SeqEncoder, self).__init__(**kw)
         self._return = {"enc"}
-        self._weighted = False
         self._nomask = False
-        self._zeromask = False
+        self._maskconfig = kw["maskcfg"] if "maskcfg" in kw else MaskConfig(MaskMode.AUTO, 0, MaskSetMode.NONE)
         self.embedder = embedder
         if len(layers) > 0:
             if len(layers) == 1:
@@ -153,34 +182,33 @@ class SeqEncoder(AttentionConsumer, Block):
         else:
             self.block = None
 
-    def apply(self, seq, weights=None, mask="auto", maskid=0): # seq: (batsize, seqlen, dim), weights: (batsize, seqlen) OR (batsize, seqlen, seqlen*, dim) ==> reduce the innermost seqlen
+    def apply(self, seq, weights=None, mask=None): # seq: (batsize, seqlen, dim), weights: (batsize, seqlen) OR (batsize, seqlen, seqlen*, dim) ==> reduce the innermost seqlen
+        # embed
         if self.embedder is not None:
             seqemb = self.embedder(seq)
         else:
             seqemb = seq
-        if weights is None:
-            weights = T.ones(seqemb.shape[:-1]) # (batsize, seqlen)
-        else:
-            self._weighted = True
-        mask = self._generate_mask(mask, seq, seqemb)
-        fullmask = mask * weights
+        # compute full mask
+        if self._maskconfig.maskmode == MaskMode.AUTO_FORCE or \
+                (mask is None and self._maskconfig.maskmode == MaskMode.AUTO):
+            mask = self._autogenerate_mask(seq, seqemb)
+
+        fullmask = None
+        if mask is not None:
+            fullmask = mask
+        if weights is not None:
+            fullmask = weights if fullmask is None else weights * fullmask
         final, outputs, states = self.block.innerapply(seqemb, mask=fullmask)
         return self._get_apply_outputs(final, outputs, states, mask)
 
-    def _generate_mask(self, maskinp, seq, seqemb): # seq: (batsize, seqlen, dim)
-        if maskinp is None:     # generate default all-ones mask
-            mask = T.ones(seqemb.shape[:2])
-            self._nomask = True
-        elif maskinp is "auto": # generate mask based on seq data and seqemb's shape
-            print "automasking in SeqEncoder (rnn.py)"
-            axes = range(2, seq.ndim)       # mask must be 2D
-            if "int" in seq.dtype:       # ==> indexes  # mask must be 2D
-                mask = seq.sum(axis=axes) > 0      # 0 is TERMINUS
-            else:
-                mask = seq.norm(2, axis=axes) > 0
+    def _autogenerate_mask(self, seq, seqemb):
+        print "automasking in SeqEncoder (rnn.py)"
+        axes = range(2, seq.ndim)       # mask must be 2D
+        if "int" in seq.dtype:       # ==> indexes  # mask must be 2D
+            mask = seq.sum(axis=axes) > 0      # 0 is TERMINUS
         else:
-            mask = maskinp
-        return mask     # (batsize, seqlen)
+            mask = seq.norm(2, axis=axes) > 0
+        return mask
 
     def _get_apply_outputs(self, final, outputs, states, mask):
         ret = []
@@ -188,7 +216,7 @@ class SeqEncoder(AttentionConsumer, Block):
             ret.append(final)
         if "all" in self._return:       # states (over all time) of topmost layer
             rete = outputs       # (batsize, seqlen, dim) --> zero-fy according to mask
-            if self._zeromask:
+            if self._maskconfig.maskset == MaskSetMode.ZERO and mask is not None:
                 fmask = T.tensordot(mask, T.ones((outputs.shape[2],)), 0)
                 rete = rete * fmask
             ret.append(rete)
@@ -214,23 +242,26 @@ class SeqEncoder(AttentionConsumer, Block):
             else:               # else: a list of outputs
                 return ret
 
-    def _build(self, *inps):
-        res = self.wrapply(*inps)
-        if issequence(res):
-            output = res[0]
-        else:
-            output = res
-        return output
+    ### FLUENT MASK SETTINGS
+    def mask(self, maskcfg):
+        assert(isinstance(maskcfg, MaskConfig))
+        self._maskconfig = maskcfg
+        return self
 
+    def maskoptions(self, *opt):
+        for o in opt:
+            self.maskoption(o)
+        return self
+
+    def maskoption(self, maskoption):
+        self._maskconfig.option(maskoption)
+        return self
+
+    ### FLUENT OUTPUT SETTINGS
     @property
     def with_states(self):       # TODO
         '''Call this switch to get the final states of all recurrent layers'''
         self._return.add("states")
-        return self
-
-    @property
-    def zeromask(self):
-        self._zeromask = True
         return self
 
     @property

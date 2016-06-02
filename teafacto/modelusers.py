@@ -1,6 +1,6 @@
 import theano
 
-from teafacto.core.base import Input, Var
+from teafacto.core.base import Input, Var, Val
 
 
 class ModelUser(object):
@@ -38,13 +38,13 @@ class RecPredictor(ModelUser):
         self.nonseqvals = [self.evalstate(x) for x in nonseqs]
 
     def wrapininput(self, x):
-        if isinstance(x, Var):
+        if isinstance(x, (Var, Val)):
             return Input(ndim=x.d.ndim, dtype=x.d.dtype)
         elif isinstance(x, int):
             return Input(ndim=0, dtype="int32")
 
     def evalstate(self, x):
-        if isinstance(x, Var):
+        if isinstance(x, (Var, Val)):
             return x.d.eval()
         else:
             return x
