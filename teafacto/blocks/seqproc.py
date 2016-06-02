@@ -1,7 +1,7 @@
 from teafacto.blocks.basic import MatDot as Lin, Softmax, VectorEmbed
 from teafacto.blocks.attention import Attention, LinearGateAttentionGenerator, WeightedSumAttCon
 from teafacto.blocks.basic import VectorEmbed, IdxToOneHot, MatDot
-from teafacto.blocks.rnn import RecStack, SeqDecoder, BiRNU, SeqEncoder, MaskSetMode
+from teafacto.blocks.rnn import RecStack, SeqDecoder, BiRNU, SeqEncoder, MaskSetMode, MaskMode
 from teafacto.blocks.rnu import GRU
 from teafacto.core.base import Block, tensorops as T, Val
 from teafacto.core.stack import stack
@@ -224,15 +224,15 @@ class Seq2Idx(Block):
         self.maskid = maskid
         if not issequence(enclayers):
             enclayers = [enclayers]
-        self.enc = SeqEncoder(inpemb, *enclayers)
+        self.enc = SeqEncoder(inpemb, *enclayers).maskoptions(maskid, MaskMode.AUTO)
         if not issequence(outlayers):
             outlayers = [outlayers]
         if type(outlayers[-1]) is not Softmax:
             outlayers.append(Softmax())
         self.out = stack(*outlayers)
 
-    def apply(self, x, mask="auto"):         # x: idx^(batsize, seqlen)
-        enco = self.enc(x, mask=mask, maskid=self.maskid)      # (batsize, innerdim)
+    def apply(self, x, mask=None):         # x: idx^(batsize, seqlen)
+        enco = self.enc(x, mask=mask)      # (batsize, innerdim)
         out = self.out(enco)    # (batsize, probs)
         return out
 
