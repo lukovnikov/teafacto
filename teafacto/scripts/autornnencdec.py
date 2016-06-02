@@ -153,11 +153,12 @@ def run_seqdecatt(  # seems to work
         lr=0.1,
         statedim=50,
         encdim=50,
-        attdim=50
+        attdim=50,
+        numwords=5000,
     ):
     # get words
     vocsize = 28
-    lm = Glove(50, 5000)
+    lm = Glove(50, numwords)
     allwords = filter(lambda x: re.match("^[a-z]+$", x), lm.D.keys())
     #embed()
     invwords = [word[::-1] for word in allwords]
