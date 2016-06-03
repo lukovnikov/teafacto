@@ -2,7 +2,6 @@ import pickle
 
 import numpy as np
 
-
 from teafacto.search import SeqTransDecSearch
 from teafacto.blocks.seqproc import SimpleSeqTransDec
 from teafacto.scripts.atis.atisseqtrans import getdatamatrix, atiseval

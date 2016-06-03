@@ -202,12 +202,18 @@ class SeqEncoder(AttentionConsumer, Block):
         return self._get_apply_outputs(final, outputs, states, mask)
 
     def _autogenerate_mask(self, seq, seqemb):
+        assert(seqemb.ndim == 3)
         print "automasking in SeqEncoder (rnn.py)"
         axes = range(2, seq.ndim)       # mask must be 2D
         if "int" in seq.dtype:       # ==> indexes  # mask must be 2D
-            mask = seq.sum(axis=axes) > 0      # 0 is TERMINUS
+            if seq.ndim == 2:
+                mask = T.neq(seq, self._maskconfig.maskid)
+            else:
+                if self._maskconfig.maskid != 0:
+                    raise AttributeError("CAN NOT CREATE MASK USING CUSTOM MASKID %d BECAUSE OF NON-STANDARD SEQ (%d dims, %s)" % (self._maskconfig.maskid, seq.ndim, str(seq.dtype)))
+                mask = T.gt(seq.sum(axis=axes), 0)      # 0 is TERMINUS
         else:
-            mask = seq.norm(2, axis=axes) > 0
+            mask = T.gt(seq.norm(2, axis=axes), 0)
         return mask
 
     def _get_apply_outputs(self, final, outputs, states, mask):
@@ -335,7 +341,8 @@ class SeqDecoder(Block):
         else:
             mask = T.tensordot(maskseq, T.ones((xseq.shape[2],)), 0)  # f32^(batsize, seqlen, outdim) -- maskseq stacked
             masker = T.concatenate(
-                [T.ones((xseq.shape[0], xseq.shape[1], 1)), T.zeros((xseq.shape[0], xseq.shape[1], xseq.shape[2] - 1))],
+                [T.ones((xseq.shape[0], xseq.shape[1], 1)),
+                 T.zeros((xseq.shape[0], xseq.shape[1], xseq.shape[2] - 1))],
                 axis=2)  # f32^(batsize, seqlen, outdim) -- gives 100% prob to output 0
             ret = xseq * mask + masker * (1.0 - mask)
             return ret
