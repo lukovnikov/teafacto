@@ -113,16 +113,16 @@ def evaluate(pred, gold):
 
 
 def run(
-        epochs=20,
+        epochs=10,
         numbats=100,
         numsam=10000,
         lr=0.1,
-        wdicp="../../../data/mfqa/mfqa.reldet.worddic.sample.big",
-        rdicp="../../../data/mfqa/mfqa.reldet.reldic.sample.big",
-        datap="../../../data/mfqa/mfqa.reldet.sample.big",
+        wdicp="../../../data/mfqa/clean/reldet/mfqa.reldet.worddic.sample.big",
+        rdicp="../../../data/mfqa/clean/reldet/mfqa.reldet.reldic.sample.big",
+        datap="../../../data/mfqa/clean/reldet/mfqa.reldet.sample.big", # 65% - 63%, 64.2% - 65.37%, 67% - 66.3%
         embdim=100,
         innerdim=200,
-        wreg=0.0001,
+        wreg=0.00005,
         ):
     #wdic = readdic(wdicp)
     #rdic = readdic(rdicp)
@@ -143,10 +143,12 @@ def run(
         outdim=numrels,
         inpembdim=embdim,
         innerdim=innerdim,
-        maskid=-1, )
+        maskid=-1,
+        bidir=True,
+    )
 
     m = m.train([traindata], traingold).adagrad(lr=lr).l2(wreg).grad_total_norm(1.0).cross_entropy()\
-        .split_validate(10, random=True).cross_entropy().accuracy()\
+        .split_validate(10, random=True).cross_entropy().accuracy().takebest()\
         .train(numbats=numbats, epochs=epochs)
 
     pred = m.predict(testdata)
@@ -156,4 +158,4 @@ def run(
 
 
 if __name__ == "__main__":
-    argprun(run, epochs=20)
+    argprun(run)

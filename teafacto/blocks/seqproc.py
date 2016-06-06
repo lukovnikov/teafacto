@@ -1,5 +1,6 @@
-from teafacto.blocks.basic import MatDot as Lin, Softmax, VectorEmbed
+from teafacto.blocks.rnn import MakeRNU
 from teafacto.blocks.attention import Attention, LinearGateAttentionGenerator, WeightedSumAttCon
+from teafacto.blocks.basic import MatDot as Lin, Softmax
 from teafacto.blocks.basic import VectorEmbed, IdxToOneHot, MatDot
 from teafacto.blocks.rnn import RecStack, SeqDecoder, BiRNU, SeqEncoder, MaskSetMode, MaskMode
 from teafacto.blocks.rnu import GRU
@@ -164,13 +165,10 @@ class SimpleSeqTransducer(SeqTransducer):
 
     @classmethod
     def getrnnfrominnerdim(self, innerdim, rnu=GRU):
-        rnn = []
         assert(len(innerdim) >= 2)
-        i = 1
-        while i < len(innerdim):
-            rnn.append(rnu(dim=innerdim[i-1], innerdim=innerdim[i]))
-            i += 1
-        return rnn
+        initdim = innerdim[0]
+        otherdim = innerdim[1:]
+        return MakeRNU.make(initdim, otherdim, rnu=rnu)
 
 
 class SeqTransDec(Block):
@@ -238,11 +236,8 @@ class Seq2Idx(Block):
 
 
 class SimpleSeq2Idx(Seq2Idx):
-    def __init__(self, indim=400, outdim=100, inpembdim=50, innerdim=100, maskid=0, **kw):
-        if not issequence(innerdim):
-            innerdim = [innerdim]
-        innerdim = [inpembdim] + innerdim
-        rnn = SimpleSeqTransducer.getrnnfrominnerdim(innerdim)
+    def __init__(self, indim=400, outdim=100, inpembdim=50, innerdim=100, maskid=0, bidir=False, **kw):
+        rnn, lastdim = MakeRNU.make(inpembdim, innerdim, bidir=bidir)
         inpemb = VectorEmbed(indim=indim, dim=inpembdim)
-        outl = MatDot(indim=innerdim[-1], dim=outdim)
+        outl = MatDot(indim=lastdim, dim=outdim)
         super(SimpleSeq2Idx, self).__init__(inpemb, rnn, [outl], maskid=maskid, **kw)

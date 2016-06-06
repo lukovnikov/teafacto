@@ -124,7 +124,7 @@ class BiRNU(RecurrentBlock): # TODO: optimizer can't process this
         assert(initstates is None or len(initstates) == self.rew.numstates)
         initstatesrew = initstates
         fwdfinal, fwdout, fwdstates = self.fwd.innerapply(seq, mask=mask, initstates=initstatesfwd)   # (batsize, seqlen, innerdim)
-        rewfinal, rewout, rewstates = self.rew.innerapply(seq, mask=mask, initstates=initstatesrew) # TODO: reverse
+        rewfinal, rewout, rewstates = self.rew.innerapply(seq, mask=mask, initstates=initstatesrew) # TODO: reverse?
         # concatenate: fwdout, rewout: (batsize, seqlen, feats) ==> (batsize, seqlen, feats_fwd+feats_rew)
         finalout = T.concatenate([fwdfinal, rewfinal], axis=1)
         out = T.concatenate([fwdout, rewout.reverse(1)], axis=2)
@@ -536,3 +536,31 @@ class BiRewAttSumDecoder(Block):
     def apply(self, inpseq, outseq):
         rnnout = self.rnn(inpseq)
         return self.dec(rnnout, outseq)
+
+
+class MakeRNU(object):
+    ''' generates a list of RNU's'''
+    @staticmethod
+    def make(initdim, specs, rnu=GRU, bidir=False):
+        if not issequence(specs):
+            specs = [specs]
+        rnns = []
+        prevdim = initdim
+        for spec in specs:
+            fspec = {"dim": None, "bidir": bidir, "rnu": rnu}
+            if isinstance(spec, int):
+                fspec["dim"] = spec
+            elif isinstance(spec, dict):
+                assert(hasattr(spec, "dim")
+                       and
+                       set(spec.keys()).union(set(fspec.keys()))
+                            == set(fspec.keys()))
+                fspec.update(spec)
+            if fspec["bidir"] == True:
+                rnn = BiRNU.fromrnu(fspec["rnu"], dim=prevdim, innerdim=fspec["dim"])
+                prevdim = fspec["dim"] * 2
+            else:
+                rnn = fspec["rnu"](dim=prevdim, innerdim=fspec["dim"])
+                prevdim = fspec["dim"]
+            rnns.append(rnn)
+        return rnns, prevdim

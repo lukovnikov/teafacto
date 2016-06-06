@@ -1,7 +1,7 @@
-
 from teafacto.core.base import Block, param
 from teafacto.core.base import tensorops as T
-from teafacto.util import issequence, getnumargs
+from teafacto.util import getnumargs
+from teafacto.util import issequence
 
 
 class RecurrentBlock(Block):     # ancestor class for everything that consumes sequences f32~(batsize, seqlen, ...)
@@ -269,3 +269,5 @@ class IFGRUTM(GatedRNU):
         y_t = self.outpactivation(T.dot(c_t * ofgate, self.wo))
         return [y_t, y_t, c_t]
 '''
+
+
