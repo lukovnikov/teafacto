@@ -168,7 +168,7 @@ class SimpleSeqTransducer(SeqTransducer):
         assert(len(innerdim) >= 2)
         initdim = innerdim[0]
         otherdim = innerdim[1:]
-        return MakeRNU.make(initdim, otherdim, rnu=rnu)
+        return MakeRNU.make(initdim, otherdim, rnu=rnu)[0]
 
 
 class SeqTransDec(Block):

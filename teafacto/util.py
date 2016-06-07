@@ -149,7 +149,15 @@ def argparsify(f, test=None):
     parser = argparse.ArgumentParser()
     i = 0
     for arg in args:
-        parser.add_argument("-%s"%arg, "--%s"%arg, type=type(defaults[i]))
+        argtype = type(defaults[i])
+        if argtype == bool:     # convert to action
+            if defaults[i] == False:
+                action="store_true"
+            else:
+                action="store_false"
+            parser.add_argument("-%s" % arg, "--%s" % arg, action=action, default=defaults[i])
+        else:
+            parser.add_argument("-%s"%arg, "--%s"%arg, type=type(defaults[i]))
         i += 1
     if test is not None:
         par = parser.parse_args([test])

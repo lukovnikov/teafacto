@@ -123,6 +123,7 @@ def run(
         embdim=100,
         innerdim=200,
         wreg=0.00005,
+        bidir=False,
         ):
     #wdic = readdic(wdicp)
     #rdic = readdic(rdicp)
@@ -138,17 +139,20 @@ def run(
     numrels = np.max(gold)+1
     print numwords, numrels
 
+    if bidir:
+        innerdim /= 2
+
     m = SimpleSeq2Idx(
         indim=numwords,
         outdim=numrels,
         inpembdim=embdim,
         innerdim=innerdim,
         maskid=-1,
-        bidir=True,
+        bidir=bidir,
     )
 
     m = m.train([traindata], traingold).adagrad(lr=lr).l2(wreg).grad_total_norm(1.0).cross_entropy()\
-        .split_validate(10, random=True).cross_entropy().accuracy().takebest()\
+        .split_validate(10, random=True).accuracy().cross_entropy().takebest()\
         .train(numbats=numbats, epochs=epochs)
 
     pred = m.predict(testdata)
