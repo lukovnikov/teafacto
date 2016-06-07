@@ -348,7 +348,11 @@ class ModelTrainer(object):
                     updates.append((upd, upds[upd]))
         #print updates
         #embed()
-        trainf = theano.function(inputs=[x.d for x in inputs]+[self.goldvar], outputs=[cost], updates=updates)
+        trainf = theano.function(
+            inputs=[x.d for x in inputs]+[self.goldvar],
+            outputs=[cost],
+            updates=updates)
+        # TODO: add givens for transferring dataset to GPU
         self.tt.tock("training function compiled")
         return trainf
 

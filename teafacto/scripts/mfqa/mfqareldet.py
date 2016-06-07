@@ -124,6 +124,7 @@ def run(
         innerdim=200,
         wreg=0.00005,
         bidir=False,
+        keepmincount=5,
         ):
     #wdic = readdic(wdicp)
     #rdic = readdic(rdicp)
@@ -131,7 +132,8 @@ def run(
     data, gold = readdatamat(datap, numsam)
     print data.shape, gold.shape
 
-    (traingold, traindata), (testgold, testdata) = smartdatasplit(gold, data, random=True, keepmincount=5, holdmincount=2)
+    (traingold, traindata), (testgold, testdata) = \
+        smartdatasplit(gold, data, random=True, keepmincount=keepmincount, holdmincount=2)
 
     print traindata.shape, testdata.shape
 
