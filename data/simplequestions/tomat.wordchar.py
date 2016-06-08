@@ -55,9 +55,10 @@ def getdata(p, worddic, entdic, reldic, maxc=np.infty, maxchar=50):
     for x in data:
         j = 0
         for xe in x:
-            datamat[i, j, 0] = x
-            chars = map(ord, revworddic[x])
+            datamat[i, j, 0] = xe
+            chars = map(ord, revworddic[xe])
             datamat[i, j, 1:len(chars)+1] = chars
+            j += 1
         i += 1
     i = 0
     for x in gold:
