@@ -249,3 +249,26 @@ if __name__ == "__main__":
     print "dumped"
     a, b, c = loadlexidtsv("../My Passport/data/kgraph/aliasrevlex.map.id.tsv")
     pkl.dump((a, b, c), open("../My Passport/data/kgraph/aliasrevlex.map.id.tsv.pkl", "w"))
+
+
+class DataCollection():
+    def __init__(self, **datas):
+        self.datas = datas
+
+    def update(self, **datas):
+        self.datas.update(datas)
+
+    def __getattr__(self, item):
+        if item in self.datas:
+            return self.datas[item]
+        else:
+            raise AttributeError
+
+
+class DataSet():
+    def __init__(self, data, gold):
+        self.data = data
+        self.gold = gold
+
+    def __repr__(self):
+        return str(self.data) + "\n" + str(self.gold)

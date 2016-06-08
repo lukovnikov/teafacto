@@ -352,7 +352,7 @@ class ModelTrainer(object):
             inputs=[x.d for x in inputs]+[self.goldvar],
             outputs=[cost],
             updates=updates)
-        # TODO: add givens for transferring dataset to GPU
+        # TODO: add givens for transferring dataset to GPU --> must reimplement parts of trainer (batch generation, givens, ...)
         self.tt.tock("training function compiled")
         return trainf
 
