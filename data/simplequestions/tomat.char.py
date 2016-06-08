@@ -13,6 +13,9 @@ def run(trainp="fb_train.tsv", testp="fb_test.tsv", validp="fb_valid.tsv", outp=
     acc["valid"] = getdata(validp, entdic, reldic)
     acc["test"] = getdata(testp, entdic, reldic)
     numents = len(entdic)
+    acc["train"][1][:, 1] += numents
+    acc["valid"][1][:, 1] += numents
+    acc["test"][1][:, 1] += numents
     reldic = {k: v+numents for k, v in reldic.items()}
     entdic.update(reldic)
     print len(entdic)
