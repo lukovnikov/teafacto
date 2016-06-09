@@ -62,6 +62,7 @@ def run(
         bidir=False,
         keepmincount=5,
         mem=False,
+        sameenc=False,
         ):
 
     (traindata, traingold), (validdata, validgold), (testdata, testgold), worddic, entdic\
@@ -84,7 +85,7 @@ def run(
     enc = SimpleSeq2Vec(indim=numwords, inpembdim=embdim, innerdim=encinnerdim, maskid=-1, bidir=bidir)
 
     if mem:
-        memenc = enc #SimpleSeq2Vec(indim=numwords, inpembdim=embdim, innerdim=innerdim, maskid=-1)
+        memenc = enc if sameenc else SimpleSeq2Vec(indim=numwords, inpembdim=embdim, innerdim=innerdim, maskid=-1)
         dec = MemVec2Idx(memenc, memdata, memdim=innerdim)
     else:
         dec = SimpleVec2Idx(indim=innerdim, outdim=numrels)
