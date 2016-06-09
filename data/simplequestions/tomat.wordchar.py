@@ -7,7 +7,7 @@ import numpy as np
 from teafacto.util import argprun
 
 
-def run(trainp="fb_train.tsv", testp="fb_test.tsv", validp="fb_valid.tsv", outp="datamat.word.pkl", maxchar=70):
+def run(trainp="fb_train.tsv", testp="fb_test.tsv", validp="fb_valid.tsv", outp="datamat.wordchar.pkl", maxchar=70):
     worddic = {"<RARE>": 0}
     entdic = {}
     reldic = {}
