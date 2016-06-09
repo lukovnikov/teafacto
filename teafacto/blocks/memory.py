@@ -1,7 +1,19 @@
 from teafacto.blocks.basic import VectorEmbed, Softmax, Embedder
 from teafacto.core.base import tensorops as T
 from teafacto.core.base import Block, Val, Var, param
+from teafacto.core.stack import stack
 from teafacto.util import issequence
+
+
+class MemoryStack(Block):
+    def __init__(self, memblock, memaddr, outnorm=Softmax(), **kw):
+        super(MemoryStack, self).__init__(**kw)
+        if not isinstance(memblock, MemoryBlock):
+            raise Exception("must provide a loaded memory block")
+        self.exe = stack(memaddr(memblock), outnorm)
+
+    def apply(self, x):
+        return self.exe(x)
 
 
 class MemoryBlock(Embedder):

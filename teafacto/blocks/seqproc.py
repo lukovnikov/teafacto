@@ -6,6 +6,7 @@ from teafacto.blocks.rnn import RecStack, SeqDecoder, BiRNU, SeqEncoder, MaskSet
 from teafacto.blocks.rnu import GRU
 from teafacto.core.base import Block, tensorops as T, Val
 from teafacto.core.stack import stack
+from teafacto.blocks.memory import MemoryStack, MemoryBlock, DotMemAddr, GeneralDotMemAddr, LinearGateMemAddr
 from teafacto.util import issequence
 
 
@@ -216,28 +217,92 @@ class SimpleSeqTransDec(SeqTransDec):
         super(SimpleSeqTransDec, self).__init__(self.inpemb, self.outemb, *self.rnn, smodim=innerdim[-1], outdim=outdim, **kw)
 
 
+# BASIC SEQ TO IDX
+# specify by  enc and out
 class Seq2Idx(Block):
-    def __init__(self, inpemb, enclayers, outlayers, maskid=0, **kw):
+    def __init__(self, seq2vec, vec2idx, **kw):
+        self.enc = seq2vec
+        self.out = vec2idx
         super(Seq2Idx, self).__init__(**kw)
-        self.maskid = maskid
-        if not issequence(enclayers):
-            enclayers = [enclayers]
-        self.enc = SeqEncoder(inpemb, *enclayers).maskoptions(maskid, MaskMode.AUTO)
-        if not issequence(outlayers):
-            outlayers = [outlayers]
-        if type(outlayers[-1]) is not Softmax:
-            outlayers.append(Softmax())
-        self.out = stack(*outlayers)
 
     def apply(self, x, mask=None):         # x: idx^(batsize, seqlen)
         enco = self.enc(x, mask=mask)      # (batsize, innerdim)
         out = self.out(enco)    # (batsize, probs)
         return out
 
+# specify by layers
+class LayerSeq2Idx(Seq2Idx):
+    def __init__(self, inpemb, enclayers, outlayers, maskid=0, **kw):
+        enc = Seq2Vec(inpemb, enclayers, maskid)
+        out = Vec2Idx(outlayers)
+        super(LayerSeq2Idx, self).__init__(enc, out, **kw)
 
+
+# specify by dims
 class SimpleSeq2Idx(Seq2Idx):
     def __init__(self, indim=400, outdim=100, inpembdim=50, innerdim=100, maskid=0, bidir=False, **kw):
+        enc = SimpleSeq2Vec(indim=indim, inpembdim=inpembdim, innerdim=innerdim, maskid=0, bidir=bidir)
+        out = SimpleVec2Idx(indim=enc.outdim, outdim=outdim)
+        super(SimpleSeq2Idx, self).__init__(enc, out, **kw)
+
+
+# components:
+# seq2vec
+# specify by layers
+class Seq2Vec(Block):
+    def __init__(self, inpemb, enclayers, maskid=0, **kw):
+        super(Seq2Vec, self).__init__(**kw)
+        self.maskid = maskid
+        if not issequence(enclayers):
+            enclayers = [enclayers]
+        self.enc = SeqEncoder(inpemb, *enclayers).maskoptions(maskid, MaskMode.AUTO)
+
+    def apply(self, x, mask=None):
+        return self.enc(x, mask=mask)
+
+
+# specify by dims
+class SimpleSeq2Vec(Seq2Vec):
+    def __init__(self, indim=400, inpembdim=50, innerdim=100, maskid=0, bidir=False, **kw):
+        if inpembdim is None:
+            inpemb = IdxToOneHot(indim)
+            inpembdim = indim
+        else:
+            inpemb = VectorEmbed(indim=indim, dim=inpembdim)
         rnn, lastdim = MakeRNU.make(inpembdim, innerdim, bidir=bidir)
-        inpemb = VectorEmbed(indim=indim, dim=inpembdim)
-        outl = MatDot(indim=lastdim, dim=outdim)
-        super(SimpleSeq2Idx, self).__init__(inpemb, rnn, [outl], maskid=maskid, **kw)
+        self.outdim = lastdim
+        super(SimpleSeq2Vec, self).__init__(inpemb, rnn, maskid, **kw)
+
+
+# vec2idx:
+# specify by layers
+class Vec2Idx(Block):
+    def __init__(self, outlayers, **kw):
+        super(Vec2Idx, self).__init__(**kw)
+        if isinstance(outlayers, MemoryStack):
+            out = outlayers
+        else:
+            if not issequence(outlayers):
+                outlayers = [outlayers]
+            if type(outlayers[-1]) is not Softmax:
+                outlayers.append(Softmax())
+            out = stack(*outlayers)
+        self.out = out
+
+    def apply(self, x):
+        return self.out(x)
+
+
+# specify by dims
+class SimpleVec2Idx(Vec2Idx):
+    def __init__(self, indim=100, outdim=100):
+        outl = MatDot(indim=indim, dim=outdim)
+        super(SimpleVec2Idx, self).__init__(outl, **kw)
+
+
+class MemVec2Idx(Vec2Idx):
+    def __init__(self, memenc, memdata, memaddr, memdim, **kw):
+        assert(memdata is not None and memenc is not None)
+        memblock = MemoryBlock(memenc, memdata, indim=memdata.shape[0], outdim=memdim)
+        memstack = MemoryStack(memblock, memaddr)
+        super(MemVec2Idx, self).__init__(memstack, **kw)

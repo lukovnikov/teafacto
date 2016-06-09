@@ -2,7 +2,7 @@
 from teafacto.util import argprun
 from collections import OrderedDict
 import numpy as np, pickle
-from teafacto.blocks.seqproc import SimpleSeq2Idx
+from teafacto.blocks.seqproc import SimpleSeq2Idx, SimpleSeq2Vec, SimpleVec2Idx, MemVec2Idx, Seq2Idx
 
 
 def readdata(p):
@@ -31,14 +31,13 @@ def run(
         numbats=100,
         numsam=10000,
         lr=0.1,
-        wdicp="../../../data/mfqa/clean/reldet/mfqa.reldet.worddic.sample.big",
-        rdicp="../../../data/mfqa/clean/reldet/mfqa.reldet.reldic.sample.big",
         datap="../../../data/simplequestions/datamat.word.pkl",
         embdim=100,
         innerdim=200,
         wreg=0.00005,
         bidir=False,
         keepmincount=5,
+        mem=False,
         ):
     #wdic = readdic(wdicp)
     #rdic = readdic(rdicp)
@@ -55,14 +54,14 @@ def run(
     if bidir:
         innerdim /= 2
 
-    m = SimpleSeq2Idx(
-        indim=numwords,
-        outdim=numrels,
-        inpembdim=embdim,
-        innerdim=innerdim,
-        maskid=-1,
-        bidir=bidir,
-    )
+    enc = SimpleSeq2Vec(indim=numwords, inpembdim=embdim, innerdim=innerdim, maskid=-1, bidir=bidir)
+
+    if mem:
+        dec = None
+    else:
+        dec = SimpleVec2Idx(indim=innerdim, outdim=numrels)
+
+    m = Seq2Idx(enc, dec)
 
     m = m.train([traindata], traingold).adagrad(lr=lr).l2(wreg).grad_total_norm(1.0).cross_entropy()\
         .validate_on([validdata], validgold).accuracy().cross_entropy().takebest()\
