@@ -295,7 +295,7 @@ class Vec2Idx(Block):
 
 # specify by dims
 class SimpleVec2Idx(Vec2Idx):
-    def __init__(self, indim=100, outdim=100):
+    def __init__(self, indim=100, outdim=100, **kw):
         outl = MatDot(indim=indim, dim=outdim)
         super(SimpleVec2Idx, self).__init__(outl, **kw)
 
