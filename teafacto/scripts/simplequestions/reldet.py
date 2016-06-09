@@ -52,9 +52,11 @@ def run(
     print numwords, numrels
 
     if bidir:
-        innerdim /= 2
+        encinnerdim = innerdim/2
+    else:
+        encinnerdim = innerdim
 
-    enc = SimpleSeq2Vec(indim=numwords, inpembdim=embdim, innerdim=innerdim, maskid=-1, bidir=bidir)
+    enc = SimpleSeq2Vec(indim=numwords, inpembdim=embdim, innerdim=encinnerdim, maskid=-1, bidir=bidir)
 
     if mem:
         dec = None
