@@ -301,7 +301,7 @@ class SimpleVec2Idx(Vec2Idx):
 
 
 class MemVec2Idx(Vec2Idx):
-    def __init__(self, memenc, memdata, memaddr, memdim, **kw):
+    def __init__(self, memenc, memdata, memaddr=DotMemAddr, memdim=None, **kw):
         assert(memdata is not None and memenc is not None)
         memblock = MemoryBlock(memenc, memdata, indim=memdata.shape[0], outdim=memdim)
         memstack = MemoryStack(memblock, memaddr)

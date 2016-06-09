@@ -1,4 +1,4 @@
-
+import sys, re
 from teafacto.util import argprun
 from collections import OrderedDict
 import numpy as np, pickle
@@ -22,6 +22,30 @@ def readdata(p):
     return train, valid, test, x["worddic"], newdic
 
 
+def getmemdata(reldic, worddic):
+    rels = sorted(reldic.items(), key=lambda (x, y): y)
+    rels = map(lambda (x, y): (filter(lambda x: len(x) > 0, re.split("[\W_]", x)), y), rels)
+    allrelwords = set()
+    maxlen = 0
+    prevc = -1
+    for rel, c in rels:
+        assert(c-1 == prevc)
+        prevc = c
+        maxlen = max(maxlen, len(rel))
+        for relw in rel:
+            allrelwords.add(relw)
+    relwordsnotinworddic = allrelwords.difference(set(worddic.keys()))
+    for rwniw in relwordsnotinworddic:
+        worddic[rwniw] = len(worddic)
+    ret = [[worddic[w] for w in rel] for (rel, _) in rels]
+    retmat = np.zeros((len(rels), maxlen)).astype("int32") - 1
+    i = 0
+    for r in ret:
+        retmat[i, :len(r)] = r
+        i += 1
+    return retmat
+
+
 def evaluate(pred, gold):
     return np.sum(gold == pred) * 100. / gold.shape[0]
 
@@ -37,13 +61,14 @@ def run(
         wreg=0.00005,
         bidir=False,
         keepmincount=5,
-        mem=False,
+        mem=True,
         ):
-    #wdic = readdic(wdicp)
-    #rdic = readdic(rdicp)
 
     (traindata, traingold), (validdata, validgold), (testdata, testgold), worddic, entdic\
         = readdata(datap)
+
+    if mem:
+        memdata = getmemdata(entdic, worddic)
 
     print traindata.shape, testdata.shape
 
@@ -59,7 +84,8 @@ def run(
     enc = SimpleSeq2Vec(indim=numwords, inpembdim=embdim, innerdim=encinnerdim, maskid=-1, bidir=bidir)
 
     if mem:
-        dec = None
+        memenc = SimpleSeq2Vec(indim=numwords, inpembdim=embdim, innerdim=innerdim, maskid=-1)
+        dec = MemVec2Idx(memenc, memdata, memdim=innerdim)
     else:
         dec = SimpleVec2Idx(indim=innerdim, outdim=numrels)
 
