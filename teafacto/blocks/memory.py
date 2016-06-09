@@ -6,11 +6,13 @@ from teafacto.util import issequence
 
 
 class MemoryStack(Block):
-    def __init__(self, memblock, memaddr, outnorm=Softmax(), **kw):
+    def __init__(self, memblock, memaddr, memattdim=100, indim=None, outnorm=Softmax(), **kw):
         super(MemoryStack, self).__init__(**kw)
         if not isinstance(memblock, MemoryBlock):
             raise Exception("must provide a loaded memory block")
-        self.exe = stack(memaddr(memblock), outnorm)
+        memdim = memblock.outdim
+        indim = memdim if indim is None else indim
+        self.exe = stack(memaddr(memblock, memdim=memdim, indim=indim, attdim=memattdim), outnorm)
 
     def apply(self, x):
         return self.exe(x)

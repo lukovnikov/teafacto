@@ -1,5 +1,6 @@
 import sys, re
 from teafacto.util import argprun
+from teafacto.blocks.memory import LinearGateMemAddr, DotMemAddr
 from collections import OrderedDict
 import numpy as np, pickle
 from teafacto.blocks.seqproc import SimpleSeq2Idx, SimpleSeq2Vec, SimpleVec2Idx, MemVec2Idx, Seq2Idx
@@ -63,6 +64,8 @@ def run(
         keepmincount=5,
         mem=False,
         sameenc=False,
+        memaddr="dot",
+        memattdim=100,
         ):
 
     (traindata, traingold), (validdata, validgold), (testdata, testgold), worddic, entdic\
@@ -86,7 +89,11 @@ def run(
 
     if mem:
         memenc = enc if sameenc else SimpleSeq2Vec(indim=numwords, inpembdim=embdim, innerdim=innerdim, maskid=-1)
-        dec = MemVec2Idx(memenc, memdata, memdim=innerdim)
+        if memaddr is None or memaddr == "dot":
+            memaddr = DotMemAddr
+        elif memaddr == "lin":
+            memaddr = LinearGateMemAddr
+        dec = MemVec2Idx(memenc, memdata, memdim=innerdim, memaddr=memaddr, memattdim=memattdim)
     else:
         dec = SimpleVec2Idx(indim=innerdim, outdim=numrels)
 
