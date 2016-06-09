@@ -48,8 +48,8 @@ def run(
 
     print traindata.shape, testdata.shape
 
-    numwords = max(worddic.values()) - min(worddic.values())
-    numrels = max(entdic.values()) - min(entdic.values())
+    numwords = max(worddic.values()) + 1
+    numrels = max(entdic.values()) + 1
     print numwords, numrels
 
     if bidir:
