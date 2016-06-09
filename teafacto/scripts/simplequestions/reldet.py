@@ -46,6 +46,19 @@ def getmemdata(reldic, worddic):
         i += 1
     return retmat
 
+def getcharmemdata(reldic):
+    rels = sorted(reldic.items(), key=lambda (x, y): y)
+    maxlen = 0
+    prevc = -1
+    for rel, c in rels:
+        assert(c-1 == prevc)
+        prevc = c
+        maxlen = max(maxlen, len(rel))
+    retmat = np.zeros((len(rels), maxlen)).astype("int32") - 1
+    for rel, c in rels:
+        retmat[c, :len(rel)] = map(ord, rel)
+    return retmat
+
 
 def evaluate(pred, gold):
     return np.sum(gold == pred) * 100. / gold.shape[0]
@@ -66,13 +79,17 @@ def run(
         sameenc=False,
         memaddr="dot",
         memattdim=100,
+        memchar=False,
         ):
 
     (traindata, traingold), (validdata, validgold), (testdata, testgold), worddic, entdic\
         = readdata(datap)
 
     if mem:
-        memdata = getmemdata(entdic, worddic)
+        if memchar:
+            memdata = getcharmemdata(entdic)
+        else:
+            memdata = getmemdata(entdic, worddic)
 
     print traindata.shape, testdata.shape
 
@@ -88,7 +105,9 @@ def run(
     enc = SimpleSeq2Vec(indim=numwords, inpembdim=embdim, innerdim=encinnerdim, maskid=-1, bidir=bidir)
 
     if mem:
-        memenc = enc if sameenc else SimpleSeq2Vec(indim=numwords, inpembdim=embdim, innerdim=innerdim, maskid=-1)
+        memindim = np.max(memdata) if memchar else numwords
+        memembdim = None if memchar else embdim
+        memenc = enc if sameenc else SimpleSeq2Vec(indim=memindim, inpembdim=memembdim, innerdim=innerdim, maskid=-1)
         if memaddr is None or memaddr == "dot":
             memaddr = DotMemAddr
         elif memaddr == "lin":

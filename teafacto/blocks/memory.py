@@ -68,10 +68,7 @@ class MemoryAddress(Block):
         raise NotImplementedError("use subclass")
 
 
-class LinearGateMemAddr(MemoryAddress):
-    """
-    Wraps a memory block
-    """
+class LinearGateMemAddr(MemoryAddress):     # TODO: -- TOO MUCH MEMORY USE, TOO SLOW
     def __init__(self, memblock, memdim=None, indim=None, attdim=None, **kw):
         assert (indim is not None and memdim is not None and attdim is not None)
         indim = memdim + indim
@@ -91,7 +88,7 @@ class LinearGateMemAddr(MemoryAddress):
         return o.dimswap(1, 0)                                                              # (batsize, memsize)
 
     def _get_combo(self, x_t, crit):    # x_t: (mem_dim),   crit: (batsize, crit_dim), out: (batsize, mem_dim + crit_dim)
-        x_t_repped = T.repeat(x_t.reshape((x_t.shape[0], 1)), crit.shape[0], axis=1).T    # (batsize, mem_dim)
+        x_t_repped = T.repeat(x_t.reshape((x_t.shape[0], 1)), crit.shape[0], axis=1).T    # (batsize, mem_dim)  TODO <-- TOO SLOW BECAUSE OF THIS
         return T.concatenate([x_t_repped, crit], axis=1)
 
 
