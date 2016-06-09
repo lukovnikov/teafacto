@@ -105,7 +105,7 @@ def run(
     enc = SimpleSeq2Vec(indim=numwords, inpembdim=embdim, innerdim=encinnerdim, maskid=-1, bidir=bidir)
 
     if mem:
-        memindim = np.max(memdata) if memchar else numwords
+        memindim = np.max(memdata) + 1 if memchar else numwords
         memembdim = None if memchar else embdim
         memenc = enc if sameenc else SimpleSeq2Vec(indim=memindim, inpembdim=memembdim, innerdim=innerdim, maskid=-1)
         if memaddr is None or memaddr == "dot":
