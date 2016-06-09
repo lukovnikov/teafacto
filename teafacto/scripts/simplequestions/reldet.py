@@ -80,6 +80,7 @@ def run(
         memaddr="dot",
         memattdim=100,
         memchar=False,
+        layers=1,
         ):
 
     (traindata, traingold), (validdata, validgold), (testdata, testgold), worddic, entdic\
@@ -98,9 +99,9 @@ def run(
     print numwords, numrels
 
     if bidir:
-        encinnerdim = innerdim/2
+        encinnerdim = [innerdim/2]*layers
     else:
-        encinnerdim = innerdim
+        encinnerdim = [innerdim]*layers
 
     enc = SimpleSeq2Vec(indim=numwords, inpembdim=embdim, innerdim=encinnerdim, maskid=-1, bidir=bidir)
 
