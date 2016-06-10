@@ -1,10 +1,8 @@
-
-
-import pickle
+import pickle, re
 
 import numpy as np
 
-from teafacto.util import argprun
+from teafacto.util import argprun, tokenize
 
 
 def run(trainp="fb_train.tsv", testp="fb_test.tsv", validp="fb_valid.tsv", outp="datamat.word.pkl"):
@@ -28,6 +26,10 @@ def run(trainp="fb_train.tsv", testp="fb_test.tsv", validp="fb_valid.tsv", outp=
     pickle.dump(acc, open(outp, "w"))
 
 
+def getwords(s):
+    return tokenize(s)
+
+
 def getdata(p, worddic, entdic, reldic, maxc=np.infty):
     data = []
     gold = []
@@ -36,7 +38,7 @@ def getdata(p, worddic, entdic, reldic, maxc=np.infty):
     for line in open(p):
         q, a = (line[:-1] if line[-1] == "\n" else line).split("\t")
         s, p = a.split()
-        words = q.split()
+        words = getwords(q)
         maxlen = max(maxlen, len(words))
         for word in words:
             if word not in worddic:
@@ -66,3 +68,4 @@ def getdata(p, worddic, entdic, reldic, maxc=np.infty):
 
 if __name__ == "__main__":
     argprun(run)
+    #getwords("What's is plaza-midwood (wood) a type of?")

@@ -1,5 +1,6 @@
 import collections, inspect, argparse, dill as pkl, os, numpy as np, pandas as pd, sys
 from datetime import datetime as dt
+import re, unidecode, nltk
 
 
 def loadlexidtsv(path, numwords=10, numchars=30):
@@ -140,9 +141,6 @@ class ticktock(object):
             self._live("\r\033[K")
 
 
-
-
-
 def argparsify(f, test=None):
     args, _, _, defaults = inspect.getargspec(f)
     assert(len(args) == len(defaults))
@@ -272,3 +270,11 @@ class DataSet():
 
     def __repr__(self):
         return str(self.data) + "\n" + str(self.gold)
+
+
+def tokenize(s):
+    s = s.decode("utf-8").lower()
+    s = unidecode.unidecode(s)
+    s = re.sub("[-_]", " ", s)
+    tokens = nltk.word_tokenize(s)
+    return tokens

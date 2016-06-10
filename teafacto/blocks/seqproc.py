@@ -269,9 +269,13 @@ class SimpleSeq2Vec(Seq2Vec):
             inpembdim = indim
         else:
             inpemb = VectorEmbed(indim=indim, dim=inpembdim)
-        rnn, lastdim = MakeRNU.make(inpembdim, innerdim, bidir=bidir)
+        rnn, lastdim = self.makernu(inpembdim, innerdim, bidir=bidir)
         self.outdim = lastdim
         super(SimpleSeq2Vec, self).__init__(inpemb, rnn, maskid, **kw)
+
+    @staticmethod
+    def makernu(inpembdim, innerdim, bidir=False):
+        return MakeRNU.make(inpembdim, innerdim, bidir=bidir)
 
 
 # vec2idx:

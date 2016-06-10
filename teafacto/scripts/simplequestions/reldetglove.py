@@ -5,7 +5,7 @@ from teafacto.blocks.memory import LinearGateMemAddr, DotMemAddr
 from teafacto.blocks.lang.wordvec import Glove
 from collections import OrderedDict
 import numpy as np, pickle
-from teafacto.blocks.seqproc import SimpleSeq2Idx, SimpleSeq2Vec, SimpleVec2Idx, MemVec2Idx, Seq2Idx
+from teafacto.blocks.seqproc import SimpleSeq2Idx, SimpleSeq2Vec, Seq2Vec, SimpleVec2Idx, MemVec2Idx, Seq2Idx
 
 
 def readdata(p):
@@ -74,12 +74,13 @@ def toglove(wordmat, worddic, dim=50):
     revgdic = {v: k for k, v in g.D.items()}
     embed()
 
-def getdic2glove(worddic, dim=50):
-    g = Glove(dim)
+
+def getdic2glove(worddic, dim=50, trainfrac=0.0):
+    g = Glove(dim, trainfrac=trainfrac)
     revdic = {v: k for k, v in worddic.items()}
     d2g = lambda x: g * revdic[x] if x in revdic else x
     newdic = {k: d2g(v) for k, v in worddic.items()}
-    return d2g, newdic
+    return d2g, newdic, g
 
 
 def getcharmemdata(reldic):
@@ -106,51 +107,48 @@ def run(
         numsam=10000,
         lr=0.1,
         datap="../../../data/simplequestions/datamat.word.pkl",
-        embdim=100,
+        embdim=50,
         innerdim=200,
         wreg=0.00005,
         bidir=False,
         keepmincount=5,
-        mem=False,
         sameenc=False,
         memaddr="dot",
         memattdim=100,
-        memchar=False,
         layers=1,
-        glove=True,
+        embtrainfrac=0.0,
+        mem=True,
         ):
+    """ Memory match-based glove-based word-level relation classification """
 
     (traindata, traingold), (validdata, validgold), (testdata, testgold), worddic, entdic\
         = readdata(datap)
 
-    if mem:
-        if memchar:
-            memdata = getcharmemdata(entdic)
-        else:
-            memdata = getmemdata(entdic, worddic)
+    # get words from relation names, update word dic
+    memdata = getmemdata(entdic, worddic)
 
-    if glove:
-        d2g, newdic = getdic2glove(worddic)
-        traindata, validdata, testdata = [np.vectorize(d2g)(x) for x in [traindata, validdata, testdata]]
-
+    # get glove and transform word mats to glove index space
+    d2g, newdic, glove = getdic2glove(worddic, dim=embdim, trainfrac=embtrainfrac)
+    traindata, validdata, testdata = [np.vectorize(d2g)(x) for x in [traindata, validdata, testdata]]
 
     print traindata.shape, testdata.shape
 
-    numwords = max(worddic.values()) + 1
+    numwords = max(worddic.values()) + 1    # don't use this, use glove
     numrels = max(entdic.values()) + 1
-    print numwords, numrels
 
     if bidir:
         encinnerdim = [innerdim/2]*layers
     else:
         encinnerdim = [innerdim]*layers
 
-    enc = SimpleSeq2Vec(indim=numwords, inpembdim=embdim, innerdim=encinnerdim, maskid=-1, bidir=bidir)
+    wordemb = glove.block
+    rnn, lastdim = SimpleSeq2Vec.makernu(embdim, encinnerdim, bidir=bidir)
+    enc = Seq2Vec(wordemb, rnn, maskid=-1)
 
     if mem:
-        memindim = np.max(memdata) + 1 if memchar else numwords
-        memembdim = None if memchar else embdim
-        memenc = enc if sameenc else SimpleSeq2Vec(indim=memindim, inpembdim=memembdim, innerdim=innerdim, maskid=-1)
+        memembdim = embdim
+        memrnn, memlastdim = SimpleSeq2Vec.makernu(memembdim, innerdim, bidir=False)
+        memenc = Seq2Vec(wordemb, memrnn, maskid=-1)
         if memaddr is None or memaddr == "dot":
             memaddr = DotMemAddr
         elif memaddr == "lin":

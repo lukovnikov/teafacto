@@ -37,6 +37,7 @@ class WordEmb(object): # unknown words are mapped to index 0, their embedding is
             self.W.append(np.asarray([map(lambda x: float(x), ls[1:])]))
             i += 1
         self.W = np.concatenate(self.W, axis=0)
+        self.indim = self.W.shape[0]
         self.tt.tock("loaded")
 
     def getindex(self, word):
@@ -87,7 +88,7 @@ class WordEmb(object): # unknown words are mapped to index 0, their embedding is
         return self._block
 
     def _getblock(self):
-        return VectorEmbed(indim=self.indim+1, dim=self.dim, value=self.W, trainfrac=self.trainfrac, name=self.__class__.__name__)
+        return VectorEmbed(indim=self.indim, dim=self.dim, value=self.W, trainfrac=self.trainfrac, name=self.__class__.__name__)
 
 
 class Glove(WordEmb):
