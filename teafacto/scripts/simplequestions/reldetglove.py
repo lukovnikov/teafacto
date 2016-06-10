@@ -129,7 +129,8 @@ def run(
 
     # get glove and transform word mats to glove index space
     d2g, newdic, glove = getdic2glove(worddic, dim=embdim, trainfrac=embtrainfrac)
-    traindata, validdata, testdata = [np.vectorize(d2g)(x) for x in [traindata, validdata, testdata]]
+    traindata, validdata, testdata, memdata = \
+        [np.vectorize(d2g)(x) for x in [traindata, validdata, testdata, memdata]]
 
     print traindata.shape, testdata.shape
 
