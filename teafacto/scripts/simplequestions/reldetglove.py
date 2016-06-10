@@ -118,6 +118,7 @@ def run(
         layers=1,
         embtrainfrac=0.0,
         mem=True,
+        membidir=False,
         ):
     """ Memory match-based glove-based word-level relation classification """
 
@@ -148,7 +149,7 @@ def run(
 
     if mem:
         memembdim = embdim
-        memrnn, memlastdim = SimpleSeq2Vec.makernu(memembdim, innerdim, bidir=False)
+        memrnn, memlastdim = SimpleSeq2Vec.makernu(memembdim, innerdim, bidir=membidir)
         memenc = Seq2Vec(wordemb, memrnn, maskid=-1)
         if memaddr is None or memaddr == "dot":
             memaddr = DotMemAddr
