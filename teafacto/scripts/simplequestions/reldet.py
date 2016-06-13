@@ -117,6 +117,7 @@ def run(
         memattdim=100,
         memchar=False,
         membidir=False,
+        memlayers=1,
         layers=1,
         ):
 
@@ -143,6 +144,11 @@ def run(
     enc = SimpleSeq2Vec(indim=numwords, inpembdim=embdim, innerdim=encinnerdim, maskid=-1, bidir=bidir)
 
     if mem:
+        memembdim = embdim
+        if membidir:
+            innerdim = [innerdim/2]*memlayers
+        else:
+            innerdim = [innerdim]*memlayers
         memindim = np.max(memdata) + 1 if memchar else numwords
         memembdim = None if memchar else embdim
         memenc = enc if sameenc else SimpleSeq2Vec(indim=memindim, inpembdim=memembdim, innerdim=innerdim, maskid=-1, bidir=membidir)
