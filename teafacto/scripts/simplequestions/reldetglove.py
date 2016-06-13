@@ -117,7 +117,7 @@ def run(
         memattdim=100,
         layers=1,
         embtrainfrac=0.0,
-        mem=True,
+        mem=False,
         membidir=False,
         memlayers=1,
         ):
