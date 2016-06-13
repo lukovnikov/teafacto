@@ -116,6 +116,7 @@ def run(
         memaddr="dot",
         memattdim=100,
         memchar=False,
+        membidir=False,
         layers=1,
         ):
 
@@ -144,7 +145,7 @@ def run(
     if mem:
         memindim = np.max(memdata) + 1 if memchar else numwords
         memembdim = None if memchar else embdim
-        memenc = enc if sameenc else SimpleSeq2Vec(indim=memindim, inpembdim=memembdim, innerdim=innerdim, maskid=-1)
+        memenc = enc if sameenc else SimpleSeq2Vec(indim=memindim, inpembdim=memembdim, innerdim=innerdim, maskid=-1, bidir=membidir)
         if memaddr is None or memaddr == "dot":
             memaddr = DotMemAddr
         elif memaddr == "lin":
