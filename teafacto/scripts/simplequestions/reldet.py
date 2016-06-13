@@ -117,7 +117,6 @@ def run(
         memattdim=100,
         memchar=False,
         layers=1,
-        glove=True,
         ):
 
     (traindata, traingold), (validdata, validgold), (testdata, testgold), worddic, entdic\
@@ -128,11 +127,6 @@ def run(
             memdata = getcharmemdata(entdic)
         else:
             memdata = getmemdata(entdic, worddic)
-
-    if glove:
-        d2g, newdic = getdic2glove(worddic)
-        traindata, validdata, testdata = [np.vectorize(d2g)(x) for x in [traindata, validdata, testdata]]
-
 
     print traindata.shape, testdata.shape
 
