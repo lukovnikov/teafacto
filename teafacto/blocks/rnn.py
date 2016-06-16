@@ -203,16 +203,23 @@ class SeqEncoder(AttentionConsumer, Block):
 
     def _autogenerate_mask(self, seq, seqemb):
         assert(seqemb.ndim == 3)
-        print "automasking in SeqEncoder (rnn.py)"
+        print "automasking in SeqEncoder (%s)" % __file__
         axes = range(2, seq.ndim)       # mask must be 2D
         if "int" in seq.dtype:       # ==> indexes  # mask must be 2D
-            if seq.ndim == 2:
-                mask = T.neq(seq, self._maskconfig.maskid)
+            if seq.ndim < 2:
+                raise AttributeError("CAN NOT GENERATE MASK FOR NON-SEQUENCE")
+            elif seq.ndim == 2:
+                seqformask = seq
             else:
-                if self._maskconfig.maskid != 0:
-                    raise AttributeError("CAN NOT CREATE MASK USING CUSTOM MASKID %d BECAUSE OF NON-STANDARD SEQ (%d dims, %s)" % (self._maskconfig.maskid, seq.ndim, str(seq.dtype)))
-                mask = T.gt(seq.sum(axis=axes), 0)      # 0 is TERMINUS
+                print "generating default mask for non-standard seq shape (SeqEncoder, %s)" % __file__
+                seqformask = seq[(slice(None, None, None),) * 2 + (0,) * (seq.ndim-2)]
+                #if self._maskconfig.maskid != 0:
+                #    raise AttributeError("CAN NOT CREATE MASK USING CUSTOM MASKID %d BECAUSE OF NON-STANDARD SEQ (%d dims, %s)" % (self._maskconfig.maskid, seq.ndim, str(seq.dtype)))
+                #mask = T.gt(seq.sum(axis=axes), 0)      # 0 is TERMINUS
+            assert(seqformask.ndim == 2)
+            mask = T.neq(seqformask, self._maskconfig.maskid)
         else:
+            #TODO raise AttributeError("CAN NOT GENERATE MASK FOR NON-INT SEQ")
             mask = T.gt(seq.norm(2, axis=axes), 0)
         return mask
 

@@ -25,10 +25,10 @@ class WordEmbedGlove(Embedder):
 
 
 class WordEncoder(Block):
-    def __init__(self, indim=220, outdim=200, **kw):    # indim is number of characters
+    def __init__(self, indim=220, outdim=200, maskid=0, **kw):    # indim is number of characters
         super(WordEncoder, self).__init__(**kw)
         self.enc = SeqEncoder(IdxToOneHot(indim),
-                              GRU(dim=indim, innerdim=outdim)).maskoption(MaskMode.AUTO)
+                              GRU(dim=indim, innerdim=outdim)).maskoptions(maskid, MaskMode.AUTO)
 
     def apply(self, seq):       # seq: (batsize, maxwordlen) of character idxs
         enco = self.enc(seq)    # enco: (batsize, outdim) of floats
@@ -48,10 +48,16 @@ class WordEmbedPlusGlove(Embedder):
 
 
 class WordEncoderPlusGlove(Block):
-    def __init__(self, numchars=220, numwords=4e5, encdim=100, embdim=50, embtrainfrac=0.0, glovepath=None, **kw):
+    def __init__(self,  numchars=220,
+                        numwords=4e5,
+                        encdim=100,
+                        embdim=50,
+                        embtrainfrac=0.0,
+                        maskid=0,
+                        glovepath=None, **kw):
         super(WordEncoderPlusGlove, self).__init__(**kw)
         self.glove = Glove(embdim, vocabsize=numwords, trainfrac=embtrainfrac, path=glovepath).block
-        self.enc = WordEncoder(indim=numchars, outdim=encdim)
+        self.enc = WordEncoder(indim=numchars, outdim=encdim, maskid=maskid)
 
     def apply(self, seq):       # seq: (batsize, 1+maxwordlen): first column: Glove idxs, subsequent cols: char ids
         if seq.ndim == 2:
