@@ -275,7 +275,7 @@ class DataSet():
 def tokenize(s):
     s = s.decode("utf-8")
     s = unidecode.unidecode(s)
-    s = re.sub("[-_\{\}]", " ", s)
+    s = re.sub("[-_\{\}/]", " ", s)
     s = s.lower()
     tokens = nltk.word_tokenize(s)
     s = re.sub("`", "'", s)
