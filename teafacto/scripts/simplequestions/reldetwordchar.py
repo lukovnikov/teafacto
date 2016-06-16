@@ -140,6 +140,7 @@ def run(
         mem=False,
         membidir=False,
         memlayers=1,
+        sharedwordenc=False
         ):
     """ Memory match-based glove-based word-level relation classification """
 
@@ -178,8 +179,11 @@ def run(
             innerdim = [innerdim/2]*memlayers
         else:
             innerdim = [innerdim]*memlayers
-        memwordemb = WordEncoderPlusGlove(numchars=numchars, encdim=encdim, embdim=embdim, maskid=-1,
+        if not sharedwordenc:
+            memwordemb = WordEncoderPlusGlove(numchars=numchars, encdim=encdim, embdim=embdim, maskid=-1,
                                        embtrainfrac=embtrainfrac)
+        else:
+            memwordemb = wordemb
         memrnn, memlastdim = SimpleSeq2Vec.makernu(memembdim+memencdim, innerdim, bidir=membidir)
         memenc = Seq2Vec(memwordemb, memrnn, maskid=-1)
         if memaddr is None or memaddr == "dot":
