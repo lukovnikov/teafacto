@@ -178,8 +178,10 @@ def run(
             innerdim = [innerdim/2]*memlayers
         else:
             innerdim = [innerdim]*memlayers
+        memwordemb = WordEncoderPlusGlove(numchars=numchars, encdim=encdim, embdim=embdim, maskid=-1,
+                                       embtrainfrac=embtrainfrac)
         memrnn, memlastdim = SimpleSeq2Vec.makernu(memembdim+memencdim, innerdim, bidir=membidir)
-        memenc = Seq2Vec(wordemb, memrnn, maskid=-1)
+        memenc = Seq2Vec(memwordemb, memrnn, maskid=-1)
         if memaddr is None or memaddr == "dot":
             memaddr = DotMemAddr
         elif memaddr == "lin":
