@@ -61,6 +61,8 @@ def getdata(p, worddic, chardic, entdic, reldic, maxc=np.infty, maxchar=30):
     for sent in data:
         j = 0
         for word in sent:
+            if len(word) > maxchar:
+                print word
             wordmat[i, j] = worddic[word]
             chars = map(ord, word)
             charten[i, j, :min(len(chars), maxchar)] = chars[:min(len(chars), maxchar)]
