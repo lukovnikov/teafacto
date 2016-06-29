@@ -118,6 +118,7 @@ def run(
         membidir=False,
         memlayers=1,
         memmaxwords=5,
+        memmaxchars=20,
         layers=1,
         ):
 
@@ -125,7 +126,7 @@ def run(
         = readdata(datap)
 
     if mem:
-        memdata = getcharmemdata(entdic, chardic, maxwords=memmaxwords)
+        memdata = getcharmemdata(entdic, chardic, maxwords=memmaxwords, maxchar=memmaxchars)
 
     print traindata.shape, testdata.shape
 
