@@ -160,7 +160,7 @@ def run(
         wreg=0.00005,
         bidir=False,
         keepmincount=5,
-        mem=True,
+        mem=False,
         sameenc=False,
         memaddr="dot",
         memattdim=100,
