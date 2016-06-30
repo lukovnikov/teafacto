@@ -293,8 +293,8 @@ class Vec2Idx(Block):
             out = stack(*outlayers)
         self.out = out
 
-    def apply(self, x):
-        return self.out(x)
+    def apply(self, x, *args):
+        return self.out(x, *args)
 
 
 # specify by dims
@@ -306,7 +306,12 @@ class SimpleVec2Idx(Vec2Idx):
 
 class MemVec2Idx(Vec2Idx):
     def __init__(self, memenc, memdata, memaddr=DotMemAddr, memdim=None, memattdim=100, **kw):
-        assert(memdata is not None and memenc is not None)
+        assert(memenc is not None)
         memblock = MemoryBlock(memenc, memdata, indim=memdata.shape[0], outdim=memdim)
         memstack = MemoryStack(memblock, memaddr, memattdim=memattdim)
         super(MemVec2Idx, self).__init__(memstack, **kw)
+
+
+class DynMemVec2Idx(MemVec2Idx):
+    def __init__(self, memenc, memaddr=DotMemAddr, memdim=None, memattdim=100, **kw):
+        super(self, DynMemVec2Idx).__init__(memenc, None, memaddr=memaddr, memdim=memdim, memattdim=memattdim, **kw)

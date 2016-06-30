@@ -14,8 +14,8 @@ class MemoryStack(Block):
         indim = memdim if indim is None else indim
         self.exe = stack(memaddr(memblock, memdim=memdim, indim=indim, attdim=memattdim), outnorm)
 
-    def apply(self, x):
-        return self.exe(x)
+    def apply(self, x, *args):
+        return self.exe(x, *args)
 
 
 class MemoryBlock(Embedder):

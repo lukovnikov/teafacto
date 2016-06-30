@@ -161,6 +161,7 @@ def run(
         bidir=False,
         keepmincount=5,
         mem=False,
+        dynmem=False,
         sameenc=False,
         memaddr="dot",
         memattdim=100,
@@ -174,7 +175,10 @@ def run(
         = readdata(datap)
 
     if mem:
-        memdata = getmemdata(entdic, worddic, maxwords=memmaxwords)
+        if not dynmem:
+            memdata = getmemdata(entdic, worddic, maxwords=memmaxwords)
+        else:
+            pass    #TODO
 
     print traindata.shape, testdata.shape
 
