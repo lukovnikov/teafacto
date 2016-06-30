@@ -124,6 +124,8 @@ def run(
         sameenc=False,
         memaddr="dot",
         memattdim=100,
+        memmaxwords=5,
+        memmaxwordchars=15,
         layers=1,
         embtrainfrac=0.0,
         mem=False,
@@ -137,7 +139,7 @@ def run(
         = readdata(datap)
 
     # get words from relation names, update word dic
-    memdata = getmemdata(entdic, worddic, chardic)
+    memdata = getmemdata(entdic, worddic, chardic, maxwords=memmaxwords, maxchar=memmaxwordchars)
 
     # get glove and transform word mats to glove index space
     d2g, newdic, glove = getdic2glove(worddic, dim=embdim, trainfrac=embtrainfrac)

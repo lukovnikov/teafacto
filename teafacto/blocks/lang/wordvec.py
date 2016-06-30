@@ -57,6 +57,9 @@ class WordEmb(object): # unknown words are mapped to index 0, their embedding is
         else:   # embed
             return self.__getitem__(other)
 
+    def __contains__(self, item):
+        return item in self.D
+
     def getvector(self, word):
         try:
             if isstring(word):
