@@ -1,18 +1,26 @@
-import pickle, re
+import pickle
 
 import numpy as np
 
+from teafacto.datahelp.labelsearch import SimpleQuestionsLabelIndex
 from teafacto.util import argprun, tokenize
 
 
-def run(trainp="fb_train.tsv", testp="fb_test.tsv", validp="fb_valid.tsv", outp="datamat.word.pkl"):
+def run(trainp="fb_train.tsv",
+        testp="fb_test.tsv",
+        validp="fb_valid.tsv",
+        outp="datamat.word.dmp.pkl",
+        dmp=True):
     worddic = {"<RARE>": 0}
     entdic = {}
     reldic = {}
     acc = {}
-    acc["train"] = getdata(trainp, worddic, entdic, reldic)
-    acc["valid"] = getdata(validp, worddic, entdic, reldic)
-    acc["test"] = getdata(testp, worddic, entdic, reldic)
+    idx = None
+    if dmp:
+        idx = SimpleQuestionsLabelIndex(host="drogon", index="simplequestions_labels")
+    acc["train"] = getdata(trainp, worddic, entdic, reldic, dmp=dmp, idx=idx)
+    acc["valid"] = getdata(validp, worddic, entdic, reldic, dmp=dmp, idx=idx)
+    acc["test"] = getdata(testp, worddic, entdic, reldic, dmp=dmp, idx=idx)
     acc["worddic"] = worddic
     numents = len(entdic)
     acc["train"][1][:, 1] += numents
@@ -30,9 +38,10 @@ def getwords(s):
     return tokenize(s)
 
 
-def getdata(p, worddic, entdic, reldic, maxc=np.infty):
+def getdata(p, worddic, entdic, reldic, maxc=np.infty, dmp=False, idx=None):
     data = []
     gold = []
+    cans = []
     maxlen = 0
     c = 0
     for line in open(p):
@@ -50,7 +59,12 @@ def getdata(p, worddic, entdic, reldic, maxc=np.infty):
         wordidx = map(lambda x: worddic[x], words)
         data.append(wordidx)
         gold.append([entdic[s], reldic[p]])
+        if dmp:
+            qcans = idx.searchallngrams(idx.getallngrams(words, topsize=5), top=10)
+            cans.append(qcans)
         c += 1
+        if c % 100 == 0:
+            print c
         if c > maxc:
             break
     datamat = np.zeros((c, maxlen)).astype("int32") - 1
@@ -63,7 +77,16 @@ def getdata(p, worddic, entdic, reldic, maxc=np.infty):
     for x in gold:
         goldmat[i, :] = x
         i += 1
-    return datamat, goldmat
+    if dmp:     # transform goldmat and include dmp mat
+        dmpmat, goldmat = makedmp(goldmat, entdic, reldic, idx)
+        return datamat, goldmat, dmpmat
+    else:
+        return datamat, goldmat
+
+
+def makedmp(goldmat, entdic, reldic, idx):
+    reventdic = {v: k for k, v in entdic.items()}
+    revreldic = {v: k for k, v in reldic.items()}
 
 
 if __name__ == "__main__":

@@ -1,0 +1,91 @@
+import elasticsearch, re, sys
+from teafacto.util import tokenize
+
+
+class SimpleQuestionsLabelIndex(object):
+    def __init__(self, host="drogon", index="simplequestions_labels"):
+        self.host = host
+        self.index = index
+
+    def index(self, labelp="labels.map"):
+        es = elasticsearch.Elasticsearch(hosts=[self.host])
+        i = 1
+        for line in open(labelp):
+            k, v = line[:-1].split("\t")
+            es.index(index=self.index, doc_type="labelmap", id=i,
+                     body={"label": v, "fbid": k})
+            if i % 1000 == 0:
+                print i
+            i += 1
+        print "indexed labels"
+
+    def search(self, query, top=10):
+        es = elasticsearch.Elasticsearch(hosts=[self.host])
+        res = es.search(index=self.index, q="label:%s" % query, size=top)
+        acc = {}
+        for r in res["hits"]["hits"]:
+            self._merge(acc, {r["_source"]["fbid"]: (r["_score"], r["_source"]["label"])})
+        return acc
+
+    @staticmethod
+    def _merge(acc, d):
+        for k, v in d.items():
+            if k in acc:
+                if acc[k][0] < v[0]:
+                    acc[k] = v
+            else:
+                acc[k] = v
+
+    def searchsentence(self, s, top=10, topsize=5):
+        s = tokenize(s)
+        ngrams = self.getallngrams(s, topsize)
+        return self.searchallngrams(ngrams, top)
+
+    def getallngrams(self, s, topsize=5):
+        ngrams = set()
+        i = 0
+        while i < len(s):
+            j = i + 1
+            while j <= min(len(s), i + topsize):
+                ngram = " ".join(s[i:j])
+                j += 1
+                ngrams.add(ngram)
+            i += 1
+        return ngrams
+
+    def searchallngramso(self, ngrams, top=10):
+        cans = {}
+        for ngram in ngrams:
+            ngram = '"%s"' % ngram
+            ngramres = self.search(ngram, top=top)
+            self._merge(cans, ngramres)
+        return cans
+
+    def searchallngrams(self, ngrams, top=10):
+        #print ngrams
+        es = elasticsearch.Elasticsearch(hosts=[self.host])
+        searchbody = []
+        header = {"index": self.index, "type": "labelmap"}
+        for ngram in ngrams:
+            ngram = '"%s"' % ngram
+            body = {"from": 0, "size": top,
+                    "query": {"match_phrase": {"label": ngram}}}
+            searchbody.append(header)
+            searchbody.append(body)
+        ngramres = es.msearch(body=searchbody)
+        cans = {}
+        for response in ngramres["responses"]:
+            for r in response["hits"]["hits"]:
+                self._merge(cans, {r["_source"]["fbid"]: (r["_score"], r["_source"]["label"])})
+        return cans
+
+
+
+if __name__ == "__main__":
+    idx = SimpleQuestionsLabelIndex(host="drogon", index="simplequestions_labels")
+    #res = idx.search("(e book)", top=10)
+    res = idx.searchsentence("release does the track cardiac arrest", top=10)
+    sres = sorted(res.items(), key=lambda (x, y): y[0], reverse=True)
+    for x in sres:
+        print x
+    print len(sres)
