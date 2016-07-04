@@ -1,5 +1,5 @@
 import elasticsearch, re, sys
-from teafacto.util import tokenize
+from teafacto.util import tokenize, argprun
 
 
 class SimpleQuestionsLabelIndex(object):
@@ -80,12 +80,19 @@ class SimpleQuestionsLabelIndex(object):
         return cans
 
 
-
-if __name__ == "__main__":
+def run(index=False, indexp="labels.map"):
     idx = SimpleQuestionsLabelIndex(host="localhost", index="simplequestions_labels")
-    res = idx.search("São Paulo", top=10)
+    if index and indexp is not None:
+        idx.index(indexp)
+        sys.exit()
+    res = idx.search("Sao Paulo", top=10)
     #res = idx.searchsentence("who is a person that was born in sao paulo", top=10)
     sres = sorted(res.items(), key=lambda (x, y): y[0], reverse=True)
     for x in sres:
         print x
     print len(sres)
+
+
+
+if __name__ == "__main__":
+    argprun(run)
