@@ -24,7 +24,7 @@ def numcanstats(data):
     for cans in data[2]:
         if len(cans) not in canc:
             canc[len(cans)] = 0
-        canc += 1
+        canc[len(cans)] += 1
     return canc
 
 def printidx(widxs):
