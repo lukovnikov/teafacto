@@ -63,6 +63,7 @@ def run(trainp="fb_train.tsv",
     acc["valid"] = getdata(validp, worddic, entdic, reldic, dmp=dmp, idx=idx)
     acc["test"] = getdata(testp, worddic, entdic, reldic, dmp=dmp, idx=idx)
     acc["worddic"] = worddic
+    acc["numqwords"] = qdicsize
     numents = len(entdic)
     acc["train"][1][:, 1] += numents
     acc["valid"][1][:, 1] += numents
@@ -72,8 +73,8 @@ def run(trainp="fb_train.tsv",
     print len(entdic)
     acc["entdic"] = entdic
     acc["numents"] = numents
-    acc["labels"] = {entdic[k]:
-                     v
+    acc["labels"] = {entdic[k] if k in entdic else k:
+                     [worddic[ve] if ve in worddic else worddic["<RARE>"] for ve in v]
                      for k, v in labeldic.items()}
     pickle.dump(acc, open(outp, "w"))
 
