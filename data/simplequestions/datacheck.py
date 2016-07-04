@@ -1,6 +1,6 @@
 import pickle, numpy as np
 
-d = pickle.load("datamat.word.dmp.pkl")
+d = pickle.load(open("datamat.word.dmp.pkl"))
 td = d["train"]
 vd = d["valid"]
 xd = d["test"]

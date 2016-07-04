@@ -29,7 +29,7 @@ def _readdata(p):
 
 def readdata(p):
     train, valid, test, x, newdic = _readdata(p)
-    return train, valid, test, x["worddic"], newdic
+    return train, valid, test, x["worddic"], newdic, x
 
 
 def loadlabels(labelp="../../../data/simplequestions/labels.map"):
@@ -171,7 +171,7 @@ def run(
         layers=1,
         ):
 
-    (traindata, traingold), (validdata, validgold), (testdata, testgold), worddic, entdic\
+    (traindata, traingold), (validdata, validgold), (testdata, testgold), worddic, entdic, x\
         = readdata(datap)
 
     if mem:
