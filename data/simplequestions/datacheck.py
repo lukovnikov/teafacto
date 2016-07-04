@@ -1,4 +1,5 @@
 import pickle, numpy as np
+from IPython import embed
 
 d = pickle.load(open("datamat.word.dmp.pkl"))
 td = d["train"]
