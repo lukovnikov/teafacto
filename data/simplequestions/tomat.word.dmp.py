@@ -53,18 +53,15 @@ def run(trainp="fb_train.tsv",
     reldic = {}
     acc = {}
     labeldic = loadlabels(labelp)
+    worddic, labeldic, qdicsize \
+        = getallwords(labeldic, trainp, validp, testp)
     idx = None
     if dmp:
         idx = SimpleQuestionsLabelIndex(host=host, index="simplequestions_labels")
-    worddic, labeldic, qdicsize \
-        = getallwords(labeldic, trainp, validp, testp)
     #embed()
     acc["train"] = getdata(trainp, worddic, entdic, reldic, dmp=dmp, idx=idx)
     acc["valid"] = getdata(validp, worddic, entdic, reldic, dmp=dmp, idx=idx)
     acc["test"] = getdata(testp, worddic, entdic, reldic, dmp=dmp, idx=idx)
-    acc["labels"] = {k: entdic[v] if v in entdic
-                                  else reldic[v]
-                     for k, v in labeldic.items()}
     acc["worddic"] = worddic
     numents = len(entdic)
     acc["train"][1][:, 1] += numents
@@ -75,6 +72,9 @@ def run(trainp="fb_train.tsv",
     print len(entdic)
     acc["entdic"] = entdic
     acc["numents"] = numents
+    acc["labels"] = {entdic[k]:
+                     v
+                     for k, v in labeldic.items()}
     pickle.dump(acc, open(outp, "w"))
 
 
@@ -109,7 +109,7 @@ def getdata(p, worddic, entdic, reldic, maxc=np.infty, dmp=False, idx=None, maxc
                     entdic[qcan] = len(entdic)
             cans.append(map(lambda x: entdic[x], qcans))
         c += 1
-        if c % 10 == 0:
+        if c % 100 == 0:
             print c
         if c > maxc:
             break
