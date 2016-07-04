@@ -5,14 +5,14 @@ from teafacto.util import tokenize, argprun
 class SimpleQuestionsLabelIndex(object):
     def __init__(self, host="drogon", index="simplequestions_labels"):
         self.host = host
-        self.index = index
+        self.indexp = index
 
     def index(self, labelp="labels.map"):
         es = elasticsearch.Elasticsearch(hosts=[self.host])
         i = 1
         for line in open(labelp):
             k, v = line[:-1].split("\t")
-            es.index(index=self.index, doc_type="labelmap", id=i,
+            es.index(index=self.indexp, doc_type="labelmap", id=i,
                      body={"label": " ".join(tokenize(v)), "fbid": k})
             if i % 1000 == 0:
                 print i
@@ -21,7 +21,7 @@ class SimpleQuestionsLabelIndex(object):
 
     def search(self, query, top=10):
         es = elasticsearch.Elasticsearch(hosts=[self.host])
-        res = es.search(index=self.index, q="label:%s" % query, size=top)
+        res = es.search(index=self.indexp, q="label:%s" % query, size=top)
         acc = {}
         for r in res["hits"]["hits"]:
             self._merge(acc, {r["_source"]["fbid"]: (r["_score"], r["_source"]["label"])})
@@ -65,7 +65,7 @@ class SimpleQuestionsLabelIndex(object):
         #print ngrams
         es = elasticsearch.Elasticsearch(hosts=[self.host])
         searchbody = []
-        header = {"index": self.index, "type": "labelmap"}
+        header = {"index": self.indexp, "type": "labelmap"}
         for ngram in ngrams:
             ngram = '"%s"' % ngram
             body = {"from": 0, "size": top,
@@ -82,8 +82,8 @@ class SimpleQuestionsLabelIndex(object):
 
 def run(index=False, indexp="labels.map"):
     idx = SimpleQuestionsLabelIndex(host="localhost", index="simplequestions_labels")
-    if index and indexp is not None:
-        idx.index(indexp)
+    if index is True and indexp is not None:
+        idx.index(labelp=indexp)
         sys.exit()
     res = idx.search("Sao Paulo", top=10)
     #res = idx.searchsentence("who is a person that was born in sao paulo", top=10)
