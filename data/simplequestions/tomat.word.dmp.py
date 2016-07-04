@@ -103,7 +103,7 @@ def getdata(p, worddic, entdic, reldic, maxc=np.infty, dmp=False, idx=None, maxc
         data.append(wordidx)
         gold.append([entdic[s], reldic[p]])
         if dmp:
-            qcans = idx.searchallngrams(idx.getallngrams(words, topsize=5), top=10)
+            qcans = idx.searchallngrams(idx.getallngrams(words, topsize=None), top=20)
             qcans = qcans.keys()
             for qcan in qcans:
                 if qcan not in entdic:

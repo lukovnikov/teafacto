@@ -36,12 +36,13 @@ class SimpleQuestionsLabelIndex(object):
             else:
                 acc[k] = v
 
-    def searchsentence(self, s, top=10, topsize=5):
+    def searchsentence(self, s, top=10, topsize=None):
         s = tokenize(s)
         ngrams = self.getallngrams(s, topsize)
         return self.searchallngrams(ngrams, top)
 
-    def getallngrams(self, s, topsize=5):
+    def getallngrams(self, s, topsize=None):
+        topsize = len(s) if topsize is None else topsize
         ngrams = set()
         i = 0
         while i < len(s):
@@ -85,8 +86,8 @@ def run(index=False, indexp="labels.map"):
     if index is True and indexp is not None:
         idx.index(labelp=indexp)
         sys.exit()
-    res = idx.search("Sao Paulo", top=10)
-    #res = idx.searchsentence("who is a person that was born in sao paulo", top=10)
+    #res = idx.search("e", top=10)
+    res = idx.searchsentence("dutton adult", top=10)
     sres = sorted(res.items(), key=lambda (x, y): y[0], reverse=True)
     for x in sres:
         print x
