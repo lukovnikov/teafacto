@@ -82,7 +82,7 @@ class SimpleQuestionsLabelIndex(object):
 
 
 if __name__ == "__main__":
-    idx = SimpleQuestionsLabelIndex(host="drogon", index="simplequestions_labels")
+    idx = SimpleQuestionsLabelIndex(host="localhost", index="simplequestions_labels")
     #res = idx.search("(e book)", top=10)
     res = idx.searchsentence("release does the track cardiac arrest", top=10)
     sres = sorted(res.items(), key=lambda (x, y): y[0], reverse=True)

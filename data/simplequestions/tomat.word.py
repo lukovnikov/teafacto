@@ -78,13 +78,13 @@ def getdata(p, worddic, entdic, reldic, maxc=np.infty, dmp=False, idx=None):
         goldmat[i, :] = x
         i += 1
     if dmp:     # transform goldmat and include dmp mat
-        dmpmat, goldmat = makedmp(goldmat, entdic, reldic, idx)
+        dmpmat, goldmat = makedmp(goldmat, cans, entdic, reldic, idx)
         return datamat, goldmat, dmpmat
     else:
         return datamat, goldmat
 
 
-def makedmp(goldmat, entdic, reldic, idx):
+def makedmp(goldmat, cans, entdic, reldic, idx):
     reventdic = {v: k for k, v in entdic.items()}
     revreldic = {v: k for k, v in reldic.items()}
 
