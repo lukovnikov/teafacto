@@ -76,8 +76,11 @@ class SimpleQuestionsLabelIndex(object):
         ngramres = es.msearch(body=searchbody)
         cans = {}
         for response in ngramres["responses"]:
-            for r in response["hits"]["hits"]:
-                self._merge(cans, {r["_source"]["fbid"]: (r["_score"], r["_source"]["label"])})
+            try:
+                for r in response["hits"]["hits"]:
+                    self._merge(cans, {r["_source"]["fbid"]: (r["_score"], r["_source"]["label"])})
+            except KeyError, e:
+                print response
         return cans
 
 
