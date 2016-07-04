@@ -31,6 +31,8 @@ def numcanstats(data):
 def printidx(widxs):
     print " ".join(np.vectorize(lambda x: rwd[x] if x in rwd else "")(widxs))
 
+embed()
+
 print len(searchcov(td))
 print len(searchcov(vd))
 print len(searchcov(xd))
