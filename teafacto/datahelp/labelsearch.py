@@ -13,7 +13,7 @@ class SimpleQuestionsLabelIndex(object):
         for line in open(labelp):
             k, v = line[:-1].split("\t")
             es.index(index=self.index, doc_type="labelmap", id=i,
-                     body={"label": v, "fbid": k})
+                     body={"label": " ".join(tokenize(v)), "fbid": k})
             if i % 1000 == 0:
                 print i
             i += 1
@@ -83,8 +83,8 @@ class SimpleQuestionsLabelIndex(object):
 
 if __name__ == "__main__":
     idx = SimpleQuestionsLabelIndex(host="localhost", index="simplequestions_labels")
-    #res = idx.search("(e book)", top=10)
-    res = idx.searchsentence("release does the track cardiac arrest", top=10)
+    res = idx.search("São Paulo", top=10)
+    #res = idx.searchsentence("who is a person that was born in sao paulo", top=10)
     sres = sorted(res.items(), key=lambda (x, y): y[0], reverse=True)
     for x in sres:
         print x
