@@ -23,8 +23,9 @@ def numcanstats(data):
     canc = {}
     for cans in data[2]:
         if len(cans) not in canc:
-            canc[len(cans)] = []
-        canc[]
+            canc[len(cans)] = 0
+        canc += 1
+    return canc
 
 def printidx(widxs):
     print " ".join(np.vectorize(lambda x: rwd[x] if x in rwd else "")(widxs))
@@ -32,3 +33,7 @@ def printidx(widxs):
 print len(searchcov(td))
 print len(searchcov(vd))
 print len(searchcov(xd))
+
+print numcanstats(td)
+print numcanstats(vd)
+print numcanstats(xd)
