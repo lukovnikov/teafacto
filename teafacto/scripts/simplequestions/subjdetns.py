@@ -32,18 +32,25 @@ def _readdata(p):
 
 
 def readdata(p):
-    train, valid, test, x, newdic = _readdata(p)
-    return train, valid, test, x["worddic"], newdic, x
+    x = pickle.load(open(p))
+    def preprocessforsubjdet(x):
+        goldmat = x[1]
+        return x[0], goldmat[:, 0]
+    worddic = x["worddic"]
+    entdic = x["entdic"]
+    numents = x["numents"]
+    newdic = {}
+    for k, v in entdic.items():
+        if v < numents:
+            newdic[k] = v
+    entmat = x["entmat"]
+    entmat = entmat[:numents, :]
+    train = preprocessforsubjdet(x["train"])
+    valid = preprocessforsubjdet(x["valid"])
+    test  = preprocessforsubjdet(x["test"])
+    return train, valid, test, worddic, newdic, entmat
 
-
-def loadlabels(labelp="../../../data/simplequestions/labels.map"):
-    ret = {}
-    for line in open(labelp):
-        ns = line[:-1].split("\t")
-        ret[ns[0]] = ns[1]
-    return ret
-
-
+#region junk
 def ents2labels(labelp, entdic, maxwords=50, parallel=True):
     labeldic = loadlabels(labelp)
     wolabels = set()
@@ -134,7 +141,6 @@ def getdic2glove(worddic, dim=50):
     newdic = {k: d2g(v) for k, v in worddic.items()}
     return d2g, newdic
 
-
 def getcharmemdata(reldic):
     rels = sorted(reldic.items(), key=lambda (x, y): y)
     maxlen = 0
@@ -151,7 +157,7 @@ def getcharmemdata(reldic):
 
 def evaluate(pred, gold):
     return np.sum(gold == pred) * 100. / gold.shape[0]
-
+#endregion
 
 def run(
         epochs=10,
