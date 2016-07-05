@@ -11,7 +11,7 @@ def run(trainp="fb_train.tsv",
         outp="datamat.word.mem.fb2m.pkl",
         entnames="subjnames_fb2m.map",
         rellist="rels_fb2m.list",
-        maxnamelen=np.infty):
+        maxnamelen=30):
     # worddic
     worddic = {"<RARE>": 0}
     def updateworddic(*words):
