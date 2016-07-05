@@ -63,9 +63,9 @@ class ModelTrainer(object):
         self.bestmodel = None
 
 
-    ############################################################################## settings ############################
+    #region ====================== settings =============================
 
-    ################### LOSSES ##########################
+    #region ################### LOSSES ##########################
 
     def _set_objective(self, obj):
         if self.validsetmode is False:
@@ -167,8 +167,9 @@ class ModelTrainer(object):
             return tensor.nnet.softplus(-gold*preds)
         self._set_objective(inner)
         return self
+    #endregion
 
-    #################### GRADIENT CONSTRAINTS ############ --> applied in the order that they were added
+    #region ################### GRADIENT CONSTRAINTS ############ --> applied in the order that they were added
     def grad_total_norm(self, max_norm, epsilon=1e-7):
         self.gradconstraints.append(lambda allgrads: total_norm_constraint(allgrads, max_norm, epsilon=epsilon))
         return self
@@ -184,8 +185,9 @@ class ModelTrainer(object):
         return ret
 
     # !!! can add more
+    #endregion
 
-    #################### REGULARIZERS ####################
+    #region #################### REGULARIZERS ####################
     def _regul(self, regf, amount, params):
         return amount * reduce(lambda x, y: x+y, [regf(x.d)*x.regmul for x in params], 0)
 
@@ -196,8 +198,9 @@ class ModelTrainer(object):
     def l1(self, amount):
         self.regularizer = lambda x: self._regul(l1, amount, x)
         return self
+    #endregion
 
-    ####################  LEARNING RATE ###################
+    #region ###################  LEARNING RATE ###################
     def _setlr(self, lr):
         if isinstance(lr, DynamicLearningParam):
             self.dynamic_lr = lr
@@ -211,8 +214,9 @@ class ModelTrainer(object):
     def dlr_thresh(self, thresh=5):
         self.dynamic_lr = thresh_lr(self.learning_rate, thresh=thresh)
         return self
+    #endregion
 
-    ##################### OPTIMIZERS ######################
+    #region #################### OPTIMIZERS ######################
     def sgd(self, lr):
         self._setlr(lr)
         self.optimizer = lambda x, y, l: sgd(x, y, learning_rate=l)
@@ -247,8 +251,9 @@ class ModelTrainer(object):
         self._setlr(lr)
         self.optimizer = lambda x, y, l: adam(x, y, learning_rate=l, beta1=b1, beta2=b2, epsilon=epsilon)
         return self
+    #endregion
 
-    ################### VALIDATION ####################### --> use one of following
+    #region ################### VALIDATION ####################### --> use one of following
 
     def validinter(self, validinter=1):
         self._validinter = validinter
@@ -281,18 +286,21 @@ class ModelTrainer(object):
         self.validrandom = random
         self.validsetmode = True
         return self
+    #endregion
 
-    ########################## SELECTING THE BEST ######################
+    #region ######################### SELECTING THE BEST ######################
     def takebest(self, f=None):
         if f is None:
             f = lambda x: x[1]   # pick the model with the best first validation score
         self.besttaker = f
         self.bestmodel = (None, float("inf"))
         return self
+    #endregion
+    #endregion
 
-    ############################################################# execution ############################################
+    #region ====================== execution ============================
 
-    ########################## ACTUAL TRAINING #########################
+    #region ######################### ACTUAL TRAINING #########################
     def traincheck(self):
         assert(self.optimizer is not None)
         assert(self.objective is not None)
@@ -368,8 +376,9 @@ class ModelTrainer(object):
             ret = theano.function(inputs=[x.d for x in inputs] + [self.goldvar], outputs=metrics)
         self.tt.tock("validation function compiled")
         return ret
+    #endregion
 
-    ################### TRAINING STRATEGIES ############
+    #region ################## TRAINING STRATEGIES ############
     def _train_full(self): # train on all data, no validation
         trainf = self.buildtrainfun(self.model)
         err, _ = self.trainloop(
@@ -419,6 +428,7 @@ class ModelTrainer(object):
         avgverr = np.mean(verr, axis=0)
         self.tt.tock("done")
         return avgerr, avgverr, err, verr
+    #endregion
 
     @staticmethod
     def resetmodel(model):
@@ -426,7 +436,7 @@ class ModelTrainer(object):
         for param in params:
             param.reset()
 
-    ############## TRAINING LOOPS ##################
+    #region ############# TRAINING LOOPS ##################
     def trainloop(self, trainf, validf=None):
         self.tt.tick("training")
         err = []
@@ -475,6 +485,7 @@ class ModelTrainer(object):
         '''
         returns the batch loop, loaded with the provided trainf training function and samplegen sample generator
         '''
+        sampletransf = self._transformsamples
 
         def batchloop():
             c = 0
@@ -490,6 +501,7 @@ class ModelTrainer(object):
                     tt.live(s)
                     prevperc = perc
                 sampleinps = datafeeder.nextbatch()
+                sampleinps = sampletransf(*sampleinps)
                 try:
                     eterr = trainf(*sampleinps)
                     if len(terr) != len(eterr) and terr.count(0.0) == len(terr):
@@ -505,6 +517,11 @@ class ModelTrainer(object):
             return terr
         return batchloop
 
+    def _transformsamples(self, *s):
+        return s
+    #endregion
+    #endregion
+
     @property
     def autosave(self):
         self._autosave = True
@@ -513,30 +530,21 @@ class ModelTrainer(object):
     def save(self, model, filepath=None):
         model.save(filepath=filepath)
 
-'''
-class ContrastModelTrainer(ModelTrainer):
 
-    def buildlosses(self, model, obj):
-        inpblocks = model.inputs # e.g. indexes of s, p, o: 1st dim: examples, 2nd dim: feature values
-        # data structure: 1st dim: examples, 2nd dim: pos, neg, neg, neg, 3rd dim: feature values
-        # model predicts a score, the loss in trainer operates between the pos and all neg examples
-        # TODO: what role does the goldvar play?
-        # make new inputs based on model inputs
-        newinpblocks = [Input(x.ndim + 1, x.dtype) for x in inpblocks] # TODO/FIX
-        si = [x.dimswap(1, 0).d for x in newinpblocks] # put pos/neg dim as first
+class NSModelTrainer(ModelTrainer):
+    """ Model trainer using negative sampling """
+    def __init__(self, model, gold, nrate, nsamgen):
+        super(NSModelTrainer, self).__init__(model, gold)
+        self.ns_nrate = nrate
+        self.ns_nsamgen = nsamgen
 
-        def pair(*args):
-            pargs = args[:len(args)/2]
-            nargs = args[len(args)/2:]
-            pos = model.wrapply(pargs) # --> (batsize,)
-            neg = model.wrapply(nargs) # --> (batsize,)
-            closses = obj(pos, neg)  # --> (batsize,)
-            return closses
-
-        o, _ = theano.scan(fn=pair, sequences=si[1:], non_sequences=si[0]) # iterate over neg examples --> (negrate, batsize)
-        aggf = tensor.mean if self.average_err is True else tensor.sum
-        oa = aggf(o, axis=0)
-        oaa = aggf(oa, axis=1)
-        return oaa, newinpblocks
-'''
-
+    def _transformsamples(self, *s):
+        """ apply negative sampling function and neg sam rate """
+        acc = self.ns_nsamgen(*s)
+        for i in range(self.ns_nrate - 1):
+            news = self.ns_nsamgen(*s)
+            ret = []
+            for x, y in zip(acc, news):
+                ret.append(np.concatenate([x, y], axis=0))
+            acc = ret
+        return acc

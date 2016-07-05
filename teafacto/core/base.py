@@ -7,7 +7,7 @@ from lasagne.updates import norm_constraint
 from theano import tensor
 from theano.tensor.var import _tensor_py_operators
 
-from teafacto.core.trainer import ModelTrainer
+from teafacto.core.trainer import ModelTrainer, NSModelTrainer
 from teafacto.util import isstring, issequence, isfunction, Saveable, isnumber
 from teafacto.core.datafeed import DataFeed
 
@@ -516,13 +516,115 @@ class Block(Elem, Saveable): # block with parameters
         goldvar = Input(gold.ndim, gold.dtype, name="gold")
         inps, outp = self.autobuild(*inputdata)
 
-        trainer = self.gettrainer(goldvar.d)
+        trainer = ModelTrainer(self, goldvar.d)
         trainer.traindata = inputdata
         trainer.traingold = gold
         return trainer
 
+    def nstrain(self, datas):
+        """ training with negative sampling"""
+        superblock = NSBlock(self)
+        return NSTrainConfig(self, datas)
+
     def getcontained(self):
         probe = Probe()
+
+
+class NSBlock(Block):
+    """ To wrap around normal blocks for negative sampling training """
+    def __init__(self, innerblock, obj, **kw):
+        self.inner = innerblock
+        self.obj = obj
+        super(Block, self).__init__(**kw)
+
+    def apply(self, *vars):
+        lvars = vars[:len(vars)/2]
+        rvars = vars[len(vars)/2:]
+        return self.obj(self.inner(*lvars), self.inner(*rvars))
+
+
+class TransWrapBlock(Block):
+    """ Wraps data transformation function """
+    def __init__(self, block, transf, **kw):
+        self.block = block
+        self.transf = transf
+        super(TransWrapBlock, self).__init__(**kw)
+
+    def apply(self, *args, **kwargs):
+        return self.block(self.transf(*args, **kwargs))
+
+
+class NSTrainConfig():
+    """ Intercepts fluent interface definition and stores settings"""
+    def __init__(self, block, datas):
+        self.datas = datas
+        self.block = block
+        self.obj = lambda p, n:  n - p
+        self.trans = lambda x: x
+        self.nrate = 1
+        self.nsamgen = None
+        self.trainerargs = OrderedDict()
+        self.linear_objective()     # will be stored <-- default trainer loss for NS training
+
+    #region =========== OWN SETTINGS ===============
+    def objective(self, f):
+        self.obj = f
+        return self.getret()
+
+    def transform(self, f):
+        self.trans = f
+        return self.getret()
+
+    def negrate(self, n):
+        self.nrate = n
+        return self.getret()
+
+    def negsamplegen(self, f):
+        self.nsamgen = f
+        return self.getret()
+    #endregion
+
+    def __getattr__(self, f):
+        """ when a trainer config option is called """
+        return lambda *args, **kwargs: self._trainerconfigstorer(f, *args, **kwargs)
+
+    def _trainerconfigstorer(self, f, *args, **kwargs):
+        self.trainerargs[f] = (args, kwargs)
+        return self
+
+    def _ready(self):
+        return self.nsamgen is not None and self.obj is not None
+
+    def _makeblock(self):
+        tb = TransWrapBlock(self.block, self.trans)
+        return NSBlock(tb, self.obj)
+
+    def _maketrainer(self):
+        block = self._makeblock()
+        gold = np.ones_like(self.datas[0], dtype="float32")
+        inputdata = self.datas + self.datas
+        # wrap data in datafeeds, generate gold var
+        goldvar = Input(gold.ndim, gold.dtype, name="gold")
+        inps, outp = block.autobuild(*inputdata)
+
+        trainer = NSModelTrainer(block, goldvar.d, self.nrate, self.nsamgen)
+        trainer.traindata = self.datas
+        trainer.traingold = gold
+
+        # apply settings on trainer
+        for k, v in self.trainerargs.items():
+            kf = getattr(trainer, k)
+            kf(*v[0], **v[1])
+        return trainer
+
+    def train(self, *args, **kwargs):
+        if not self._ready():
+            raise Exception("configuration not ready yet")
+        t = self._maketrainer()
+        return t.train(*args, **kwargs)
+
+    def getret(self):
+        return self
 
 
 def asblock(f):

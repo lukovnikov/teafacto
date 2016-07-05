@@ -90,7 +90,8 @@ def run(index=False, indexp="labels.map"):
         idx.index(labelp=indexp)
         sys.exit()
     #res = idx.search("e", top=10)
-    res = idx.searchsentence("sao paulo", top=10)
+    res = idx.searchsentence("the island", top=10)
+    res = idx.searchallngrams(["zita duarte"], top=30)
     sres = sorted(res.items(), key=lambda (x, y): y[0], reverse=True)
     for x in sres:
         print x
