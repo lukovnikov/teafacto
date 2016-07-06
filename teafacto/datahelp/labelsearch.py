@@ -84,14 +84,13 @@ class SimpleQuestionsLabelIndex(object):
         return cans
 
 
-def run(index=False, indexp="labels.map"):
-    idx = SimpleQuestionsLabelIndex(host="localhost", index="simplequestions_labels")
+def run(index=False, indexp="labels.map", indexname="sq_subjnames_fb2m", search="the island"):
+    idx = SimpleQuestionsLabelIndex(host="localhost", index=indexname)
     if index is True and indexp is not None:
         idx.index(labelp=indexp)
         sys.exit()
     #res = idx.search("e", top=10)
-    res = idx.searchsentence("the island", top=10)
-    res = idx.searchallngrams(["zita duarte"], top=30)
+    res = idx.searchsentence(search, top=10)
     sres = sorted(res.items(), key=lambda (x, y): y[0], reverse=True)
     for x in sres:
         print x

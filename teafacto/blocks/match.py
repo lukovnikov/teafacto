@@ -2,7 +2,7 @@ from teafacto.core.base import tensorops as T, Block
 
 
 class MatchScore(Block):
-    def __init__(self, lenc, renc, scorer=T.batched_dot, **kw):
+    def __init__(self, lenc, renc, scorer=DotDistance(), **kw):
         self.l = lenc
         self.r = renc
         self.s = scorer
