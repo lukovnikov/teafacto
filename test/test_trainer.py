@@ -5,6 +5,11 @@ import numpy as np
 from teafacto.examples.dummy import *
 from teafacto.core.trainer import ModelTrainer
 
+from teafacto.core.base import Block
+from teafacto.blocks.match import MatchScore, DotDistance, CosineDistance, EuclideanDistance
+from teafacto.blocks.basic import VectorEmbed
+from teafacto.blocks.lang.wordvec import Glove
+
 '''
     pred = ae.predict(pdata)
     print pred.shape
@@ -127,8 +132,64 @@ class TestModelTrainerAutovalidate(TestModelTrainerNovalidate):
             .train(numbats=numbats, epochs=self.epochs, returnerrors=True)
 
 
-
 class TestObjectives(TestCase):
     pass
+
+
+class TestNSModelTrainer(TestCase):
+    def test_ns_training(self):
+        num = 2000
+        self.expshape = (num, 50)
+        Glove.defaultpath = "../../../data/glove/miniglove.%dd.txt"
+        self.glove = Glove(self.expshape[1], self.expshape[0])
+        self.cemb = VectorEmbed(indim=self.expshape[0]+1, dim=self.expshape[1])
+        self.assertRaises(Exception, self.glove.block.predict, [num+1])
+        self.assertRaises(Exception, self.cemb.predict, [num+1])
+
+        m = MatchScore(self.glove.block, self.cemb, scorer=CosineDistance())
+        mg = MatchScore(self.glove.block, self.glove.block)     # TODO factor out matchscore tests
+        idxs = np.arange(self.expshape[0])
+
+        # glove against glove
+        self.assertTrue(np.allclose(mg.predict([num, 100], [num, 100]),
+                                   [np.linalg.norm(self.glove % num)**2, np.linalg.norm(self.glove % 100)**2]))
+
+        class NegIdxGen():
+            def __init__(self, num): self.n = num
+            def __call__(self, l, r): return l, np.random.randint(0, self.n, r.shape)
+
+        m = m.nstrain([idxs, idxs]).negsamplegen(NegIdxGen(num+1)).negrate(5)\
+            .adagrad(lr=0.1)\
+            .train(numbats=50, epochs=100)
+
+        print m.predict([num, num-1, num-2, num-1], [num, num-1, num-2, num-2])
+
+        mrr = 0.0
+        recat10 = 0.0
+        recat1 = 0.0
+        tot = num + 1
+        for a in range(tot):
+            abc = zip(range(num+1), list(m.predict([a]*(num+1), np.arange(0, num+1))))
+            abc = sorted(abc, key=lambda (x, y): y, reverse=True)
+            #print abc[:10]
+            for i in range(len(abc)):
+                if abc[i][0] == a:
+                    #print i
+                    mrr += 1./(1+i)
+                    if i < 10:
+                        recat10 += 1
+                    if i < 1:
+                        recat1 += 1
+                    break
+
+        mrr /= tot
+        recat10 /= tot
+        recat1 /= tot
+        print "%.3f MRR,\t%.3f MR@10,\t%.3f MR@1" % (mrr, recat10, recat1)
+        self.assertGreater(mrr, 0.85)
+        self.assertGreater(recat10, 0.9)
+
+
+
 
 

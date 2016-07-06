@@ -523,7 +523,6 @@ class Block(Elem, Saveable): # block with parameters
 
     def nstrain(self, datas):
         """ training with negative sampling"""
-        superblock = NSBlock(self)
         return NSTrainConfig(self, datas)
 
     def getcontained(self):
@@ -542,6 +541,9 @@ class NSBlock(Block):
         rvars = vars[len(vars)/2:]
         return self.obj(self.inner(*lvars), self.inner(*rvars))
 
+    def predict(self, *x, **xx):
+        return self.inner.predict(*x, **xx)
+
 
 class TransWrapBlock(Block):
     """ Wraps data transformation function """
@@ -551,7 +553,14 @@ class TransWrapBlock(Block):
         super(TransWrapBlock, self).__init__(**kw)
 
     def apply(self, *args, **kwargs):
-        return self.block(self.transf(*args, **kwargs))
+        ret = self.transf(*args, **kwargs)
+        if isinstance(ret, tuple):
+            nargs = ret[0]
+            nkwargs = ret[1]
+        else:
+            nargs = [ret]
+            nkwargs = {}
+        return self.block(*nargs, **nkwargs)
 
 
 class NSTrainConfig():
@@ -560,7 +569,8 @@ class NSTrainConfig():
         self.datas = datas
         self.block = block
         self.obj = lambda p, n:  n - p
-        self.trans = lambda x: x
+        def ident(*args, **kwargs): return args, kwargs
+        self.trans = ident
         self.nrate = 1
         self.nsamgen = None
         self.trainerargs = OrderedDict()

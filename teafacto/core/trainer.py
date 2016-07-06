@@ -540,11 +540,16 @@ class NSModelTrainer(ModelTrainer):
 
     def _transformsamples(self, *s):
         """ apply negative sampling function and neg sam rate """
-        acc = self.ns_nsamgen(*s)
-        for i in range(self.ns_nrate - 1):
-            news = self.ns_nsamgen(*s)
+        psams = s[:-1]
+        acc = []
+        for i in range(self.ns_nrate):
+            nsams = self.ns_nsamgen(*psams)
+            news = psams + nsams + (s[-1],)
             ret = []
-            for x, y in zip(acc, news):
-                ret.append(np.concatenate([x, y], axis=0))
+            if len(acc) == 0:       # first one
+                ret = news
+            else:
+                for x, y in zip(acc, news):
+                    ret.append(np.concatenate([x, y], axis=0))
             acc = ret
         return acc
