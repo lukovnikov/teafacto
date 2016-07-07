@@ -148,7 +148,7 @@ class TestNSModelTrainer(TestCase):
 
         m = MatchScore(self.glove.block, self.cemb, scorer=CosineDistance())
         mg = MatchScore(self.glove.block, self.glove.block)     # TODO factor out matchscore tests
-        idxs = np.arange(self.expshape[0])
+        idxs = np.arange(num+1)
 
         # glove against glove
         self.assertTrue(np.allclose(mg.predict([num, 100], [num, 100]),

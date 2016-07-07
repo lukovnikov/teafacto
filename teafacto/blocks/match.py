@@ -1,19 +1,8 @@
 from teafacto.core.base import tensorops as T, Block
 
+#region ======== SCORES =============
 
-class MatchScore(Block):
-    def __init__(self, lenc, renc, scorer=DotDistance(), **kw):
-        self.l = lenc
-        self.r = renc
-        self.s = scorer
-        super(MatchScore, self).__init__(**kw)
-
-    def apply(self, left, right):
-        return self.s(self.l(left), self.r(right))  # left: (batsize, dim), right: (batsize, dim)
-
-
-#region ======== DISTANCES =============
-
+#region ######## DISTANCES ########
 class DotDistance(Block):
     def apply(self, l, r):  # l: f32^(batsize, dim), r: f32^(batsize, dim)
         return T.batched_dot(l, r)
@@ -32,3 +21,16 @@ class EuclideanDistance(Block):
         return (l-r).norm(2, axis=1)
 
 #endregion
+
+#endregion
+
+
+class MatchScore(Block):
+    def __init__(self, lenc, renc, scorer=DotDistance(), **kw):
+        self.l = lenc
+        self.r = renc
+        self.s = scorer
+        super(MatchScore, self).__init__(**kw)
+
+    def apply(self, left, right):
+        return self.s(self.l(left), self.r(right))  # left: (batsize, dim), right: (batsize, dim)
