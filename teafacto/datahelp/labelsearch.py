@@ -81,36 +81,37 @@ class SimpleQuestionsLabelIndex(object):
             i += 1
         return ngrams
 
-    def searchallngrams(self, ngrams, top=None):
+    def searchallngrams(self, ngrams, top=None, match=True):
         #print ngrams
         es = elasticsearch.Elasticsearch(hosts=[self.host])
         searchbody = []
         header = {"index": self.indexp, "type": "labelmap"}
         for ngram in ngrams:
-            body = {
-                        "query": {
-                            "filtered": {
-                                "query": {
-                                    "match_phrase": {
-                                        "label":  '"%s"' % " ".join(ngram)
+            if not match:
+                body = {
+                            "query": {
+                                "filtered": {
+                                    "query": {
+                                        "match_phrase": {
+                                            "label":  '"%s"' % " ".join(ngram)
+                                        }
                                     }
                                 }
                             }
                         }
-                    }
-            """
-            body = {
-                "query": {
-                    "constant_score": {
-                        "filter": {
-                            "term": {
-                                "label": " ".join(ngram)
+            else:
+                body = {
+                    "query": {
+                        "constant_score": {
+                            "filter": {
+                                "term": {
+                                    "label": " ".join(ngram)
+                                }
                             }
                         }
                     }
                 }
-            }
-            """
+
             if top is not None:
                 body.update({"size": top, "from": 0})
             searchbody.append(header)
