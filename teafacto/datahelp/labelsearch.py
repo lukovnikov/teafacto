@@ -174,13 +174,13 @@ class SimpleQuestionsLabelIndex(object):
 
 
 def run(index=False, indexp="labels.map", indexname="sq_subjnames_fb2m",
-        search="e mc", host="drogon", exact=False):
+        search="e mc", host="drogon", exact=False, top=None):
     idx = SimpleQuestionsLabelIndex(host=host, index=indexname)
     if index is True and indexp is not None:
         idx.index(labelp=indexp)
         sys.exit()
     #res = idx.search("e", top=10)
-    res = idx.searchsentence(search, exact=exact)
+    res = idx.searchsentence(search, exact=exact, top=top)
     sres = sorted(res.items(), key=lambda (x, y): y[0], reverse=True)
     for x in sres:
         print x
