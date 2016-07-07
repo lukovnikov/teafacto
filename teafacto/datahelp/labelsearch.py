@@ -18,10 +18,19 @@ class SimpleQuestionsLabelIndex(object):
                               "settings": {
                                   "index": {
                                       "analysis": {
+                                          "filter": {
+                                            "pstemmer": {
+                                              "type": "porter_stem",
+                                              "language": "_english_"
+                                            }
+                                          },
                                           "analyzer": {
-                                              "keylower": {
-                                                  "tokenizer": "keyword",
-                                                  "filter": "lowercase"
+                                              "myana": {
+                                                  "tokenizer": "whitespace",
+                                                  "filter": [
+                                                      "lowercase",
+                                                      "pstemmer",
+                                                  ]
                                               }
                                           }
                                       }
@@ -30,7 +39,17 @@ class SimpleQuestionsLabelIndex(object):
                               "mappings": {
                                   "labelmap": {
                                       "properties": {
-                                          "label": {"type": "string", "analyzer": "keylower"}
+                                          "label": {
+                                              "type": "string",
+                                              "analyzer": "myana",
+                                              "fields": {
+                                                "len": {
+                                                    "type": "token_count",
+                                                    "store": "yes",
+                                                    "analyzer": "myana"
+                                                }
+                                              }
+                                          }
                                       }
                                   }
                               }
@@ -101,6 +120,22 @@ class SimpleQuestionsLabelIndex(object):
                         }
             else:
                 body = {
+                            "query": {
+                                "filtered": {
+                                    "query": {
+                                        "match_phrase": {
+                                            "label":  '"%s"' % " ".join(ngram)
+                                        }
+                                    },
+                                    "filter": {
+                                        "term": {
+                                            "label.len": len(ngram)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                """{
                     "query": {
                         "constant_score": {
                             "filter": {
@@ -111,6 +146,7 @@ class SimpleQuestionsLabelIndex(object):
                         }
                     }
                 }
+                """
 
             if top is not None:
                 body.update({"size": top, "from": 0})
