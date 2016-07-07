@@ -12,8 +12,9 @@ class SimpleQuestionsLabelIndex(object):
         i = 1
         for line in open(labelp):
             k, v = line[:-1].split("\t")
+            vt = tokenize(v)
             es.index(index=self.indexp, doc_type="labelmap", id=i,
-                     body={"label": " ".join(tokenize(v)), "fbid": k})
+                     body={"label": " ".join(vt), "labelwc": len(vt), "fbid": k})
             if i % 1000 == 0:
                 print i
             i += 1
@@ -36,7 +37,7 @@ class SimpleQuestionsLabelIndex(object):
             else:
                 acc[k] = v
 
-    def searchsentence(self, s, top=10, topsize=None):
+    def searchsentence(self, s, top=None, topsize=None):
         s = tokenize(s)
         ngrams = self.getallngrams(s, topsize)
         return self.searchallngrams(ngrams, top)
@@ -48,29 +49,38 @@ class SimpleQuestionsLabelIndex(object):
         while i < len(s):
             j = i + 1
             while j <= min(len(s), i + topsize):
-                ngram = " ".join(s[i:j])
+                ngram = tuple(s[i:j])
                 j += 1
                 ngrams.add(ngram)
             i += 1
         return ngrams
 
-    def searchallngramso(self, ngrams, top=10):
-        cans = {}
-        for ngram in ngrams:
-            ngram = '"%s"' % ngram
-            ngramres = self.search(ngram, top=top)
-            self._merge(cans, ngramres)
-        return cans
-
-    def searchallngrams(self, ngrams, top=10):
+    def searchallngrams(self, ngrams, top=None):
         #print ngrams
         es = elasticsearch.Elasticsearch(hosts=[self.host])
         searchbody = []
         header = {"index": self.indexp, "type": "labelmap"}
         for ngram in ngrams:
-            ngram = '"%s"' % ngram
-            body = {"from": 0, "size": top,
-                    "query": {"match_phrase": {"label": ngram}}}
+            body = {
+                        "query": {
+                            "filtered": {
+                                "query": {
+                                    "match_phrase": {
+                                        "label": {
+                                            "query": " ".join(ngram)
+                                        }
+                                    }
+                                },
+                                "filter": {
+                                    "term": {
+                                        "labelwc": len(ngram)
+                                    }
+                                }
+                            }
+                        }
+                    }
+            if top is not None:
+                body.update({"size": top, "from": 0})
             searchbody.append(header)
             searchbody.append(body)
         ngramres = es.msearch(body=searchbody)
@@ -84,13 +94,13 @@ class SimpleQuestionsLabelIndex(object):
         return cans
 
 
-def run(index=False, indexp="labels.map", indexname="sq_subjnames_fb2m", search="the island"):
-    idx = SimpleQuestionsLabelIndex(host="localhost", index=indexname)
+def run(index=False, indexp="labels.map", indexname="sq_subjnames_fb2m", search="the island", host="drogon"):
+    idx = SimpleQuestionsLabelIndex(host=host, index=indexname)
     if index is True and indexp is not None:
         idx.index(labelp=indexp)
         sys.exit()
     #res = idx.search("e", top=10)
-    res = idx.searchsentence(search, top=10)
+    res = idx.searchsentence(search)
     sres = sorted(res.items(), key=lambda (x, y): y[0], reverse=True)
     for x in sres:
         print x
