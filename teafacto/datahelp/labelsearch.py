@@ -90,10 +90,10 @@ class SimpleQuestionsLabelIndex(object):
             else:
                 acc[k] = v
 
-    def searchsentence(self, s, top=None, topsize=None):
+    def searchsentence(self, s, top=None, topsize=None, exact=True):
         s = tokenize(s)
         ngrams = self.getallngrams(s, topsize)
-        return self.searchallngrams(ngrams, top)
+        return self.searchallngrams(ngrams, top, exact=exact)
 
     def getallngrams(self, s, topsize=None):
         topsize = len(s) if topsize is None else topsize
@@ -108,13 +108,13 @@ class SimpleQuestionsLabelIndex(object):
             i += 1
         return ngrams
 
-    def searchallngrams(self, ngrams, top=None, match=True):
+    def searchallngrams(self, ngrams, top=None, exact=True):
         #print ngrams
         es = elasticsearch.Elasticsearch(hosts=[self.host])
         searchbody = []
         header = {"index": self.indexp, "type": "labelmap"}
         for ngram in ngrams:
-            if not match:
+            if not exact:
                 body = {
                             "query": {
                                 "filtered": {
@@ -174,13 +174,13 @@ class SimpleQuestionsLabelIndex(object):
 
 
 def run(index=False, indexp="labels.map", indexname="sq_subjnames_fb2m",
-        search="e mc", host="drogon"):
+        search="e mc", host="drogon", exact=False):
     idx = SimpleQuestionsLabelIndex(host=host, index=indexname)
     if index is True and indexp is not None:
         idx.index(labelp=indexp)
         sys.exit()
     #res = idx.search("e", top=10)
-    res = idx.searchsentence(search)
+    res = idx.searchsentence(search, exact=exact)
     sres = sorted(res.items(), key=lambda (x, y): y[0], reverse=True)
     for x in sres:
         print x
