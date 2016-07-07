@@ -37,8 +37,8 @@ class SimpleQuestionsLabelIndex(object):
                                                   "filter": [
                                                       "lowercase",
                                                       "pstemmer",
-                                                  ],
-                                                  "char_filter": ["punctfil"]
+                                                  ]
+                                                  #,"char_filter": ["punctfil"]
                                               }
                                           }
                                       }
