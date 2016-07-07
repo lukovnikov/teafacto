@@ -23,6 +23,13 @@ class SimpleQuestionsLabelIndex(object):
                                               "type": "porter_stem",
                                               "language": "_english_"
                                             }
+                                          }
+                                          "char_filter": {
+                                            "punctfil": {
+                                              "type": "pattern_replace",
+                                              "pattern": "[\W]",
+                                              "replacement": ""
+                                            }
                                           },
                                           "analyzer": {
                                               "myana": {
@@ -30,7 +37,8 @@ class SimpleQuestionsLabelIndex(object):
                                                   "filter": [
                                                       "lowercase",
                                                       "pstemmer",
-                                                  ]
+                                                  ],
+                                                  "char_filter": ["punctfil"]
                                               }
                                           }
                                       }
