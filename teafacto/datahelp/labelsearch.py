@@ -36,7 +36,7 @@ class SimpleQuestionsLabelIndex(object):
             k, v = line[:-1].split("\t")
             vt = tokenize(v)
             es.index(index=self.indexp, doc_type="labelmap", id=i,
-                     body={"label": " ".join(vt), "labelwc": len(vt), "fbid": k})
+                     body={"label": " ".join(vt), "fbid": k})
             if i % 1000 == 0:
                 print i
             i += 1
@@ -89,11 +89,6 @@ class SimpleQuestionsLabelIndex(object):
                                 "query": {
                                     "match_phrase": {
                                         "label":  '"%s"' % " ".join(ngram)
-                                    }
-                                },
-                                "filter": {
-                                    "term": {
-                                        "labelwc": len(ngram)
                                     }
                                 }
                             }
