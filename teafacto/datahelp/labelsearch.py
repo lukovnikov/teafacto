@@ -9,6 +9,28 @@ class SimpleQuestionsLabelIndex(object):
 
     def index(self, labelp="labels.map"):
         es = elasticsearch.Elasticsearch(hosts=[self.host])
+        es.indices.create(index=self.indexp,
+                          body={
+                              "settings": {
+                                  "index": {
+                                      "analysis": {
+                                          "analyzer": {
+                                              "keylower": {
+                                                  "tokenizer": "keyword",
+                                                  "filter": "lowercase"
+                                              }
+                                          }
+                                      }
+                                  }
+                              },
+                              "mappings": {
+                                  "labelmap": {
+                                      "properties": {
+                                          "label": {"type": "string", "analyzer": "keylower"}
+                                      }
+                                  }
+                              }
+                          })
         i = 1
         for line in open(labelp):
             k, v = line[:-1].split("\t")
@@ -66,9 +88,7 @@ class SimpleQuestionsLabelIndex(object):
                             "filtered": {
                                 "query": {
                                     "match_phrase": {
-                                        "label": {
-                                            "query": " ".join(ngram)
-                                        }
+                                        "label":  '"%s"' % " ".join(ngram)
                                     }
                                 },
                                 "filter": {
@@ -79,6 +99,19 @@ class SimpleQuestionsLabelIndex(object):
                             }
                         }
                     }
+            """
+            body = {
+                "query": {
+                    "constant_score": {
+                        "filter": {
+                            "term": {
+                                "label": " ".join(ngram)
+                            }
+                        }
+                    }
+                }
+            }
+            """
             if top is not None:
                 body.update({"size": top, "from": 0})
             searchbody.append(header)
@@ -94,7 +127,8 @@ class SimpleQuestionsLabelIndex(object):
         return cans
 
 
-def run(index=False, indexp="labels.map", indexname="sq_subjnames_fb2m", search="the island", host="drogon"):
+def run(index=False, indexp="labels.map", indexname="sq_subjnames_fb2m",
+        search="e mc", host="drogon"):
     idx = SimpleQuestionsLabelIndex(host=host, index=indexname)
     if index is True and indexp is not None:
         idx.index(labelp=indexp)
