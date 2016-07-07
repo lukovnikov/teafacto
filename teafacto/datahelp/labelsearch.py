@@ -9,6 +9,10 @@ class SimpleQuestionsLabelIndex(object):
 
     def index(self, labelp="labels.map"):
         es = elasticsearch.Elasticsearch(hosts=[self.host])
+        try:
+            es.indices.delete(index=self.indexp)
+        except Exception, e:
+            print "could not delete index %s" % self.indexp
         es.indices.create(index=self.indexp,
                           body={
                               "settings": {
