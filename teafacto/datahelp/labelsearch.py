@@ -124,7 +124,9 @@ class SimpleQuestionsLabelIndex(object):
                                 "filtered": {
                                     "query": {
                                         "match_phrase": {
-                                            "label":  '"%s"' % " ".join(ngram)
+                                            "label":  {
+                                                "query": " ".join(ngram)
+                                            }
                                         }
                                     },
                                     "filter": {
