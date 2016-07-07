@@ -23,7 +23,7 @@ class SimpleQuestionsLabelIndex(object):
                                               "type": "porter_stem",
                                               "language": "_english_"
                                             }
-                                          }
+                                          },
                                           "char_filter": {
                                             "punctfil": {
                                               "type": "pattern_replace",
