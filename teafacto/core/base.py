@@ -121,7 +121,7 @@ class TensorWrapped(object):
             dims[a] = b
             dims[b] = a
             return v.dimshuffle(*dims)
-        return wrap(tinner, name="dimswap")(self, a, b)
+        return OpBlock(tinner, name="dimswap")(self, a, b)
 
     def reverse(self, *axes):
         """ axis can be an *int* or a sequence of *int*s"""
@@ -137,7 +137,7 @@ class TensorWrapped(object):
                 else:
                     slices.append(slice(None, None, None))
             return v[tuple(slices)]
-        return wrap(rinner, name="reverse")(self, axes)
+        return OpBlock(rinner, name="reverse")(self, axes)
 
 
 

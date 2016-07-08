@@ -11,5 +11,10 @@ z = (x + y)
 u = z * w
 print z.allparams
 print T.dot
+print z.ndim
+print z.dimswap
+print z.dimswap(0, 1).allparams
+print y.dimswap(0, 1).allparams
 print T.nnet.conv.conv2d
 print u.norm(2).allparams
+print u.dimswap(0, 1).allparams
