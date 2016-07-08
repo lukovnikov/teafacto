@@ -433,11 +433,14 @@ class Block(Elem, Saveable): # block with parameters
 
     # do not override ------------------------------------------------
     def wrapply(self, *args, **kwargs): # is this multi-output compatible?
+        self.parents = []
+        self.params = []
         self.parents.extend(recurfilter(lambda x: isinstance(x, (Var, Val)), args))
         self.parents.extend(recurfilter(lambda x: isinstance(x, (Var, Val)), kwargs))
         ret = self.apply(*args, **kwargs)
         possiblechildren = recurfilter(lambda x: isinstance(x, (Var, Val)), ret)
         for p in possiblechildren:
+            p.parents = []
             p.add_parent(self)
         return ret
 
@@ -541,6 +544,8 @@ class OpBlock(Block):
 
     def wrapply(self, *args, **kwargs): # is this multi-output compatible?
         # make parents out of Vars or Vals
+        self.parents = []
+        self.params = []
         self.parents.extend(recurfilter(lambda x: isinstance(x, (Var, Val)), args))
         self.parents.extend(recurfilter(lambda x: isinstance(x, (Var, Val)), kwargs))
         if self.root is not None and isinstance(self.root, (Var, Val)):
@@ -560,6 +565,7 @@ class OpBlock(Block):
         ret = Var(result)  # , parent=self)
         possiblechildren = recurfilter(lambda x: isinstance(x, (Var, Val)), ret)
         for p in possiblechildren:
+            p.parents = []
             p.add_parent(self)
         return ret
 
