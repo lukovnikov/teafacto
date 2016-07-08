@@ -36,22 +36,18 @@ class TWrapper(type):
 
 def wrapf(attr, root=None):
     if isfunction(attr): # real function
-        innerwrap = prefwrap(attr, root)    #lambda *args, **kwargs: fwrap(attr, root, *args, **kwargs)
+        innerwrap = OpBlock(attr, root)
     elif isnumber(attr) or isstring(attr): # or other literals/non-syms/modules/properties/...
         return attr
     elif isinstance(attr, ModuleType):
-        innerwrap = pwrap(attr)
+        innerwrap = WrappedAttr(attr)
     elif isinstance(attr, theano.Variable):
-        innerwrap = vwrap(attr, root)
+        innerwrap = Var(attr, parent=root)
     else:
         innerwrap = attr
     return innerwrap
 
-
-def vwrap(attr, root):
-    return Var(attr, parent=root)
-
-
+"""
 def prefwrap(attr, root):
     def innerprefwrap(*args, **kwargs):
         return fwrap(attr, root, *args, **kwargs)
@@ -69,9 +65,7 @@ def fwrap(attr, root, *args, **kwargs):
         elif isinstance(root, Parameter):
             wrapper.add_param(root)
     return ret
-
-def pwrap(attr):
-    return WrappedAttr(attr)
+"""
 
 class WrappedAttr():
     def __init__(self, attr):
@@ -93,7 +87,7 @@ class TensorWrapper(type):
 
     def __init__(cls, name, bases, dct):
 
-        def make_proxy(name):
+        def make_proxy(name):   # only called for magic methods?
             def proxy(self, *args):
                 attr = getattr(self.d, name)
                 return wrapf(attr, root=self)
@@ -529,6 +523,40 @@ class Block(Elem, Saveable): # block with parameters
         probe = Probe()
 
 
+class OpBlock(Block):
+    def __init__(self, f, root=None, **kw):
+        super(OpBlock, self).__init__(**kw)
+        self.d = f
+        self.root = root
+
+    def __str__(self):
+        return "OpBlock:" + str(self.d.__name__)
+
+    def wrapply(self, *args, **kwargs): # is this multi-output compatible?
+        # make parents out of Vars or Vals
+        self.parents.extend(recurfilter(lambda x: isinstance(x, (Var, Val)), args))
+        self.parents.extend(recurfilter(lambda x: isinstance(x, (Var, Val)), kwargs))
+        if self.root is not None and isinstance(self.root, (Var, Val)):
+            self.parents.append(self.root)
+        # add params from arguments
+        params = recurfilter(lambda x: isinstance(x, Parameter), args)
+        kwparams = recurfilter(lambda x: isinstance(x, Parameter), kwargs)
+        self.add_params(params+kwparams)
+        if self.root is not None and isinstance(self.root, Parameter):
+            self.add_param(self.root)
+        # get theano vars for all args
+        trueargs = recurmap(lambda x: x.d if hasattr(x, "d") else x, args)
+        truekwargs = recurmap(lambda x: x.d if hasattr(x, "d") else x, kwargs)
+        # apply theano-space Op
+        result = self.d(*trueargs, **truekwargs)
+        # wrap result in Var and return
+        ret = Var(result)  # , parent=self)
+        possiblechildren = recurfilter(lambda x: isinstance(x, (Var, Val)), ret)
+        for p in possiblechildren:
+            p.add_parent(self)
+        return ret
+
+
 class NSBlock(Block):
     """ To wrap around normal blocks for negative sampling training """
     def __init__(self, innerblock, obj, **kw):
@@ -658,7 +686,7 @@ def recurfilter(fun, data):
             acc.append(None)
     return filter(lambda x: x is not None, acc)
 
-
+"""
 class wrap(Block): # wraps a theano symbolic expression into a block
     def __init__(self, fun, *params, **kw):
         super(wrap, self).__init__(**kw)
@@ -668,7 +696,7 @@ class wrap(Block): # wraps a theano symbolic expression into a block
 
     def _apply(self, *tvars, **kwargs):
         return self.opfun(*tvars, **kwargs)
-
+"""
 
 class scan(Block):
     def __init__(self, **kw):
