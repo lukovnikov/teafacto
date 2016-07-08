@@ -1,6 +1,6 @@
 import sys, re
 from IPython import embed
-from teafacto.util import argprun, tokenize
+from teafacto.util import argprun, tokenize, ticktock
 from teafacto.blocks.memory import LinearGateMemAddr, DotMemAddr
 from teafacto.blocks.match import MatchScore
 from teafacto.blocks.lang.wordvec import Glove
@@ -182,11 +182,13 @@ def run(
         layers=1,
         ):
 
+    tt = ticktock("script")
+    tt.tick()
     (traindata, traingold), (validdata, validgold), (testdata, testgold), \
     worddic, entdic, entmat\
         = readdata(datap)
 
-    print "data loaded"
+    tt.tock("data loaded")
 
     # *data: matrix of word ids (-1 filler), example per row
     # *gold: vector of true entity ids
@@ -246,6 +248,7 @@ def run(
         def __call__(self, datas, gold):    # gold: idx^(batsize,)
             return datas, np.random.randint(self.min, self.max, gold.shape)
 
+    embed()
     # trainer config and training
     scorer = scorer.nstrain([traindata, traingold]).transform(PreProcf(entmat))\
         .negsamplegen(NegIdxGen(numents)).negrate(negrate).objective(lambda p, n: p - n)\
