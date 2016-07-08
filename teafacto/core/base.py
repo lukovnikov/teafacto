@@ -393,6 +393,7 @@ class Block(Elem, Saveable): # block with parameters
         return self.outputs[0]
 
     def reset(self): # clear all non-param info in whole expression structure that ends in this block
+        print "resetting block"
         self.inputs = []
         self.outputs = []
         super(Block, self).reset()
@@ -526,11 +527,17 @@ class Block(Elem, Saveable): # block with parameters
 class OpBlock(Block):
     def __init__(self, f, root=None, **kw):
         super(OpBlock, self).__init__(**kw)
-        self.d = f
+        self.f = f
         self.root = root
 
     def __str__(self):
-        return "OpBlock:" + str(self.d.__name__)
+        return "OpBlock:" + str(self.f)
+
+    def reset(self):
+        print "resetting opblock"
+        if "sigmoid" in str(self.f):
+            print "sigmoid reset"
+        super(OpBlock, self).reset()
 
     def wrapply(self, *args, **kwargs): # is this multi-output compatible?
         # make parents out of Vars or Vals
@@ -548,7 +555,7 @@ class OpBlock(Block):
         trueargs = recurmap(lambda x: x.d if hasattr(x, "d") else x, args)
         truekwargs = recurmap(lambda x: x.d if hasattr(x, "d") else x, kwargs)
         # apply theano-space Op
-        result = self.d(*trueargs, **truekwargs)
+        result = self.f(*trueargs, **truekwargs)
         # wrap result in Var and return
         ret = Var(result)  # , parent=self)
         possiblechildren = recurfilter(lambda x: isinstance(x, (Var, Val)), ret)

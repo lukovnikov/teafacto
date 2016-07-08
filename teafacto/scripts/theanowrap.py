@@ -13,8 +13,13 @@ print z.allparams
 print T.dot
 print z.ndim
 print z.dimswap
+zd = z.dimswap(1,0)
 print z.dimswap(0, 1).allparams
 print y.dimswap(0, 1).allparams
 print T.nnet.conv.conv2d
 print u.norm(2).allparams
 print u.dimswap(0, 1).allparams
+print T.nnet.softmax(z).allparams
+zs = T.nnet.sigmoid(z)
+us = T.nnet.sigmoid(u)
+print us.allparams
