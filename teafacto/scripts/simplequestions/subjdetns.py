@@ -165,7 +165,7 @@ def run(
         numsam=10000,
         negrate=1,
         lr=0.1,
-        datap="../../../data/simplequestions/datamat.word.pkl",
+        datap="../../../data/simplequestions/datamat.word.mem.fb2m.pkl",
         embdim=100,
         innerdim=200,
         wreg=0.00005,
@@ -185,6 +185,8 @@ def run(
     (traindata, traingold), (validdata, validgold), (testdata, testgold), \
     worddic, entdic, entmat\
         = readdata(datap)
+
+    print "data loaded"
 
     # *data: matrix of word ids (-1 filler), example per row
     # *gold: vector of true entity ids
