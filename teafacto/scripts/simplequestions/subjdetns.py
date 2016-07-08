@@ -246,7 +246,7 @@ def run(
             self.max = rng
 
         def __call__(self, datas, gold):    # gold: idx^(batsize,)
-            return datas, np.random.randint(self.min, self.max, gold.shape)
+            return datas, np.random.randint(self.min, self.max, gold.shape).astype("int32")
 
     embed()
     # trainer config and training
