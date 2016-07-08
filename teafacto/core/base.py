@@ -553,13 +553,7 @@ class TransWrapBlock(Block):
         super(TransWrapBlock, self).__init__(**kw)
 
     def apply(self, *args, **kwargs):
-        ret = self.transf(*args, **kwargs)
-        if isinstance(ret, tuple):
-            nargs = ret[0]
-            nkwargs = ret[1]
-        else:
-            nargs = [ret]
-            nkwargs = {}
+        nargs, nkwargs = self.transf(*args, **kwargs)
         return self.block(*nargs, **nkwargs)
 
 

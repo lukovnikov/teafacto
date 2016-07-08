@@ -236,7 +236,7 @@ def run(
             self.em = Val(entmat)                # entmat: idx[word]^(numents, len(ent.name))
 
         def __call__(self, datas, gold):    # gold: idx^(batsize, )
-            return datas, self.em[gold, :]
+            return (datas, self.em[gold, :]), {}
 
     class NegIdxGen(object):
         def __init__(self, rng):
