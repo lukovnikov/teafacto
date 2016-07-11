@@ -256,7 +256,7 @@ def run(
     scorer = scorer.nstrain([traindata, traingold]).transform(PreProcf(entmat))\
         .negsamplegen(NegIdxGen(numents)).negrate(negrate).objective(lambda p, n: p - n)\
         .adagrad(lr=lr).l2(wreg).grad_total_norm(1.0)\
-        .validate_on([validdata], validgold).takebest()\
+        .validate_on([validdata, validgold]).takebest()\
         .train(numbats=numbats, epochs=epochs)
 
     # testing

@@ -271,7 +271,9 @@ class ModelTrainer(object):
         self.validsetmode = True
         return self
 
-    def validate_on(self, data, gold, splits=1, random=True):
+    def validate_on(self, data, gold=None, splits=1, random=True):
+        if gold is None:
+            gold = np.ones((data[0].shape[0],), dtype="int32")
         self.trainstrategy = self._train_validdata
         self.validdata = data
         self.validgold = gold
