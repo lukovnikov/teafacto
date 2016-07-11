@@ -441,6 +441,7 @@ class ModelTrainer(object):
 
     #region ############# TRAINING LOOPS ##################
     def trainloop(self, trainf, validf=None):
+        embed()
         self.tt.tick("training")
         err = []
         verr = []

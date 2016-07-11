@@ -634,6 +634,7 @@ class NSTrainConfig():
         if not self._ready():
             raise Exception("configuration not ready yet")
         t = self._maketrainer()
+        embed()
         return t.train(*args, **kwargs)
 
     def validate_on(self, data, splits=1, random=False):
