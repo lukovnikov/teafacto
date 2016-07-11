@@ -441,7 +441,6 @@ class ModelTrainer(object):
 
     #region ############# TRAINING LOOPS ##################
     def trainloop(self, trainf, validf=None):
-        embed()
         self.tt.tick("training")
         err = []
         verr = []
@@ -461,6 +460,7 @@ class ModelTrainer(object):
             print "done training"
             verre = prevverre
             if validf is not None and self.currentiter % evalinter == 0: # validate and print
+                embed()
                 verre = validf()
                 prevverre = verre
                 verr.append(verre)

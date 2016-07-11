@@ -599,6 +599,7 @@ class NSTrainConfig():
 
     def __getattr__(self, f):
         """ when a trainer config option is called """
+        # TODO accept only what NSModelTrainer has
         return lambda *args, **kwargs: self._trainerconfigstorer(f, *args, **kwargs)
 
     def _trainerconfigstorer(self, f, *args, **kwargs):
@@ -634,7 +635,7 @@ class NSTrainConfig():
         if not self._ready():
             raise Exception("configuration not ready yet")
         t = self._maketrainer()
-        embed()
+        #embed()
         return t.train(*args, **kwargs)
 
     def validate_on(self, data, splits=1, random=False):
