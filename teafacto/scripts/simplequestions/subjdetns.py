@@ -188,6 +188,9 @@ def run(
     worddic, entdic, entmat\
         = readdata(datap)
 
+    print entmat.shape
+    print traindata.shape, traingold.shape
+
     tt.tock("data loaded")
 
     # *data: matrix of word ids (-1 filler), example per row

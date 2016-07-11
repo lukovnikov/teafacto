@@ -34,5 +34,4 @@ class MatchScore(Block):
         super(MatchScore, self).__init__(**kw)
 
     def apply(self, left, right):
-        embed()
         return self.s(self.l(left), self.r(right))  # left: (batsize, dim), right: (batsize, dim)
