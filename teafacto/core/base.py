@@ -1,6 +1,6 @@
 from types import ModuleType
 from collections import OrderedDict
-
+from IPython import embed
 import theano
 from lasagne.init import *
 from lasagne.updates import norm_constraint
