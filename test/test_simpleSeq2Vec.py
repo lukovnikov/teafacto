@@ -17,4 +17,4 @@ class TestSimpleSeq2Vec(TestCase):
 
     def test_output(self):
         print self.mo, self.mo.ndim
-        theano.printing.pydotprint(self.mo.d, "debug.png")
+        #theano.printing.pydotprint(self.mo.d, "debug.png")
