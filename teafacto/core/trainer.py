@@ -376,6 +376,8 @@ class ModelTrainer(object):
         ret = None
         if len(metrics) > 0:
             ret = theano.function(inputs=[x.d for x in inputs] + [self.goldvar], outputs=metrics)
+        else:
+            self.tt.msg("NO VALIDATION METRICS DEFINED, RETURNS NONE")
         self.tt.tock("validation function compiled")
         return ret
     #endregion
