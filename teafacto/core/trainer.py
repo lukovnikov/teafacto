@@ -272,6 +272,7 @@ class ModelTrainer(object):
         return self
 
     def validate_on(self, data, gold=None, splits=1, random=True):
+        embed()
         if gold is None:
             gold = np.ones((data[0].shape[0],), dtype="int32")
         self.trainstrategy = self._train_validdata
