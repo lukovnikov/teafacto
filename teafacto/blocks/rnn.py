@@ -183,6 +183,7 @@ class SeqEncoder(AttentionConsumer, Block):
             self.block = None
 
     def apply(self, seq, weights=None, mask=None): # seq: (batsize, seqlen, dim), weights: (batsize, seqlen) OR (batsize, seqlen, seqlen*, dim) ==> reduce the innermost seqlen
+        seq.name = "seqencoder-input"
         # embed
         if self.embedder is not None:
             seqemb = self.embedder(seq)
