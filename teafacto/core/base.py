@@ -641,6 +641,7 @@ class NSTrainConfig():
     def validate_on(self, data, splits=1, random=False):
         gold = np.ones((data[0].shape[0],), dtype="int32")
         self._trainerconfigstorer("validate_on", data, gold, splits=splits, random=random)
+        self.linear_objective()
         return self
 
     def getret(self):
