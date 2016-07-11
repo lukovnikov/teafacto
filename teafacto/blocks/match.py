@@ -33,4 +33,6 @@ class MatchScore(Block):
         super(MatchScore, self).__init__(**kw)
 
     def apply(self, left, right):
+        left.name = "matchscore-left"
+        right.name = "matchscore-right"
         return self.s(self.l(left), self.r(right))  # left: (batsize, dim), right: (batsize, dim)

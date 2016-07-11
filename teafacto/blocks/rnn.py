@@ -183,7 +183,6 @@ class SeqEncoder(AttentionConsumer, Block):
             self.block = None
 
     def apply(self, seq, weights=None, mask=None): # seq: (batsize, seqlen, dim), weights: (batsize, seqlen) OR (batsize, seqlen, seqlen*, dim) ==> reduce the innermost seqlen
-        seq.name = "seqencoder-input"
         # embed
         if self.embedder is not None:
             seqemb = self.embedder(seq)
@@ -193,7 +192,6 @@ class SeqEncoder(AttentionConsumer, Block):
         if self._maskconfig.maskmode == MaskMode.AUTO_FORCE or \
                 (mask is None and self._maskconfig.maskmode == MaskMode.AUTO):
             mask = self._autogenerate_mask(seq, seqemb)
-            mask.name = "seqencoder-automask"
 
         fullmask = None
         if mask is not None:
