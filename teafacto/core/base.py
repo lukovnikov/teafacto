@@ -12,6 +12,30 @@ from teafacto.util import isstring, issequence, isfunction, Saveable, isnumber
 from teafacto.core.datafeed import DataFeed
 
 
+def recurmap(fun, data):
+    if isinstance(data, dict):
+        return type(data)(dict([(recurmap(fun, item[0]), recurmap(fun, item[1])) for item in data.items()]))
+    elif isinstance(data, (tuple, list, set)):
+        return type(data)([recurmap(fun, elem) for elem in data])
+    else:
+        return fun(data)
+
+def recurfilter(fun, data):
+    acc = []
+    if isinstance(data, dict):
+        data = data.items()
+    if isinstance(data, (tuple, list, set)):
+        for elem in data:
+            ret = recurfilter(fun, elem)
+            acc.extend(ret)
+    else:
+        if fun(data):
+            acc.append(data)
+        else:
+            acc.append(None)
+    return filter(lambda x: x is not None, acc)
+
+
 ### DON'T WORRY ABOUT THIS
 class TWrapper(type):
     def __getattr__(cls, item):
@@ -42,7 +66,8 @@ def wrapf(attr, root=None):
     elif isinstance(attr, ModuleType):
         innerwrap = WrappedAttr(attr)
     elif isinstance(attr, theano.Variable):
-        innerwrap = Var(attr, parent=root)
+        innerwrap = Var(attr)
+        innerwrap.push_params(root._params)
     else:
         innerwrap = attr
     return innerwrap
@@ -272,10 +297,15 @@ class param(object):
         return self._lasagne_init(Orthogonal(gain))
 
 
-class Val(TensorWrapped):
+class Elem(object):    # carries name
+    def __init__(self, name=None, **kw):
+        super(Elem, self).__init__()
+        self._name = name
+
+
+class Val(Elem, TensorWrapped):
     def __init__(self, value, name=None, **kw):
-        super(Val, self).__init__(**kw)
-        self.name = name
+        super(Val, self).__init__(name=name, **kw)
         if not isinstance(value, np.ndarray):
             value = np.asarray(value)
         dtype = value.dtype.kind
@@ -293,59 +323,20 @@ class Val(TensorWrapped):
     def v(self):
         return self.value.get_value()
 
-    @property
-    def allparams(self): # TODO: can Vals have parents?
-        return set()
-
-    def reset(self):
-        pass
-
-
-### DON'T WORRY ABOUT THIS
-class Elem(object):    # carries output shape information
-    def __init__(self, shape=None, name=None, **kw):
-        super(Elem, self).__init__()
-        self._shape = shape
-        self._name = name
-        self.parents = []
-
-    @property
-    def dshape(self): # returns declared shape
-        return self._shape
-
-    def add_parent(self, p):
-        self.parents.append(p)
-
-    def getparents(self):
-        return self.parents
-
-    @property
-    def allparams(self):
-        acc = set()
-        if hasattr(self, "params"):
-            acc.update(set(self.params))
-
-        for parent in self.getparents():
-            #print "allparams" in parent.__dict__, "allparams" in dir(parent), str(parent)
-            parentparams = parent.allparams
-            acc.update(parentparams)
-        return acc
-
-    def reset(self):
-        for p in self.parents:
-            p.reset()
-        self.parents = []
-
 
 ### WORRY ABOUT THIS
 class Var(Elem, TensorWrapped): # result of applying a block on theano variables
-    def __init__(self, value, parent=None, name=None, **kw):
+    """ Var has params propagated from all the blocks used to compute it """
+    def __init__(self, value, name=None, **kw):
         nam = name if name is not None else value.name
         super(Var, self).__init__(name=nam, **kw)
         assert(isinstance(value, theano.Variable))
         self.value = value
-        if parent is not None:
-            self.add_parent(parent)
+        self._shape = None
+        self._params = set()            # params this variable may depend on
+
+    def push_params(self, setofparams):
+        self._params.update(setofparams)
 
     def eval(self, argdic={}):
         return self.d.eval(dict(map(lambda (x, y): (x.d, y), argdic.items())))
@@ -357,6 +348,10 @@ class Var(Elem, TensorWrapped): # result of applying a block on theano variables
     def __repr__(self):
         return "var::%s-%s:%s" % (self._name, self.value.dtype, str(self._shape))
 
+    @property
+    def allparams(self):
+        return self._params
+
 
 class Input(Var): # generates feed + creates symbolic vars for input
     def __init__(self, ndim, dtype, name=None, **kw): # data source (numpy array)
@@ -365,27 +360,22 @@ class Input(Var): # generates feed + creates symbolic vars for input
         self.ndim = ndim # store number of dimensions
 
 
-def recurmap(fun, data):
-    if isinstance(data, dict):
-        return type(data)(dict([(recurmap(fun, item[0]), recurmap(fun, item[1])) for item in data.items()]))
-    elif isinstance(data, (tuple, list, set)):
-        return type(data)([recurmap(fun, elem) for elem in data])
-    else:
-        return fun(data)
-
-
-class Probe(object):
-    pass
-
-
 class Block(Elem, Saveable): # block with parameters
     def __init__(self, **kw):
         super(Block, self).__init__(**kw)
-        self.params = []
+        self._ownparams = set()
         self.inputs = []
         self.outputs = []
         self._predictf = None
         self._pristine = True
+
+    @property
+    def ownparams(self):
+        return self._ownparams
+
+    @ownparams.setter
+    def ownparams(self, x):
+        self._ownparams = x if isinstance(x, set) else set(x)
 
     @property
     def output(self):
@@ -432,16 +422,17 @@ class Block(Elem, Saveable): # block with parameters
         return ModelTrainer(self, goldvar)
 
     # do not override ------------------------------------------------
+    # TODO: what if wrapply gets params in args?
+    # TODO: propagate _ownparams to output vars
     def wrapply(self, *args, **kwargs): # is this multi-output compatible?
-        self.parents = []
-        self.params = []
-        self.parents.extend(recurfilter(lambda x: isinstance(x, (Var, Val)), args))
-        self.parents.extend(recurfilter(lambda x: isinstance(x, (Var, Val)), kwargs))
-        ret = self.apply(*args, **kwargs)
-        possiblechildren = recurfilter(lambda x: isinstance(x, (Var, Val)), ret)
+        paramstopush = set()        # params to transfer from input vars to output vars
+        for var in recurfilter(lambda x: isinstance(x, Var), kwargs) + recurfilter(lambda x: isinstance(x, Var), args):
+            paramstopush.update(var._params)
+        ret = self.apply(*args, **kwargs)   # ret carries params of its own --> these params have been added in this block
+        possiblechildren = recurfilter(lambda x: isinstance(x, Var), ret)
         for p in possiblechildren:
-            p.parents = []
-            p.add_parent(self)
+            p.push_params(paramstopush)
+            p.push_params(self.ownparams)
         return ret
 
     def build(self): # stores block inputs and block output
@@ -453,7 +444,6 @@ class Block(Elem, Saveable): # block with parameters
         return output
 
     def autobuild(self, *inputdata, **kwinputdata):
-        self.reset()
         inputdata = map(lambda x:
                         x if isinstance(x, (np.ndarray, DataFeed)) else (np.asarray(x) if x is not None else None),
                         inputdata)
@@ -485,6 +475,7 @@ class Block(Elem, Saveable): # block with parameters
     def __call__(self, *args, **kwargs):
         return self.wrapply(*args, **kwargs)
 
+    # explicit parameter management
     def add_params(self, params):
         for param in params:
             self.add_param(param)
@@ -506,9 +497,10 @@ class Block(Elem, Saveable): # block with parameters
             if len(p) > 2:
                 regmul = p[2]
             p = Parameter(p, lrmul=lrmul, regmul=regmul)
-        self.params.append(p)
+        self._ownparams.add(p)
         return p
 
+    # training
     def train(self, inputdata, gold):
         # wrap data in datafeeds, generate gold var
         goldvar = Input(gold.ndim, gold.dtype, name="gold")
@@ -522,9 +514,6 @@ class Block(Elem, Saveable): # block with parameters
     def nstrain(self, datas):
         """ training with negative sampling"""
         return NSTrainConfig(self, datas)
-
-    def getcontained(self):
-        probe = Probe()
 
 
 class OpBlock(Block):
@@ -543,19 +532,19 @@ class OpBlock(Block):
         super(OpBlock, self).reset()
 
     def wrapply(self, *args, **kwargs): # is this multi-output compatible?
-        # make parents out of Vars or Vals
-        self.parents = []
-        self.params = []
-        self.parents.extend(recurfilter(lambda x: isinstance(x, (Var, Val)), args))
-        self.parents.extend(recurfilter(lambda x: isinstance(x, (Var, Val)), kwargs))
-        if self.root is not None and isinstance(self.root, (Var, Val)):
-            self.parents.append(self.root)
-        # add params from arguments
+        # push all params from args and root vars
+        paramstopush = set()
+        for var in recurfilter(lambda x: isinstance(x, Var), args) + recurfilter(lambda x: isinstance(x, Var), kwargs):
+            paramstopush.update(var._params)
+        if self.root is not None and isinstance(self.root, Var):
+            paramstopush.update(self.root._params)
+        # push all "own" params, params that are args or root
         params = recurfilter(lambda x: isinstance(x, Parameter), args)
         kwparams = recurfilter(lambda x: isinstance(x, Parameter), kwargs)
-        self.add_params(params+kwparams)
+        ownparams = set(params + kwparams)
         if self.root is not None and isinstance(self.root, Parameter):
-            self.add_param(self.root)
+            ownparams.add(self.root)
+        self.add_params(ownparams)
         # get theano vars for all args
         trueargs = recurmap(lambda x: x.d if hasattr(x, "d") else x, args)
         truekwargs = recurmap(lambda x: x.d if hasattr(x, "d") else x, kwargs)
@@ -563,10 +552,11 @@ class OpBlock(Block):
         result = self.f(*trueargs, **truekwargs)
         # wrap result in Var and return
         ret = Var(result)  # , parent=self)
+        # do push params to output var
         possiblechildren = recurfilter(lambda x: isinstance(x, (Var, Val)), ret)
         for p in possiblechildren:
-            p.parents = []
-            p.add_parent(self)
+            p.push_params(paramstopush)
+            p.push_params(ownparams)
         return ret
 
 
@@ -575,7 +565,7 @@ class NSBlock(Block):
     def __init__(self, innerblock, obj, **kw):
         self.inner = innerblock
         self.obj = obj
-        super(Block, self).__init__(**kw)
+        super(NSBlock, self).__init__(**kw)
 
     def apply(self, *vars):
         lvars = vars[:len(vars)/2]
@@ -684,62 +674,34 @@ def asblock(f):
     return retblock
 
 
-def recurfilter(fun, data):
-    acc = []
-    if isinstance(data, dict):
-        data = data.items()
-    if isinstance(data, (tuple, list, set)):
-        for elem in data:
-            ret = recurfilter(fun, elem)
-            acc.extend(ret)
-    else:
-        if fun(data):
-            acc.append(data)
-        else:
-            acc.append(None)
-    return filter(lambda x: x is not None, acc)
-
-"""
-class wrap(Block): # wraps a theano symbolic expression into a block
-    def __init__(self, fun, *params, **kw):
-        super(wrap, self).__init__(**kw)
-        self.add_params(params)
-        assert(hasattr(fun, "__call__"))
-        self.opfun = fun
-
-    def _apply(self, *tvars, **kwargs):
-        return self.opfun(*tvars, **kwargs)
-"""
-
 class scan(Block):
     def __init__(self, **kw):
         super(scan, self).__init__(**kw)
         # set params
+        self._recparams = set()
 
     def fnwrap(self, fn): # enables writing fn in blocks level
         scanblock = self
         def fwrapper(*args): # theano vars
             trueargs = [Var(x, name="innerrecwrapvarwrap") for x in args]
-            res = fn(*trueargs)
+            res = fn(*trueargs) # has the params from inner rec
             ret = recurmap(lambda x: x.d if hasattr(x, "d") else x, res)
             if issequence(ret):
                 ret = tuple(ret)
-            newparents = recurfilter(lambda x: isinstance(x, (Var, Val, until)), res)
-
-            for npa in newparents:
-                scanblock.add_parent(npa)
-            #self.add_params(reduce(lambda x, y: set(x).union(set(y)),
-            #                       map(lambda x: x.allparams, recurfilter(lambda x: isinstance(x, Var), res)), set()))
-            #self.add_params(recurfilter(lambda x: isinstance(x, Parameter), res))
+            outvars = recurfilter(lambda x: isinstance(x, Var), res)
+            for var in outvars:
+                scanblock._recparams.update(var._params)
             return ret
         return fwrapper
 
     def apply(self, fn, **kwargs):
-        self.params.extend(recurfilter(lambda x: isinstance(x, Parameter), kwargs))
         trueargs = recurmap(lambda x: x.d if hasattr(x, "d") else x, kwargs)
         o, updates = theano.scan(self.fnwrap(fn), **trueargs)
         ret = [Var(oe) for oe in o] if issequence(o) else Var(o)
+        for var in recurfilter(lambda x: isinstance(x, Var), ret):
+            var.push_params(self._recparams)
         return ret, updates
+
 
 class until(Elem):
     def __init__(self, expr, **kw):

@@ -61,7 +61,7 @@ class idx2seqTheano(Block):
         self.rnu_u = param((innerdim, innerdim)).uniform()
         self.outpf = theano.tensor.tanh
         self.olin = param((innerdim, outvocsize)).uniform()
-        self.params = [self.wordemb, self.rnu_u, self.rnu_w, self.olin]
+        self.ownparams = [self.wordemb, self.rnu_u, self.rnu_w, self.olin]
 
     def _apply(self, idxs):
         def rec(x_t, h_tm1, enc):
