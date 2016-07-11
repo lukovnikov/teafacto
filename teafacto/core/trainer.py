@@ -392,7 +392,7 @@ class ModelTrainer(object):
         trainf = self.buildtrainfun(self.model)
         df = DataFeeder(*(self.traindata + [self.traingold]))
         vdf = DataFeeder(*(self.validdata + [self.validgold]))
-        #embed()
+        embed()
         #dfvalid = df.osplit(split=self.validsplits, random=self.validrandom)
         err, verr = self.trainloop(
                 trainf=self.getbatchloop(trainf, df.numbats(self.numbats)),
