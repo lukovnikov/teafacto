@@ -334,7 +334,7 @@ class ModelTrainer(object):
         else:
             cost = loss
         # theano.printing.debugprint(cost)
-        theano.printing.pydotprint(cost, outfile="pics/debug.png")
+        # theano.printing.pydotprint(cost, outfile="pics/debug.png")
         updates = []
         print "params:\n " + "".join(map(lambda x: "\t%s\n" % str(x), params)) + "\n\t\t (in Block, base.py)\n"
         self.tt.msg("computing gradients")
@@ -392,6 +392,7 @@ class ModelTrainer(object):
         trainf = self.buildtrainfun(self.model)
         df = DataFeeder(*(self.traindata + [self.traingold]))
         vdf = DataFeeder(*(self.validdata + [self.validgold]))
+        embed()
         #dfvalid = df.osplit(split=self.validsplits, random=self.validrandom)
         err, verr = self.trainloop(
                 trainf=self.getbatchloop(trainf, df.numbats(self.numbats)),
