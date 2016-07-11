@@ -258,7 +258,9 @@ class Seq2Vec(Block):
         self.enc = SeqEncoder(inpemb, *enclayers).maskoptions(maskid, MaskMode.AUTO)
 
     def apply(self, x, mask=None):
-        return self.enc(x, mask=mask)
+        ret = self.enc(x, mask=mask)
+        ret.name = "seq2vec-out"
+        return ret
 
 
 # specify by dims

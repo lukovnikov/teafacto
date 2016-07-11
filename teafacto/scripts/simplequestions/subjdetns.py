@@ -248,7 +248,7 @@ def run(
         def __call__(self, datas, gold):    # gold: idx^(batsize,)
             return datas, np.random.randint(self.min, self.max, gold.shape).astype("int32")
 
-    embed()
+    #embed()
     # trainer config and training
     scorer = scorer.nstrain([traindata, traingold]).transform(PreProcf(entmat))\
         .negsamplegen(NegIdxGen(numents)).negrate(negrate).objective(lambda p, n: p - n)\

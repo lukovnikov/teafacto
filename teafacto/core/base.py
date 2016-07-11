@@ -363,6 +363,15 @@ class Var(Elem, TensorWrapped): # result of applying a block on theano variables
     def __repr__(self):
         return "var::%s-%s:%s" % (self._name, self.value.dtype, str(self._shape))
 
+    @property
+    def name(self):
+        return self.d.name
+
+    @name.setter
+    def name(self, name):
+        self._name = name
+        self.d.name = name
+
 
 class Input(Var): # generates feed + creates symbolic vars for input
     def __init__(self, ndim, dtype, name=None, **kw): # data source (numpy array)
