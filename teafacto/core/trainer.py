@@ -333,7 +333,8 @@ class ModelTrainer(object):
             cost = loss+reg
         else:
             cost = loss
-        theano.printing.debugprint(cost)
+        # theano.printing.debugprint(cost)
+        theano.printing.pydotprint(cost, outfile="pics/debug.png")
         updates = []
         print "params:\n " + "".join(map(lambda x: "\t%s\n" % str(x), params)) + "\n\t\t (in Block, base.py)\n"
         self.tt.msg("computing gradients")
