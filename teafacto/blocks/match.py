@@ -1,4 +1,5 @@
 from teafacto.core.base import tensorops as T, Block
+from IPython import embed
 
 #region ======== SCORES =============
 
@@ -33,6 +34,5 @@ class MatchScore(Block):
         super(MatchScore, self).__init__(**kw)
 
     def apply(self, left, right):
-        left.name = "matchscore-left"
-        right.name = "matchscore-right"
+        embed()
         return self.s(self.l(left), self.r(right))  # left: (batsize, dim), right: (batsize, dim)
