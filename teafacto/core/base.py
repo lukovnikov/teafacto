@@ -576,7 +576,7 @@ class NSTrainConfig():
         self.trans = ident
         self.nrate = 1
         self.nsamgen = None
-        self.trainerargs = OrderedDict()
+        self.trainerargs = []
         self.linear_objective()     # will be stored <-- default trainer loss for NS training
 
     #region =========== OWN SETTINGS ===============
@@ -602,7 +602,7 @@ class NSTrainConfig():
         return lambda *args, **kwargs: self._trainerconfigstorer(f, *args, **kwargs)
 
     def _trainerconfigstorer(self, f, *args, **kwargs):
-        self.trainerargs[f] = (args, kwargs)
+        self.trainerargs.append((f, (args, kwargs)))
         return self
 
     def _ready(self):
@@ -625,7 +625,7 @@ class NSTrainConfig():
         trainer.traingold = gold
 
         # apply settings on trainer
-        for k, v in self.trainerargs.items():
+        for k, v in self.trainerargs:
             kf = getattr(trainer, k)
             kf(*v[0], **v[1])
         return trainer
@@ -635,6 +635,11 @@ class NSTrainConfig():
             raise Exception("configuration not ready yet")
         t = self._maketrainer()
         return t.train(*args, **kwargs)
+
+    def validate_on(self, data, splits=1, random=False):
+        gold = np.ones((data[0].shape[0],), dtype="int32")
+        self._trainerconfigstorer("validate_on", data, gold, splits=splits, random=random)
+        return self
 
     def getret(self):
         return self

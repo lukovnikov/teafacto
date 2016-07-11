@@ -272,9 +272,6 @@ class ModelTrainer(object):
         return self
 
     def validate_on(self, data, gold=None, splits=1, random=True):
-        embed()
-        if gold is None:
-            gold = np.ones((data[0].shape[0],), dtype="int32")
         self.trainstrategy = self._train_validdata
         self.validdata = data
         self.validgold = gold
@@ -395,7 +392,7 @@ class ModelTrainer(object):
         trainf = self.buildtrainfun(self.model)
         df = DataFeeder(*(self.traindata + [self.traingold]))
         vdf = DataFeeder(*(self.validdata + [self.validgold]))
-        embed()
+        #embed()
         #dfvalid = df.osplit(split=self.validsplits, random=self.validrandom)
         err, verr = self.trainloop(
                 trainf=self.getbatchloop(trainf, df.numbats(self.numbats)),
