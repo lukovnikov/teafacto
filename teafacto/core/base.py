@@ -1,6 +1,6 @@
 from types import ModuleType
 from collections import OrderedDict
-
+from IPython import embed
 import theano
 from lasagne.init import *
 from lasagne.updates import norm_constraint
@@ -353,6 +353,15 @@ class Var(Elem, TensorWrapped): # result of applying a block on theano variables
     def allparams(self):
         return self._params
 
+    @property
+    def name(self):
+        return self.d.name
+
+    @name.setter
+    def name(self, name):
+        self._name = name
+        self.d.name = name
+
 
 class Input(Var): # generates feed + creates symbolic vars for input
     def __init__(self, ndim, dtype, name=None, **kw): # data source (numpy array)
@@ -585,13 +594,7 @@ class TransWrapBlock(Block):
         super(TransWrapBlock, self).__init__(**kw)
 
     def apply(self, *args, **kwargs):
-        ret = self.transf(*args, **kwargs)
-        if isinstance(ret, tuple):
-            nargs = ret[0]
-            nkwargs = ret[1]
-        else:
-            nargs = [ret]
-            nkwargs = {}
+        nargs, nkwargs = self.transf(*args, **kwargs)
         return self.block(*nargs, **nkwargs)
 
 
@@ -605,7 +608,7 @@ class NSTrainConfig():
         self.trans = ident
         self.nrate = 1
         self.nsamgen = None
-        self.trainerargs = OrderedDict()
+        self.trainerargs = []
         self.linear_objective()     # will be stored <-- default trainer loss for NS training
 
     #region =========== OWN SETTINGS ===============
@@ -628,10 +631,11 @@ class NSTrainConfig():
 
     def __getattr__(self, f):
         """ when a trainer config option is called """
+        # TODO accept only what NSModelTrainer has
         return lambda *args, **kwargs: self._trainerconfigstorer(f, *args, **kwargs)
 
     def _trainerconfigstorer(self, f, *args, **kwargs):
-        self.trainerargs[f] = (args, kwargs)
+        self.trainerargs.append((f, (args, kwargs)))
         return self
 
     def _ready(self):
@@ -643,7 +647,7 @@ class NSTrainConfig():
 
     def _maketrainer(self):
         block = self._makeblock()
-        gold = np.ones_like(self.datas[0], dtype="float32")
+        gold = np.ones((self.datas[0].shape[0],), dtype="float32")  # gold is a vector of ones of length batsize
         inputdata = self.datas + self.datas
         # wrap data in datafeeds, generate gold var
         goldvar = Input(gold.ndim, gold.dtype, name="gold")
@@ -654,7 +658,7 @@ class NSTrainConfig():
         trainer.traingold = gold
 
         # apply settings on trainer
-        for k, v in self.trainerargs.items():
+        for k, v in self.trainerargs:
             kf = getattr(trainer, k)
             kf(*v[0], **v[1])
         return trainer
@@ -663,7 +667,14 @@ class NSTrainConfig():
         if not self._ready():
             raise Exception("configuration not ready yet")
         t = self._maketrainer()
+        #embed()
         return t.train(*args, **kwargs)
+
+    def validate_on(self, data, splits=1, random=False):
+        gold = np.ones((data[0].shape[0],), dtype="float32")
+        self._trainerconfigstorer("validate_on", data, gold, splits=splits, random=random)
+        self.linear_objective()
+        return self
 
     def getret(self):
         return self

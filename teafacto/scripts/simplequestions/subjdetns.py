@@ -1,6 +1,6 @@
 import sys, re
 from IPython import embed
-from teafacto.util import argprun, tokenize
+from teafacto.util import argprun, tokenize, ticktock
 from teafacto.blocks.memory import LinearGateMemAddr, DotMemAddr
 from teafacto.blocks.match import MatchScore
 from teafacto.blocks.lang.wordvec import Glove
@@ -165,7 +165,7 @@ def run(
         numsam=10000,
         negrate=1,
         lr=0.1,
-        datap="../../../data/simplequestions/datamat.word.pkl",
+        datap="../../../data/simplequestions/datamat.word.mem.fb2m.pkl",
         embdim=100,
         innerdim=200,
         wreg=0.00005,
@@ -182,9 +182,16 @@ def run(
         layers=1,
         ):
 
+    tt = ticktock("script")
+    tt.tick()
     (traindata, traingold), (validdata, validgold), (testdata, testgold), \
     worddic, entdic, entmat\
         = readdata(datap)
+
+    print entmat.shape
+    print traindata.shape, traingold.shape
+
+    tt.tock("data loaded")
 
     # *data: matrix of word ids (-1 filler), example per row
     # *gold: vector of true entity ids
@@ -234,7 +241,7 @@ def run(
             self.em = Val(entmat)                # entmat: idx[word]^(numents, len(ent.name))
 
         def __call__(self, datas, gold):    # gold: idx^(batsize, )
-            return datas, self.em[gold, :]
+            return (datas, self.em[gold, :]), {}
 
     class NegIdxGen(object):
         def __init__(self, rng):
@@ -242,13 +249,14 @@ def run(
             self.max = rng
 
         def __call__(self, datas, gold):    # gold: idx^(batsize,)
-            return datas, np.random.randint(self.min, self.max, gold.shape)
+            return datas, np.random.randint(self.min, self.max, gold.shape).astype("int32")
 
+    #embed()
     # trainer config and training
     scorer = scorer.nstrain([traindata, traingold]).transform(PreProcf(entmat))\
         .negsamplegen(NegIdxGen(numents)).negrate(negrate).objective(lambda p, n: p - n)\
         .adagrad(lr=lr).l2(wreg).grad_total_norm(1.0)\
-        .validate_on([validdata], validgold).takebest()\
+        .validate_on([validdata, validgold]).takebest()\
         .train(numbats=numbats, epochs=epochs)
 
     # testing

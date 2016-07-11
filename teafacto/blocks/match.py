@@ -1,4 +1,5 @@
 from teafacto.core.base import tensorops as T, Block
+from IPython import embed
 
 #region ======== SCORES =============
 

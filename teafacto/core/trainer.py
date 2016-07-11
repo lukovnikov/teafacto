@@ -271,7 +271,7 @@ class ModelTrainer(object):
         self.validsetmode = True
         return self
 
-    def validate_on(self, data, gold, splits=1, random=True):
+    def validate_on(self, data, gold=None, splits=1, random=True):
         self.trainstrategy = self._train_validdata
         self.validdata = data
         self.validgold = gold
@@ -333,6 +333,8 @@ class ModelTrainer(object):
             cost = loss+reg
         else:
             cost = loss
+        # theano.printing.debugprint(cost)
+        # theano.printing.pydotprint(cost, outfile="pics/debug.png")
         updates = []
         print "params:\n " + "".join(map(lambda x: "\t%s\n" % str(x), params)) + "\n\t\t (in Block, base.py)\n"
         self.tt.msg("computing gradients")
@@ -374,6 +376,8 @@ class ModelTrainer(object):
         ret = None
         if len(metrics) > 0:
             ret = theano.function(inputs=[x.d for x in inputs] + [self.goldvar], outputs=metrics)
+        else:
+            self.tt.msg("NO VALIDATION METRICS DEFINED, RETURNS NONE")
         self.tt.tock("validation function compiled")
         return ret
     #endregion
@@ -390,6 +394,7 @@ class ModelTrainer(object):
         trainf = self.buildtrainfun(self.model)
         df = DataFeeder(*(self.traindata + [self.traingold]))
         vdf = DataFeeder(*(self.validdata + [self.validgold]))
+        #embed()
         #dfvalid = df.osplit(split=self.validsplits, random=self.validrandom)
         err, verr = self.trainloop(
                 trainf=self.getbatchloop(trainf, df.numbats(self.numbats)),
