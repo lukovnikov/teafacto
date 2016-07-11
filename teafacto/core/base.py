@@ -614,7 +614,7 @@ class NSTrainConfig():
 
     def _maketrainer(self):
         block = self._makeblock()
-        gold = np.ones_like(self.datas[0], dtype="float32")
+        gold = np.ones((self.datas[0].shape[0],), dtype="float32")  # gold is a vector of ones of length batsize
         inputdata = self.datas + self.datas
         # wrap data in datafeeds, generate gold var
         goldvar = Input(gold.ndim, gold.dtype, name="gold")
