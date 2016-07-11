@@ -192,6 +192,7 @@ class SeqEncoder(AttentionConsumer, Block):
         if self._maskconfig.maskmode == MaskMode.AUTO_FORCE or \
                 (mask is None and self._maskconfig.maskmode == MaskMode.AUTO):
             mask = self._autogenerate_mask(seq, seqemb)
+            mask.name = "seqencoder-automask"
 
         fullmask = None
         if mask is not None:
