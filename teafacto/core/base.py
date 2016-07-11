@@ -67,7 +67,8 @@ def wrapf(attr, root=None):
         innerwrap = WrappedAttr(attr)
     elif isinstance(attr, theano.Variable):
         innerwrap = Var(attr)
-        innerwrap.push_params(root._params)
+        if isinstance(root, Var):       # propagate params
+            innerwrap.push_params(root._params)
     else:
         innerwrap = attr
     return innerwrap
