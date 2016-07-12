@@ -11,8 +11,47 @@ import numpy as np, pickle
 from teafacto.blocks.seqproc import SimpleSeq2Idx, SimpleSeq2Vec, SimpleVec2Idx, MemVec2Idx, Seq2Idx
 from multiprocessing import Pool, cpu_count
 from contextlib import closing
+from teafacto.datahelp.labelsearch import SimpleQuestionsLabelIndex
 
 """ SUBJECT PREDICTION TRAINING WITH NEGATIVE SAMPLING """
+
+class SubjDetEval(object):
+    def __init__(self, scorer, host="localhost", index="sq_subjnames_fb2m",
+                 worddic=None, entdic=None, metrics=None):
+        self.scorer = scorer
+        self.idx = SimpleQuestionsLabelIndex(host=host, index=index)
+        self.wd = worddic
+        self.rwd = {v: k for k, v in self.wd}
+        self.ed = entdic
+        self.metrics = metrics
+
+    def eval(self, data, gold, assuregold=False, transform=None):     # data: wordidx^(batsize, seqlen), gold: entidx^(batsize)
+        # generate candidates
+        cans = self.gencans(data)           # list of lists of entidx
+        assert len(cans) == data.shape
+        #
+        predictor = self.scorer.predict.transform(transform)
+        for s, cs in zip(data, cans):
+            for can in cs:
+                pair = (s, can)
+        # transform input data and cans
+        # use scorer to rank
+        # compute evaluation metrics
+        # aggregate metrics
+
+    def gencans(self, data, top=50, exact=True):
+        # transform data using worddic and search
+        sentences = []
+        cans = []
+        for i in range(data.shape[0]):
+            sentence = " ".join(map(lambda x: self.rwd[x], data[i, :]))
+            sentences.append(sentence)
+            scans = map(lambda (x, (y, z)): self.ed[x],
+                        self.idx.searchsentence(sentence, exact=exact, top=top))
+            cans.append(scans)
+        return cans
+
+
 
 def _readdata(p):
     x = pickle.load(open(p))
@@ -259,11 +298,9 @@ def run(
         .validate_on([validdata, validgold]).takebest()\
         .train(numbats=numbats, epochs=epochs)
 
-    # testing
-    pred = m.predict(testdata)
-    print pred.shape
-    evalres = evaluate(np.argmax(pred, axis=1), testgold)
-    print str(evalres) + "%"
+    # evaluation
+    eval = SubjDetEval()
+    eval(scorer)
 
 
 if __name__ == "__main__":

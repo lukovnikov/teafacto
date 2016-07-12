@@ -405,7 +405,50 @@ class Block(Elem, Saveable): # block with parameters
         return Var(result)#, parent=self)
 
     # may override: -------------------------------------------------
-    def predict(self, *inputdata, **kwinputdata):
+    @property
+    def predict(self): # returns callable object
+        class BlockPredictor(object):
+            def __init__(self, block):
+                def ident(*args, **kwargs): return args, kwargs
+                self.transform = None
+                self.block = block
+
+            def transform(self, f):
+                assert(isfunction(f))
+                self.transform = f if f is not None and isfunction(f) else self.transform
+
+            def __call__(self, *inputdata, **kwinputdata):    # do predict, take into account prediction settings set
+                if self.transform is not None:
+                    block = TransWrapBlock(self.block, self.transform)
+                else:
+                    block = self.block
+                if block._predictf is None:
+                    # if False or len(self.inputs) == 0 or self.output is None:
+                    inps, outp = block.autobuild(*inputdata, **kwinputdata)
+                    block._predictf = theano.function(outputs=[o.d for o in outp],
+                                                      inputs=[x.d for x in inps])
+                args = []
+
+                def _inner(x):
+                    if isinstance(x, DataFeed):
+                        return x[:]
+                    elif not isinstance(x, np.ndarray):
+                        return np.asarray(x)
+                    else:
+                        return x
+
+                kwn = []
+                for k in sorted(kwinputdata.keys()):
+                    kwn.append(kwinputdata[k])
+                allinputdata = inputdata + tuple(kwn)
+                allinputdata = filter(lambda x: x is not None, allinputdata)
+                args = map(_inner, allinputdata)
+                valret = block._predictf(*args)
+                ret = valret[0] if len(valret) == 1 else tuple(valret)
+                return ret
+        return BlockPredictor(self)
+    """
+    def predict(self, transform=None, *inputdata, **kwinputdata):
         if self._predictf is None:
             #if False or len(self.inputs) == 0 or self.output is None:
             inps, outp = self.autobuild(*inputdata, **kwinputdata)
@@ -427,6 +470,7 @@ class Block(Elem, Saveable): # block with parameters
         valret = self._predictf(*args)
         ret = valret[0] if len(valret) == 1 else tuple(valret)
         return ret
+    """
 
     def gettrainer(self, goldvar):
         return ModelTrainer(self, goldvar)

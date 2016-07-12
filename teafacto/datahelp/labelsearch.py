@@ -174,7 +174,7 @@ class SimpleQuestionsLabelIndex(object):
 
 
 def run(index=False, indexp="labels.map", indexname="sq_subjnames_fb2m",
-        search="e mc", host="drogon", exact=False, top=10):
+        search="e mc", host="localhost", exact=False, top=10):
     idx = SimpleQuestionsLabelIndex(host=host, index=indexname)
     if index is True and indexp is not None:
         idx.index(labelp=indexp)

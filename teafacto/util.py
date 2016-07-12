@@ -188,8 +188,13 @@ def isstring(x):
     return isinstance(x, basestring)
 
 
-def isfunction(x):
+def iscallable(x):
     return hasattr(x, "__call__")
+
+
+def isfunction(x):
+    return iscallable(x)
+
 
 def getnumargs(f):
     return len(inspect.getargspec(f).args)

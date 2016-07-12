@@ -1,3 +1,5 @@
+from teafacto.util import issequence
+
 class Metric(object):
     def __init__(self, **kw):
         self.reset()
@@ -30,6 +32,8 @@ class ClassAccuracy(Metric):
         return "Classification Accuracy"
 
     def accumulate(self, gold, pred):
+        if issequence(pred):
+            pred = pred[0]
         if gold == pred:
             self.acc += 1
         self.div += 1
