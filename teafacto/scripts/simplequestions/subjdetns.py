@@ -15,7 +15,7 @@ from teafacto.datahelp.labelsearch import SimpleQuestionsLabelIndex
 
 """ SUBJECT PREDICTION TRAINING WITH NEGATIVE SAMPLING """
 
-class SubjDetEval(object):
+class SubjRankEval(object):
     def __init__(self, scorer, host="localhost", index="sq_subjnames_fb2m",
                  worddic=None, entdic=None, metrics=None):
         self.scorer = scorer
@@ -23,21 +23,30 @@ class SubjDetEval(object):
         self.wd = worddic
         self.rwd = {v: k for k, v in self.wd}
         self.ed = entdic
-        self.metrics = metrics
+        self.metrics = metrics if metrics is not None else []
 
-    def eval(self, data, gold, assuregold=False, transform=None):     # data: wordidx^(batsize, seqlen), gold: entidx^(batsize)
+    def eval(self, data, gold, transform=None):     # data: wordidx^(batsize, seqlen), gold: entidx^(batsize)
         # generate candidates
         cans = self.gencans(data)           # list of lists of entidx
-        assert len(cans) == data.shape
+        assert len(cans) == data.shape[0] == gold.shape[0]
         #
         predictor = self.scorer.predict.transform(transform)
-        for s, cs in zip(data, cans):
-            for can in cs:
-                pair = (s, can)
-        # transform input data and cans
-        # use scorer to rank
-        # compute evaluation metrics
-        # aggregate metrics
+
+        for i in range(data.shape[0]):
+            numcans = len(cans[i])
+            predinp = np.concatenate(
+                        [np.repeat(data[i, :], numcans),
+                         np.asarray(cans[i]).reshape((numcans, 1))
+                         ], axis=1)
+            predinpscores = predictor(predinp)      # (numcans,)
+            ranking = map(lambda (x, y): x,
+                          sorted(
+                               zip(cans[i], list(predinpscores)),
+                               key=lambda (x, y): y)
+                          )
+            for metric in self.metrics:
+                metric.accumulate(gold[i], ranking)
+        return self.metrics
 
     def gencans(self, data, top=50, exact=True):
         # transform data using worddic and search
