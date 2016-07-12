@@ -410,21 +410,19 @@ class Block(Elem, Saveable): # block with parameters
         class BlockPredictor(object):
             def __init__(self, block):
                 def ident(*args, **kwargs): return args, kwargs
-                self.transform = None
+                self.transform = ident
                 self.block = block
 
             def transform(self, f):
                 assert(isfunction(f))
                 self.transform = f if f is not None and isfunction(f) else self.transform
+                return self
 
             def __call__(self, *inputdata, **kwinputdata):    # do predict, take into account prediction settings set
-                if self.transform is not None:
-                    block = TransWrapBlock(self.block, self.transform)
-                else:
-                    block = self.block
+                block = self.block
                 if block._predictf is None:
                     # if False or len(self.inputs) == 0 or self.output is None:
-                    inps, outp = block.autobuild(*inputdata, **kwinputdata)
+                    inps, outp = block.autobuild.transform(self.transform)(*inputdata, **kwinputdata)
                     block._predictf = theano.function(outputs=[o.d for o in outp],
                                                       inputs=[x.d for x in inps])
                 args = []
@@ -497,34 +495,49 @@ class Block(Elem, Saveable): # block with parameters
         output = self.wrapply(*inps, **kwinps)
         return output
 
-    def autobuild(self, *inputdata, **kwinputdata):
-        inputdata = map(lambda x:
-                        x if isinstance(x, (np.ndarray, DataFeed)) else (np.asarray(x) if x is not None else None),
-                        inputdata)
-        for k in kwinputdata:
-            x = kwinputdata[k]
-            kwinputdata[k] = x if isinstance(x, (np.ndarray, DataFeed)) else (np.asarray(x) if x is not None else None)
-        inputs = []
-        kwinputs = {}
-        inpnum = 1
-        for td in inputdata:
-            inputs.append(None if td is None else Input(ndim=td.ndim, dtype=td.dtype, name="inp:%d" % inpnum))
-            inpnum += 1
-        for k in kwinputdata:
-            td = kwinputdata[k]
-            kwinputs[k] = None if td is None else Input(ndim=td.ndim, dtype=td.dtype, name="kwinp:%s" % k)
-        output = self._build(*inputs, **kwinputs)
+    @property
+    def autobuild(self):
+        class AutoBuilder(object):
+            def __init__(self, block):
+                self.block = block
+                self.transf = None
 
-        kwn = []
-        for k in sorted(kwinputs.keys()):
-            kwn.append(kwinputs[k])
+            def transform(self, f):
+                assert(isfunction(f))
+                self.transf = f if f is not None and isfunction(f) else self.transform
+                return self
 
-        outinputs = inputs + kwn
-        outinputs = filter(lambda x: x is not None, outinputs)
-        output = (output,) if not issequence(output) else output
-        self.inputs = outinputs
-        self.outputs = output
-        return outinputs, output
+            def __call__(self, *inputdata, **kwinputdata):
+                inputdata = map(lambda x:
+                                x if isinstance(x, (np.ndarray, DataFeed)) else (np.asarray(x) if x is not None else None),
+                                inputdata)
+                for k in kwinputdata:
+                    x = kwinputdata[k]
+                    kwinputdata[k] = x if isinstance(x, (np.ndarray, DataFeed)) else (np.asarray(x) if x is not None else None)
+                inputs = []
+                kwinputs = {}
+                inpnum = 1
+                for td in inputdata:
+                    inputs.append(None if td is None else Input(ndim=td.ndim, dtype=td.dtype, name="inp:%d" % inpnum))
+                    inpnum += 1
+                for k in kwinputdata:
+                    td = kwinputdata[k]
+                    kwinputs[k] = None if td is None else Input(ndim=td.ndim, dtype=td.dtype, name="kwinp:%s" % k)
+                if self.transf is not None:
+                    inputs, kwinputs = self.transf(*inputs, **kwinputs)
+                output = self.block._build(*inputs, **kwinputs)
+
+                kwn = []
+                for k in sorted(kwinputs.keys()):
+                    kwn.append(kwinputs[k])
+
+                outinputs = tuple(inputs) + tuple(kwn)
+                outinputs = filter(lambda x: x is not None, outinputs)
+                output = (output,) if not issequence(output) else output
+                self.block.inputs = outinputs
+                self.block.outputs = output
+                return outinputs, output
+        return AutoBuilder(self)
 
     def __call__(self, *args, **kwargs):
         return self.wrapply(*args, **kwargs)
@@ -686,7 +699,7 @@ class NSTrainConfig():
         return self.nsamgen is not None and self.obj is not None
 
     def _makeblock(self):
-        tb = TransWrapBlock(self.block, self.trans)
+        tb = TransWrapBlock(self.block, self.trans) # TODO: factor this TransWrap out
         return NSBlock(tb, self.obj)
 
     def _maketrainer(self):
