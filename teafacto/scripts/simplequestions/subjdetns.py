@@ -300,7 +300,7 @@ def run(
         def __call__(self, datas, gold):    # gold: idx^(batsize,)
             return datas, np.random.randint(self.min, self.max, gold.shape).astype("int32")
 
-    eval = SubjRankEval(scorer, metrics=[ClassAccuracy(), RecallAt(10)])
+    eval = SubjRankEval(scorer, worddic=worddic, entdic=entdic, metrics=[ClassAccuracy(), RecallAt(10)])
     #embed()
     # trainer config and training
     scorer = scorer.nstrain([traindata, traingold]).transform(PreProcf(entmat))\
