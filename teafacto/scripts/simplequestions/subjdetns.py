@@ -22,7 +22,7 @@ class SubjRankEval(object):
         self.scorer = scorer
         self.idx = SimpleQuestionsLabelIndex(host=host, index=index)
         self.wd = worddic
-        self.rwd = {v: k for k, v in self.wd}
+        self.rwd = {v: k for k, v in self.wd.items()}
         self.ed = entdic
         self.metrics = metrics if metrics is not None else []
 
