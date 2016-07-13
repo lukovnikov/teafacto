@@ -301,6 +301,7 @@ def run(
             return datas, np.random.randint(self.min, self.max, gold.shape).astype("int32")
 
     eval = SubjRankEval(scorer, worddic=worddic, entdic=entdic, metrics=[ClassAccuracy(), RecallAt(10)])
+    eval.eval(testdata, testgold, transform=PreProcf)
     #embed()
     # trainer config and training
     scorer = scorer.nstrain([traindata, traingold]).transform(PreProcf(entmat))\
