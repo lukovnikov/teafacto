@@ -12,6 +12,7 @@ from teafacto.blocks.seqproc import SimpleSeq2Idx, SimpleSeq2Vec, SimpleVec2Idx,
 from multiprocessing import Pool, cpu_count
 from contextlib import closing
 from teafacto.datahelp.labelsearch import SimpleQuestionsLabelIndex
+from teafacto.eval.metrics import ClassAccuracy, RecallAt
 
 """ SUBJECT PREDICTION TRAINING WITH NEGATIVE SAMPLING """
 
@@ -299,6 +300,7 @@ def run(
         def __call__(self, datas, gold):    # gold: idx^(batsize,)
             return datas, np.random.randint(self.min, self.max, gold.shape).astype("int32")
 
+    eval = SubjRankEval(scorer, metrics=[ClassAccuracy(), RecallAt(10)])
     #embed()
     # trainer config and training
     scorer = scorer.nstrain([traindata, traingold]).transform(PreProcf(entmat))\
@@ -308,7 +310,7 @@ def run(
         .train(numbats=numbats, epochs=epochs)
 
     # evaluation
-    eval = SubjDetEval()
+    eval = SubjRankEval()
     eval(scorer)
 
 
