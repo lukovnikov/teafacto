@@ -53,15 +53,18 @@ class SubjRankEval(object):
         # transform data using worddic and search
         sentences = []
         cans = []
-        print "generating cans"
+        tt = ticktock("candidate generator")
+        tt.tick("generating cans")
         for i in range(data.shape[0]):
             sentence = " ".join(map(lambda x: self.rwd[x] if x in self.rwd else "", data[i, :]))
             sentences.append(sentence)
             searchres = self.idx.searchsentence(sentence, exact=exact, top=top)
             scans = map(lambda (x, (y, z)): self.ed[x], searchres.items())
             if i % 1000 == 0:
-                print "%d of %d" % (i, data.shape[0])
+                tt.live("%d of %d" % (i, data.shape[0]))
             cans.append(scans)
+        tt.stoplive()
+        tt.tock("generated cans")
         return cans
 
 
