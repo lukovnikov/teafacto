@@ -129,7 +129,7 @@ class ticktock(object):
             return ("%.3f second" % duration) + ("s" if duration > 1 else "")
 
     def _live(self, x, right=None):
-        sys.stdout.write(x + "\r")
+        sys.stdout.write(x)
         if right:
             sys.stdout.write(
                 right.rjust(
