@@ -25,7 +25,7 @@ class SubjRankEval(object):
         self.rwd = {v: k for k, v in self.wd.items()}
         self.ed = entdic
         self.metrics = metrics if metrics is not None else []
-        embed()
+        #embed()
 
     def eval(self, data, gold, transform=None):     # data: wordidx^(batsize, seqlen), gold: entidx^(batsize)
         # generate candidates
@@ -63,7 +63,7 @@ class SubjRankEval(object):
             sentences.append(sentence)
             searchres = self.idx.searchsentence(sentence, exact=exact, top=top)
             scans = map(lambda (x, (y, z)): self.ed[x], searchres.items())
-            if i % 1000 == 0:
+            if i % 10 == 0:
                 tt.live("%d of %d" % (i, data.shape[0]))
             cans.append(scans)
         tt.stoplive()
