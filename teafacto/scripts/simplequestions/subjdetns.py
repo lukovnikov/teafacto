@@ -14,6 +14,12 @@ from contextlib import closing
 from teafacto.datahelp.labelsearch import SimpleQuestionsLabelIndex
 from teafacto.eval.metrics import ClassAccuracy, RecallAt
 
+# persistent memoization
+from tempfile import mkdtemp
+cachedir = mkdtemp()
+from joblib import Memory
+memory = Memory(cachedir=cachedir, verbose=0)
+
 """ SUBJECT PREDICTION TRAINING WITH NEGATIVE SAMPLING """
 
 class SubjRankEval(object):
@@ -50,6 +56,7 @@ class SubjRankEval(object):
                 metric.accumulate(gold[i], ranking)
         return self.metrics
 
+    @memory.cache
     def gencans(self, data, top=50, exact=True):
         # transform data using worddic and search
         sentences = []
