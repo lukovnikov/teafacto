@@ -129,11 +129,18 @@ class ticktock(object):
             return ("%.3f second" % duration) + ("s" if duration > 1 else "")
 
     def _live(self, x, right=None):
-        sys.stdout.write(x)
         if right:
-            sys.stdout.write(
-                right.rjust(
-                    int(os.popen("stty size", "r").read().split()[1]) - len(x) - 2) + "\r")
+            try:
+                ttyw = int(os.popen("stty size", "r").read().split()[1])
+            except Exception:
+                ttyw = None
+            if ttyw is not None:
+                sys.stdout.write(x)
+                sys.stdout.write(right.rjust(ttyw - len(x) - 2) + "\r")
+            else:
+                sys.stdout.write(x + "\t" + right + "\r")
+        else:
+            sys.stdout.write(x + "\r")
         sys.stdout.flush()
 
     def live(self, x):
