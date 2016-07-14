@@ -56,7 +56,7 @@ class SubjRankEval(object):
                 metric.accumulate(gold[i], ranking)
         return self.metrics
 
-@memory.cache
+@memory.cache #(ignore=["idx"])
 def gencans(data, top=50, exact=True, idx=None, rwd=None, ed=None):
     # transform data using worddic and search
     sentences = []
