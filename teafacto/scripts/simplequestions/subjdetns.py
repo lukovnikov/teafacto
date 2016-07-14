@@ -50,7 +50,7 @@ class SubjRankEval(object):
                              key=lambda (x, y): y)
             embed()
             for metric in self.metrics:
-                metric.accumulate(gold[i], ranking)
+                metric.accumulate([gold[i]], ranking)
         return self.metrics
 
 @memory.cache #(ignore=["idx"])
