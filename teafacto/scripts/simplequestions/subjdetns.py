@@ -42,6 +42,7 @@ class SubjRankEval(object):
 
         for i in range(data.shape[0]):
             numcans = len(cans[i])
+            embed()
             predinp = np.concatenate(
                         [np.repeat(data[i, :], numcans),
                          np.asarray(cans[i]).reshape((numcans, 1))
