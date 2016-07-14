@@ -410,20 +410,20 @@ class Block(Elem, Saveable): # block with parameters
         class BlockPredictor(object):
             def __init__(self, block):
                 def ident(*args, **kwargs): return args, kwargs
-                self.transform = ident
+                self.transf = ident
                 self.block = block
 
             def transform(self, f):
                 assert(isfunction(f))
-                self.transform = f if f is not None and isfunction(f) else self.transform
+                self.transf = f if f is not None and isfunction(f) else self.transf
                 return self
 
             def __call__(self, *inputdata, **kwinputdata):    # do predict, take into account prediction settings set
-                if self.block._predictf is None: # or block._predictf._transform != self.transform:
+                if self.block._predictf is None: # or block._predictf._transform != self.transfZ:
                     # if False or len(self.inputs) == 0 or self.output is None:
                     kwinpl = kwinputdata.items()
-                    if self.transform is not None:
-                        kwinpl.append(("transform", self.transform))
+                    if self.transf is not None:
+                        kwinpl.append(("transform", self.transf))
                     inps, outp = self.block.autobuild(*inputdata, **dict(kwinpl))
                     self.block._predictf = theano.function(outputs=[o.d for o in outp],
                                                            inputs=[x.d for x in inps])
@@ -505,8 +505,7 @@ class Block(Elem, Saveable): # block with parameters
     def autobuild(self, *inputdata, **kwinputdata):
         transform = None
         if "transform" in kwinputdata:
-            transform = kwinputdata["transform"]
-            del kwinputdata["transform"]
+            transform = kwinputdata.pop("transform")
         inputdata = map(lambda x:
                         x if isinstance(x, (np.ndarray, DataFeed)) else (np.asarray(x) if x is not None else None),
                         inputdata)
