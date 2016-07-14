@@ -25,6 +25,7 @@ class SubjRankEval(object):
         self.rwd = {v: k for k, v in self.wd.items()}
         self.ed = entdic
         self.metrics = metrics if metrics is not None else []
+        embed()
 
     def eval(self, data, gold, transform=None):     # data: wordidx^(batsize, seqlen), gold: entidx^(batsize)
         # generate candidates
