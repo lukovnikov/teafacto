@@ -419,12 +419,14 @@ class Block(Elem, Saveable): # block with parameters
                 return self
 
             def __call__(self, *inputdata, **kwinputdata):    # do predict, take into account prediction settings set
-                block = self.block
-                if block._predictf is None:
+                if self.block._predictf is None: # or block._predictf._transform != self.transform:
                     # if False or len(self.inputs) == 0 or self.output is None:
-                    inps, outp = block.autobuild.transform(self.transform)(*inputdata, **kwinputdata)
-                    block._predictf = theano.function(outputs=[o.d for o in outp],
-                                                      inputs=[x.d for x in inps])
+                    kwinpl = kwinputdata.items()
+                    if self.transform is not None:
+                        kwinpl.append(("transform", self.transform))
+                    inps, outp = self.block.autobuild(*inputdata, **dict(kwinpl))
+                    self.block._predictf = theano.function(outputs=[o.d for o in outp],
+                                                           inputs=[x.d for x in inps])
                 args = []
 
                 def _inner(x):
@@ -441,7 +443,7 @@ class Block(Elem, Saveable): # block with parameters
                 allinputdata = inputdata + tuple(kwn)
                 allinputdata = filter(lambda x: x is not None, allinputdata)
                 args = map(_inner, allinputdata)
-                valret = block._predictf(*args)
+                valret = self.block._predictf(*args)
                 ret = valret[0] if len(valret) == 1 else tuple(valret)
                 return ret
         return BlockPredictor(self)
@@ -477,9 +479,14 @@ class Block(Elem, Saveable): # block with parameters
     # TODO: what if wrapply gets params in args?
     # TODO: propagate _ownparams to output vars
     def wrapply(self, *args, **kwargs): # is this multi-output compatible?
+        transform = None
+        if "transform" in kwargs and kwargs["transform"] is not None:
+            transform = kwargs.pop("transform")
         paramstopush = set()        # params to transfer from input vars to output vars
         for var in recurfilter(lambda x: isinstance(x, Var), kwargs) + recurfilter(lambda x: isinstance(x, Var), args):
             paramstopush.update(var._params)
+        if transform is not None and isfunction(transform):
+            args, kwargs = transform(*args, **kwargs)
         ret = self.apply(*args, **kwargs)   # ret carries params of its own --> these params have been added in this block
         possiblechildren = recurfilter(lambda x: isinstance(x, Var), ret)
         for p in possiblechildren:
@@ -495,49 +502,43 @@ class Block(Elem, Saveable): # block with parameters
         output = self.wrapply(*inps, **kwinps)
         return output
 
-    @property
-    def autobuild(self):
-        class AutoBuilder(object):
-            def __init__(self, block):
-                self.block = block
-                self.transf = None
+    def autobuild(self, *inputdata, **kwinputdata):
+        transform = None
+        if "transform" in kwinputdata:
+            transform = kwinputdata["transform"]
+            del kwinputdata["transform"]
+        inputdata = map(lambda x:
+                        x if isinstance(x, (np.ndarray, DataFeed)) else (np.asarray(x) if x is not None else None),
+                        inputdata)
+        for k in kwinputdata:
+            x = kwinputdata[k]
+            kwinputdata[k] = x if isinstance(x, (np.ndarray, DataFeed)) else (np.asarray(x)
+                                                  if x is not None else x)
+        inputs = []
+        kwinputs = {}
+        inpnum = 1
+        for td in inputdata:
+            inputs.append(None if td is None else Input(ndim=td.ndim, dtype=td.dtype, name="inp:%d" % inpnum))
+            inpnum += 1
+        for k in kwinputdata:
+            td = kwinputdata[k]
+            kwinputs[k] = None if td is None else Input(ndim=td.ndim, dtype=td.dtype, name="kwinp:%s" % k)
 
-            def transform(self, f):
-                assert(isfunction(f))
-                self.transf = f if f is not None and isfunction(f) else self.transform
-                return self
+        kwinputl = kwinputs.items()
+        if transform is not None:
+            kwinputl.append(("transform", transform))
+        output = self._build(*inputs, **dict(kwinputl))
 
-            def __call__(self, *inputdata, **kwinputdata):
-                inputdata = map(lambda x:
-                                x if isinstance(x, (np.ndarray, DataFeed)) else (np.asarray(x) if x is not None else None),
-                                inputdata)
-                for k in kwinputdata:
-                    x = kwinputdata[k]
-                    kwinputdata[k] = x if isinstance(x, (np.ndarray, DataFeed)) else (np.asarray(x) if x is not None else None)
-                inputs = []
-                kwinputs = {}
-                inpnum = 1
-                for td in inputdata:
-                    inputs.append(None if td is None else Input(ndim=td.ndim, dtype=td.dtype, name="inp:%d" % inpnum))
-                    inpnum += 1
-                for k in kwinputdata:
-                    td = kwinputdata[k]
-                    kwinputs[k] = None if td is None else Input(ndim=td.ndim, dtype=td.dtype, name="kwinp:%s" % k)
-                if self.transf is not None:
-                    inputs, kwinputs = self.transf(*inputs, **kwinputs)
-                output = self.block._build(*inputs, **kwinputs)
+        kwn = []
+        for k in sorted(kwinputs.keys()):
+            kwn.append(kwinputs[k])
 
-                kwn = []
-                for k in sorted(kwinputs.keys()):
-                    kwn.append(kwinputs[k])
-
-                outinputs = tuple(inputs) + tuple(kwn)
-                outinputs = filter(lambda x: x is not None, outinputs)
-                output = (output,) if not issequence(output) else output
-                self.block.inputs = outinputs
-                self.block.outputs = output
-                return outinputs, output
-        return AutoBuilder(self)
+        outinputs = tuple(inputs) + tuple(kwn)
+        outinputs = filter(lambda x: x is not None, outinputs)
+        output = (output,) if not issequence(output) else output
+        self.inputs = outinputs
+        self.outputs = output
+        return outinputs, output
 
     def __call__(self, *args, **kwargs):
         return self.wrapply(*args, **kwargs)
