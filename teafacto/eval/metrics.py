@@ -33,7 +33,10 @@ class ClassAccuracy(Metric):
 
     def accumulate(self, gold, pred):
         if issequence(pred):
-            pred = pred[0]
+            pred = pred[0][0]
+        if issequence(gold):
+            assert(len(gold) == 1)
+            gold = gold[0]
         if gold == pred:
             self.acc += 1
         self.div += 1

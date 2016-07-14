@@ -88,7 +88,7 @@ class ticktock(object):
             if self.perc != self.prevperc:
                 topr = "%s: %d" % (self.prefix, self.perc) + "%"
                 if live:
-                    self._live(topr+"\r")
+                    self._live(topr)
                 else:
                     print(topr)
                 self.prevperc = self.perc
@@ -128,17 +128,22 @@ class ticktock(object):
         else:
             return ("%.3f second" % duration) + ("s" if duration > 1 else "")
 
-    def _live(self, x):
+    def _live(self, x, right=None):
         sys.stdout.write(x)
+        if right:
+            sys.stdout.write(
+                right.rjust(
+                    int(os.popen("stty size", "r").read().split()[1]) - len(x) - 2) + "\r")
         sys.stdout.flush()
 
     def live(self, x):
         if self.verbose:
-            self._live(self.prefix + ": " + x+("\t T: %s \r" % self._getdurationstr(self._tock())))
+            self._live(self.prefix + ": " + x, "T: %s" % self._getdurationstr(self._tock()))
 
     def stoplive(self):
         if self.verbose:
-            self._live("\r\033[K")
+            sys.stdout.write("\r\033[K")
+            sys.stdout.flush()
 
 
 def argparsify(f, test=None):

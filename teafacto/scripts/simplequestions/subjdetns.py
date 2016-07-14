@@ -12,6 +12,13 @@ from teafacto.blocks.seqproc import SimpleSeq2Idx, SimpleSeq2Vec, SimpleVec2Idx,
 from multiprocessing import Pool, cpu_count
 from contextlib import closing
 from teafacto.datahelp.labelsearch import SimpleQuestionsLabelIndex
+from teafacto.eval.metrics import ClassAccuracy, RecallAt
+
+# persistent memoization
+from tempfile import mkdtemp
+cachedir = mkdtemp()
+from joblib import Memory
+memory = Memory(cachedir=cachedir, verbose=0)
 
 """ SUBJECT PREDICTION TRAINING WITH NEGATIVE SAMPLING """
 
@@ -19,46 +26,53 @@ class SubjRankEval(object):
     def __init__(self, scorer, host="localhost", index="sq_subjnames_fb2m",
                  worddic=None, entdic=None, metrics=None):
         self.scorer = scorer
-        self.idx = SimpleQuestionsLabelIndex(host=host, index=index)
+        self.host = host
+        self.index = index
         self.wd = worddic
-        self.rwd = {v: k for k, v in self.wd}
+        self.rwd = {v: k for k, v in self.wd.items()}
         self.ed = entdic
         self.metrics = metrics if metrics is not None else []
+        #embed()
 
     def eval(self, data, gold, transform=None):     # data: wordidx^(batsize, seqlen), gold: entidx^(batsize)
         # generate candidates
-        cans = self.gencans(data)           # list of lists of entidx
+        cans = gencans(data, host=self.host, index=self.index, rwd=self.rwd, ed=self.ed)           # list of lists of entidx
         assert len(cans) == data.shape[0] == gold.shape[0]
         #
         predictor = self.scorer.predict.transform(transform)
 
         for i in range(data.shape[0]):
             numcans = len(cans[i])
-            predinp = np.concatenate(
-                        [np.repeat(data[i, :], numcans),
-                         np.asarray(cans[i]).reshape((numcans, 1))
-                         ], axis=1)
-            predinpscores = predictor(predinp)      # (numcans,)
-            ranking = map(lambda (x, y): x,
-                          sorted(
-                               zip(cans[i], list(predinpscores)),
-                               key=lambda (x, y): y)
-                          )
+            predinp = [np.repeat(np.expand_dims(data[i, :], axis=0), numcans, axis=0),
+                       np.asarray(cans[i], dtype="int32")]
+            predinpscores = predictor(*predinp)      # (numcans,)
+            ranking = sorted(zip(cans[i], list(predinpscores)),
+                             key=lambda (x, y): y)
             for metric in self.metrics:
-                metric.accumulate(gold[i], ranking)
+                metric.accumulate([gold[i]], ranking)
         return self.metrics
 
-    def gencans(self, data, top=50, exact=True):
-        # transform data using worddic and search
-        sentences = []
-        cans = []
-        for i in range(data.shape[0]):
-            sentence = " ".join(map(lambda x: self.rwd[x], data[i, :]))
-            sentences.append(sentence)
-            scans = map(lambda (x, (y, z)): self.ed[x],
-                        self.idx.searchsentence(sentence, exact=exact, top=top))
-            cans.append(scans)
-        return cans
+@memory.cache #(ignore=["idx"])
+def gencans(data, top=50, exact=True, rwd=None, ed=None, host=None, index=None):
+    idx = SimpleQuestionsLabelIndex(host=host, index=index)
+    # transform data using worddic and search
+    sentences = []
+    cans = []
+    tt = ticktock("candidate generator")
+    tt.tick("generating cans")
+    for i in range(data.shape[0]):
+        sentence = " ".join(
+                        map(lambda x: rwd[x],
+                            filter(lambda x: x in rwd, data[i, :])))
+        sentences.append(sentence)
+        searchres = idx.searchsentence(sentence, exact=exact, top=top)
+        scans = map(lambda (x, (y, z)): ed[x], searchres.items())
+        if i % 10 == 0:
+            tt.live("%d of %d" % (i, data.shape[0]))
+        cans.append(scans)
+    tt.stoplive()
+    tt.tock("generated cans")
+    return cans
 
 
 
@@ -299,6 +313,9 @@ def run(
         def __call__(self, datas, gold):    # gold: idx^(batsize,)
             return datas, np.random.randint(self.min, self.max, gold.shape).astype("int32")
 
+    eval = SubjRankEval(scorer, worddic=worddic, entdic=entdic, metrics=[ClassAccuracy(), RecallAt(10)])
+    eval.eval(testdata, testgold, transform=PreProcf(entmat))
+    tt.msg("tested dummy")
     #embed()
     # trainer config and training
     scorer = scorer.nstrain([traindata, traingold]).transform(PreProcf(entmat))\
@@ -308,7 +325,7 @@ def run(
         .train(numbats=numbats, epochs=epochs)
 
     # evaluation
-    eval = SubjDetEval()
+    eval = SubjRankEval()
     eval(scorer)
 
 
