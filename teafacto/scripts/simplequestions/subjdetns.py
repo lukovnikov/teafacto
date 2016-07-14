@@ -31,6 +31,7 @@ class SubjRankEval(object):
         self.rwd = {v: k for k, v in self.wd.items()}
         self.ed = entdic
         self.metrics = metrics if metrics is not None else []
+        self.gencans = memory.cache(self.gencans)
         #embed()
 
     def eval(self, data, gold, transform=None):     # data: wordidx^(batsize, seqlen), gold: entidx^(batsize)
@@ -56,7 +57,6 @@ class SubjRankEval(object):
                 metric.accumulate(gold[i], ranking)
         return self.metrics
 
-    @memory.cache
     def gencans(self, data, top=50, exact=True):
         # transform data using worddic and search
         sentences = []
