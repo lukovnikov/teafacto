@@ -57,7 +57,6 @@ class SubjRankEval(object):
             sentence = " ".join(map(lambda x: self.rwd[x] if x in self.rwd else "", data[i, :]))
             sentences.append(sentence)
             searchres = self.idx.searchsentence(sentence, exact=exact, top=top)
-            print searchres
             scans = map(lambda (x, (y, z)): self.ed[x], searchres.items())
 
             cans.append(scans)
