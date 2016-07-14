@@ -31,7 +31,7 @@ class SubjRankEval(object):
         self.rwd = {v: k for k, v in self.wd.items()}
         self.ed = entdic
         self.metrics = metrics if metrics is not None else []
-        self.gencans = memory.cache(self.gencans)
+        self.gencans = memory.cache(self.gencans, ignore=[self])
         #embed()
 
     def eval(self, data, gold, transform=None):     # data: wordidx^(batsize, seqlen), gold: entidx^(batsize)
