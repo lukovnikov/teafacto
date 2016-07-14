@@ -320,6 +320,7 @@ def run(
     eval = SubjRankEval(scorer, worddic=worddic, entdic=entdic, metrics=[ClassAccuracy(), RecallAt(10)])
     eval.eval(testdata, testgold, transform=PreProcf(entmat))
     tt.msg("tested dummy")
+    sys.exit()
     #embed()
     # trainer config and training
     scorer = scorer.nstrain([traindata, traingold]).transform(PreProcf(entmat))\
