@@ -26,7 +26,8 @@ class SubjRankEval(object):
     def __init__(self, scorer, host="localhost", index="sq_subjnames_fb2m",
                  worddic=None, entdic=None, metrics=None):
         self.scorer = scorer
-        self.idx = SimpleQuestionsLabelIndex(host=host, index=index)
+        self.host = host
+        self.index = index
         self.wd = worddic
         self.rwd = {v: k for k, v in self.wd.items()}
         self.ed = entdic
@@ -35,7 +36,7 @@ class SubjRankEval(object):
 
     def eval(self, data, gold, transform=None):     # data: wordidx^(batsize, seqlen), gold: entidx^(batsize)
         # generate candidates
-        cans = gencans(data, idx=self.idx, rwd=self.rwd, ed=self.ed)           # list of lists of entidx
+        cans = gencans(data, host=self.host, index=self.index, rwd=self.rwd, ed=self.ed)           # list of lists of entidx
         assert len(cans) == data.shape[0] == gold.shape[0]
         #
         predictor = self.scorer.predict.transform(transform)
@@ -43,11 +44,9 @@ class SubjRankEval(object):
         for i in range(data.shape[0]):
             numcans = len(cans[i])
             embed()
-            predinp = np.concatenate(
-                        [np.repeat(data[i, :], numcans),
-                         np.asarray(cans[i]).reshape((numcans, 1))
-                         ], axis=1)
-            predinpscores = predictor(predinp)      # (numcans,)
+            predinp = [np.repeat(np.expand_dims(data[i, :], axis=0), numcans, axis=0),
+                       np.expand_dims(np.asarray(cans[i], dtype="int32"), axis=1)]
+            predinpscores = predictor(*predinp)      # (numcans,)
             ranking = map(lambda (x, y): x,
                           sorted(
                                zip(cans[i], list(predinpscores)),
@@ -58,7 +57,8 @@ class SubjRankEval(object):
         return self.metrics
 
 @memory.cache #(ignore=["idx"])
-def gencans(data, top=50, exact=True, idx=None, rwd=None, ed=None):
+def gencans(data, top=50, exact=True, rwd=None, ed=None, host=None, index=None):
+    idx = SimpleQuestionsLabelIndex(host=host, index=index)
     # transform data using worddic and search
     sentences = []
     cans = []
@@ -318,7 +318,7 @@ def run(
             return datas, np.random.randint(self.min, self.max, gold.shape).astype("int32")
 
     eval = SubjRankEval(scorer, worddic=worddic, entdic=entdic, metrics=[ClassAccuracy(), RecallAt(10)])
-    eval.eval(testdata, testgold, transform=PreProcf)
+    eval.eval(testdata, testgold, transform=PreProcf(entmat))
     tt.msg("tested dummy")
     #embed()
     # trainer config and training
