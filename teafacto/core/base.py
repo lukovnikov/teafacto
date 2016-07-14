@@ -410,16 +410,17 @@ class Block(Elem, Saveable): # block with parameters
         class BlockPredictor(object):
             def __init__(self, block):
                 def ident(*args, **kwargs): return args, kwargs
-                self.transform = None
+                self.transf = None
                 self.block = block
 
             def transform(self, f):
                 assert(isfunction(f))
-                self.transform = f if f is not None and isfunction(f) else self.transform
+                self.transf = f if f is not None and isfunction(f) else self.transf
+                return self
 
             def __call__(self, *inputdata, **kwinputdata):    # do predict, take into account prediction settings set
-                if self.transform is not None:
-                    block = TransWrapBlock(self.block, self.transform)
+                if self.transf is not None:
+                    block = TransWrapBlock(self.block, self.transf)
                 else:
                     block = self.block
                 if block._predictf is None:
