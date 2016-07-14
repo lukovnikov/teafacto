@@ -48,7 +48,6 @@ class SubjRankEval(object):
             predinpscores = predictor(*predinp)      # (numcans,)
             ranking = sorted(zip(cans[i], list(predinpscores)),
                              key=lambda (x, y): y)
-            embed()
             for metric in self.metrics:
                 metric.accumulate([gold[i]], ranking)
         return self.metrics
