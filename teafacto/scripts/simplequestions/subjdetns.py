@@ -54,10 +54,11 @@ class SubjRankEval(object):
         sentences = []
         cans = []
         for i in range(data.shape[0]):
-            sentence = " ".join(map(lambda x: self.rwd[x], data[i, :]))
+            sentence = " ".join(map(lambda x: self.rwd[x] if x in self.rwd else "", data[i, :]))
             sentences.append(sentence)
             scans = map(lambda (x, (y, z)): self.ed[x],
                         self.idx.searchsentence(sentence, exact=exact, top=top))
+
             cans.append(scans)
         return cans
 
