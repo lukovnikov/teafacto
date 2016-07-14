@@ -45,12 +45,15 @@ class SubjRankEval(object):
             numcans = len(cans[i])
             predinp = [np.repeat(np.expand_dims(data[i, :], axis=0), numcans, axis=0),
                        np.asarray(cans[i], dtype="int32")]
-            print predinp, "%d/%d" % (i, data.shape[0])
-            predinpscores = predictor(*predinp)      # (numcans,)
-            ranking = sorted(zip(cans[i], list(predinpscores)),
-                             key=lambda (x, y): y)
-            for metric in self.metrics:
-                metric.accumulate([gold[i]], ranking)
+            print predinp, "%d/%d" % (i, data.shape[0]), numcans
+            if numcans > 0:
+                predinpscores = predictor(*predinp)      # (numcans,)
+                ranking = sorted(zip(cans[i], list(predinpscores)),
+                                 key=lambda (x, y): y)
+                for metric in self.metrics:
+                    metric.accumulate([gold[i]], ranking)
+            else:
+                print "no cans: %d" % (i, )
         return self.metrics
 
 @memory.cache #(ignore=["idx"])
