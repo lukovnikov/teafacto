@@ -56,7 +56,9 @@ class SubjRankEval(object):
         tt = ticktock("candidate generator")
         tt.tick("generating cans")
         for i in range(data.shape[0]):
-            sentence = " ".join(map(lambda x: self.rwd[x] if x in self.rwd else "", data[i, :]))
+            sentence = " ".join(
+                            map(lambda x: self.rwd[x],
+                                filter(lambda x: x in self.rwd, data[i, :])))
             sentences.append(sentence)
             searchres = self.idx.searchsentence(sentence, exact=exact, top=top)
             scans = map(lambda (x, (y, z)): self.ed[x], searchres.items())
