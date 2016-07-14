@@ -45,7 +45,7 @@ class SubjRankEval(object):
             numcans = len(cans[i])
             predinp = [np.repeat(np.expand_dims(data[i, :], axis=0), numcans, axis=0),
                        np.asarray(cans[i], dtype="int32")]
-            print predinp
+            print predinp, i
             predinpscores = predictor(*predinp)      # (numcans,)
             ranking = sorted(zip(cans[i], list(predinpscores)),
                              key=lambda (x, y): y)
