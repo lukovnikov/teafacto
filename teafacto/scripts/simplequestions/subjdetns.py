@@ -31,12 +31,11 @@ class SubjRankEval(object):
         self.rwd = {v: k for k, v in self.wd.items()}
         self.ed = entdic
         self.metrics = metrics if metrics is not None else []
-        self.gencans = memory.cache(self.gencans, ignore=["self"])
         #embed()
 
     def eval(self, data, gold, transform=None):     # data: wordidx^(batsize, seqlen), gold: entidx^(batsize)
         # generate candidates
-        cans = self.gencans(data)           # list of lists of entidx
+        cans = gencans(data, idx=self.idx, rwd=self.rwd, ed=self.ed)           # list of lists of entidx
         assert len(cans) == data.shape[0] == gold.shape[0]
         #
         predictor = self.scorer.predict.transform(transform)
@@ -57,25 +56,26 @@ class SubjRankEval(object):
                 metric.accumulate(gold[i], ranking)
         return self.metrics
 
-    def gencans(self, data, top=50, exact=True):
-        # transform data using worddic and search
-        sentences = []
-        cans = []
-        tt = ticktock("candidate generator")
-        tt.tick("generating cans")
-        for i in range(data.shape[0]):
-            sentence = " ".join(
-                            map(lambda x: self.rwd[x],
-                                filter(lambda x: x in self.rwd, data[i, :])))
-            sentences.append(sentence)
-            searchres = self.idx.searchsentence(sentence, exact=exact, top=top)
-            scans = map(lambda (x, (y, z)): self.ed[x], searchres.items())
-            if i % 10 == 0:
-                tt.live("%d of %d" % (i, data.shape[0]))
-            cans.append(scans)
-        tt.stoplive()
-        tt.tock("generated cans")
-        return cans
+@memory.cache
+def gencans(data, top=50, exact=True, idx=None, rwd=None, ed=None):
+    # transform data using worddic and search
+    sentences = []
+    cans = []
+    tt = ticktock("candidate generator")
+    tt.tick("generating cans")
+    for i in range(data.shape[0]):
+        sentence = " ".join(
+                        map(lambda x: rwd[x],
+                            filter(lambda x: x in rwd, data[i, :])))
+        sentences.append(sentence)
+        searchres = idx.searchsentence(sentence, exact=exact, top=top)
+        scans = map(lambda (x, (y, z)): ed[x], searchres.items())
+        if i % 10 == 0:
+            tt.live("%d of %d" % (i, data.shape[0]))
+        cans.append(scans)
+    tt.stoplive()
+    tt.tock("generated cans")
+    return cans
 
 
 
