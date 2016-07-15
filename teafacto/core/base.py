@@ -639,8 +639,8 @@ class NSBlock(Block):
         rvars = vars[len(vars)/2:]
         return self.obj(self.inner(*lvars), self.inner(*rvars))
 
-    def predict(self, *x, **xx):
-        return self.inner.predict(*x, **xx)
+    def predict(self):
+        return self.inner.predict
 
 
 class TransWrapBlock(Block):
