@@ -8,7 +8,7 @@ from teafacto.util import argprun, tokenize
 def run(trainp="fb_train.tsv",
         testp="fb_test.tsv",
         validp="fb_valid.tsv",
-        outp="datamat.word.mem.fb2m.pkl",
+        outp="datamat.wordchar.mem.fb2m.pkl",
         entnames="subjnames_fb2m.map",
         rellist="rels_fb2m.list",
         maxnamelen=30,
