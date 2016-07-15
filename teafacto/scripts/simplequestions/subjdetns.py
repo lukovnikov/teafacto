@@ -43,6 +43,7 @@ class SubjRankEval(object):
         predictor = self.scorer.predict.transform(transform)
         tt = ticktock("evaluator")
         tt.tick("evaluating...")
+        nocans = 0
         for i in range(data.shape[0]):
             numcans = len(cans[i])
             predinp = [np.repeat(np.expand_dims(data[i, :], axis=0), numcans, axis=0),
@@ -55,10 +56,11 @@ class SubjRankEval(object):
                 for metric in self.metrics:
                     metric.accumulate([gold[i]], ranking)
             else:
-                print "no cans: %d" % (i, )
+                nocans += 1
             if i % 1000 == 0:
                 tt.live("evaluated: %.2f%%" % (i*100./data.shape[0]))
         tt.tock("evaluated")
+        print "no cans for %d questions" % nocans
         return self.metrics
 
 @memory.cache(ignore=["data", "rwd", "ed"])
