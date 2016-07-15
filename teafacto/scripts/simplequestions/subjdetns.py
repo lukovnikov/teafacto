@@ -56,7 +56,7 @@ class SubjRankEval(object):
                 print "no cans: %d" % (i, )
         return self.metrics
 
-@memory.cache #(ignore=["idx"])
+@memory.cache(ignore=["data"])
 def gencans(data, top=50, exact=True, rwd=None, ed=None, host=None, index=None):
     idx = SimpleQuestionsLabelIndex(host=host, index=index)
     # transform data using worddic and search
