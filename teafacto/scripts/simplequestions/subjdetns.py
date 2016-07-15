@@ -350,7 +350,7 @@ def run(
     # trainer config and training
     obj = lambda p, n: n - p
     if rankingloss:
-        obj = lambda p, n: T.max(0, rlmargin + n - p)
+        obj = lambda p, n: (n - p + rlmargin).clip(0, np.infty)
     nscorer = scorer.nstrain([traindata, traingold]).transform(PreProcf(entmat))\
         .negsamplegen(NegIdxGen(numents)).negrate(negrate).objective(obj)\
         .adagrad(lr=lr).l2(wreg).grad_total_norm(1.0)\
