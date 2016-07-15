@@ -13,7 +13,7 @@ from multiprocessing import Pool, cpu_count
 from contextlib import closing
 from teafacto.datahelp.labelsearch import SimpleQuestionsLabelIndex
 from teafacto.eval.metrics import ClassAccuracy, RecallAt
-from teafacto.core import tensorops as T
+from teafacto.core.base import tensorops as T
 
 # persistent memoization
 from tempfile import mkdtemp
