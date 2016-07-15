@@ -40,7 +40,8 @@ class SubjRankEval(object):
         assert len(cans) == data.shape[0] == gold.shape[0]
         #
         predictor = self.scorer.predict.transform(transform)
-
+        tt = ticktock("evaluator")
+        tt.tick("evaluating...")
         for i in range(data.shape[0]):
             numcans = len(cans[i])
             predinp = [np.repeat(np.expand_dims(data[i, :], axis=0), numcans, axis=0),
@@ -54,9 +55,12 @@ class SubjRankEval(object):
                     metric.accumulate([gold[i]], ranking)
             else:
                 print "no cans: %d" % (i, )
+            if i % 1000 == 0:
+                tt.live("evaluated: %.2f%%" % (i*1./data.shape[0]))
+        tt.tock("evaluated")
         return self.metrics
 
-@memory.cache(ignore=["data"])
+@memory.cache(ignore=["data", "rwd", "ed"])
 def gencans(data, top=50, exact=True, rwd=None, ed=None, host=None, index=None):
     idx = SimpleQuestionsLabelIndex(host=host, index=index)
     # transform data using worddic and search

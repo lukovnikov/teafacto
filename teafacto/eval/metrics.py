@@ -44,6 +44,9 @@ class ClassAccuracy(Metric):
     def compute(self):
         return self.acc / self.div
 
+    def __str__(self):
+        return "Acc: %.3f%%" % (self.compute()/100.)
+
 
 class RecallAt(Metric):
     def __init__(self, top, **kw):
@@ -62,6 +65,9 @@ class RecallAt(Metric):
 
     def compute(self):
         return self.acc / self.div
+
+    def __str__(self):
+        return "R@%d: %.3f" % (self.topn, self.compute())
 
 
 class MeanQuantile(Metric):
@@ -84,3 +90,6 @@ class MeanQuantile(Metric):
 
     def compute(self):
         return self.acc / self.div
+
+    def __str__(self):
+        return "MQ:%.3f" % self.compute()
