@@ -266,7 +266,7 @@ class Seq2Vec(Block):
 # specify by dims
 class SimpleSeq2Vec(Seq2Vec):
     def __init__(self, indim=400, inpembdim=50, inpemb=None, innerdim=100, maskid=0, bidir=False, **kw):
-        if inpemb is not None:
+        if inpemb is None:
             if inpembdim is None:
                 inpemb = IdxToOneHot(indim)
                 inpembdim = indim
