@@ -134,6 +134,7 @@ class ticktock(object):
         if right:
             try:
                 ttyw = int(os.popen("stty size", "r").read().split()[1])
+                raise Exception("qsdf")
             except Exception:
                 ttyw = None
             if ttyw is not None:

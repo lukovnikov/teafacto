@@ -13,6 +13,7 @@ from multiprocessing import Pool, cpu_count
 from contextlib import closing
 from teafacto.datahelp.labelsearch import SimpleQuestionsLabelIndex
 from teafacto.eval.metrics import ClassAccuracy, RecallAt
+from teafacto.core import tensorops as T
 
 # persistent memoization
 from tempfile import mkdtemp
@@ -21,6 +22,7 @@ from joblib import Memory
 memory = Memory(cachedir=cachedir, verbose=0)
 
 """ SUBJECT PREDICTION TRAINING WITH NEGATIVE SAMPLING """
+
 
 class SubjRankEval(object):
     def __init__(self, scorer, host="localhost", index="sq_subjnames_fb2m",
@@ -60,7 +62,7 @@ class SubjRankEval(object):
                     metric.accumulate([gold[i]], ranking)
             else:
                 nocans += 1
-            if i % 1000 == 0:
+            if i % 100 == 0:
                 tt.live("evaluated: %.2f%%" % (i*100./data.shape[0]))
         tt.tock("evaluated")
         print "no cans for %d questions" % nocans
@@ -88,7 +90,6 @@ def gencans(data, top=50, exact=True, rwd=None, ed=None, host=None, index=None):
     tt.stoplive()
     tt.tock("generated cans")
     return cans
-
 
 
 def _readdata(p):
@@ -338,7 +339,7 @@ def run(
     #embed()
     # trainer config and training
     nscorer = scorer.nstrain([traindata, traingold]).transform(PreProcf(entmat))\
-        .negsamplegen(NegIdxGen(numents)).negrate(negrate).objective(lambda p, n: p - n)\
+        .negsamplegen(NegIdxGen(numents)).negrate(negrate).objective(lambda p, n: n - p)\
         .adagrad(lr=lr).l2(wreg).grad_total_norm(1.0)\
         .validate_on([validdata, validgold]).takebest()\
         .train(numbats=numbats, epochs=epochs)

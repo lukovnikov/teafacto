@@ -160,7 +160,7 @@ class TestNSModelTrainer(TestCase):
 
         m = m.nstrain([idxs, idxs]).negsamplegen(NegIdxGen(num+1)).negrate(5)\
             .adagrad(lr=0.1)\
-            .train(numbats=50, epochs=100)
+            .train(numbats=50, epochs=50)
 
         print m.predict([num, num-1, num-2, num-1], [num, num-1, num-2, num-2])
 

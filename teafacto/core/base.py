@@ -639,6 +639,7 @@ class NSBlock(Block):
         rvars = vars[len(vars)/2:]
         return self.obj(self.inner(*lvars), self.inner(*rvars))
 
+    @property
     def predict(self):
         return self.inner.predict
 
