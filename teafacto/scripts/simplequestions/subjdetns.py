@@ -271,7 +271,7 @@ def run(
         = readdata(datap, charlevel)
 
     print entmat.shape
-    print traindata.shape, traingold.shape
+    print traindata.shape, traingold.shape, testdata.shape, testgold.shape
 
     tt.tock("data loaded")
 
@@ -307,10 +307,10 @@ def run(
             innerdim = [innerdim]*memlayers
         memembdim = embdim
         meminpemb = None if charlevel else qenc.inpemb
-        #memembdim = None if charlevel else memembdim
+        memembdim = None if charlevel else memembdim
         lenc = SimpleSeq2Vec(indim=numwords,
                                 inpembdim=memembdim,
-                                inpemb=None,
+                                inpemb=meminpemb,
                                 innerdim=innerdim,
                                 maskid=-1,
                                 bidir=membidir)
