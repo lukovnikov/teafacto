@@ -267,7 +267,7 @@ def run(
         layers=1,
         testfirst=False,
         rankingloss=False,
-        rlmargin=1,
+        rlmargin=1.,
         ):
 
     tt = ticktock("script")
