@@ -116,12 +116,12 @@ def _readdata(p):
     return train, valid, test, x, newdic
 
 
-def readdata(p):
+def readdata(p, charlevel=False):
     x = pickle.load(open(p))
     def preprocessforsubjdet(x):
         goldmat = x[1]
         return x[0], goldmat[:, 0]
-    worddic = x["worddic"]
+    worddic = x["worddic"] if not charlevel else x["chardic"]
     entdic = x["entdic"]
     numents = x["numents"]
     newdic = {}
@@ -247,7 +247,6 @@ def evaluate(pred, gold):
 def run(
         epochs=10,
         numbats=100,
-        numsam=10000,
         negrate=1,
         lr=0.1,
         datap="../../../data/simplequestions/datamat.word.mem.fb2m.pkl",
@@ -255,26 +254,21 @@ def run(
         innerdim=200,
         wreg=0.00005,
         bidir=False,
-        keepmincount=5,
         mem=False,
-        dynmem=False,
-        sameenc=False,
-        memaddr="dot",
-        memattdim=100,
         membidir=False,
         memlayers=1,
-        memmaxwords=5,
         layers=1,
         testfirst=False,
         rankingloss=False,
         rlmargin=1.,
+        charlevel=False,
         ):
 
     tt = ticktock("script")
     tt.tick()
     (traindata, traingold), (validdata, validgold), (testdata, testgold), \
     worddic, entdic, entmat\
-        = readdata(datap)
+        = readdata(datap, charlevel)
 
     print entmat.shape
     print traindata.shape, traingold.shape
@@ -297,6 +291,7 @@ def run(
 
     # question representation:
     # encodes question sequence to vector
+    embdim = None if charlevel else embdim
     qenc = SimpleSeq2Vec(indim=numwords,
                         inpembdim=embdim,
                         innerdim=encinnerdim,
@@ -311,6 +306,7 @@ def run(
         else:
             innerdim = [innerdim]*memlayers
         memembdim = embdim
+        memembdim = None if charlevel else memembdim
         lenc = SimpleSeq2Vec(indim=numwords,
                                 inpembdim=memembdim,
                                 innerdim=innerdim,
