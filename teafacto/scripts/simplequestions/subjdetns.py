@@ -39,6 +39,7 @@ class SubjRankEval(object):
         cans = gencans(data, host=self.host, index=self.index, rwd=self.rwd, ed=self.ed)           # list of lists of entidx
         assert len(cans) == data.shape[0] == gold.shape[0]
         #
+        embed()
         predictor = self.scorer.predict.transform(transform)
         tt = ticktock("evaluator")
         tt.tick("evaluating...")
@@ -338,7 +339,9 @@ def run(
 
     # evaluation
     eval = SubjRankEval(scorer, worddic=worddic, entdic=entdic, metrics=[ClassAccuracy(), RecallAt(10)])
+
     evalres = eval.eval(testdata, testgold, transform=PreProcf(entmat))
+
     print evalres
 
 
