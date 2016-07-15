@@ -7,7 +7,7 @@ from teafacto.blocks.rnu import GRU
 from teafacto.core.base import Block, tensorops as T, Val
 from teafacto.core.stack import stack
 from teafacto.blocks.memory import MemoryStack, MemoryBlock, DotMemAddr, GeneralDotMemAddr, LinearGateMemAddr
-from teafacto.util import issequence
+from teafacto.util import issequence, isnumber
 
 
 class SeqEncDec(Block):
@@ -253,6 +253,7 @@ class Seq2Vec(Block):
     def __init__(self, inpemb, enclayers, maskid=0, **kw):
         super(Seq2Vec, self).__init__(**kw)
         self.maskid = maskid
+        self.inpemb = inpemb
         if not issequence(enclayers):
             enclayers = [enclayers]
         self.enc = SeqEncoder(inpemb, *enclayers).maskoptions(maskid, MaskMode.AUTO)
@@ -268,6 +269,8 @@ class SimpleSeq2Vec(Seq2Vec):
         if inpembdim is None:
             inpemb = IdxToOneHot(indim)
             inpembdim = indim
+        elif not isnumber(inpembdim):
+            inpemb = inpembdim
         else:
             inpemb = VectorEmbed(indim=indim, dim=inpembdim)
         rnn, lastdim = self.makernu(inpembdim, innerdim, bidir=bidir)

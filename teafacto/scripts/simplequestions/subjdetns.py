@@ -306,7 +306,7 @@ def run(
         else:
             innerdim = [innerdim]*memlayers
         memembdim = embdim
-        memembdim = None if charlevel else memembdim
+        memembdim = None if charlevel else qenc.inpemb  # share embeddings for words
         lenc = SimpleSeq2Vec(indim=numwords,
                                 inpembdim=memembdim,
                                 innerdim=innerdim,
@@ -347,7 +347,7 @@ def run(
     obj = lambda p, n: n - p
     if rankingloss:
         obj = lambda p, n: (n - p + rlmargin).clip(0, np.infty)
-    nscorer = scorer.nstrain([traindata, traingold]).transform(PreProcf(entmat))\
+    nscorer = scorer.nstrain([testdata, testdata]).transform(PreProcf(entmat))\
         .negsamplegen(NegIdxGen(numents)).negrate(negrate).objective(obj)\
         .adagrad(lr=lr).l2(wreg).grad_total_norm(1.0)\
         .validate_on([validdata, validgold]).takebest()\
@@ -356,7 +356,7 @@ def run(
     # evaluation
     eval = SubjRankEval(scorer, worddic=worddic, entdic=entdic, metrics=[ClassAccuracy(), RecallAt(5)])
 
-    evalres = eval.eval(traindata[:10000], traingold[:10000], transform=PreProcf(entmat))
+    evalres = eval.eval(testdata, testdata, transform=PreProcf(entmat))
     for evalre in evalres:
         print evalre
 
