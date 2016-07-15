@@ -1,4 +1,4 @@
-import sys, re
+import sys, re, os.path
 from IPython import embed
 from teafacto.util import argprun, tokenize, ticktock
 from teafacto.blocks.memory import LinearGateMemAddr, DotMemAddr
@@ -38,7 +38,11 @@ class SubjRankEval(object):
 
     def eval(self, data, gold, transform=None):     # data: wordidx^(batsize, seqlen), gold: entidx^(batsize)
         # generate candidates
-        cans = gencans(data, host=self.host, index=self.index, rwd=self.rwd, ed=self.ed)           # list of lists of entidx
+        if os.path.isfile("testcans.pkl"):
+            cans = self.loadcans("testcans.pkl")
+        else:
+            cans = gencans(data, host=self.host, index=self.index, rwd=self.rwd, ed=self.ed)           # list of lists of entidx
+            pickle.dump(cans, open("testcans.pkl", "w"))
         assert len(cans) == data.shape[0] == gold.shape[0]
         #
         embed()
@@ -68,6 +72,9 @@ class SubjRankEval(object):
         print "no cans for %d questions" % nocans
         print "gold not among cans for %d questions" % nogoldcan
         return self.metrics
+
+    def loadcans(self, p):
+        return pickle.load(open(p))
 
 @memory.cache(ignore=["data", "rwd", "ed"])
 def gencans(data, top=50, exact=True, rwd=None, ed=None, host=None, index=None):
