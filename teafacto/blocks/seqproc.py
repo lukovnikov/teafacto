@@ -265,14 +265,13 @@ class Seq2Vec(Block):
 
 # specify by dims
 class SimpleSeq2Vec(Seq2Vec):
-    def __init__(self, indim=400, inpembdim=50, innerdim=100, maskid=0, bidir=False, **kw):
-        if inpembdim is None:
-            inpemb = IdxToOneHot(indim)
-            inpembdim = indim
-        elif not isnumber(inpembdim):
-            inpemb = inpembdim
-        else:
-            inpemb = VectorEmbed(indim=indim, dim=inpembdim)
+    def __init__(self, indim=400, inpembdim=50, inpemb=None, innerdim=100, maskid=0, bidir=False, **kw):
+        if inpemb is not None:
+            if inpembdim is None:
+                inpemb = IdxToOneHot(indim)
+                inpembdim = indim
+            else:
+                inpemb = VectorEmbed(indim=indim, dim=inpembdim)
         rnn, lastdim = self.makernu(inpembdim, innerdim, bidir=bidir)
         self.outdim = lastdim
         super(SimpleSeq2Vec, self).__init__(inpemb, rnn, maskid, **kw)

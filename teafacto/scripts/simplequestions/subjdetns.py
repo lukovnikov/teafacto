@@ -306,9 +306,11 @@ def run(
         else:
             innerdim = [innerdim]*memlayers
         memembdim = embdim
-        memembdim = None if charlevel else qenc.inpemb  # share embeddings for words
+        meminpemb = None if charlevel else qenc.inpemb
+        memembdim = None if charlevel else memembdim
         lenc = SimpleSeq2Vec(indim=numwords,
                                 inpembdim=memembdim,
+                                inpemb=meminpemb,
                                 innerdim=innerdim,
                                 maskid=-1,
                                 bidir=membidir)
