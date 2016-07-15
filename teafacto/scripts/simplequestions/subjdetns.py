@@ -45,7 +45,7 @@ class SubjRankEval(object):
             numcans = len(cans[i])
             predinp = [np.repeat(np.expand_dims(data[i, :], axis=0), numcans, axis=0),
                        np.asarray(cans[i], dtype="int32")]
-            print predinp, "%d/%d" % (i, data.shape[0]), numcans
+            #print predinp, "%d/%d" % (i, data.shape[0]), numcans
             if numcans > 0:
                 predinpscores = predictor(*predinp)      # (numcans,)
                 ranking = sorted(zip(cans[i], list(predinpscores)),
@@ -318,7 +318,8 @@ def run(
             return datas, np.random.randint(self.min, self.max, gold.shape).astype("int32")
 
     eval = SubjRankEval(scorer, worddic=worddic, entdic=entdic, metrics=[ClassAccuracy(), RecallAt(10)])
-    eval.eval(testdata, testgold, transform=PreProcf(entmat))
+    evalres = eval.eval(testdata, testgold, transform=PreProcf(entmat))
+    print evalres
     tt.msg("tested dummy")
     sys.exit()
     #embed()
