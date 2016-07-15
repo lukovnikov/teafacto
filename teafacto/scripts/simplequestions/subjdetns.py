@@ -246,6 +246,7 @@ def run(
         memlayers=1,
         memmaxwords=5,
         layers=1,
+        testfirst=False,
         ):
 
     tt = ticktock("script")
@@ -317,11 +318,12 @@ def run(
         def __call__(self, datas, gold):    # gold: idx^(batsize,)
             return datas, np.random.randint(self.min, self.max, gold.shape).astype("int32")
 
-    eval = SubjRankEval(scorer, worddic=worddic, entdic=entdic, metrics=[ClassAccuracy(), RecallAt(10)])
-    evalres = eval.eval(testdata, testgold, transform=PreProcf(entmat))
-    print evalres
-    tt.msg("tested dummy")
-    sys.exit()
+    if testfirst:
+        eval = SubjRankEval(scorer, worddic=worddic, entdic=entdic, metrics=[ClassAccuracy(), RecallAt(10)])
+        evalres = eval.eval(testdata, testgold, transform=PreProcf(entmat))
+        print evalres
+        tt.msg("tested dummy")
+        sys.exit()
     #embed()
     # trainer config and training
     scorer = scorer.nstrain([traindata, traingold]).transform(PreProcf(entmat))\
@@ -331,8 +333,9 @@ def run(
         .train(numbats=numbats, epochs=epochs)
 
     # evaluation
-    eval = SubjRankEval()
-    eval(scorer)
+    eval = SubjRankEval(scorer, worddic=worddic, entdic=entdic, metrics=[ClassAccuracy(), RecallAt(10)])
+    evalres = eval.eval(testdata, testgold, transform=PreProcf(entmat))
+    print evalres
 
 
 if __name__ == "__main__":
