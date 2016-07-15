@@ -14,7 +14,7 @@ def run(trainp="fb_train.tsv",
         maxnamelen=30,
         maxnamewordlen=20):
     # worddic
-    worddic = {"<RARE>": 0}
+    worddic = {}
     chardic = {" ": 0}
     def updatedics(*words):
         for word in words:
@@ -23,6 +23,7 @@ def run(trainp="fb_train.tsv",
             for char in set("".join(words)):
                 if char not in chardic:
                     chardic[char] = len(chardic)
+    updatedics("<RARE>")
     # process entity names and relation list
     entdic = {}
     entmatr = []
@@ -83,18 +84,24 @@ def run(trainp="fb_train.tsv",
             if p not in reldic:
                 raise Exception("impossibru!")
             wordidx = map(lambda x: worddic[x] if x in worddic else worddic["<RARE>"], words)
-            data.append(wordidx)
+            charsidx = [[chardic[x] if x in chardic else chardic[" "]
+                        for x in word] for word in words]
+            data.append((wordidx, charsidx))
             gold.append([entdic[s], reldic[p]])
             c += 1
             if c % 100 == 0:
                 print c
             if c > maxc:
                 break
-        datamat = np.zeros((c, maxlen, maxnamewordlen)).astype("int32") - 1
+        datamat = np.zeros((c, maxlen, maxnamewordlen+1)).astype("int32") - 1
         goldmat = np.zeros((c, 2)).astype("int32")
         i = 0
-        for x in data:
-            datamat[i, :len(x)] = x
+        for x, y in data:
+            datamat[i, :len(x), 0] = x
+            j = 0
+            for ye in y:
+                xec =
+                datamat[i, j, 1:maxnamewordlen+1]
             i += 1
         i = 0
         for x in gold:

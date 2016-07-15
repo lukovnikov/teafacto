@@ -11,7 +11,7 @@ def run(trainp="fb_train.tsv",
         outp="datamat.char.mem.fb2m.pkl",
         entnames="subjnames_fb2m.map",
         rellist="rels_fb2m.list",
-        maxnamelen=300):
+        maxnamelen=100):
     # worddic
     chardic = {" ": 0}
     def updatechardic(*chars):
