@@ -307,10 +307,10 @@ def run(
             innerdim = [innerdim]*memlayers
         memembdim = embdim
         meminpemb = None if charlevel else qenc.inpemb
-        memembdim = None if charlevel else memembdim
+        #memembdim = None if charlevel else memembdim
         lenc = SimpleSeq2Vec(indim=numwords,
                                 inpembdim=memembdim,
-                                inpemb=meminpemb,
+                                inpemb=None,
                                 innerdim=innerdim,
                                 maskid=-1,
                                 bidir=membidir)
