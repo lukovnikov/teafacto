@@ -82,11 +82,13 @@ class ticktock(object):
     def _tock(self):
         return (dt.now() - self.ticktime).total_seconds()
 
-    def progress(self, x, of, live=False):
+    def progress(self, x, of, action="", live=False):
         if self.verbose:
             self.perc = int(round(100. * x / of))
             if self.perc != self.prevperc:
-                topr = "%s: %d" % (self.prefix, self.perc) + "%"
+                if action != "":
+                    action = " " + action + " -"
+                topr = "%s:%s %d" % (self.prefix, action, self.perc) + "%"
                 if live:
                     self._live(topr)
                 else:

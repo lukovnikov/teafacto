@@ -57,7 +57,7 @@ class SubjRankEval(object):
             else:
                 print "no cans: %d" % (i, )
             if i % 1000 == 0:
-                tt.live("evaluated: %.2f%%" % (i*1./data.shape[0]))
+                tt.live("evaluated: %.2f%%" % (i*100./data.shape[0]))
         tt.tock("evaluated")
         return self.metrics
 
@@ -341,8 +341,8 @@ def run(
     eval = SubjRankEval(scorer, worddic=worddic, entdic=entdic, metrics=[ClassAccuracy(), RecallAt(10)])
 
     evalres = eval.eval(testdata, testgold, transform=PreProcf(entmat))
-
-    print evalres
+    for evalre in evalres:
+        print evalre
 
 
 if __name__ == "__main__":
