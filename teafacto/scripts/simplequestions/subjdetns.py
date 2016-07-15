@@ -44,8 +44,11 @@ class SubjRankEval(object):
         tt = ticktock("evaluator")
         tt.tick("evaluating...")
         nocans = 0
+        nogoldcan = 0
         for i in range(data.shape[0]):
             numcans = len(cans[i])
+            if gold[i] not in cans[i]:
+                nogoldcan += 1
             predinp = [np.repeat(np.expand_dims(data[i, :], axis=0), numcans, axis=0),
                        np.asarray(cans[i], dtype="int32")]
             #print predinp, "%d/%d" % (i, data.shape[0]), numcans
@@ -61,6 +64,7 @@ class SubjRankEval(object):
                 tt.live("evaluated: %.2f%%" % (i*100./data.shape[0]))
         tt.tock("evaluated")
         print "no cans for %d questions" % nocans
+        print "gold not among cans for %d questions" % nogoldcan
         return self.metrics
 
 @memory.cache(ignore=["data", "rwd", "ed"])
