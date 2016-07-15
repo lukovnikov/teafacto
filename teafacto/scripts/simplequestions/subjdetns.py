@@ -340,7 +340,7 @@ def run(
             return datas, np.random.randint(self.min, self.max, gold.shape).astype("int32")
 
     if testfirst:
-        eval = SubjRankEval(scorer, worddic=worddic, entdic=entdic, metrics=[ClassAccuracy(), RecallAt(10)])
+        eval = SubjRankEval(scorer, worddic=worddic, entdic=entdic, metrics=[ClassAccuracy(), RecallAt(5)])
         evalres = eval.eval(testdata, testgold, transform=PreProcf(entmat))
         for e in evalres:
             print e
@@ -358,7 +358,7 @@ def run(
         .train(numbats=numbats, epochs=epochs)
 
     # evaluation
-    eval = SubjRankEval(scorer, worddic=worddic, entdic=entdic, metrics=[ClassAccuracy(), RecallAt(10)])
+    eval = SubjRankEval(scorer, worddic=worddic, entdic=entdic, metrics=[ClassAccuracy(), RecallAt(5)])
 
     evalres = eval.eval(testdata, testgold, transform=PreProcf(entmat))
     for evalre in evalres:
