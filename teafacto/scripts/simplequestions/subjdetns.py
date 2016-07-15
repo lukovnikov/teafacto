@@ -259,6 +259,8 @@ def run(
         memmaxwords=5,
         layers=1,
         testfirst=False,
+        rankingloss=False,
+        rlmargin=1,
         ):
 
     tt = ticktock("script")
@@ -333,13 +335,17 @@ def run(
     if testfirst:
         eval = SubjRankEval(scorer, worddic=worddic, entdic=entdic, metrics=[ClassAccuracy(), RecallAt(10)])
         evalres = eval.eval(testdata, testgold, transform=PreProcf(entmat))
-        print evalres
+        for e in evalres:
+            print e
         tt.msg("tested dummy")
         sys.exit()
     #embed()
     # trainer config and training
+    obj = lambda p, n: n - p
+    if rankingloss:
+        obj = lambda p, n: T.max(0, rlmargin + n - p)
     nscorer = scorer.nstrain([traindata, traingold]).transform(PreProcf(entmat))\
-        .negsamplegen(NegIdxGen(numents)).negrate(negrate).objective(lambda p, n: n - p)\
+        .negsamplegen(NegIdxGen(numents)).negrate(negrate).objective(obj)\
         .adagrad(lr=lr).l2(wreg).grad_total_norm(1.0)\
         .validate_on([validdata, validgold]).takebest()\
         .train(numbats=numbats, epochs=epochs)
