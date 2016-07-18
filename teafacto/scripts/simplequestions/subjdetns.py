@@ -349,7 +349,7 @@ def run(
     if rankingloss:
         obj = lambda p, n: (n - p + rlmargin).clip(0, np.infty)
     # TODO: BEWARE: TRAINING ON TEST DATA FOR STUPID TEST
-    nscorer = scorer.nstrain([testdata, testgold]).transform(PreProcf(entmat))\
+    nscorer = scorer.nstrain([traindata, traingold]).transform(PreProcf(entmat))\
         .negsamplegen(NegIdxGen(numents)).negrate(negrate).objective(obj)\
         .adagrad(lr=lr).l2(wreg).grad_total_norm(1.0)\
         .validate_on([validdata, validgold])\
