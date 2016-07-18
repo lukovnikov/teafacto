@@ -44,8 +44,7 @@ class SubjRankEval(object):
             cans = gencans(data, host=self.host, index=self.index, rwd=self.rwd, ed=self.ed)           # list of lists of entidx
             pickle.dump(cans, open("testcans.pkl", "w"))
         assert len(cans) == data.shape[0] == gold.shape[0]
-        #
-        embed()
+        #        embed()
         predictor = self.scorer.predict.transform(transform)
         tt = ticktock("evaluator")
         tt.tick("evaluating...")
@@ -61,7 +60,7 @@ class SubjRankEval(object):
             if numcans > 0:
                 predinpscores = predictor(*predinp)      # (numcans,)
                 ranking = sorted(zip(cans[i], list(predinpscores)),
-                                 key=lambda (x, y): y)
+                                 key=lambda (x, y): y, reverse=True)
                 for metric in self.metrics:
                     metric.accumulate([gold[i]], ranking)
             else:
@@ -349,6 +348,7 @@ def run(
     obj = lambda p, n: n - p
     if rankingloss:
         obj = lambda p, n: (n - p + rlmargin).clip(0, np.infty)
+    # TODO: BEWARE: TRAINING ON TEST DATA FOR STUPID TEST
     nscorer = scorer.nstrain([testdata, testgold]).transform(PreProcf(entmat))\
         .negsamplegen(NegIdxGen(numents)).negrate(negrate).objective(obj)\
         .adagrad(lr=lr).l2(wreg).grad_total_norm(1.0)\
