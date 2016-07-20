@@ -356,7 +356,7 @@ def run(
         .train(numbats=numbats, epochs=epochs)
 
     # evaluation
-    eval = SubjRankEval(scorer, worddic=worddic, entdic=entdic, metrics=[ClassAccuracy(), RecallAt(5)])
+    eval = SubjRankEval(scorer, worddic=worddic, entdic=entdic, metrics=[ClassAccuracy(), RecallAt(1), RecallAt(2), RecallAt(5), RecallAt(10)])
 
     evalres = eval.eval(testdata, testgold, transform=PreProcf(entmat))
     for evalre in evalres:
