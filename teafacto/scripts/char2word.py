@@ -1,7 +1,7 @@
 import sys, re, os.path, numpy as np
 from IPython import embed
 from teafacto.util import argprun, tokenize, ticktock
-from teafacto.blocks.match import MatchScore, CosineDistance
+from teafacto.blocks.match import MatchScore, CosineDistance, DotDistance
 from teafacto.blocks.lang.wordvec import Glove
 from teafacto.blocks.seqproc import SeqEncoder, SimpleSeq2Vec
 
@@ -15,7 +15,8 @@ def run(
         encdim=50,
         wreg=0.00005,
         marginloss=False,
-        margin=1.
+        margin=1.,
+        cosine=False,
     ):
     tt = ticktock("script")
     # get glove words
@@ -39,7 +40,8 @@ def run(
                           innerdim=encdim/2,
                           maskid=-1,
                           bidir=True)
-    scorer = MatchScore(cwenc, g.block, scorer=CosineDistance())
+    dist = CosineDistance() if cosine else DotDistance()
+    scorer = MatchScore(cwenc, g.block, scorer=dist)
 
     class NegIdxGen(object):
         def __init__(self, rng):
