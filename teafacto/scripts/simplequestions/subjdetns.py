@@ -290,7 +290,7 @@ def run(
 
     # question representation:
     # encodes question sequence to vector
-    embdim = None if charlevel else embdim
+    # let's try to embed chars too <-- embdim = None if charlevel else embdim
     qenc = SimpleSeq2Vec(indim=numwords,
                         inpembdim=embdim,
                         innerdim=encinnerdim,
@@ -305,8 +305,9 @@ def run(
         else:
             innerdim = [innerdim]*memlayers
         memembdim = embdim
-        meminpemb = None if charlevel else qenc.inpemb  # share embeddings
-        memembdim = None if charlevel else memembdim
+        #embed chars too <-- meminpemb = None if charlevel else qenc.inpemb  # share embeddings
+        #memembdim = None if charlevel else memembdim
+        meminpemb = qenc.inpemb     # also chars are embedded and embeddings are always shared
         lenc = SimpleSeq2Vec(indim=numwords,
                                 inpembdim=memembdim,
                                 inpemb=meminpemb,
@@ -348,7 +349,7 @@ def run(
     obj = lambda p, n: n - p
     if rankingloss:
         obj = lambda p, n: (n - p + rlmargin).clip(0, np.infty)
-    # TODO: BEWARE: TRAINING ON TEST DATA FOR STUPID TEST
+
     nscorer = scorer.nstrain([traindata, traingold]).transform(PreProcf(entmat))\
         .negsamplegen(NegIdxGen(numents)).negrate(negrate).objective(obj)\
         .adagrad(lr=lr).l2(wreg).grad_total_norm(1.0)\
