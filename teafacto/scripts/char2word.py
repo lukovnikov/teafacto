@@ -14,6 +14,7 @@ def run(
         embdim=50,
         encdim=50,
         wreg=0.00005,
+        marginloss=False,
         margin=1.
     ):
     tt = ticktock("script")
@@ -48,7 +49,10 @@ def run(
         def __call__(self, datas, gold):
             return datas, np.random.randint(self.min, self.max, gold.shape).astype("int32")
 
-    obj = lambda p, n: (n-p+margin).clip(0, np.infty)
+    if marginloss:
+        obj = lambda p, n: (n-p+margin).clip(0, np.infty)
+    else:
+        obj = lambda p, n: n - p
 
     nscorer = scorer.nstrain([charwordmat, np.arange(len(words))])\
         .negsamplegen(NegIdxGen(len(words))).negrate(negrate)\
