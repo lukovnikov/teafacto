@@ -26,13 +26,15 @@ def run(
     for word in words:
         maxwordlen = max(maxwordlen, len(word))
     chars = set("".join(words))
+    chars.add(" ")
     print "{} words, maxlen {}, {} characters in words".format(len(words), maxwordlen, len(chars))
     # get char word matrix
     chardic = dict(zip(chars, range(len(chars))))
-    charwordmat = -np.ones((len(words), maxwordlen), dtype="int32")
-    for i in range(len(words)):
+    charwordmat = -np.ones((len(words)+1, maxwordlen), dtype="int32")
+    charwordmat[0, 0] = chardic[" "]
+    for i in range(0, len(words)):
         word = words[i]
-        charwordmat[i, :len(word)] = [chardic[x] for x in word]
+        charwordmat[i+1, :len(word)] = [chardic[x] for x in word]
     print charwordmat[0]
     # encode characters
     cwenc = SimpleSeq2Vec(indim=len(chars),
@@ -58,7 +60,7 @@ def run(
     else:
         obj = lambda p, n: n - p
 
-    nscorer = scorer.nstrain([charwordmat, np.arange(len(words))+1])\
+    nscorer = scorer.nstrain([charwordmat, np.arange(len(words)+1)])\
         .negsamplegen(NegIdxGen(len(words))).negrate(negrate)\
         .objective(obj).adagrad(lr=lr).l2(wreg)\
         .train(numbats=numbats, epochs=epochs)
