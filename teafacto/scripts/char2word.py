@@ -43,6 +43,8 @@ def run(
     dist = CosineDistance() if cosine else DotDistance()
     scorer = MatchScore(cwenc, g.block, scorer=dist)
 
+    embed()
+
     class NegIdxGen(object):
         def __init__(self, rng):
             self.min = 0
@@ -56,7 +58,7 @@ def run(
     else:
         obj = lambda p, n: n - p
 
-    nscorer = scorer.nstrain([charwordmat, np.arange(len(words))])\
+    nscorer = scorer.nstrain([charwordmat, np.arange(len(words))+1])\
         .negsamplegen(NegIdxGen(len(words))).negrate(negrate)\
         .objective(obj).adagrad(lr=lr).l2(wreg)\
         .train(numbats=numbats, epochs=epochs)
