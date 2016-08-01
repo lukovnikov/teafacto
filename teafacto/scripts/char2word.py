@@ -58,7 +58,7 @@ def run(
 
     nscorer = scorer.nstrain([charwordmat, np.arange(len(words))])\
         .negsamplegen(NegIdxGen(len(words))).negrate(negrate)\
-        .objective(obj).adagrad(lr=lr).l2(wreg).grad_total_norm(1.0)\
+        .objective(obj).adagrad(lr=lr).l2(wreg)\
         .train(numbats=numbats, epochs=epochs)
 
 
