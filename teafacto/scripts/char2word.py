@@ -1,7 +1,7 @@
 import sys, re, os.path, numpy as np
 from IPython import embed
 from teafacto.util import argprun, tokenize, ticktock
-from teafacto.blocks.match import MatchScore
+from teafacto.blocks.match import MatchScore, CosineDistance
 from teafacto.blocks.lang.wordvec import Glove
 from teafacto.blocks.seqproc import SeqEncoder, SimpleSeq2Vec
 
@@ -35,10 +35,10 @@ def run(
     # encode characters
     cwenc = SimpleSeq2Vec(indim=len(chars),
                           inpembdim=embdim,
-                          innerdim=encdim*2,
+                          innerdim=encdim/2,
                           maskid=-1,
                           bidir=True)
-    scorer = MatchScore(cwenc, g.block)
+    scorer = MatchScore(cwenc, g.block, scorer=CosineDistance())
 
     class NegIdxGen(object):
         def __init__(self, rng):
@@ -50,7 +50,7 @@ def run(
 
     obj = lambda p, n: (n-p+margin).clip(0, np.infty)
 
-    nscorer = scorer.nstrain([charwordmat, range(len(words))])\
+    nscorer = scorer.nstrain([charwordmat, np.arange(len(words))])\
         .negsamplegen(NegIdxGen(len(words))).negrate(negrate)\
         .objective(obj).adagrad(lr=lr).l2(wreg).grad_total_norm(1.0)\
         .train(numbats=numbats, epochs=epochs)
