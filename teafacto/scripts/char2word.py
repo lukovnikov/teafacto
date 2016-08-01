@@ -43,7 +43,7 @@ def run(
     dist = CosineDistance() if cosine else DotDistance()
     scorer = MatchScore(cwenc, g.block, scorer=dist)
 
-    embed()
+    #embed()
 
     class NegIdxGen(object):
         def __init__(self, rng):
