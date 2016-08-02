@@ -4,6 +4,7 @@ from teafacto.util import argprun, tokenize, ticktock
 from teafacto.blocks.match import MatchScore, CosineDistance, DotDistance
 from teafacto.blocks.lang.wordvec import Glove
 from teafacto.blocks.seqproc import SeqEncoder, SimpleSeq2Vec
+from teafacto.core.base import Block
 
 
 def run(
@@ -44,6 +45,14 @@ def run(
                           bidir=True)
     dist = CosineDistance() if cosine else DotDistance()
     scorer = MatchScore(cwenc, g.block, scorer=dist)
+
+    scorer.train([charwordmat, np.arange(len(words)+1)], np.ones((charwordmat.shape[0],)))\
+        .linear_objective().adagrad(lr=lr).l2(wreg)\
+        .train(numbats=numbats, epochs=epochs)
+
+
+    # NEGATIVE SAMPLING ::::::::::::::::::::::::::::::::::
+    sys.exit()  # don't
 
     #embed()
 
