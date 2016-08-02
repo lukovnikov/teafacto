@@ -46,7 +46,7 @@ def run(
     dist = CosineDistance() if cosine else DotDistance()
     scorer = MatchScore(cwenc, g.block, scorer=dist)
 
-    scorer.train([charwordmat, np.arange(len(words)+1)], np.ones((charwordmat.shape[0],)))\
+    scorer.train([charwordmat, np.arange(len(words)+1)], -np.ones((charwordmat.shape[0],)))\
         .linear_objective().adagrad(lr=lr).l2(wreg)\
         .train(numbats=numbats, epochs=epochs)
 
