@@ -1,7 +1,5 @@
 from teafacto.core.base import Block
 from teafacto.core.base import tensorops as T
-from teafacto.util import issequence
-from keras.backend import theano_backend as K
 
 
 class Pool(Block):
