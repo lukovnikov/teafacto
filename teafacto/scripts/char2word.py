@@ -50,6 +50,8 @@ def run(
         .linear_objective().adagrad(lr=lr).l2(wreg)\
         .train(numbats=numbats, epochs=epochs)
 
+    cwenc.save("glove2c2w.block")
+
 
     # NEGATIVE SAMPLING ::::::::::::::::::::::::::::::::::
     sys.exit()  # don't
