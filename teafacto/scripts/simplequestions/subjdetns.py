@@ -261,6 +261,7 @@ def run(
         rankingloss=False,
         rlmargin=1.,
         charlevel=False,
+        pool=False,
         ):
 
     tt = ticktock("script")
@@ -295,7 +296,8 @@ def run(
                         inpembdim=embdim,
                         innerdim=encinnerdim,
                         maskid=-1,
-                        bidir=bidir)
+                        bidir=bidir,
+                        pool=pool)
 
     # entity representation:
     if mem:

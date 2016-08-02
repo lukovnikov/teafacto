@@ -8,6 +8,7 @@ from teafacto.core.base import Block, tensorops as T, Val
 from teafacto.core.stack import stack
 from teafacto.blocks.memory import MemoryStack, MemoryBlock, DotMemAddr, GeneralDotMemAddr, LinearGateMemAddr
 from teafacto.util import issequence, isnumber
+from teafacto.blocks.pool import Pool
 
 
 class SeqEncDec(Block):
@@ -250,22 +251,27 @@ class SimpleSeq2Idx(Seq2Idx):
 # seq2vec
 # specify by layers
 class Seq2Vec(Block):
-    def __init__(self, inpemb, enclayers, maskid=0, **kw):
+    def __init__(self, inpemb, enclayers, maskid=0, pool=None, **kw):
         super(Seq2Vec, self).__init__(**kw)
         self.maskid = maskid
         self.inpemb = inpemb
         if not issequence(enclayers):
             enclayers = [enclayers]
+        self.pool = pool
         self.enc = SeqEncoder(inpemb, *enclayers).maskoptions(maskid, MaskMode.AUTO)
+        if self.pool is not None:
+            self.enc = self.enc.all_outputs
 
     def apply(self, x, mask=None):
         ret = self.enc(x, mask=mask)
+        if self.pool is not None:
+            return self.pool(ret)
         return ret
 
 
 # specify by dims
 class SimpleSeq2Vec(Seq2Vec):
-    def __init__(self, indim=400, inpembdim=50, inpemb=None, innerdim=100, maskid=0, bidir=False, **kw):
+    def __init__(self, indim=400, inpembdim=50, inpemb=None, innerdim=100, maskid=0, bidir=False, pool=False, **kw):
         if inpemb is None:
             if inpembdim is None:
                 inpemb = IdxToOneHot(indim)
@@ -274,7 +280,8 @@ class SimpleSeq2Vec(Seq2Vec):
                 inpemb = VectorEmbed(indim=indim, dim=inpembdim)
         rnn, lastdim = self.makernu(inpembdim, innerdim, bidir=bidir)
         self.outdim = lastdim
-        super(SimpleSeq2Vec, self).__init__(inpemb, rnn, maskid, **kw)
+        poolblock = None if pool is False else Pool((None,), axis=(1,), mode="max")
+        super(SimpleSeq2Vec, self).__init__(inpemb, rnn, maskid, pool=poolblock, **kw)
 
     @staticmethod
     def makernu(inpembdim, innerdim, bidir=False):
