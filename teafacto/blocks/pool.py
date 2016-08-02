@@ -109,3 +109,9 @@ class AvgPool(Pool):
                  ignore_border=True, inc_pad=False, **kw):
         kw["mode"] = "average_exc_pad" if inc_pad is False else "average_inc_pad"
         super(AvgPool, self).__init__(size, axis=axis, stride=stride, pad=pad, ignore_border=ignore_border, **kw)
+
+
+class DeadPool(Pool):
+    def __init__(self, **kw):
+        pass
+        super(DeadPool, self).__init__(**kw)

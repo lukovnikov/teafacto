@@ -265,7 +265,8 @@ class Seq2Vec(Block):
     def apply(self, x, mask=None):
         ret = self.enc(x, mask=mask)
         if self.pool is not None:
-            return self.pool(ret)
+            print "pooling on"
+            ret = self.pool(ret)
         return ret
 
 
