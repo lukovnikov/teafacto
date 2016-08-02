@@ -36,7 +36,7 @@ class SubjRankEval(object):
         self.metrics = metrics if metrics is not None else []
         #embed()
 
-    def eval(self, data, gold, transform=None):     # data: wordidx^(batsize, seqlen), gold: entidx^(batsize)
+    def eval(self, data, gold, transform=None, savep=None):     # data: wordidx^(batsize, seqlen), gold: entidx^(batsize)
         # generate candidates
         if os.path.isfile("testcans.pkl"):
             cans = self.loadcans("testcans.pkl")
@@ -50,6 +50,7 @@ class SubjRankEval(object):
         tt.tick("evaluating...")
         nocans = 0
         nogoldcan = 0
+        tosave = {}
         for i in range(data.shape[0]):
             numcans = len(cans[i])
             if gold[i] not in cans[i]:
@@ -61,6 +62,7 @@ class SubjRankEval(object):
                 predinpscores = predictor(*predinp)      # (numcans,)
                 ranking = sorted(zip(cans[i], list(predinpscores)),
                                  key=lambda (x, y): y, reverse=True)
+                tosave[i] = (gold[i], ranking)
                 for metric in self.metrics:
                     metric.accumulate([gold[i]], ranking)
             else:
@@ -68,6 +70,10 @@ class SubjRankEval(object):
             if i % 100 == 0:
                 tt.live("evaluated: %.2f%%" % (i*100./data.shape[0]))
         tt.tock("evaluated")
+        if savep is not None:
+            tt.tick("saving")
+            pickle.dump(tosave, open(savep, "w"))
+            tt.tock("saved")
         print "no cans for %d questions" % nocans
         print "gold not among cans for %d questions" % nogoldcan
         return self.metrics

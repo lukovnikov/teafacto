@@ -1,7 +1,7 @@
 import sys, re, os.path, numpy as np
 from IPython import embed
 from teafacto.util import argprun, tokenize, ticktock
-from teafacto.blocks.match import MatchScore, CosineDistance, DotDistance
+from teafacto.blocks.match import MatchScore, CosineDistance, DotDistance, EuclideanDistance
 from teafacto.blocks.lang.wordvec import Glove
 from teafacto.blocks.seqproc import SeqEncoder, SimpleSeq2Vec
 from teafacto.core.base import Block
@@ -43,7 +43,7 @@ def run(
                           innerdim=encdim/2,
                           maskid=-1,
                           bidir=True)
-    dist = CosineDistance() if cosine else DotDistance()
+    dist = CosineDistance() if cosine else EuclideanDistance() #DotDistance()
     scorer = MatchScore(cwenc, g.block, scorer=dist)
 
     scorer.train([charwordmat, np.arange(len(words)+1)], -np.ones((charwordmat.shape[0],)))\
