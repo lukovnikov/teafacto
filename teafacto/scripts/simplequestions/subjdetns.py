@@ -268,6 +268,8 @@ def run(
         rlmargin=1.,
         charlevel=False,
         pool=False,
+        resultsave=False,
+        resultsavep="subjdetns.res.pkl",
         ):
 
     tt = ticktock("script")
