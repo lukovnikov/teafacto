@@ -369,7 +369,8 @@ def run(
     # evaluation
     eval = SubjRankEval(scorer, worddic=worddic, entdic=entdic, metrics=[ClassAccuracy(), RecallAt(1), RecallAt(2), RecallAt(5), RecallAt(10)])
 
-    evalres = eval.eval(testdata, testgold, transform=PreProcf(entmat))
+    evalres = eval.eval(testdata, testgold, transform=PreProcf(entmat),
+                        savep=None if not resultsave else resultsavep)
     for evalre in evalres:
         print evalre
 
