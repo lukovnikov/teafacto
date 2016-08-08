@@ -33,7 +33,7 @@ def run(
     # get char word matrix
     chardic = dict(zip(chars, range(len(chars))))
     pickle.dump(chardic, open("glove2c2w.chardic.pkl", "w"))
-    charwordmat = np.ones((len(words)+1, maxwordlen), dtype="int32") * (-1 if cosine else 1)
+    charwordmat = -np.ones((len(words)+1, maxwordlen), dtype="int32")
     charwordmat[0, 0] = chardic[" "]
     for i in range(0, len(words)):
         word = words[i]
@@ -49,7 +49,7 @@ def run(
     print "using " + str(dist)
     scorer = MatchScore(cwenc, g.block, scorer=dist)
 
-    scorer.train([charwordmat, np.arange(len(words)+1)], -np.ones((charwordmat.shape[0],)))\
+    scorer.train([charwordmat, np.arange(len(words)+1)], np.ones((charwordmat.shape[0],), dtype="int32") * (-1 if cosine else 1))\
         .linear_objective().adagrad(lr=lr).l2(wreg)\
         .train(numbats=numbats, epochs=epochs)
 
