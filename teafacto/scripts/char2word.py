@@ -46,6 +46,7 @@ def run(
                           maskid=-1,
                           bidir=True)
     dist = CosineDistance() if cosine else EuclideanDistance() #DotDistance()
+    print "using " + str(dist)
     scorer = MatchScore(cwenc, g.block, scorer=dist)
 
     scorer.train([charwordmat, np.arange(len(words)+1)], -np.ones((charwordmat.shape[0],)))\
