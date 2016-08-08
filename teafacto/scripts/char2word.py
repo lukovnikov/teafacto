@@ -33,7 +33,7 @@ def run(
     # get char word matrix
     chardic = dict(zip(chars, range(len(chars))))
     pickle.dump(chardic, open("glove2c2w.chardic.pkl", "w"))
-    charwordmat = -np.ones((len(words)+1, maxwordlen), dtype="int32")
+    charwordmat = np.ones((len(words)+1, maxwordlen), dtype="int32") * (-1.0 if cosine else 1.0)
     charwordmat[0, 0] = chardic[" "]
     for i in range(0, len(words)):
         word = words[i]
