@@ -5,6 +5,7 @@ from teafacto.blocks.match import MatchScore, CosineDistance, DotDistance, Eucli
 from teafacto.blocks.lang.wordvec import Glove
 from teafacto.blocks.seqproc import SeqEncoder, SimpleSeq2Vec
 from teafacto.core.base import Block
+import pickle
 
 
 def run(
@@ -31,6 +32,7 @@ def run(
     print "{} words, maxlen {}, {} characters in words".format(len(words), maxwordlen, len(chars))
     # get char word matrix
     chardic = dict(zip(chars, range(len(chars))))
+    pickle.dump(chardic, open("glove2c2w.chardic.pkl", "w"))
     charwordmat = -np.ones((len(words)+1, maxwordlen), dtype="int32")
     charwordmat[0, 0] = chardic[" "]
     for i in range(0, len(words)):
