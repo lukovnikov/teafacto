@@ -7,11 +7,11 @@ import pickle
 from IPython import embed
 
 
-class RescalLeft(Block):
+class Rescal(Block):
     def __init__(self, embdim, entemb, numrels, **kw):
         self.A = entemb
         self.R = param((numrels, embdim, embdim), name="rel_embed").uniform()
-        super(RescalLeft, self).__init__(**kw)
+        super(Rescal, self).__init__(**kw)
 
     def apply(self, sp):
         entembs = self.A(sp[:, 0])
@@ -55,9 +55,9 @@ def run(
     print x.shape, numents, numrels, np.max(x, axis=0)
 
     entemb = VectorEmbed(indim=numents, dim=embdim)
-    rescal = TransE(embdim, entemb, numrels)
+    rescal = Rescal(embdim, entemb, numrels)
 
-    scorer = MatchScore(rescal, entemb, scorer=EuclideanDistance())
+    scorer = MatchScore(rescal, entemb, scorer=DotDistance())
     pred = scorer.predict(np.random.randint(0, 18, (100, 2)), np.random.randint(0, 40000, (100,)))
     print pred
     embed()
