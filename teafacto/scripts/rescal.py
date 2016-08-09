@@ -35,7 +35,6 @@ class TransE(Block):
         return self.scorer(ret, self.A(o))
 
 
-
 def run(
         embdim=50,
         epochs=10,
@@ -76,7 +75,6 @@ def run(
     # trainer config and training
     obj = lambda p, n: n - p
     if rankingloss:
-        print "ranking loss"
         obj = lambda p, n: (n - p + margin).clip(0, np.infty)
 
     nscorer = scorer.nstrain([x[:, [0, 2]], x[:, 1]])\
