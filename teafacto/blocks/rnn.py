@@ -190,7 +190,8 @@ class SeqEncoder(AttentionConsumer, Block):
             seqemb = seq
         # compute full mask
         if self._maskconfig.maskmode == MaskMode.AUTO_FORCE or \
-                (mask is None and self._maskconfig.maskmode == MaskMode.AUTO):
+                (mask is None and self._maskconfig.maskmode == MaskMode.AUTO) or \
+                mask == "auto":
             mask = self._autogenerate_mask(seq, seqemb)
 
         fullmask = None
@@ -317,6 +318,8 @@ class SeqDecoder(Block):
             sm = Softmax()
             self.lin = MatDot(indim=self.outdim, dim=self.embedder.indim)
             self.softmaxoutblock = asblock(lambda x: sm(self.lin(x)))
+        elif softmaxoutblock is False:
+            self.softmaxoutblock = asblock(lambda x: x)
         else:
             self.softmaxoutblock = softmaxoutblock
 

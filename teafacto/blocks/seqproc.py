@@ -51,14 +51,20 @@ class SeqEncDec(Block):
 
 
 class SeqEncDecAtt(SeqEncDec):
-    def __init__(self, enclayers, declayers, attgen, attcon, decinnerdim, inconcat, outconcat, statetrans=None, **kw):
-        enc = SeqEncoder(*enclayers).with_outputs.maskoption(MaskSetMode.ZERO)
+    def __init__(self, enclayers, declayers, attgen, attcon,
+                 decinnerdim, inconcat, outconcat,
+                 statetrans=None, vecout=False, **kw):
+        enc = SeqEncoder(*enclayers)\
+            .with_outputs\
+            .maskoption(MaskSetMode.ZERO)
+        smo = False if vecout else None
         dec = SeqDecoder(
             declayers,
             attention=Attention(attgen, attcon),
             innerdim=decinnerdim,
             outconcat=outconcat,
-            inconcat=inconcat
+            inconcat=inconcat,
+            softmaxoutblock=smo,
         )
         super(SeqEncDecAtt, self).__init__(enc, dec, statetrans=statetrans, **kw)
 
@@ -77,38 +83,57 @@ class SimpleSeqEncDecAtt(SeqEncDecAtt):
                  outconcat=True,
                  inconcat=False,
                  statetrans=None,
+                 vecout=False,
                  **kw):
         encinnerdim = [encdim] if not issequence(encdim) else encdim
         decinnerdim = [decdim] if not issequence(decdim) else decdim
 
-        # encoder stack
-        if inpembdim is None:
-            inpemb = IdxToOneHot(inpvocsize)
-            inpembdim = inpvocsize
-        else:
-            inpemb = VectorEmbed(indim=inpvocsize, dim=inpembdim)
-        encrnus = []
-        dims = [inpembdim] + encinnerdim
-        i = 1
-        lastencinnerdim = dims[-1] if not bidir else dims[-1]*2
-        while i < len(dims):
-            if bidir:
-                newrnu = BiRNU.fromrnu(rnu, dim=dims[i-1], innerdim=dims[i])
-            else:
-                newrnu = rnu(dim=dims[i-1], innerdim=dims[i])
-            encrnus.append(newrnu)
-            i += 1
-        enclayers = [inpemb] + encrnus
+        enclayers, lastencinnerdim = self.getenclayers(inpembdim, inpvocsize, encinnerdim, bidir, rnu)
 
         # attention
         lastdecinnerdim = decinnerdim[-1]
         attgen = LinearGateAttentionGenerator(indim=lastencinnerdim + lastdecinnerdim, attdim=attdim)
         attcon = WeightedSumAttCon()
 
-        # decoder
+        declayers = self.getdeclayers(outembdim, outvocsize, encinnerdim, decinnerdim, inconcat, rnu)
+        argdecinnerdim = lastdecinnerdim if outconcat is False else lastencinnerdim + lastdecinnerdim
+
+        if statetrans is True:
+            if lastencinnerdim != lastdecinnerdim:  # state shape mismatch
+                statetrans = MatDot(lastencinnerdim, lastdecinnerdim)
+
+        super(SimpleSeqEncDecAtt, self).__init__(enclayers, declayers,
+            attgen, attcon, argdecinnerdim, inconcat, outconcat,
+            statetrans=statetrans, vecout=vecout, **kw)
+
+    def getenclayers(self, inpembdim, inpvocsize, encinnerdim, bidir, rnu):
+        if inpembdim is None:
+            inpemb = IdxToOneHot(inpvocsize)
+            inpembdim = inpvocsize
+        elif inpembdim is False:
+            inpemb = None
+        else:
+            inpemb = VectorEmbed(indim=inpvocsize, dim=inpembdim)
+        encrnus = []
+        dims = [inpembdim] + encinnerdim
+        i = 1
+        lastencinnerdim = dims[-1] if not bidir else dims[-1] * 2
+        while i < len(dims):
+            if bidir:
+                newrnu = BiRNU.fromrnu(rnu, dim=dims[i - 1], innerdim=dims[i])
+            else:
+                newrnu = rnu(dim=dims[i - 1], innerdim=dims[i])
+            encrnus.append(newrnu)
+            i += 1
+        enclayers = [inpemb] + encrnus
+        return enclayers, lastencinnerdim
+
+    def getdeclayers(self, outembdim, outvocsize, encinnerdim, decinnerdim, inconcat, rnu):
         if outembdim is None:
             outemb = IdxToOneHot(outvocsize)
             outembdim = outvocsize
+        elif outembdim is False:
+            outemb = None
         else:
             outemb = VectorEmbed(indim=outvocsize, dim=outembdim)
         decrnus = []
@@ -116,16 +141,10 @@ class SimpleSeqEncDecAtt(SeqEncDecAtt):
         dims = [firstdecdim] + decinnerdim
         i = 1
         while i < len(dims):
-            decrnus.append(rnu(dim=dims[i-1], innerdim=dims[i]))
+            decrnus.append(rnu(dim=dims[i - 1], innerdim=dims[i]))
             i += 1
         declayers = [outemb] + decrnus
-        argdecinnerdim = lastdecinnerdim if outconcat is False else lastencinnerdim + lastdecinnerdim
-
-        if statetrans is True:
-            if lastencinnerdim != lastdecinnerdim:  # state shape mismatch
-                statetrans = MatDot(lastencinnerdim, lastdecinnerdim)
-
-        super(SimpleSeqEncDecAtt, self).__init__(enclayers, declayers, attgen, attcon, argdecinnerdim, inconcat, outconcat, statetrans=statetrans, **kw)
+        return declayers
 
 
 class SeqTransducer(Block):

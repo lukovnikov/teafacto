@@ -1,4 +1,5 @@
 from teafacto.util import argprun, ticktock
+from teafacto.blocks.seqproc import SimpleSeq2Vec, SeqEncDecAtt
 import pickle
 from IPython import embed
 
@@ -33,7 +34,7 @@ def run(
         bidir=False,
         layers=1,
         innerdim=200,
-        embdim=100
+        embdim=100,
     ):
     # load the right file
     tt = ticktock("script")
@@ -61,7 +62,23 @@ def run(
     else:
         encinnerdim = [innerdim] * layers
 
+    # entity representation
+    #   - used in
+    #       - question seq2seqvec enc/dec
+    #       - for matching
+    memembdim = embdim
+    memlayers = layers
+    membidir = bidir
+    if membidir:
+        innerdim = [innerdim/2]*memlayers
+    else:
+        innerdim = [innerdim]*memlayers
 
+    entenc = SimpleSeq2Vec(indim=numwords,
+                         inpembdim=memembdim,
+                         innerdim=innerdim,
+                         maskid=-1,
+                         bidir=membidir)
     embed()
 
 
