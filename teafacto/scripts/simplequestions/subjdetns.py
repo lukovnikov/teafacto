@@ -249,6 +249,7 @@ def evaluate(pred, gold):
     return np.sum(gold == pred) * 100. / gold.shape[0]
 #endregion
 
+
 def run(
         epochs=10,
         numbats=100,
