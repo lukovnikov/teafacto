@@ -58,9 +58,6 @@ def run(
     rescal = Rescal(embdim, entemb, numrels)
 
     scorer = MatchScore(rescal, entemb, scorer=DotDistance())
-    pred = scorer.predict(np.random.randint(0, 18, (100, 2)), np.random.randint(0, 40000, (100,)))
-    print pred
-    embed()
 
     class NegIdxGen(object):
         def __init__(self, rng):
@@ -80,6 +77,8 @@ def run(
         .negsamplegen(NegIdxGen(numents)).negrate(negrate).objective(obj)\
         .adagrad(lr=lr).l2(wreg)\
         .train(numbats=numbats, epochs=epochs)
+
+    scorer.save("rescal.scorer.block")
 
 
 if __name__ == "__main__":
