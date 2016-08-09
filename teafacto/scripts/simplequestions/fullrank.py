@@ -12,7 +12,7 @@ def readdata(mode):
     else:
         raise Exception("unknown mode")
     x = pickle.load(open(p))
-    worddic = x["worddic"] if not mode == "word" else x["chardic"]
+    worddic = x["worddic"] if mode == "word" else x["chardic"]
     worddic2 = x["worddic"] if mode == "charword" else None
     entdic = x["entdic"]
     numents = x["numents"]
