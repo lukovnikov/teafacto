@@ -30,6 +30,10 @@ def run(
         numbats=100,
         lr=0.1,
         wreg=0.000001,
+        bidir=False,
+        layers=1,
+        innerdim=200,
+        embdim=100
     ):
     # load the right file
     tt = ticktock("script")
@@ -42,6 +46,22 @@ def run(
     print traindata.shape, traingold.shape, testdata.shape, testgold.shape
 
     tt.tock("data loaded")
+
+    # *data: matrix of word ids (-1 filler), example per row
+    # *gold: vector of true entity ids
+    # entmat: matrix of word ids (-1 filler), entity label per row, indexes according to *gold
+    # *dic: from word/ent-fbid to integer id, as used in data
+
+    numwords = max(worddic.values()) + 1
+    numents = max(entdic.values()) + 1
+    print "%d words, %d entities" % (numwords, numents)
+
+    if bidir:
+        encinnerdim = [innerdim / 2] * layers
+    else:
+        encinnerdim = [innerdim] * layers
+
+
     embed()
 
 
