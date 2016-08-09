@@ -1,5 +1,6 @@
 from teafacto.util import argprun, ticktock
 import pickle
+from IPython import embed
 
 
 def readdata(mode):
@@ -16,16 +17,11 @@ def readdata(mode):
     worddic2 = x["worddic"] if mode == "charword" else None
     entdic = x["entdic"]
     numents = x["numents"]
-    newdic = {}
-    for k, v in entdic.items():
-        if v < numents:
-            newdic[k] = v
     entmat = x["entmat"]
-    entmat = entmat[:numents, :]
     train = x["train"]
     valid = x["valid"]
     test  = x["test"]
-    return train, valid, test, worddic, newdic, entmat
+    return train, valid, test, worddic, entdic, entmat
 
 
 def run(
@@ -41,8 +37,12 @@ def run(
     (traindata, traingold), (validdata, validgold), (testdata, testgold), \
     worddic, entdic, entmat\
         = readdata(mode)
-    print testdata[:20]
-    print testgold[:20]
+
+    print entmat.shape
+    print traindata.shape, traingold.shape, testdata.shape, testgold.shape
+
+    tt.tock("data loaded")
+    embed()
 
 
 if __name__ == "__main__":
