@@ -35,3 +35,19 @@ class MatchScore(Block):
 
     def apply(self, left, right):
         return self.s(self.l(left), self.r(right))  # left: (batsize, dim), right: (batsize, dim)
+
+
+class SeqMatchScore(MatchScore):
+    def __init__(self, lenc, renc, aggregator=lambda x: T.sum(x, axis=1), **kw):
+        self.agg = aggregator
+        super(SeqMatchScore, self).__init__(lenc, renc, **kw)
+
+    def apply(self, left, right):
+        l = self.l(left)
+        r = self.r(right)
+        scores, _ = T.scan(self.rec, sequences=[l.dimswap(1, 0), r.dimswap(1, 0)])
+        scores = scores.dimswap(1, 0)
+        return self.agg(scores)
+
+    def rec(self, left, right):
+        return self.s(left, right)

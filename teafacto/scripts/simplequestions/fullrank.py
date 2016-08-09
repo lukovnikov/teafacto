@@ -1,6 +1,8 @@
 from teafacto.util import argprun, ticktock
-from teafacto.blocks.seqproc import SimpleSeq2Vec, SeqEncDecAtt
-import pickle
+from teafacto.blocks.seqproc import SimpleSeq2Vec, SeqEncDecAtt, SimpleSeqEncDecAtt, SeqUnroll
+from teafacto.blocks.match import SeqMatchScore
+from teafacto.core.base import Val
+import pickle, numpy as np
 from IPython import embed
 
 
@@ -35,6 +37,9 @@ def run(
         layers=1,
         innerdim=200,
         embdim=100,
+        negrate=1,
+        margin=1.,
+        rankingloss=False,
     ):
     # load the right file
     tt = ticktock("script")
@@ -62,10 +67,6 @@ def run(
     else:
         encinnerdim = [innerdim] * layers
 
-    # entity representation
-    #   - used in
-    #       - question seq2seqvec enc/dec
-    #       - for matching
     memembdim = embdim
     memlayers = layers
     membidir = bidir
@@ -79,6 +80,39 @@ def run(
                          innerdim=innerdim,
                          maskid=-1,
                          bidir=membidir)
+
+    encdec = SimpleSeqEncDecAtt(inpvocsize=numwords, inpembdim=embdim,
+                    encdim=encinnerdim, bidir=bidir, outembdim=entenc, decdim=innerdim,
+                    outconcat=False, vecout=True)
+
+    scorer = SeqMatchScore(encdec, SeqUnroll(entenc))
+
+    # TODO: below this line, check and test
+    class PreProc(object):
+        def __init__(self, entmat):
+            self.em = Val(entmat)
+
+        def __call__(self, datas, gold):        # gold: idx^(batsize, seqlen)
+            return (datas, self.em[gold, :]), {}
+
+    class NegIdxGen(object):
+        def __init__(self, rng):
+            self.min = 0
+            self.max = rng
+
+        def __call__(self, datas, gold):    # the whole target sequence is corrupted, corruption targets the whole set of entities and relations together
+            return datas, np.random.randint(self.min, self.max, gold.shape).astype("int32")
+
+    obj = lambda p, n: n - p
+    if rankingloss:
+        obj = lambda p, n: (n - p + margin).clip(0, np.infty)
+
+    nscorer = scorer.nstrain([traindata, traingold]).transform(PreProc(entmat)) \
+        .negsamplegen(NegIdxGen(numents)).negrate(negrate).objective(obj) \
+        .adagrad(lr=lr).l2(wreg).grad_total_norm(1.0) \
+        .validate_on([validdata, validgold]) \
+        .train(numbats=numbats, epochs=epochs)
+
     embed()
 
 

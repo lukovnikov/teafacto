@@ -81,7 +81,7 @@ class VectorEmbed(Embedder):
         self.indim = indim
         self.trainfrac = trainfrac
         if value is None:
-            self.W = param((indim, dim), lrmul=self.trainfrac, name="embedder").uniform()
+            self.W = param((indim, dim), lrmul=self.trainfrac, name="embedder").glorotuniform()
         else:
             if trainfrac == 0.0:
                 self.W = Val(value, name="embedder_val")

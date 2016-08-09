@@ -11,6 +11,20 @@ from teafacto.util import issequence, isnumber
 from teafacto.blocks.pool import Pool
 
 
+class SeqUnroll(Block):
+    def __init__(self, block, **kw):
+        self.inner = block
+        super(SeqUnroll, self).__init__(**kw)
+
+    def apply(self, seq):   # (batsize, seqlen, ...)
+        x = seq.dimswap(1, 0)
+        ret, _ = T.scan(self.rec, sequences=x)
+        return ret.dimswap(1, 0)
+
+    def rec(self, *args, **kwargs):
+        return self.inner(*args, **kwargs)
+
+
 class SeqEncDec(Block):
     def __init__(self, enc, dec, statetrans=None, **kw):
         super(SeqEncDec, self).__init__(**kw)
@@ -88,21 +102,21 @@ class SimpleSeqEncDecAtt(SeqEncDecAtt):
         encinnerdim = [encdim] if not issequence(encdim) else encdim
         decinnerdim = [decdim] if not issequence(decdim) else decdim
 
-        enclayers, lastencinnerdim = self.getenclayers(inpembdim, inpvocsize, encinnerdim, bidir, rnu)
+        self.enclayers, lastencinnerdim = self.getenclayers(inpembdim, inpvocsize, encinnerdim, bidir, rnu)
 
         # attention
         lastdecinnerdim = decinnerdim[-1]
         attgen = LinearGateAttentionGenerator(indim=lastencinnerdim + lastdecinnerdim, attdim=attdim)
         attcon = WeightedSumAttCon()
 
-        declayers = self.getdeclayers(outembdim, outvocsize, encinnerdim, decinnerdim, inconcat, rnu)
+        self.declayers = self.getdeclayers(outembdim, outvocsize, encinnerdim, decinnerdim, inconcat, rnu)
         argdecinnerdim = lastdecinnerdim if outconcat is False else lastencinnerdim + lastdecinnerdim
 
         if statetrans is True:
             if lastencinnerdim != lastdecinnerdim:  # state shape mismatch
                 statetrans = MatDot(lastencinnerdim, lastdecinnerdim)
 
-        super(SimpleSeqEncDecAtt, self).__init__(enclayers, declayers,
+        super(SimpleSeqEncDecAtt, self).__init__(self.enclayers, self.declayers,
             attgen, attcon, argdecinnerdim, inconcat, outconcat,
             statetrans=statetrans, vecout=vecout, **kw)
 
@@ -110,8 +124,8 @@ class SimpleSeqEncDecAtt(SeqEncDecAtt):
         if inpembdim is None:
             inpemb = IdxToOneHot(inpvocsize)
             inpembdim = inpvocsize
-        elif inpembdim is False:
-            inpemb = None
+        elif isinstance(inpembdim, Block):
+            inpemb = inpembdim
         else:
             inpemb = VectorEmbed(indim=inpvocsize, dim=inpembdim)
         encrnus = []
@@ -132,8 +146,8 @@ class SimpleSeqEncDecAtt(SeqEncDecAtt):
         if outembdim is None:
             outemb = IdxToOneHot(outvocsize)
             outembdim = outvocsize
-        elif outembdim is False:
-            outemb = None
+        elif isinstance(outembdim, Block):
+            outemb = outembdim
         else:
             outemb = VectorEmbed(indim=outvocsize, dim=outembdim)
         decrnus = []

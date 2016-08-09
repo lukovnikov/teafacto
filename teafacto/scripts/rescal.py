@@ -10,7 +10,7 @@ from IPython import embed
 class Rescal(Block):
     def __init__(self, embdim, numents, numrels, **kw):
         self.A = VectorEmbed(indim=numents, dim=embdim)
-        self.R = param((numrels, embdim, embdim), name="rel_embed").uniform()
+        self.R = param((numrels, embdim, embdim), name="rel_embed").glorotuniform()
         self.scorer = DotDistance()
         super(Rescal, self).__init__(**kw)
 
@@ -82,7 +82,7 @@ def run(
         .adagrad(lr=lr).l2(wreg)\
         .train(numbats=numbats, epochs=epochs)
 
-    scorer.save("rescal.scorer.block")
+    #scorer.save("rescal.scorer.block")
 
 
 if __name__ == "__main__":
