@@ -8,29 +8,31 @@ from IPython import embed
 
 
 class Rescal(Block):
-    def __init__(self, embdim, entemb, numrels, **kw):
-        self.A = entemb
+    def __init__(self, embdim, numents, numrels, **kw):
+        self.A = VectorEmbed(indim=numents, dim=embdim)
         self.R = param((numrels, embdim, embdim), name="rel_embed").uniform()
+        self.scorer = DotDistance()
         super(Rescal, self).__init__(**kw)
 
-    def apply(self, sp):
+    def apply(self, sp, o):
         entembs = self.A(sp[:, 0])
         relembs = self.R[sp[:, 1], :, :]
         ret = T.batched_dot(entembs, relembs)
-        return ret
+        return self.scorer(ret, self.A(o))
 
 
 class TransE(Block):
-    def __init__(self, embdim, entemb, numrels, **kw):
-        self.A = entemb
+    def __init__(self, embdim, numents, numrels, **kw):
+        self.A = VectorEmbed(indim=numents, dim=embdim)
         self.R = VectorEmbed(indim=numrels, dim=embdim)
+        self.scorer = EuclideanDistance()
         super(TransE, self).__init__(**kw)
 
-    def apply(self, sp):
+    def apply(self, sp, o):
         entembs = self.A(sp[:, 0])
         relembs = self.R(sp[:, 1])
         ret = entembs + relembs
-        return ret
+        return self.scorer(ret, self.A(o))
 
 
 
@@ -54,10 +56,14 @@ def run(
     x = np.asarray(xs)
     print x.shape, numents, numrels, np.max(x, axis=0)
 
-    entemb = VectorEmbed(indim=numents, dim=embdim)
-    rescal = Rescal(embdim, entemb, numrels)
+    if mode == "rescal":
+        model = Rescal
+    elif mode == "transe":
+        model = TransE
+    else:
+        raise Exception("unknown mode")
 
-    scorer = MatchScore(rescal, entemb, scorer=DotDistance())
+    scorer = model(embdim, numents, numrels)
 
     class NegIdxGen(object):
         def __init__(self, rng):
