@@ -17,11 +17,17 @@ def readdata(mode):
         raise Exception("unknown mode")
     x = pickle.load(open(p))
     worddic = x["worddic"] if mode == "word" else x["chardic"]
-
+    worddic = {k: v+1 for k, v in worddic.items()}
+    worddic["|"] = 0
     worddic2 = x["worddic"] if mode == "charword" else None
     entdic = x["entdic"]
-    numents = x["numents"]
+    entdic = {k: v+1 for k, v in entdic.items()}
+    entdic["|"] = 0
+    numents = x["numents"]+1
     entmat = x["entmat"]
+    addtoentmat = -np.ones_like(entmat[0, ...], dtype="int32")
+    addtoentmat[0] = 0
+    entmat = np.concatenate([addtoentmat, entmat], axis=0)
     train = x["train"]
     valid = x["valid"]
     test  = x["test"]
