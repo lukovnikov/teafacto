@@ -14,6 +14,5 @@ class TestMatchScore(TestCase):
 
         data = np.random.randint(0, vocsize, (5, 3))
         pred = m.predict(data, data)
-        print pred
         self.assertTrue(np.allclose(np.ones_like(pred)*3., pred))
 

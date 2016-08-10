@@ -1,4 +1,5 @@
 from teafacto.core.base import tensorops as T, Block
+from teafacto.util import issequence
 from IPython import embed
 
 #region ======== SCORES =============
@@ -43,8 +44,12 @@ class SeqMatchScore(MatchScore):
         super(SeqMatchScore, self).__init__(lenc, renc, **kw)
 
     def apply(self, left, right):
-        l = self.l(left)
-        r = self.r(right)
+        if not issequence(left):
+            left = [left]
+        if not issequence(right):
+            right = [right]
+        l = self.l(*left)
+        r = self.r(*right)
         scores, _ = T.scan(self.rec, sequences=[l.dimswap(1, 0), r.dimswap(1, 0)])
         scores = scores.dimswap(1, 0)
         return self.agg(scores)

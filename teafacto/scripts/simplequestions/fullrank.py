@@ -1,7 +1,7 @@
 from teafacto.util import argprun, ticktock
 from teafacto.blocks.seqproc import SimpleSeq2Vec, SeqEncDecAtt, SimpleSeqEncDecAtt, SeqUnroll
 from teafacto.blocks.match import SeqMatchScore
-from teafacto.core.base import Val
+from teafacto.core.base import Val, tensorops as T
 import pickle, numpy as np
 from IPython import embed
 
@@ -17,6 +17,7 @@ def readdata(mode):
         raise Exception("unknown mode")
     x = pickle.load(open(p))
     worddic = x["worddic"] if mode == "word" else x["chardic"]
+
     worddic2 = x["worddic"] if mode == "charword" else None
     entdic = x["entdic"]
     numents = x["numents"]
@@ -48,7 +49,9 @@ def run(
     worddic, entdic, entmat\
         = readdata(mode)
 
-    print entmat.shape
+    reventdic = {v: k for k, v in entdic}
+    revworddic = {v: k for k, v in worddic}
+    print entmat.shape, reventdic[0], revworddic[0]
     print traindata.shape, traingold.shape, testdata.shape, testgold.shape
 
     tt.tock("data loaded")
@@ -83,7 +86,7 @@ def run(
 
     encdec = SimpleSeqEncDecAtt(inpvocsize=numwords, inpembdim=embdim,
                     encdim=encinnerdim, bidir=bidir, outembdim=entenc, decdim=innerdim,
-                    outconcat=False, vecout=True)
+                    outconcat=False, vecout=True, statetrans=True)
 
     scorer = SeqMatchScore(encdec, SeqUnroll(entenc))
 
@@ -93,7 +96,11 @@ def run(
             self.em = Val(entmat)
 
         def __call__(self, datas, gold):        # gold: idx^(batsize, seqlen)
-            return (datas, self.em[gold, :]), {}
+            x = self.em[gold, :]                # idx^(batsize, seqlen, ...)
+            encd = datas[0]
+            decd = datas[1]                     # idx (batsize, seqlen, ...)
+            y = self.em[decd, :]
+            return ((encd, y), x), {}
 
     class NegIdxGen(object):
         def __init__(self, rng):
@@ -107,14 +114,24 @@ def run(
     if rankingloss:
         obj = lambda p, n: (n - p + margin).clip(0, np.infty)
 
-    nscorer = scorer.nstrain([traindata, traingold]).transform(PreProc(entmat)) \
+
+    def shiftdata(d):   # idx (batsize, seqlen)
+        ds = np.zeros_like(d)
+        ds[:, 1:] = d[:, :-1]
+        return ds
+
+    traingoldshifted = shiftdata(traingold)
+    validgoldshifted = shiftdata(validgold)
+    testgoldshifted = shiftdata(testgold)
+
+    nscorer = scorer.nstrain([(traindata, traingoldshifted), traingold]).transform(PreProc(entmat)) \
         .negsamplegen(NegIdxGen(numents)).negrate(negrate).objective(obj) \
         .adagrad(lr=lr).l2(wreg).grad_total_norm(1.0) \
-        .validate_on([validdata, validgold]) \
+        .validate_on([(validdata, validgoldshifted), validgold]) \
         .train(numbats=numbats, epochs=epochs)
 
     embed()
 
 
 if __name__ == "__main__":
-    argprun(run)
+    argprun(run, mode="word")
