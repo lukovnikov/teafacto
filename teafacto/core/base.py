@@ -729,7 +729,7 @@ class NSTrainConfig():
         return t.train(*args, **kwargs)
 
     def validate_on(self, data, splits=1, random=False):
-        gold = np.ones((data[0].shape[0],), dtype="float32")
+        gold = np.ones((data[-1].shape[0],), dtype="float32")
         self._trainerconfigstorer("validate_on", data, gold, splits=splits, random=random)
         self.linear_objective()
         return self

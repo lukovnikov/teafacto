@@ -96,6 +96,7 @@ def run(
                     statetrans=True)
 
     scorer = SeqMatchScore(encdec, SeqUnroll(entenc))
+    # TODO: test dummy prediction shapes
 
     # TODO: below this line, check and test
     class PreProc(object):
