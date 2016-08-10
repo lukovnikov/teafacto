@@ -25,7 +25,7 @@ def readdata(mode):
     entdic["|"] = 0
     numents = x["numents"]+1
     entmat = x["entmat"]
-    addtoentmat = -np.ones_like(entmat[0, ...], dtype="int32")
+    addtoentmat = -np.ones_like(entmat[[0]], dtype="int32")
     addtoentmat[0] = 0
     entmat = np.concatenate([addtoentmat, entmat], axis=0)
     train = x["train"]
