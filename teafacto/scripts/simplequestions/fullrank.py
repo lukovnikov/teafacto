@@ -49,8 +49,8 @@ def run(
     worddic, entdic, entmat\
         = readdata(mode)
 
-    reventdic = {v: k for k, v in entdic}
-    revworddic = {v: k for k, v in worddic}
+    reventdic = {v: k for k, v in entdic.items()}
+    revworddic = {v: k for k, v in worddic.items()}
     print entmat.shape, reventdic[0], revworddic[0]
     print traindata.shape, traingold.shape, testdata.shape, testgold.shape
 
@@ -134,4 +134,4 @@ def run(
 
 
 if __name__ == "__main__":
-    argprun(run, mode="word")
+    argprun(run)
