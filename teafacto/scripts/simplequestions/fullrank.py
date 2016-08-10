@@ -34,6 +34,11 @@ def readdata(mode):
     return train, valid, test, worddic, entdic, entmat
 
 
+def shiftdata(d):  # idx (batsize, seqlen)
+    ds = np.zeros_like(d)
+    ds[:, 1:] = d[:, :-1]
+    return ds
+
 def run(
         epochs=50,
         mode="char",    # or "word" or "charword"
@@ -97,6 +102,12 @@ def run(
 
     scorer = SeqMatchScore(encdec, SeqUnroll(entenc))
     # TODO: test dummy prediction shapes
+    dummydata = np.random.randint(0, numwords, (10, 5))
+    dummygold = np.random.randint(0, numents, (10, 2))
+    dummygoldshifted = shiftdata(dummygold)
+    dummypred = scorer.predict((dummydata, dummygoldshifted), dummygold)
+    print "DUMMY PREDICTION !!!:"
+    print dummypred
 
     # TODO: below this line, check and test
     class PreProc(object):
@@ -121,12 +132,6 @@ def run(
     obj = lambda p, n: n - p
     if rankingloss:
         obj = lambda p, n: (n - p + margin).clip(0, np.infty)
-
-
-    def shiftdata(d):   # idx (batsize, seqlen)
-        ds = np.zeros_like(d)
-        ds[:, 1:] = d[:, :-1]
-        return ds
 
     traingoldshifted = shiftdata(traingold)
     validgoldshifted = shiftdata(validgold)
