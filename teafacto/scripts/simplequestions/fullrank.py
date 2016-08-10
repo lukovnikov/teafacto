@@ -91,8 +91,9 @@ def run(
                          bidir=membidir)
 
     encdec = SimpleSeqEncDecAtt(inpvocsize=numwords, inpembdim=embdim,
-                    encdim=encinnerdim, bidir=bidir, outembdim=entenc, decdim=innerdim,
-                    outconcat=False, vecout=True, statetrans=True)
+                    encdim=encinnerdim, bidir=bidir, outembdim=entenc,
+                    decdim=innerdim, outconcat=False, vecout=True,
+                    statetrans=True)
 
     scorer = SeqMatchScore(encdec, SeqUnroll(entenc))
 

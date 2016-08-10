@@ -142,12 +142,14 @@ class SimpleSeqEncDecAtt(SeqEncDecAtt):
         enclayers = [inpemb] + encrnus
         return enclayers, lastencinnerdim
 
-    def getdeclayers(self, outembdim, outvocsize, encinnerdim, decinnerdim, inconcat, rnu):
+    def getdeclayers(self, outembdim, outvocsize, encinnerdim,
+                     decinnerdim, inconcat, rnu):
         if outembdim is None:
             outemb = IdxToOneHot(outvocsize)
             outembdim = outvocsize
         elif isinstance(outembdim, Block):
             outemb = outembdim
+            outembdim = outemb.outdim
         else:
             outemb = VectorEmbed(indim=outvocsize, dim=outembdim)
         decrnus = []
