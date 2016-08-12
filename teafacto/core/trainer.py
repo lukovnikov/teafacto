@@ -386,7 +386,8 @@ class ModelTrainer(object):
     def _train_full(self): # train on all data, no validation
         trainf = self.buildtrainfun(self.model)
         err, _ = self.trainloop(
-                trainf=self.getbatchloop(trainf, DataFeeder(*(self.traindata + [self.traingold])).numbats(self.numbats)))
+                trainf=self.getbatchloop(trainf,
+                DataFeeder(*(self.traindata + [self.traingold])).numbats(self.numbats)))
         return err, None, None, None
 
     def _train_validdata(self):

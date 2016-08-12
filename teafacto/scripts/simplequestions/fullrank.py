@@ -128,8 +128,8 @@ def run(
             self.min = 0
             self.max = rng
 
-        def __call__(self, datas, gold):    # the whole target sequence is corrupted, corruption targets the whole set of entities and relations together
-            return datas, np.random.randint(self.min, self.max, gold.shape).astype("int32")
+        def __call__(self, datas, sgold, gold):    # the whole target sequence is corrupted, corruption targets the whole set of entities and relations together
+            return datas, sgold, np.random.randint(self.min, self.max, gold.shape).astype("int32")
 
     obj = lambda p, n: n - p
     if rankingloss:
