@@ -19,6 +19,7 @@ def run(
         marginloss=False,
         margin=1.,
         cosine=False,
+        bidir=False,
     ):
     tt = ticktock("script")
     # get glove words
@@ -44,7 +45,7 @@ def run(
                           inpembdim=embdim,
                           innerdim=encdim/2,
                           maskid=-1,
-                          bidir=True)
+                          bidir=bidir)
     dist = CosineDistance() if cosine else EuclideanDistance() #DotDistance()
     print "using " + str(dist)
     scorer = MatchScore(cwenc, g.block, scorer=dist)
