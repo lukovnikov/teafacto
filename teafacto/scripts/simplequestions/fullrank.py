@@ -95,7 +95,7 @@ def run(
                          maskid=-1,
                          bidir=membidir)
 
-    encdec = SimpleSeqEncDecAtt(inpvocsize=numwords, inpembdim=embdim,
+    encdec = SimpleSeqEncDecAtt(inpembdim=entenc.inpemb,
                     encdim=encinnerdim, bidir=bidir, outembdim=entenc,
                     decdim=innerdim, outconcat=False, vecout=True,
                     statetrans=True)

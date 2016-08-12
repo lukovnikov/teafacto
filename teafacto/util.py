@@ -184,11 +184,14 @@ def argparsify(f, test=None):
 
 
 def argprun(f, **kwargs):   # command line overrides kwargs
-    f_args = argparsify(f)
-    for k, v in kwargs.items():
-        if k not in f_args:
-            f_args[k] = v
-    f(**f_args)
+    try:
+        f_args = argparsify(f)
+        for k, v in kwargs.items():
+            if k not in f_args:
+                f_args[k] = v
+        f(**f_args)
+    except KeyboardInterrupt:
+        print("Interrupted by Keyboard")
 
 
 def issequence(x):

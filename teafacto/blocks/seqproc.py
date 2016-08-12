@@ -126,6 +126,7 @@ class SimpleSeqEncDecAtt(SeqEncDecAtt):
             inpembdim = inpvocsize
         elif isinstance(inpembdim, Block):
             inpemb = inpembdim
+            impembdim = inpemb.outdim
         else:
             inpemb = VectorEmbed(indim=inpvocsize, dim=inpembdim)
         encrnus = []
