@@ -139,7 +139,7 @@ def run(
     validgoldshifted = shiftdata(validgold)
     testgoldshifted = shiftdata(testgold)
 
-    nscorer = scorer.nstrain([(traindata, traingoldshifted), traingold]).transform(PreProc(entmat)) \
+    nscorer = scorer.nstrain([traindata, traingoldshifted, traingold]).transform(PreProc(entmat)) \
         .negsamplegen(NegIdxGen(numents)).negrate(negrate).objective(obj) \
         .adagrad(lr=lr).l2(wreg).grad_total_norm(1.0) \
         .validate_on([(validdata, validgoldshifted), validgold]) \
@@ -149,4 +149,4 @@ def run(
 
 
 if __name__ == "__main__":
-    argprun(run)
+    argprun(run, mode="word")
