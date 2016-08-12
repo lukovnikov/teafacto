@@ -131,6 +131,7 @@ class SimpleSeqEncDecAtt(SeqEncDecAtt):
             inpemb = VectorEmbed(indim=inpvocsize, dim=inpembdim)
         encrnus = []
         dims = [inpembdim] + encinnerdim
+        print dims
         i = 1
         lastencinnerdim = dims[-1] if not bidir else dims[-1] * 2
         while i < len(dims):
