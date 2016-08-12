@@ -142,7 +142,7 @@ def run(
     nscorer = scorer.nstrain([traindata, traingoldshifted, traingold]).transform(PreProc(entmat)) \
         .negsamplegen(NegIdxGen(numents)).negrate(negrate).objective(obj) \
         .adagrad(lr=lr).l2(wreg).grad_total_norm(1.0) \
-        .validate_on([(validdata, validgoldshifted), validgold]) \
+        .validate_on([validdata, validgoldshifted, validgold]) \
         .train(numbats=numbats, epochs=epochs)
 
     embed()
