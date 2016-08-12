@@ -49,18 +49,17 @@ def run(
     print "using " + str(dist)
     scorer = MatchScore(cwenc, g.block, scorer=dist)
 
+    '''
     scorer.train([charwordmat, np.arange(len(words)+1)], np.ones((charwordmat.shape[0],), dtype="int32") * (-1 if cosine else 1))\
         .linear_objective().adagrad(lr=lr).l2(wreg)\
         .train(numbats=numbats, epochs=epochs)
-
-    cwenc.save("glove2c2w.block")
 
 
     # NEGATIVE SAMPLING ::::::::::::::::::::::::::::::::::
     sys.exit()  # don't
 
     #embed()
-
+    '''
     class NegIdxGen(object):
         def __init__(self, rng):
             self.min = 0
@@ -78,6 +77,8 @@ def run(
         .negsamplegen(NegIdxGen(len(words))).negrate(negrate)\
         .objective(obj).adagrad(lr=lr).l2(wreg)\
         .train(numbats=numbats, epochs=epochs)
+
+    cwenc.save("glove2c2w.block")
 
 
 
