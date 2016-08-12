@@ -41,9 +41,9 @@ class MatchScore(Block):
         l = self.l(*left)
         r = self.r(*right)
         return self.innerapply(l, r)
-        
+
     def innerapply(self, l, r):
-        return self.s(self.l(l), self.r(r))  # left: (batsize, dim), right: (batsize, dim)
+        return self.s(l, r)
 
 
 class SeqMatchScore(MatchScore):
