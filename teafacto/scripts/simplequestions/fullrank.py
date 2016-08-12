@@ -100,12 +100,12 @@ def run(
                     decdim=innerdim, outconcat=False, vecout=True,
                     statetrans=True)
 
-    scorer = SeqMatchScore(encdec, SeqUnroll(entenc))
+    scorer = SeqMatchScore(encdec, SeqUnroll(entenc), argproc=lambda x, y, z: ((x, y), (z,)))
     # TODO: test dummy prediction shapes
     dummydata = np.random.randint(0, numwords, (10, 5))
     dummygold = np.random.randint(0, numents, (10, 2))
     dummygoldshifted = shiftdata(dummygold)
-    dummypred = scorer.predict((dummydata, dummygoldshifted), dummygold)
+    dummypred = scorer.predict(dummydata, dummygoldshifted, dummygold)
     print "DUMMY PREDICTION !!!:"
     print dummypred
 

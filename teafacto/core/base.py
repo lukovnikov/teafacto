@@ -506,9 +506,8 @@ class Block(Elem, Saveable): # block with parameters
         transform = None
         if "transform" in kwinputdata:
             transform = kwinputdata.pop("transform")
-        inputdata = recurmap(lambda x:
-                        x if isinstance(x, (np.ndarray, DataFeed))
-                        else (np.asarray(x) if x is not None else None),
+        inputdata = map(lambda x:
+                        x if isinstance(x, (np.ndarray, DataFeed)) else (np.asarray(x) if x is not None else None),
                         inputdata)
         for k in kwinputdata:
             x = kwinputdata[k]

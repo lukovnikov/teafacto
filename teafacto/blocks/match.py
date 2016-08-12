@@ -39,15 +39,15 @@ class MatchScore(Block):
 
 
 class SeqMatchScore(MatchScore):
-    def __init__(self, lenc, renc, aggregator=lambda x: T.sum(x, axis=1), **kw):
+    def __init__(self, lenc, renc,
+                 aggregator=lambda x: T.sum(x, axis=1),
+                 argproc=lambda x, y: ((x,), (y,)), **kw):
         self.agg = aggregator
+        self.argproc = argproc
         super(SeqMatchScore, self).__init__(lenc, renc, **kw)
 
-    def apply(self, left, right):
-        if not issequence(left):
-            left = [left]
-        if not issequence(right):
-            right = [right]
+    def apply(self, *args):
+        left, right = self.argproc(*args)
         l = self.l(*left)
         r = self.r(*right)
         scores, _ = T.scan(self.rec, sequences=[l.dimswap(1, 0), r.dimswap(1, 0)])
