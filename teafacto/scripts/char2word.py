@@ -43,7 +43,7 @@ def run(
     # encode characters
     cwenc = SimpleSeq2Vec(indim=len(chars),
                           inpembdim=embdim,
-                          innerdim=encdim/2,
+                          innerdim=encdim/2 if bidir else encdim,
                           maskid=-1,
                           bidir=bidir)
     dist = CosineDistance() if cosine else EuclideanDistance() #DotDistance()
