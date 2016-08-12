@@ -2,7 +2,7 @@ from teafacto.util import argprun, ticktock
 from teafacto.blocks.seqproc import SimpleSeq2Vec, SeqEncDecAtt, SimpleSeqEncDecAtt, SeqUnroll
 from teafacto.blocks.match import SeqMatchScore
 from teafacto.core.base import Val, tensorops as T
-import pickle, numpy as np
+import pickle, numpy as np, sys
 from IPython import embed
 
 
@@ -101,25 +101,27 @@ def run(
                     statetrans=True)
 
     scorer = SeqMatchScore(encdec, SeqUnroll(entenc), argproc=lambda x, y, z: ((x, y), (z,)))
-    # TODO: test dummy prediction shapes
-    dummydata = np.random.randint(0, numwords, (10, 5))
-    dummygold = np.random.randint(0, numents, (10, 2))
-    dummygoldshifted = shiftdata(dummygold)
-    dummypred = scorer.predict(dummydata, dummygoldshifted, dummygold)
-    print "DUMMY PREDICTION !!!:"
-    print dummypred
 
     # TODO: below this line, check and test
     class PreProc(object):
         def __init__(self, entmat):
             self.em = Val(entmat)
 
-        def __call__(self, datas, gold):        # gold: idx^(batsize, seqlen)
-            x = self.em[gold, :]                # idx^(batsize, seqlen, ...)
-            encd = datas[0]
-            decd = datas[1]                     # idx (batsize, seqlen, ...)
-            y = self.em[decd, :]
-            return ((encd, y), x), {}
+        def __call__(self, encdata, decsg, decgold):        # gold: idx^(batsize, seqlen)
+            x = self.em[decgold, :]                       # idx (batsize, seqlen, ...)
+            y = self.em[decsg, :]
+            return (encdata, x, y), {}
+
+    transf = PreProc(entmat)
+    '''# test dummy prediction shapes
+    dummydata = np.random.randint(0, numwords, (10, 5))
+    dummygold = np.random.randint(0, numents, (10, 2))
+    dummygoldshifted = shiftdata(dummygold)
+    dummypred = scorer.predict.transform(transf)(dummydata, dummygoldshifted, dummygold)
+    print "DUMMY PREDICTION !!!:"
+    print dummypred
+    '''
+
 
     class NegIdxGen(object):
         def __init__(self, rng):

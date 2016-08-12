@@ -28,28 +28,31 @@ class EuclideanDistance(Block):
 
 
 class MatchScore(Block):
-    def __init__(self, lenc, renc, scorer=DotDistance(), **kw):
+    def __init__(self, lenc, renc, scorer=DotDistance(),
+                 argproc=lambda x, y: ((x,), (y,)), **kw):
         self.l = lenc
         self.r = renc
         self.s = scorer
-        super(MatchScore, self).__init__(**kw)
-
-    def apply(self, left, right):
-        return self.s(self.l(left), self.r(right))  # left: (batsize, dim), right: (batsize, dim)
-
-
-class SeqMatchScore(MatchScore):
-    def __init__(self, lenc, renc,
-                 aggregator=lambda x: T.sum(x, axis=1),
-                 argproc=lambda x, y: ((x,), (y,)), **kw):
-        self.agg = aggregator
         self.argproc = argproc
-        super(SeqMatchScore, self).__init__(lenc, renc, **kw)
+        super(MatchScore, self).__init__(**kw)
 
     def apply(self, *args):
         left, right = self.argproc(*args)
         l = self.l(*left)
         r = self.r(*right)
+        return self.innerapply(l, r)
+        
+    def innerapply(self, l, r):
+        return self.s(self.l(l), self.r(r))  # left: (batsize, dim), right: (batsize, dim)
+
+
+class SeqMatchScore(MatchScore):
+    def __init__(self, lenc, renc,
+                 aggregator=lambda x: T.sum(x, axis=1), **kw):
+        self.agg = aggregator
+        super(SeqMatchScore, self).__init__(lenc, renc, **kw)
+
+    def innerapply(self, l, r):
         scores, _ = T.scan(self.rec, sequences=[l.dimswap(1, 0), r.dimswap(1, 0)])
         scores = scores.dimswap(1, 0)
         return self.agg(scores)
