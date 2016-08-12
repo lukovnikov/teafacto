@@ -510,7 +510,6 @@ class Block(Elem, Saveable): # block with parameters
                         x if isinstance(x, (np.ndarray, DataFeed))
                         else (np.asarray(x) if x is not None else None),
                         inputdata)
-        embed()
         for k in kwinputdata:
             x = kwinputdata[k]
             kwinputdata[k] = x if isinstance(x, (np.ndarray, DataFeed)) else (np.asarray(x)
