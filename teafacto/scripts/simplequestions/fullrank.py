@@ -51,7 +51,7 @@ def run(
         embdim=100,
         negrate=1,
         margin=1.,
-        rankingloss=False,
+        hingeloss=False,
     ):
     # load the right file
     tt = ticktock("script")
@@ -132,7 +132,7 @@ def run(
             return datas, sgold, np.random.randint(self.min, self.max, gold.shape).astype("int32")
 
     obj = lambda p, n: n - p
-    if rankingloss:
+    if hingeloss:
         obj = lambda p, n: (n - p + margin).clip(0, np.infty)
 
     traingoldshifted = shiftdata(traingold)
