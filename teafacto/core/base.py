@@ -506,6 +506,7 @@ class Block(Elem, Saveable): # block with parameters
         transform = None
         if "transform" in kwinputdata:
             transform = kwinputdata.pop("transform")
+        embed()
         inputdata = map(lambda x:
                         x if isinstance(x, (np.ndarray, DataFeed)) else (np.asarray(x) if x is not None else None),
                         inputdata)
