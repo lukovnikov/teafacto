@@ -55,10 +55,6 @@ def run(
         .linear_objective().adagrad(lr=lr).l2(wreg)\
         .train(numbats=numbats, epochs=epochs)
 
-
-    # NEGATIVE SAMPLING ::::::::::::::::::::::::::::::::::
-    sys.exit()  # don't
-
     #embed()
     '''
     class NegIdxGen(object):
@@ -70,7 +66,7 @@ def run(
             return datas, np.random.randint(self.min, self.max, gold.shape).astype("int32")
 
     if marginloss:
-        obj = lambda p, n: (n-p+margin).clip(0, np.infty)
+        obj = lambda p, n: (n - p + margin).clip(0, np.infty)
     else:
         obj = lambda p, n: n - p
 
