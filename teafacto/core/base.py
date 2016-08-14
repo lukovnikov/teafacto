@@ -425,6 +425,8 @@ class Block(Elem, Saveable): # block with parameters
                     if self.transf is not None:
                         kwinpl.append(("transform", self.transf))
                     inps, outp = self.block.autobuild(*inputdata, **dict(kwinpl))
+                    if hasattr(self.block, "_predict_postapply"):
+                        outp = self.block._predict_postapply(outp)
                     self.block._predictf = theano.function(outputs=[o.d for o in outp],
                                                            inputs=[x.d for x in inps])
                 args = []
@@ -576,6 +578,8 @@ class Block(Elem, Saveable): # block with parameters
         trainer = ModelTrainer(self, goldvar.d)
         trainer.traindata = inputdata
         trainer.traingold = gold
+        if hasattr(self, "_trainer_cost"):  # sets cost in block
+            trainer._set_objective(self._trainer_cost)
         return trainer
 
     def nstrain(self, datas):
