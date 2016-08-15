@@ -428,7 +428,8 @@ class Block(Elem, Saveable): # block with parameters
                     if hasattr(self.block, "_predict_postapply"):
                         outp = self.block._predict_postapply(outp)
                     self.block._predictf = theano.function(outputs=[o.d for o in outp],
-                                                           inputs=[x.d for x in inps])
+                                                           inputs=[x.d for x in inps],
+                                                           on_unused_input="warn")
                 args = []
 
                 def _inner(x):

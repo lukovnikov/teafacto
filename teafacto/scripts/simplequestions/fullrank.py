@@ -4,6 +4,8 @@ from teafacto.blocks.match import SeqMatchScore
 from teafacto.core.base import Val, tensorops as T
 import pickle, numpy as np, sys
 from IPython import embed
+from teafacto.search import SeqEncDecSearch
+from teafacto.modelusers import RecPredictor
 
 
 def readdata(mode):
@@ -34,6 +36,33 @@ def readdata(mode):
     return train, valid, test, worddic, entdic, entmat
 
 
+class SeqEncDecRankSearch(SeqEncDecSearch):
+    def __init__(self, model, scorer, beamsize=1, *buildargs, **kw):
+        super(SeqEncDecRankSearch, self).__init__(model, beamsize, *buildargs, **kw)
+        self.scorer = scorer
+
+    def decode(self, inpseq, initsymbolidx, maxlen=100, transform=None):
+        self.mu.setbuildargs(inpseq)
+        self.mu.settransform(transform)
+        stop = False
+        i = 0
+        curout = np.repeat([initsymbolidx], inpseq.shape[0]).astype("int32")
+        accscores = np.ones((inpseq.shape[0]))
+        outs = []
+        while not stop:
+            curvectors = self.mu.feed(curout)
+            curscores = curvectors
+            # TODO make actual scores from curvectors produced above
+            accscores *= np.max(curscores, axis=1)
+            curout = np.argmax(curscores, axis=1).astype("int32")
+            outs.append(curout)
+            i += 1
+            stop = i == maxlen
+        ret = np.stack(outs).T
+        assert (ret.shape[0] == inpseq.shape[0] and ret.shape[1] <= maxlen)
+        return ret, accscores
+
+
 def shiftdata(d):  # idx (batsize, seqlen)
     ds = np.zeros_like(d)
     ds[:, 1:] = d[:, :-1]
@@ -52,29 +81,35 @@ def run(
         negrate=1,
         margin=1.,
         hingeloss=False,
+        debug=True,
     ):
     # load the right file
     tt = ticktock("script")
-    tt.tick()
-    (traindata, traingold), (validdata, validgold), (testdata, testgold), \
-    worddic, entdic, entmat\
-        = readdata(mode)
+    if debug:
+        numwords = 50
+        numents = 1000
+        entmat = np.random.randint(0, numwords, (numents, 5))
+    else:
+        tt.tick()
+        (traindata, traingold), (validdata, validgold), (testdata, testgold), \
+        worddic, entdic, entmat\
+            = readdata(mode)
 
-    reventdic = {v: k for k, v in entdic.items()}
-    revworddic = {v: k for k, v in worddic.items()}
-    print entmat.shape, reventdic[0], revworddic[0]
-    print traindata.shape, traingold.shape, testdata.shape, testgold.shape
+        reventdic = {v: k for k, v in entdic.items()}
+        revworddic = {v: k for k, v in worddic.items()}
+        print entmat.shape, reventdic[0], revworddic[0]
+        print traindata.shape, traingold.shape, testdata.shape, testgold.shape
 
-    tt.tock("data loaded")
+        tt.tock("data loaded")
 
-    # *data: matrix of word ids (-1 filler), example per row
-    # *gold: vector of true entity ids
-    # entmat: matrix of word ids (-1 filler), entity label per row, indexes according to *gold
-    # *dic: from word/ent-fbid to integer id, as used in data
+        # *data: matrix of word ids (-1 filler), example per row
+        # *gold: vector of true entity ids
+        # entmat: matrix of word ids (-1 filler), entity label per row, indexes according to *gold
+        # *dic: from word/ent-fbid to integer id, as used in data
 
-    numwords = max(worddic.values()) + 1
-    numents = max(entdic.values()) + 1
-    print "%d words, %d entities" % (numwords, numents)
+        numwords = max(worddic.values()) + 1
+        numents = max(entdic.values()) + 1
+        print "%d words, %d entities" % (numwords, numents)
 
     if bidir:
         encinnerdim = [innerdim / 2] * layers
@@ -105,22 +140,31 @@ def run(
     # TODO: below this line, check and test
     class PreProc(object):
         def __init__(self, entmat):
-            self.em = Val(entmat)
+            self.f = PreProcE(entmat)
 
         def __call__(self, encdata, decsg, decgold):        # gold: idx^(batsize, seqlen)
-            x = self.em[decgold, :]                       # idx (batsize, seqlen, ...)
-            y = self.em[decsg, :]
-            return (encdata, x, y), {}
+            return (encdata, self.f(decsg), self.f(decgold)), {}
+
+    class PreProcE(object):
+        def __init__(self, entmat):
+            self.em = Val(entmat)
+
+        def __call__(self, x):
+            return self.em[x]
 
     transf = PreProc(entmat)
-    '''# test dummy prediction shapes
-    dummydata = np.random.randint(0, numwords, (10, 5))
-    dummygold = np.random.randint(0, numents, (10, 2))
-    dummygoldshifted = shiftdata(dummygold)
-    dummypred = scorer.predict.transform(transf)(dummydata, dummygoldshifted, dummygold)
-    print "DUMMY PREDICTION !!!:"
-    print dummypred
-    '''
+
+    if debug:
+        # test dummy prediction shapes
+        dummydata = np.random.randint(0, numwords, (10, 5))
+        dummygold = np.random.randint(0, numents, (10, 2))
+        dummygoldshifted = shiftdata(dummygold)
+        #dummypred = scorer.predict.transform(transf)(dummydata, dummygoldshifted, dummygold)
+        print "DUMMY PREDICTION !!!:"
+        #print dummypred
+        s = SeqEncDecRankSearch(encdec, scorer)
+        pred, scores = s.decode(dummydata, 0, dummygold.shape[1], transform=transf.f)
+        sys.exit()
 
 
     class NegIdxGen(object):
@@ -149,4 +193,4 @@ def run(
 
 
 if __name__ == "__main__":
-    argprun(run, mode="word")
+    argprun(run, debug=True)

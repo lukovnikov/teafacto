@@ -4,7 +4,7 @@ from teafacto.blocks.basic import MatDot as Lin, Softmax
 from teafacto.blocks.basic import VectorEmbed, IdxToOneHot, MatDot
 from teafacto.blocks.rnn import RecStack, SeqDecoder, BiRNU, SeqEncoder, MaskSetMode, MaskMode
 from teafacto.blocks.rnu import GRU
-from teafacto.core.base import Block, tensorops as T, Val
+from teafacto.core.base import Block, tensorops as T, Val, asblock
 from teafacto.core.stack import stack
 from teafacto.blocks.memory import MemoryStack, MemoryBlock, DotMemAddr, GeneralDotMemAddr, LinearGateMemAddr
 from teafacto.util import issequence, isnumber
@@ -31,9 +31,9 @@ class SeqEncDec(Block):
         self.enc = enc
         self.dec = dec
         if isinstance(statetrans, Block):
-            self.statetrans = lambda x, y: statetrans(x)
+            self.statetrans = asblock(lambda x, y: statetrans(x))
         elif statetrans is True:
-            self.statetrans = lambda x, y: x
+            self.statetrans = asblock(lambda x, y: x)
         else:
             self.statetrans = statetrans
 
@@ -52,13 +52,23 @@ class SeqEncDec(Block):
         return deco
 
     def get_init_info(self, inpseq, batsize, maskseq=None):     # TODO: must evaluate enc here, in place, without any side effects
+        """
+        VERY DIFFERENT FROM THE PURELY SYMBOLIC GET_INIT_INFO IN REAL REC BLOCKS !!!
+        This one is used in decoder/prediction
+        """
         enco, allenco = self.enc.predict(inpseq, mask=maskseq)
+
         if self.statetrans is not None:
             topstate = self.statetrans.predict(enco, allenco)
             initstates = [topstate]
         else:
             initstates = batsize
-        return self.dec.get_init_info(Val(allenco), None, Val(initstates))
+        return self.dec.get_init_info(Val(allenco),
+                                      None,
+                                      [Val(x) for x in initstates]
+                                            if issequence(initstates)
+                                            else initstates
+                                      )
 
     def rec(self, x_t, *states):
         return self.dec.rec(x_t, *states)

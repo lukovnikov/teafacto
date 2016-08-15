@@ -67,10 +67,11 @@ class RecStack(ReccableBlock):
         recurrentlayers = list(filter(lambda x: isinstance(x, ReccableBlock), self.layers))
         assert (len(filter(lambda x: isinstance(x, RecurrentBlock) and not isinstance(x, ReccableBlock),
                            self.layers)) == 0)  # no non-reccable blocks allowed
-        if issequence(initstates):
-            if len(initstates) < self.numstates:
+        if issequence(initstates):  # fill up init state args so that layers for which no init state is specified get default arguments that lets them specify a default init state
+                                    # if is a sequence, expecting a value, not batsize
+            if len(initstates) < self.numstates:    # top layers are being given the given init states, bottoms make their own default
                 initstates = [initstates.shape[0]] * (self.numstates - len(initstates)) + initstates
-        else:
+        else:   # expecting a batsize as initstate arg
             initstates = [initstates] * self.numstates
         init_infos = []
         for recurrentlayer in recurrentlayers:  # from bottom layers to top

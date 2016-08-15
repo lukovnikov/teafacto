@@ -1,6 +1,7 @@
 import theano
 
 from teafacto.core.base import Input, Var, Val
+from teafacto.util import issequence
 
 
 class ModelUser(object):
@@ -16,9 +17,13 @@ class RecPredictor(ModelUser):
         self.statevals = None
         self.nonseqvals = None
         self.buildargs = buildargs
+        self.transf = None
 
     def setbuildargs(self, *args):
         self.buildargs = args
+
+    def settransform(self, f):
+        self.transf = f
 
     def build(self, inps):  # data: (batsize, ...)
         batsize = inps[0].shape[0]
@@ -28,12 +33,20 @@ class RecPredictor(ModelUser):
             nonseqs = inits[1]
             inits = inits[0]
         inpvars = [Input(ndim=inp.ndim, dtype=inp.dtype) for inp in inps]
+        if self.transf is not None:
+            tinpvars = self.transf(*inpvars)
+            if not issequence(tinpvars):
+                tinpvars = (tinpvars,)
+            tinpvars = list(tinpvars)
+        else:
+            tinpvars = inpvars
         statevars = [self.wrapininput(x) for x in inits]
         nonseqvars = [self.wrapininput(x) for x in nonseqs]
-        allinpvars = inpvars + statevars + nonseqvars
-        out = self.model.rec(*allinpvars)
+        out = self.model.rec(*(tinpvars + statevars + nonseqvars))
         alloutvars = out
-        self.f = theano.function(inputs=[x.d for x in allinpvars], outputs=[x.d for x in alloutvars], on_unused_input="warn")
+        self.f = theano.function(inputs=[x.d for x in inpvars + statevars + nonseqvars],
+                                 outputs=[x.d for x in alloutvars],
+                                 on_unused_input="warn")
         self.statevals = [self.evalstate(x) for x in inits]
         self.nonseqvals = [self.evalstate(x) for x in nonseqs]
 
