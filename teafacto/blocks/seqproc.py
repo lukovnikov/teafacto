@@ -59,7 +59,7 @@ class SeqEncDec(Block):
         enco, allenco = self.enc.predict(inpseq, mask=maskseq)
 
         if self.statetrans is not None:
-            topstate = self.statetrans.predict(enco, allenco)
+            topstate = self.statetrans.predict(enco, allenco)   # this gives unused input warning in theano - it's normal
             initstates = [topstate]
         else:
             initstates = batsize
