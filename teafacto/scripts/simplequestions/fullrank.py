@@ -43,6 +43,7 @@ class SeqEncDecRankSearch(SeqEncDecSearch):
         self.scorer = scorer
         self.canenc = canenc
         self.agg = agg
+        self.tt = ticktock("RankSearch")
 
     def decode(self, inpseq, initsymbolidx, maxlen=100, candata=None, canids=None, transform=None):
         assert(candata is not None and canids is not None)
@@ -57,6 +58,7 @@ class SeqEncDecRankSearch(SeqEncDecSearch):
         while not stop:
             curvectors = self.mu.feed(curout)
             accscoresj = np.zeros((inpseq.shape[0],))
+            self.tt.tick()
             for i in range(curvectors.shape[0]):    # for each example, find the highest scoring suited cans and their scores
                 candatai = candata[canids[i]]
                 canrepsi = self.canenc.predict(candatai)
@@ -64,10 +66,12 @@ class SeqEncDecRankSearch(SeqEncDecSearch):
                 scoresi = self.scorer.predict(canrepsi, curvectori)
                 curout[i] = canids[i][np.argmax(scoresi)]
                 accscoresj[i] += np.max(scoresi)
+                self.tt.progress(i, curvectors.shape[0])
             accscores.append(accscoresj[:, np.newaxis])
             outs.append(curout)
             j += 1
             stop = j == maxlen
+            self.tt.tock("done one timestep")
         accscores = self.agg.predict(np.concatenate(accscores, axis=1))
         ret = np.stack(outs).T
         assert (ret.shape[0] == inpseq.shape[0] and ret.shape[1] <= maxlen)
