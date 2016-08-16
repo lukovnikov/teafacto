@@ -108,7 +108,7 @@ def run(
         negrate=1,
         margin=1.,
         hingeloss=False,
-        debug=True,
+        debug=False,
         preeval=False,
     ):
     # load the right file
