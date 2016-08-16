@@ -60,7 +60,7 @@ class SeqEncDecRankSearch(SeqEncDecSearch):
             accscoresj = np.zeros((inpseq.shape[0],))
             self.tt.tick()
             for i in range(curvectors.shape[0]):    # for each example, find the highest scoring suited cans and their scores
-                print canids[i].shape
+                print len(canids[i])
                 candatai = candata[canids[i]]
                 canrepsi = self.canenc.predict(candatai)
                 curvectori = np.repeat(curvectors[np.newaxis, i, ...], canrepsi.shape[0], axis=0)
