@@ -46,7 +46,6 @@ class SeqEncDecRankSearch(SeqEncDecSearch):
 
     def decode(self, inpseq, initsymbolidx, maxlen=100, candata=None, canids=None, transform=None):
         assert(candata is not None and canids is not None)
-        canreps = self.canenc.predict(candata)
         print canreps.shape, candata.shape
 
         self.mu.setbuildargs(inpseq)
