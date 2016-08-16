@@ -60,7 +60,8 @@ class SeqEncDecRankSearch(SeqEncDecSearch):
             curvectors = self.mu.feed(curout)
             accscoresj = np.zeros((inpseq.shape[0],))
             for i in range(curvectors.shape[0]):    # for each example, find the highest scoring suited cans and their scores
-                canrepsi = canreps[canids[i]]
+                candatai = candata[canids[i]]
+                canrepsi = self.canenc.predict(candatai)
                 curvectori = np.repeat(curvectors[np.newaxis, i, ...], canrepsi.shape[0], axis=0)
                 scoresi = self.scorer.predict(canrepsi, curvectori)
                 curout[i] = canids[i][np.argmax(scoresi)]
@@ -107,7 +108,7 @@ def run(
         negrate=1,
         margin=1.,
         hingeloss=False,
-        debug=False,
+        debug=True,
         preeval=False,
     ):
     # load the right file
@@ -292,5 +293,4 @@ def run(
 
 
 if __name__ == "__main__":
-    print __file__, type(__file__), os.path.splitext(os.path.basename(__file__))[0]
     argprun(run, debug=True)
