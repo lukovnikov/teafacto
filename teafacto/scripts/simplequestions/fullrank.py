@@ -251,7 +251,7 @@ def run(
         eval = FullRankEval()
         canids = pickle.load(open("testcans.pkl"))
         for canidl in canids:
-            canidl.append(range(relstarts, numents))   # include all relations
+            canidl.extend(range(relstarts, numents))   # include all relations
         pred, scores = s.decode(testdata, 0, testgold.shape[1],
                                 candata=entmat, canids=canids,
                                 transform=transf.f)
