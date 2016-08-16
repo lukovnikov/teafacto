@@ -66,7 +66,7 @@ class SeqEncDecRankSearch(SeqEncDecSearch):
                 scoresi = self.scorer.predict(canrepsi, curvectori)
                 curout[i] = canids[i][np.argmax(scoresi)]
                 accscoresj[i] += np.max(scoresi)
-                self.tt.progress(i, curvectors.shape[0])
+                self.tt.progress(i, curvectors.shape[0], live=True)
             accscores.append(accscoresj[:, np.newaxis])
             outs.append(curout)
             j += 1
@@ -110,7 +110,7 @@ def run(
         negrate=1,
         margin=1.,
         hingeloss=False,
-        debug=False,
+        debug=True,
         preeval=False,
     ):
     # load the right file
