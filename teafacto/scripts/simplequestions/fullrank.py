@@ -34,7 +34,7 @@ def readdata(mode):
     train = x["train"]
     valid = x["valid"]
     test  = x["test"]
-    return train, valid, test, worddic, entdic, entmat
+    return train, valid, test, worddic, entdic, entmat, numents
 
 
 class SeqEncDecRankSearch(SeqEncDecSearch):
@@ -60,13 +60,17 @@ class SeqEncDecRankSearch(SeqEncDecSearch):
             accscoresj = np.zeros((inpseq.shape[0],))
             self.tt.tick()
             for i in range(curvectors.shape[0]):    # for each example, find the highest scoring suited cans and their scores
-                print len(canids[i])
-                candatai = candata[canids[i]]
-                canrepsi = self.canenc.predict(candatai)
-                curvectori = np.repeat(curvectors[np.newaxis, i, ...], canrepsi.shape[0], axis=0)
-                scoresi = self.scorer.predict(canrepsi, curvectori)
-                curout[i] = canids[i][np.argmax(scoresi)]
-                accscoresj[i] += np.max(scoresi)
+                #print len(canids[i])
+                if len(canids[i]) == 0:
+                    curout[i] = -1
+                else:
+                    canidsi = canids[i]     # TODO add relation id's too
+                    candatai = candata[canidsi]
+                    canrepsi = self.canenc.predict(candatai)
+                    curvectori = np.repeat(curvectors[np.newaxis, i, ...], canrepsi.shape[0], axis=0)
+                    scoresi = self.scorer.predict(canrepsi, curvectori)
+                    curout[i] = canids[i][np.argmax(scoresi)]
+                    accscoresj[i] += np.max(scoresi)
                 self.tt.progress(i, curvectors.shape[0], live=True)
             accscores.append(accscoresj[:, np.newaxis])
             outs.append(curout)
@@ -123,7 +127,7 @@ def run(
     else:
         tt.tick()
         (traindata, traingold), (validdata, validgold), (testdata, testgold), \
-        worddic, entdic, entmat\
+        worddic, entdic, entmat, relstarts\
             = readdata(mode)
 
         reventdic = {v: k for k, v in entdic.items()}
@@ -189,7 +193,8 @@ def run(
         # test dummy prediction shapes
         dummydata = np.random.randint(0, numwords, (1000, 5))
         dummygold = np.random.randint(0, numents, (1000, 2))
-        dummycanids = np.random.randint(0, numents, (1000, 6))    # six cans per q
+        dummycanids = [np.random.randint(0, numents, (6,)) for x in xrange(1000)]    # six cans per q
+        dummycanids[-1] = []
         dummygoldshifted = shiftdata(dummygold)
         #dummypred = scorer.predict.transform(transf)(dummydata, dummygoldshifted, dummygold)
         print "DUMMY PREDICTION !!!:"
@@ -200,6 +205,8 @@ def run(
         evalres = eval.eval(pred, dummygold)
         for k, evalre in evalres.items():
             print("{}:\t{}".format(k, evalre))
+
+        print pred
 
         basename = os.path.splitext(os.path.basename(__file__))[0]
         dirname = basename + ".results"
@@ -243,6 +250,8 @@ def run(
         s = SeqEncDecRankSearch(encdec, entenc, scorer.s, scorer.agg)
         eval = FullRankEval()
         canids = pickle.load(open("testcans.pkl"))
+        for canidl in canids:
+            canidl.append(range(relstarts, numents))   # include all relations
         pred, scores = s.decode(testdata, 0, testgold.shape[1],
                                 candata=entmat, canids=canids,
                                 transform=transf.f)
@@ -265,6 +274,8 @@ def run(
     s = SeqEncDecRankSearch(encdec, entenc, scorer.s, scorer.agg)
     eval = FullRankEval()
     canids = pickle.load(open("testcans.pkl"))
+    for canidl in canids:
+        canidl.append(range(relstarts, numents))   # include all relations
     pred, scores = s.decode(testdata, 0, testgold.shape[1],
                             candata=entmat, canids=canids,
                             transform=transf.f)
