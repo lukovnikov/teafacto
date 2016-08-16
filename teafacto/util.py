@@ -263,15 +263,6 @@ class Saveable(object):
         return self
 
 
-if __name__ == "__main__":
-    a, b, c = loadlexidtsv("../data/kgraph/labelsrevlex.map.id.tsv")
-    print "loaded"
-    pkl.dump((a, b, c), open("../My Passport/data/kgraph/labelsrevlex.map.id.tsv.pkl", "w"))
-    print "dumped"
-    a, b, c = loadlexidtsv("../My Passport/data/kgraph/aliasrevlex.map.id.tsv")
-    pkl.dump((a, b, c), open("../My Passport/data/kgraph/aliasrevlex.map.id.tsv.pkl", "w"))
-
-
 class DataCollection():
     def __init__(self, **datas):
         self.datas = datas

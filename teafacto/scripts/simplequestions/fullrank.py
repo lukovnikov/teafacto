@@ -2,9 +2,10 @@ from teafacto.util import argprun, ticktock
 from teafacto.blocks.seqproc import SimpleSeq2Vec, SeqEncDecAtt, SimpleSeqEncDecAtt, SeqUnroll
 from teafacto.blocks.match import SeqMatchScore
 from teafacto.core.base import Val, tensorops as T
-import pickle, numpy as np, sys
+import pickle, numpy as np, sys, os
 from IPython import embed
 from teafacto.search import SeqEncDecSearch
+from teafacto.eval.metrics import ClassAccuracy
 from teafacto.modelusers import RecPredictor
 
 
@@ -37,30 +38,55 @@ def readdata(mode):
 
 
 class SeqEncDecRankSearch(SeqEncDecSearch):
-    def __init__(self, model, scorer, beamsize=1, *buildargs, **kw):
+    def __init__(self, model, canenc, scorer, agg, beamsize=1, *buildargs, **kw):
         super(SeqEncDecRankSearch, self).__init__(model, beamsize, *buildargs, **kw)
         self.scorer = scorer
+        self.canenc = canenc
+        self.agg = agg
 
-    def decode(self, inpseq, initsymbolidx, maxlen=100, transform=None):
+    def decode(self, inpseq, initsymbolidx, maxlen=100, candata=None, canids=None, transform=None):
+        assert(candata is not None and canids is not None)
+        canreps = self.canenc.predict(candata)
+        print canreps.shape, candata.shape
+
         self.mu.setbuildargs(inpseq)
         self.mu.settransform(transform)
         stop = False
-        i = 0
+        j = 0
         curout = np.repeat([initsymbolidx], inpseq.shape[0]).astype("int32")
-        accscores = np.ones((inpseq.shape[0]))
+        accscores = []
         outs = []
         while not stop:
             curvectors = self.mu.feed(curout)
-            curscores = curvectors
-            # TODO make actual scores from curvectors produced above
-            accscores *= np.max(curscores, axis=1)
-            curout = np.argmax(curscores, axis=1).astype("int32")
+            accscoresj = np.zeros((inpseq.shape[0],))
+            for i in range(curvectors.shape[0]):    # for each example, find the highest scoring suited cans and their scores
+                canrepsi = canreps[canids[i]]
+                curvectori = np.repeat(curvectors[np.newaxis, i, ...], canrepsi.shape[0], axis=0)
+                scoresi = self.scorer.predict(canrepsi, curvectori)
+                curout[i] = canids[i][np.argmax(scoresi)]
+                accscoresj[i] += np.max(scoresi)
+            accscores.append(accscoresj[:, np.newaxis])
             outs.append(curout)
-            i += 1
-            stop = i == maxlen
+            j += 1
+            stop = j == maxlen
+        accscores = self.agg.predict(np.concatenate(accscores, axis=1))
         ret = np.stack(outs).T
         assert (ret.shape[0] == inpseq.shape[0] and ret.shape[1] <= maxlen)
         return ret, accscores
+
+
+class FullRankEval(object):
+    def __init__(self):
+        self.metrics = {"all": ClassAccuracy(),
+                        "subj": ClassAccuracy(),
+                        "pred": ClassAccuracy()}
+
+    def eval(self, pred, gold):
+        for i in range(pred.shape[0]):
+            self.metrics["all"].accumulate(gold[i], pred[i])
+            self.metrics["subj"].accumulate(gold[i][0], pred[i][0])
+            self.metrics["pred"].accumulate(gold[i][1], pred[i][1])
+        return self.metrics
 
 
 def shiftdata(d):  # idx (batsize, seqlen)
@@ -81,13 +107,14 @@ def run(
         negrate=1,
         margin=1.,
         hingeloss=False,
-        debug=True,
+        debug=False,
+        preeval=False,
     ):
     # load the right file
     tt = ticktock("script")
     if debug:
         numwords = 50
-        numents = 1000
+        numents = 10
         entmat = np.random.randint(0, numwords, (numents, 5))
     else:
         tt.tick()
@@ -156,14 +183,38 @@ def run(
 
     if debug:
         # test dummy prediction shapes
-        dummydata = np.random.randint(0, numwords, (10, 5))
-        dummygold = np.random.randint(0, numents, (10, 2))
+        dummydata = np.random.randint(0, numwords, (1000, 5))
+        dummygold = np.random.randint(0, numents, (1000, 2))
+        dummycanids = np.random.randint(0, numents, (1000, 6))    # six cans per q
         dummygoldshifted = shiftdata(dummygold)
         #dummypred = scorer.predict.transform(transf)(dummydata, dummygoldshifted, dummygold)
         print "DUMMY PREDICTION !!!:"
         #print dummypred
-        s = SeqEncDecRankSearch(encdec, scorer)
-        pred, scores = s.decode(dummydata, 0, dummygold.shape[1], transform=transf.f)
+        s = SeqEncDecRankSearch(encdec, entenc, scorer.s, scorer.agg)
+        eval = FullRankEval()
+        pred, scores = s.decode(dummydata, 0, dummygold.shape[1], candata=entmat, canids=dummycanids, transform=transf.f)
+        evalres = eval.eval(pred, dummygold)
+        for k, evalre in evalres.items():
+            print("{}:\t{}".format(k, evalre))
+
+        basename = os.path.splitext(os.path.basename(__file__))[0]
+        dirname = basename + ".results"
+        if not os.path.exists(dirname):
+            os.makedirs(dirname)
+        savenamegen = lambda i: "{}/{}.res".format(dirname, i)
+        savename = None
+        for i in xrange(100):
+            savename = savenamegen(i)
+            if not os.path.exists(savename):
+                break
+            savename = None
+        if savename is None:
+            raise Exception("exceeded number of saved results")
+        with open(savename, "w") as f:
+            f.write("{}\n".format(" ".join(sys.argv)))
+            for k, evalre in evalres.items():
+                f.write("{}:\t{}\n".format(k, evalre))
+
         sys.exit()
 
 
@@ -181,16 +232,65 @@ def run(
 
     traingoldshifted = shiftdata(traingold)
     validgoldshifted = shiftdata(validgold)
-    testgoldshifted = shiftdata(testgold)
 
+    # eval
+    if preeval:
+        tt.tick("pre-evaluating")
+        s = SeqEncDecRankSearch(encdec, entenc, scorer.s, scorer.agg)
+        eval = FullRankEval()
+        canids = pickle.load(open("testcans.pkl"))
+        pred, scores = s.decode(testdata, 0, testgold.shape[1],
+                                candata=entmat, canids=canids,
+                                transform=transf.f)
+        evalres = eval.eval(pred, testgold)
+        for k, evalre in evalres.items():
+            print("{}:\t{}".format(k, evalre))
+        tt.tock("pre-evaluated")
+
+
+    tt.tick("training")
     nscorer = scorer.nstrain([traindata, traingoldshifted, traingold]).transform(PreProc(entmat)) \
         .negsamplegen(NegIdxGen(numents)).negrate(negrate).objective(obj) \
         .adagrad(lr=lr).l2(wreg).grad_total_norm(1.0) \
         .validate_on([validdata, validgoldshifted, validgold]) \
         .train(numbats=numbats, epochs=epochs)
+    tt.tock("trained")
 
-    embed()
+    # eval
+    tt.tick("evaluating")
+    s = SeqEncDecRankSearch(encdec, entenc, scorer.s, scorer.agg)
+    eval = FullRankEval()
+    canids = pickle.load(open("testcans.pkl"))
+    pred, scores = s.decode(testdata, 0, testgold.shape[1],
+                            candata=entmat, canids=canids,
+                            transform=transf.f)
+    evalres = eval.eval(pred, testgold)
+    for k, evalre in evalres.items():
+        print("{}:\t{}".format(k, evalre))
+    tt.tock("evaluated")
+
+    # save
+    basename = os.path.splitext(os.path.basename(__file__))[0]
+    dirname = basename + ".results"
+    if not os.path.exists(dirname):
+        os.makedirs(dirname)
+    savenamegen = lambda i: "{}/{}.res".format(dirname, i)
+    savename = None
+    for i in xrange(100):
+        savename = savenamegen(i)
+        if not os.path.exists(savename):
+            break
+        savename = None
+    if savename is None:
+        raise Exception("exceeded number of saved results")
+    with open(savename, "w") as f:
+        f.write("{}\n".format(" ".join(sys.argv)))
+        for k, evalre in evalres.items():
+            f.write("{}:\t{}\n".format(k, evalre))
+
+    scorer.save(filepath=savename)
 
 
 if __name__ == "__main__":
+    print __file__, type(__file__), os.path.splitext(os.path.basename(__file__))[0]
     argprun(run, debug=True)

@@ -1,4 +1,4 @@
-from teafacto.core.base import tensorops as T, Block
+from teafacto.core.base import tensorops as T, Block, asblock
 from teafacto.util import issequence
 from IPython import embed
 
@@ -48,7 +48,7 @@ class MatchScore(Block):
 
 class SeqMatchScore(MatchScore):
     def __init__(self, lenc, renc,
-                 aggregator=lambda x: T.sum(x, axis=1), **kw):
+                 aggregator=asblock(lambda x: T.sum(x, axis=1)), **kw):
         self.agg = aggregator
         super(SeqMatchScore, self).__init__(lenc, renc, **kw)
 

@@ -1,4 +1,5 @@
 from teafacto.util import issequence
+import numpy as np
 
 class Metric(object):
     def __init__(self, **kw):
@@ -34,10 +35,14 @@ class ClassAccuracy(Metric):
     def accumulate(self, gold, pred):
         if issequence(pred):
             pred = pred[0][0]
+        else:
+            pred = [pred]
         if issequence(gold):
             assert(len(gold) == 1)
             gold = gold[0]
-        if gold == pred:
+        else:
+            gold = [gold]
+        if np.array_equal(gold, pred):
             self.acc += 1
         self.div += 1
 
