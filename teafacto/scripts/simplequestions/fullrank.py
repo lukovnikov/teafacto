@@ -174,7 +174,7 @@ def run(
     scorerargs = ([encdec, SeqUnroll(entenc)],
                   {"argproc": lambda x, y, z: ((x, y), (z,))})
     if sumhingeloss:
-        scorerargs[1]["agg"] = lambda x: x  # no aggregation of scores
+        scorerargs[1]["aggregator"] = lambda x: x  # no aggregation of scores
     scorer = SeqMatchScore(*scorerargs[0], **scorerargs[1])
 
     # TODO: below this line, check and test
