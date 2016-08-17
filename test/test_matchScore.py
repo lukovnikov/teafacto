@@ -9,10 +9,14 @@ class TestMatchScore(TestCase):
     def test_seq_scoring(self):
         vocsize = 100
         dim = 10
+        numsam = 17
+        seqlen = 5
         ve = VectorEmbed(vocsize, dim)
         m = SeqMatchScore(SeqUnroll(ve), SeqUnroll(ve), scorer=CosineDistance())
 
-        data = np.random.randint(0, vocsize, (5, 3))
+        data = np.random.randint(0, vocsize, (numsam, seqlen))
+        #print data.shape
         pred = m.predict(data, data)
-        self.assertTrue(np.allclose(np.ones_like(pred)*3., pred))
+        #print pred
+        self.assertTrue(np.allclose(np.ones_like(pred)*seqlen*1., pred))
 

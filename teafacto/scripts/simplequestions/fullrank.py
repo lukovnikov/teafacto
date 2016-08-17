@@ -115,8 +115,9 @@ def run(
         negrate=1,
         margin=1.,
         hingeloss=False,
-        debug=False,
+        debug=True,
         preeval=False,
+        sumhingeloss=False,
     ):
     # load the right file
     tt = ticktock("script")
@@ -170,7 +171,11 @@ def run(
                     decdim=innerdim, outconcat=False, vecout=True,
                     statetrans=True)
 
-    scorer = SeqMatchScore(encdec, SeqUnroll(entenc), argproc=lambda x, y, z: ((x, y), (z,)))
+    scorerargs = ([encdec, SeqUnroll(entenc)],
+                  {"argproc": lambda x, y, z: ((x, y), (z,))})
+    if sumhingeloss:
+        scorerargs[1]["agg"] = lambda x: x  # no aggregation of scores
+    scorer = SeqMatchScore(*scorerargs[0], **scorerargs[1])
 
     # TODO: below this line, check and test
     class PreProc(object):
@@ -237,9 +242,12 @@ def run(
         def __call__(self, datas, sgold, gold):    # the whole target sequence is corrupted, corruption targets the whole set of entities and relations together
             return datas, sgold, np.random.randint(self.min, self.max, gold.shape).astype("int32")
 
+    # !!! MASKS ON OUTPUT SHOULD BE IMPLEMENTED FOR VARIABLE LENGTH OUTPUT SEQS
     obj = lambda p, n: n - p
     if hingeloss:
         obj = lambda p, n: (n - p + margin).clip(0, np.infty)
+    if sumhingeloss:    #
+        obj = lambda p, n: T.sum((n - p + margin).clip(0, np.infty), axis=1)
 
     traingoldshifted = shiftdata(traingold)
     validgoldshifted = shiftdata(validgold)
