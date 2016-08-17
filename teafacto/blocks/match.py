@@ -55,7 +55,9 @@ class SeqMatchScore(MatchScore):
     def innerapply(self, l, r):
         scores, _ = T.scan(self.rec, sequences=[l.dimswap(1, 0), r.dimswap(1, 0)])
         scores = scores.dimswap(1, 0)
-        return self.agg(scores)
+        ret = self.agg(scores)
+        print ret.ndim
+        return ret
 
     def rec(self, left, right):
         return self.s(left, right)
