@@ -55,7 +55,8 @@ class SeqEncDecRankSearch(SeqEncDecSearch):
         self.agg = agg
         self.tt = ticktock("RankSearch")
 
-    def decode(self, inpseq, initsymbolidx, maxlen=100, candata=None, canids=None, transform=None):
+    def decode(self, inpseq, initsymbolidx, maxlen=100, candata=None,
+               canids=None, transform=None):
         assert(candata is not None and canids is not None)
 
         self.mu.setbuildargs(inpseq)
@@ -74,7 +75,7 @@ class SeqEncDecRankSearch(SeqEncDecSearch):
                 if len(canids[i]) == 0:
                     curout[i] = -1
                 else:
-                    canidsi = canids[i]     # TODO add relation id's too
+                    canidsi = canids[i]
                     candatai = candata[canidsi]
                     canrepsi = self.canenc.predict(candatai)
                     curvectori = np.repeat(curvectors[np.newaxis, i, ...], canrepsi.shape[0], axis=0)
@@ -270,14 +271,17 @@ def run(
     traingoldshifted = shiftdata(traingold)
     validgoldshifted = shiftdata(validgold)
 
+    canids = pickle.load(open("testcans.pkl"))
+    for i in range(len(canids)):  # offset existing canids
+        canids[i] = [canid + 1 for canid in canids[i]]
+    for canidl in canids:  # these are already offset
+        canidl.extend(range(relstarts, numents))  # include all relations
+    embed()
     # eval
     if preeval:
         tt.tick("pre-evaluating")
         s = SeqEncDecRankSearch(encdec, entenc, scorer.s, scorer.agg)
         eval = FullRankEval()
-        canids = pickle.load(open("testcans.pkl"))
-        for canidl in canids:
-            canidl.extend(range(relstarts, numents))   # include all relations
         pred, scores = s.decode(testdata, 0, testgold.shape[1],
                                 candata=entmat, canids=canids,
                                 transform=transf.f)
@@ -285,7 +289,6 @@ def run(
         for k, evalre in evalres.items():
             print("{}:\t{}".format(k, evalre))
         tt.tock("pre-evaluated")
-
 
     tt.tick("training")
     nscorer = scorer.nstrain([traindata, traingoldshifted, traingold]).transform(PreProc(entmat)) \
@@ -299,9 +302,6 @@ def run(
     tt.tick("evaluating")
     s = SeqEncDecRankSearch(encdec, entenc, scorer.s, scorer.agg)
     eval = FullRankEval()
-    canids = pickle.load(open("testcans.pkl"))
-    for canidl in canids:
-        canidl.extend(range(relstarts, numents))   # include all relations
     pred, scores = s.decode(testdata, 0, testgold.shape[1],
                             candata=entmat, canids=canids,
                             transform=transf.f)
