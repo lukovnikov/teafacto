@@ -128,6 +128,7 @@ def run(
         debug=False,
         preeval=False,
         sumhingeloss=False,
+        checkdata=False,        # starts interactive shell for data inspection
     ):
     # load the right file
     tt = ticktock("script")
@@ -140,11 +141,13 @@ def run(
         (traindata, traingold), (validdata, validgold), (testdata, testgold), \
         worddic, entdic, entmat, relstarts\
             = readdata(mode)
-        rwd = {v: k for k, v in worddic.items()}
-        red = {v: k for k, v in entdic.items()}
-        def p(xids):
-            return " ".join([rwd[xid] if xid > -1 else "" for xid in xids])
-        embed()
+
+        if checkdata:
+            rwd = {v: k for k, v in worddic.items()}
+            red = {v: k for k, v in entdic.items()}
+            def p(xids):
+                return (" " if mode == "word" else "").join([rwd[xid] if xid > -1 else "" for xid in xids])
+            embed()
 
         reventdic = {v: k for k, v in entdic.items()}
         revworddic = {v: k for k, v in worddic.items()}
