@@ -27,13 +27,23 @@ def readdata(mode):
     entdic = {k: v+1 for k, v in entdic.items()}
     entdic["|"] = 0
     numents = x["numents"]+1
-    entmat = x["entmat"]
-    addtoentmat = -np.ones_like(entmat[[0]], dtype="int32")
+
+    def shiftidxs(mat, shift=1, mask=-1):
+        shifted = mat + shift
+        shifted[shifted == (mask + shift)] = mask
+        return shifted
+
+    entmat = shiftidxs(x["entmat"])
+    addtoentmat = -np.ones_like(entmat[np.newaxis, 0], dtype="int32")
     addtoentmat[0] = 0
     entmat = np.concatenate([addtoentmat, entmat], axis=0)
-    train = x["train"]
-    valid = x["valid"]
-    test  = x["test"]
+
+    def shiftidxstup(t, shift=1, mask=-1):
+        return tuple([shiftidxs(te, shift=shift, mask=mask) for te in t])
+
+    train = shiftidxstup(x["train"])
+    valid = shiftidxstup(x["valid"])
+    test  = shiftidxstup(x["test"])
     return train, valid, test, worddic, entdic, entmat, numents
 
 
@@ -104,7 +114,7 @@ def shiftdata(d):  # idx (batsize, seqlen)
 
 def run(
         epochs=50,
-        mode="char",    # or "word" or "charword"
+        mode="word",    # "char" or "word" or "charword"
         numbats=100,
         lr=0.1,
         wreg=0.000001,
@@ -130,6 +140,11 @@ def run(
         (traindata, traingold), (validdata, validgold), (testdata, testgold), \
         worddic, entdic, entmat, relstarts\
             = readdata(mode)
+        rwd = {v: k for k, v in worddic.items()}
+        red = {v: k for k, v in entdic.items()}
+        def p(xids):
+            return " ".join([rwd[xid] if xid > -1 else "" for xid in xids])
+        embed()
 
         reventdic = {v: k for k, v in entdic.items()}
         revworddic = {v: k for k, v in worddic.items()}
