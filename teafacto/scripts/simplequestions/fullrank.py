@@ -276,7 +276,7 @@ def run(
         canids[i] = [canid + 1 for canid in canids[i]]
     for canidl in canids:  # these are already offset
         canidl.extend(range(relstarts, numents))  # include all relations
-    embed()
+    #embed()
     # eval
     if preeval:
         tt.tick("pre-evaluating")
