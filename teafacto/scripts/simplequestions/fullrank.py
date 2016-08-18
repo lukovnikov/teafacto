@@ -35,7 +35,7 @@ def readdata(mode):
 
     entmat = shiftidxs(x["entmat"])
     addtoentmat = -np.ones_like(entmat[np.newaxis, 0], dtype="int32")
-    addtoentmat[0] = 0
+    addtoentmat[0, 0] = 0
     entmat = np.concatenate([addtoentmat, entmat], axis=0)
 
     def shiftidxstup(t, shift=1, mask=-1):
