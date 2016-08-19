@@ -9,9 +9,14 @@ from teafacto.eval.metrics import ClassAccuracy
 from teafacto.modelusers import RecPredictor
 
 
-def readdata(mode):
+def readdata(mode, testcans=None, debug=False):  # if none, included in file
+    if debug:
+        testcans = None
     if mode == "char":
-        p = "../../../data/simplequestions/datamat.char.mem.fb2m.pkl"
+        if debug:
+            p = "../../../data/simplequestions/datamat.char.mini.pkl"
+        else:
+            p = "../../../data/simplequestions/datamat.char.mem.fb2m.pkl"
     elif mode == "word":
         p = "../../../data/simplequestions/datamat.word.mem.fb2m.pkl"
     elif mode == "charword":
@@ -44,7 +49,17 @@ def readdata(mode):
     train = shiftidxstup(x["train"])
     valid = shiftidxstup(x["valid"])
     test  = shiftidxstup(x["test"])
-    return train, valid, test, worddic, entdic, entmat, numents
+
+    if testcans is None:
+        canids = x["testcans"]
+    else:
+        canids = pickle.load(open(testcans))
+    for i in range(len(canids)):  # offset existing canids
+        canids[i] = [canid + 1 for canid in canids[i]]
+    for canidl in canids:  # these are already offset
+        canidl.extend(range(numents, entmat.shape[0]))  # include all relations
+
+    return train, valid, test, worddic, entdic, entmat, numents, canids
 
 
 class SeqEncDecRankSearch(SeqEncDecSearch):
@@ -82,6 +97,11 @@ class SeqEncDecRankSearch(SeqEncDecSearch):
                     scoresi = self.scorer.predict(canrepsi, curvectori)
                     curout[i] = canids[i][np.argmax(scoresi)]
                     accscoresj[i] += np.max(scoresi)
+                    print i, sorted(zip(canidsi, scoresi), key=lambda (x, y): y, reverse=True)
+                    print sorted(filter(lambda (x, y): x < 4711, zip(canidsi, scoresi)), key=lambda (x, y): y, reverse=True)
+                    print sorted(filter(lambda (x, y): x >= 4711, zip(canidsi, scoresi)), key=lambda (x, y): y,
+                                 reverse=True)
+                    #embed()
                 self.tt.progress(i, curvectors.shape[0], live=True)
             accscores.append(accscoresj[:, np.newaxis])
             outs.append(curout)
@@ -115,7 +135,7 @@ def shiftdata(d):  # idx (batsize, seqlen)
 
 def run(
         epochs=50,
-        mode="word",    # "char" or "word" or "charword"
+        mode="char",    # "char" or "word" or "charword"
         numbats=100,
         lr=0.1,
         wreg=0.000001,
@@ -131,40 +151,40 @@ def run(
         sumhingeloss=False,
         checkdata=False,        # starts interactive shell for data inspection
     ):
+    if debug:       # debug settings
+        sumhingeloss = True
+        numbats = 10
+        lr = 0.02
+        epochs = 20
     # load the right file
     tt = ticktock("script")
-    if debug:
-        numwords = 50
-        numents = 10
-        entmat = np.random.randint(0, numwords, (numents, 5))
-    else:
-        tt.tick()
-        (traindata, traingold), (validdata, validgold), (testdata, testgold), \
-        worddic, entdic, entmat, relstarts\
-            = readdata(mode)
+    tt.tick()
+    (traindata, traingold), (validdata, validgold), (testdata, testgold), \
+    worddic, entdic, entmat, relstarts, canids\
+        = readdata(mode, testcans="testcans.pkl", debug=debug)
+    entmat = entmat.astype("int32")
 
-        if checkdata:
-            rwd = {v: k for k, v in worddic.items()}
-            red = {v: k for k, v in entdic.items()}
-            def p(xids):
-                return (" " if mode == "word" else "").join([rwd[xid] if xid > -1 else "" for xid in xids])
-            embed()
+    if checkdata:
+        rwd = {v: k for k, v in worddic.items()}
+        red = {v: k for k, v in entdic.items()}
+        def p(xids):
+            return (" " if mode == "word" else "").join([rwd[xid] if xid > -1 else "" for xid in xids])
+        embed()
 
-        reventdic = {v: k for k, v in entdic.items()}
-        revworddic = {v: k for k, v in worddic.items()}
-        print entmat.shape, reventdic[0], revworddic[0]
-        print traindata.shape, traingold.shape, testdata.shape, testgold.shape
+    reventdic = {v: k for k, v in entdic.items()}
+    revworddic = {v: k for k, v in worddic.items()}
+    print traindata.shape, traingold.shape, testdata.shape, testgold.shape
 
-        tt.tock("data loaded")
+    tt.tock("data loaded")
 
-        # *data: matrix of word ids (-1 filler), example per row
-        # *gold: vector of true entity ids
-        # entmat: matrix of word ids (-1 filler), entity label per row, indexes according to *gold
-        # *dic: from word/ent-fbid to integer id, as used in data
+    # *data: matrix of word ids (-1 filler), example per row
+    # *gold: vector of true entity ids
+    # entmat: matrix of word ids (-1 filler), entity label per row, indexes according to *gold
+    # *dic: from word/ent-fbid to integer id, as used in data
 
-        numwords = max(worddic.values()) + 1
-        numents = max(entdic.values()) + 1
-        print "%d words, %d entities" % (numwords, numents)
+    numwords = max(worddic.values()) + 1
+    numents = max(entdic.values()) + 1
+    print "%d words, %d entities" % (numwords, numents)
 
     if bidir:
         encinnerdim = [innerdim / 2] * layers
@@ -213,53 +233,21 @@ def run(
 
     transf = PreProc(entmat)
 
-    if debug:
-        # test dummy prediction shapes
-        dummydata = np.random.randint(0, numwords, (1000, 5))
-        dummygold = np.random.randint(0, numents, (1000, 2))
-        dummycanids = [np.random.randint(0, numents, (6,)) for x in xrange(1000)]    # six cans per q
-        dummycanids[-1] = []
-        dummygoldshifted = shiftdata(dummygold)
-        #dummypred = scorer.predict.transform(transf)(dummydata, dummygoldshifted, dummygold)
-        print "DUMMY PREDICTION !!!:"
-        #print dummypred
-        s = SeqEncDecRankSearch(encdec, entenc, scorer.s, scorer.agg)
-        eval = FullRankEval()
-        pred, scores = s.decode(dummydata, 0, dummygold.shape[1], candata=entmat, canids=dummycanids, transform=transf.f)
-        evalres = eval.eval(pred, dummygold)
-        for k, evalre in evalres.items():
-            print("{}:\t{}".format(k, evalre))
-
-        print pred
-
-        basename = os.path.splitext(os.path.basename(__file__))[0]
-        dirname = basename + ".results"
-        if not os.path.exists(dirname):
-            os.makedirs(dirname)
-        savenamegen = lambda i: "{}/{}.res".format(dirname, i)
-        savename = None
-        for i in xrange(100):
-            savename = savenamegen(i)
-            if not os.path.exists(savename):
-                break
-            savename = None
-        if savename is None:
-            raise Exception("exceeded number of saved results")
-        with open(savename, "w") as f:
-            f.write("{}\n".format(" ".join(sys.argv)))
-            for k, evalre in evalres.items():
-                f.write("{}:\t{}\n".format(k, evalre))
-
-        sys.exit()
-
-
     class NegIdxGen(object):
-        def __init__(self, rng):
+        def __init__(self, rng, midsplit=None):
             self.min = 0
             self.max = rng
+            self.midsplit = midsplit
 
         def __call__(self, datas, sgold, gold):    # the whole target sequence is corrupted, corruption targets the whole set of entities and relations together
-            return datas, sgold, np.random.randint(self.min, self.max, gold.shape).astype("int32")
+            if self.midsplit is None:
+                return datas, sgold, np.random.randint(self.min, self.max, gold.shape).astype("int32")
+            else:
+                entrand = np.random.randint(self.min, self.midsplit, gold.shape)
+                relrand = np.random.randint(self.midsplit, self.max, gold.shape)
+                mask = np.random.randint(0, 2, gold.shape)
+                ret = entrand * mask + relrand * (1 - mask)
+                return datas, sgold, ret.astype("int32")
 
     # !!! MASKS ON OUTPUT SHOULD BE IMPLEMENTED FOR VARIABLE LENGTH OUTPUT SEQS
     obj = lambda p, n: n - p
@@ -271,11 +259,6 @@ def run(
     traingoldshifted = shiftdata(traingold)
     validgoldshifted = shiftdata(validgold)
 
-    canids = pickle.load(open("testcans.pkl"))
-    for i in range(len(canids)):  # offset existing canids
-        canids[i] = [canid + 1 for canid in canids[i]]
-    for canidl in canids:  # these are already offset
-        canidl.extend(range(relstarts, numents))  # include all relations
     #embed()
     # eval
     if preeval:
@@ -292,7 +275,7 @@ def run(
 
     tt.tick("training")
     nscorer = scorer.nstrain([traindata, traingoldshifted, traingold]).transform(PreProc(entmat)) \
-        .negsamplegen(NegIdxGen(numents)).negrate(negrate).objective(obj) \
+        .negsamplegen(NegIdxGen(numents, midsplit=relstarts)).negrate(negrate).objective(obj) \
         .adagrad(lr=lr).l2(wreg).grad_total_norm(1.0) \
         .validate_on([validdata, validgoldshifted, validgold]) \
         .train(numbats=numbats, epochs=epochs)
@@ -329,7 +312,7 @@ def run(
         for k, evalre in evalres.items():
             f.write("{}:\t{}\n".format(k, evalre))
 
-    scorer.save(filepath=savename)
+    #scorer.save(filepath=savename)
 
 
 if __name__ == "__main__":

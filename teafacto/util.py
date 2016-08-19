@@ -133,7 +133,7 @@ class ticktock(object):
     def _live(self, x, right=None):
         if right:
             try:
-                ttyw = int(os.popen("stty size", "r").read().split()[1])
+                #ttyw = int(os.popen("stty size", "r").read().split()[1])
                 raise Exception("qsdf")
             except Exception:
                 ttyw = None
