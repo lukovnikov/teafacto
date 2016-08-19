@@ -71,7 +71,7 @@ class SeqEncDecRankSearch(SeqEncDecSearch):
         self.tt = ticktock("RankSearch")
 
     def decode(self, inpseq, initsymbolidx, maxlen=100, candata=None,
-               canids=None, transform=None):
+               canids=None, transform=None, debug=False):
         assert(candata is not None and canids is not None)
 
         self.mu.setbuildargs(inpseq)
@@ -97,10 +97,11 @@ class SeqEncDecRankSearch(SeqEncDecSearch):
                     scoresi = self.scorer.predict(canrepsi, curvectori)
                     curout[i] = canids[i][np.argmax(scoresi)]
                     accscoresj[i] += np.max(scoresi)
-                    print i, sorted(zip(canidsi, scoresi), key=lambda (x, y): y, reverse=True)
-                    print sorted(filter(lambda (x, y): x < 4711, zip(canidsi, scoresi)), key=lambda (x, y): y, reverse=True)
-                    print sorted(filter(lambda (x, y): x >= 4711, zip(canidsi, scoresi)), key=lambda (x, y): y,
-                                 reverse=True)
+                    if debug:
+                        print i, sorted(zip(canidsi, scoresi), key=lambda (x, y): y, reverse=True)
+                        print sorted(filter(lambda (x, y): x < 4711, zip(canidsi, scoresi)), key=lambda (x, y): y, reverse=True)
+                        print sorted(filter(lambda (x, y): x >= 4711, zip(canidsi, scoresi)), key=lambda (x, y): y,
+                                     reverse=True)
                     #embed()
                 self.tt.progress(i, curvectors.shape[0], live=True)
             accscores.append(accscoresj[:, np.newaxis])
@@ -287,7 +288,7 @@ def run(
     eval = FullRankEval()
     pred, scores = s.decode(testdata, 0, testgold.shape[1],
                             candata=entmat, canids=canids,
-                            transform=transf.f)
+                            transform=transf.f, debug=debug)
     evalres = eval.eval(pred, testgold)
     for k, evalre in evalres.items():
         print("{}:\t{}".format(k, evalre))
