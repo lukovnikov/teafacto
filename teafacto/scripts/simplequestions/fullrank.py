@@ -151,6 +151,7 @@ def run(
         preeval=False,
         sumhingeloss=False,
         checkdata=False,        # starts interactive shell for data inspection
+        printpreds=False
     ):
     if debug:       # debug settings
         sumhingeloss = True
@@ -288,7 +289,7 @@ def run(
     eval = FullRankEval()
     pred, scores = s.decode(testdata, 0, testgold.shape[1],
                             candata=entmat, canids=canids,
-                            transform=transf.f, debug=debug)
+                            transform=transf.f, debug=printpreds)
     evalres = eval.eval(pred, testgold)
     for k, evalre in evalres.items():
         print("{}:\t{}".format(k, evalre))
