@@ -88,7 +88,7 @@ class SeqEncDecRankSearch(SeqEncDecSearch):
             j += 1
             stop = j == maxlen
             self.tt.tock("done one timestep")
-        accscores = self.agg.predict(np.concatenate(accscores, axis=1))
+        accscores = np.sum(np.concatenate(accscores, axis=1), axis=1)
         ret = np.stack(outs).T
         assert (ret.shape[0] == inpseq.shape[0] and ret.shape[1] <= maxlen)
         return ret, accscores
