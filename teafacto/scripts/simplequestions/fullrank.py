@@ -127,6 +127,8 @@ class FullRankEval(object):
             self.metrics["subj"].accumulate(gold[i][0], pred[i][0])
             if not debug:
                 self.metrics["pred"].accumulate(gold[i][1], pred[i][1])
+            else:
+                self.metrics["pred"].accumulate(gold[i][0], gold[i][0])
         return self.metrics
 
 
@@ -219,7 +221,7 @@ def run(
     encdec = SimpleSeqEncDecAtt(inpvocsize=numwords, inpembdim=memembdim,
                     encdim=encinnerdim, bidir=bidir, outembdim=entenc,
                     decdim=innerdim, outconcat=False, vecout=True,
-                    statetrans=None)
+                    statetrans=True)
 
     scorerargs = ([encdec, SeqUnroll(entenc)],
                   {"argproc": lambda x, y, z: ((x, y), (z,))})
