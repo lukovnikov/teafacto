@@ -47,7 +47,7 @@ class ClassAccuracy(Metric):
         self.div += 1
 
     def compute(self):
-        return self.acc / self.div
+        return self.acc / (self.div + 1e9)
 
     def __str__(self):
         return "Acc: %.3f%%" % (self.compute()*100.)

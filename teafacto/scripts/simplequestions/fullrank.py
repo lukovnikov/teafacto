@@ -121,11 +121,12 @@ class FullRankEval(object):
                         "subj": ClassAccuracy(),
                         "pred": ClassAccuracy()}
 
-    def eval(self, pred, gold):
+    def eval(self, pred, gold, debug=False):
         for i in range(pred.shape[0]):
             self.metrics["all"].accumulate(gold[i], pred[i])
             self.metrics["subj"].accumulate(gold[i][0], pred[i][0])
-            self.metrics["pred"].accumulate(gold[i][1], pred[i][1])
+            if not debug:
+                self.metrics["pred"].accumulate(gold[i][1], pred[i][1])
         return self.metrics
 
 
@@ -151,13 +152,16 @@ def run(
         preeval=False,
         sumhingeloss=False,
         checkdata=False,        # starts interactive shell for data inspection
-        printpreds=False
+        printpreds=False,
+        subjpred=False,
     ):
     if debug:       # debug settings
         sumhingeloss = True
         numbats = 10
         lr = 0.02
         epochs = 20
+        printpreds = True
+        subjpred = True
     # load the right file
     tt = ticktock("script")
     tt.tick()
@@ -165,6 +169,11 @@ def run(
     worddic, entdic, entmat, relstarts, canids\
         = readdata(mode, testcans="testcans.pkl", debug=debug)
     entmat = entmat.astype("int32")
+
+    if subjpred is True:
+        traingold = traingold[:, [0]]
+        validgold = validgold[:, [0]]
+        testgold = testgold[:, [0]]
 
     if checkdata:
         rwd = {v: k for k, v in worddic.items()}
@@ -207,10 +216,10 @@ def run(
                          maskid=-1,
                          bidir=membidir)
 
-    encdec = SimpleSeqEncDecAtt(inpembdim=entenc.inpemb,
+    encdec = SimpleSeqEncDecAtt(inpvocsize=numwords, inpembdim=memembdim,
                     encdim=encinnerdim, bidir=bidir, outembdim=entenc,
                     decdim=innerdim, outconcat=False, vecout=True,
-                    statetrans=True)
+                    statetrans=None)
 
     scorerargs = ([encdec, SeqUnroll(entenc)],
                   {"argproc": lambda x, y, z: ((x, y), (z,))})
@@ -269,15 +278,20 @@ def run(
         eval = FullRankEval()
         pred, scores = s.decode(testdata, 0, testgold.shape[1],
                                 candata=entmat, canids=canids,
-                                transform=transf.f)
-        evalres = eval.eval(pred, testgold)
+                                transform=transf.f, debug=printpreds)
+        evalres = eval.eval(pred, testgold, debug=debug)
         for k, evalre in evalres.items():
             print("{}:\t{}".format(k, evalre))
         tt.tock("pre-evaluated")
 
+    negidxgenargs = ([numents], {"midsplit": relstarts})
+    if debug:
+        pass
+        #negidxgenargs = ([numents], {})
+
     tt.tick("training")
     nscorer = scorer.nstrain([traindata, traingoldshifted, traingold]).transform(PreProc(entmat)) \
-        .negsamplegen(NegIdxGen(numents, midsplit=relstarts)).negrate(negrate).objective(obj) \
+        .negsamplegen(NegIdxGen(*negidxgenargs[0], **negidxgenargs[1])).negrate(negrate).objective(obj) \
         .adagrad(lr=lr).l2(wreg).grad_total_norm(1.0) \
         .validate_on([validdata, validgoldshifted, validgold]) \
         .train(numbats=numbats, epochs=epochs)
@@ -290,7 +304,7 @@ def run(
     pred, scores = s.decode(testdata, 0, testgold.shape[1],
                             candata=entmat, canids=canids,
                             transform=transf.f, debug=printpreds)
-    evalres = eval.eval(pred, testgold)
+    evalres = eval.eval(pred, testgold, debug=debug)
     for k, evalre in evalres.items():
         print("{}:\t{}".format(k, evalre))
     tt.tock("evaluated")
