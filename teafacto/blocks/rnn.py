@@ -347,11 +347,11 @@ class SeqDecoder(Block):
         elif issequence(initstates):
             if len(initstates) < self.numstates:    # fill up with batsizes for lower layers
                 initstates = [seq.shape[0]]*(self.numstates - len(initstates)) + initstates
-        init_info, ctx = self.get_init_info(context, context_0, initstates)  # sets init states to provided ones
+        init_info, ctx = self.get_init_info(context, context_0, initstates, encmask=encmask)  # sets init states to provided ones
         outputs, _ = T.scan(fn=self.rec,
                             sequences=seq.dimswap(1, 0),
                             outputs_info=[None] + init_info,
-                            non_sequences=[encmask] + ctx)
+                            non_sequences=ctx)
         ret = outputs[0].dimswap(1, 0)     # returns probabilities of symbols --> (batsize, seqlen, vocabsize)
         if mask == "auto":
             mask = (seq > 0).astype("int32")
@@ -371,10 +371,10 @@ class SeqDecoder(Block):
             ret = xseq * mask + masker * (1.0 - mask)
             return ret
 
-    def get_init_info(self, context, context_0, initstates):
+    def get_init_info(self, context, context_0, initstates, encmask=None):
         ret = self.block.get_init_info(initstates)
         context_0 = self._get_ctx_t0(context, context_0)
-        return [context_0, 0] + ret, [context]
+        return [context_0, 0] + ret, [encmask, context]
 
     def _get_ctx_t0(self, ctx, ctx_0=None):
         if ctx_0 is None:

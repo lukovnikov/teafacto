@@ -170,6 +170,7 @@ def run(
         printpreds = True
         subjpred = True
         predpred = False
+        #preeval = True
     # load the right file
     tt = ticktock("script")
     tt.tick()

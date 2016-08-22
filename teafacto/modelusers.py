@@ -17,10 +17,14 @@ class RecPredictor(ModelUser):
         self.statevals = None
         self.nonseqvals = None
         self.buildargs = buildargs
+        self.buildkwargs = kw
         self.transf = None
 
     def setbuildargs(self, *args):
         self.buildargs = args
+
+    def setbuildkwargs(self, **kwargs):
+        self.buildkwargs = kwargs
 
     def settransform(self, f):
         self.transf = f

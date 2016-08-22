@@ -56,7 +56,7 @@ class SeqEncDec(Block):
         VERY DIFFERENT FROM THE PURELY SYMBOLIC GET_INIT_INFO IN REAL REC BLOCKS !!!
         This one is used in decoder/prediction
         """
-        enco, allenco = self.enc.predict(inpseq, mask=maskseq)
+        enco, allenco, encmask = self.enc.predict(inpseq, mask=maskseq)
 
         if self.statetrans is not None:
             topstate = self.statetrans.predict(enco, allenco)   # this gives unused input warning in theano - it's normal
@@ -67,8 +67,8 @@ class SeqEncDec(Block):
                                       None,
                                       [Val(x) for x in initstates]
                                             if issequence(initstates)
-                                            else initstates
-                                      )
+                                            else initstates,
+                                      encmask=Val(encmask))
 
     def rec(self, x_t, *states):
         return self.dec.rec(x_t, *states)
@@ -81,7 +81,7 @@ class SeqEncDecAtt(SeqEncDec):
         enc = SeqEncoder(*enclayers)\
             .with_outputs\
             .with_mask\
-            .maskoption(MaskSetMode.ZERO)
+            .maskoptions(-1, MaskMode.AUTO, MaskSetMode.ZERO)
         smo = False if vecout else None
         dec = SeqDecoder(
             declayers,
