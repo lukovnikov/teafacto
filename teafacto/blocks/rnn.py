@@ -237,6 +237,8 @@ class SeqEncoder(AttentionConsumer, Block):
             ret.append(rete)
         if "states" in self._return:    # final states (over all layers)???
             pass # TODO: do we need to support this?
+        if "mask" in self._return:
+            ret.append(mask)
         if len(ret) == 1:
             return ret[0]
         else:
@@ -274,6 +276,11 @@ class SeqEncoder(AttentionConsumer, Block):
 
     ### FLUENT OUTPUT SETTINGS
     @property
+    def reset_return(self):
+        self._return = set()
+        return self
+
+    @property
     def with_states(self):       # TODO
         '''Call this switch to get the final states of all recurrent layers'''
         self._return.add("states")
@@ -288,6 +295,12 @@ class SeqEncoder(AttentionConsumer, Block):
     @property
     def with_outputs(self):
         self._return.add("all")
+        return self
+
+    @property
+    def with_mask(self):
+        ''' Calling this switch also returns the mask on original idx input sequence'''
+        self._return.add("mask")
         return self
 
     def setreturn(self, *args):
@@ -328,7 +341,7 @@ class SeqDecoder(Block):
     def numstates(self):
         return self.block.numstates
 
-    def apply(self, context, seq, context_0=None, initstates=None, mask=None, **kw):    # context: (batsize, enc.innerdim), seq: idxs-(batsize, seqlen)
+    def apply(self, context, seq, context_0=None, initstates=None, mask=None, encmask=None, **kw):    # context: (batsize, enc.innerdim), seq: idxs-(batsize, seqlen)
         if initstates is None:
             initstates = seq.shape[0]
         elif issequence(initstates):
@@ -338,7 +351,7 @@ class SeqDecoder(Block):
         outputs, _ = T.scan(fn=self.rec,
                             sequences=seq.dimswap(1, 0),
                             outputs_info=[None] + init_info,
-                            non_sequences=ctx)
+                            non_sequences=[encmask] + ctx)
         ret = outputs[0].dimswap(1, 0)     # returns probabilities of symbols --> (batsize, seqlen, vocabsize)
         if mask == "auto":
             mask = (seq > 0).astype("int32")
@@ -380,6 +393,7 @@ class SeqDecoder(Block):
     def rec(self, x_t, ctx_tm1, t, *args):  # x_t: (batsize), context: (batsize, enc.innerdim)
         states_tm1 = args[:-1]
         ctx = args[-1]
+        encmask = args[-2]
         i_t = self.embedder(x_t)                             # i_t: (batsize, embdim)
         j_t = self._get_j_t(i_t, ctx_tm1)
         rnuret = self.block.rec(j_t, *states_tm1)     # list of matrices (batsize, **somedims**)
@@ -387,7 +401,7 @@ class SeqDecoder(Block):
         t = t + 1
         h_t = ret[0]
         states_t = ret[1:]
-        ctx_t = self._gen_context(ctx, h_t)
+        ctx_t = self._gen_context(ctx, h_t, encmask)
         g_t = self._get_g_t(h_t, ctx_t)
         y_t = self.softmaxoutblock(g_t)
         return [y_t, ctx_t, t] + states_t #, {}, T.until( (i > 1) * T.eq(mask.norm(1), 0) )
@@ -398,8 +412,8 @@ class SeqDecoder(Block):
     def _get_g_t(self, h_t, ctx_t):
         return T.concatenate([h_t, ctx_t], axis=1) if self.outconcat else h_t
 
-    def _gen_context(self, multicontext, criterion):
-        return self.attention(criterion, multicontext) if self.attention is not None else multicontext
+    def _gen_context(self, multicontext, criterion, encmask):
+        return self.attention(criterion, multicontext, mask=encmask) if self.attention is not None else multicontext
 
 # ----------------------------------------------------------------------------------------------------------------------
 

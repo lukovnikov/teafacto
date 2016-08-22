@@ -14,8 +14,8 @@ class Attention(Block):
         self.attentiongenerator = attentiongenerator
         self.attentionconsumer = attentionconsumer
 
-    def apply(self, criterion, data):
-        attention = self.attentiongenerator(criterion, data)
+    def apply(self, criterion, data, mask=None):
+        attention = self.attentiongenerator(criterion, data, mask=mask)
         return self.attentionconsumer(data, attention)
 
 
@@ -55,8 +55,16 @@ class AttentionGenerator(Block):
         self.attdim = attdim
         self.memdim = memdim
 
-    def apply(self, criterion, data):   # criterion: (batsize, indim), data: (batsize, seqlen, memdim)
-        raise NotImplementedError("use subclass")
+    def apply(self, criterion, data, mask=None):   # criterion: (batsize, indim), data: (batsize, seqlen, memdim)
+        o = self.getscores(criterion, data)       # (batsize, seqlen)
+        o = Softmax()(o)
+        if mask is not None:        # {0,1}^(batsize, seqlen)
+            o = mask * o
+        return o
+
+    def getscores(self, criterion, data):
+        raise NotImplementedError()
+
 
 
 class DotprodAttGen(AttentionGenerator):
@@ -64,7 +72,7 @@ class DotprodAttGen(AttentionGenerator):
     indim and memdim should be the same, attdim is not used
     no parameters here
     """
-    def apply(self, criterion, data):
+    def getscores(self, criterion, data):
         return T.batched_dot(data, criterion)
 
 
@@ -73,12 +81,12 @@ class LinearSumAttentionGenerator(AttentionGenerator):    # simple feedforward
         super(LinearSumAttentionGenerator, self).__init__(**kw)
         self.W = param((self.indim, self.attdim), name="attention_ff").uniform()
 
-    def apply(self, criterion, data):   # data is (batsize, seqlen, elem_dim)
+    def getscores(self, criterion, data):   # data is (batsize, seqlen, elem_dim)
         def rec(x_t, crit):     # x_t is (batsize, elem_dim), crit is (batsize, crit_dim)
             ret = T.dot(T.concatenate([x_t, crit], axis=1), self.W)     # (batsize, innerdim)
             return T.sum(ret, axis=1)       # (batsize, )
         o, _ = T.scan(fn=rec, sequences=data.dimswap(1, 0), non_sequences=criterion)    # o is (seqlen, batsize)
-        return Softmax()(o.dimswap(1, 0))       # returns (batsize, seqlen), softmaxed on seqlen
+        return o.dimswap(1, 0)       # returns (batsize, seqlen), softmaxed on seqlen
 
 
 class LinearGateAttentionGenerator(AttentionGenerator):
@@ -87,7 +95,7 @@ class LinearGateAttentionGenerator(AttentionGenerator):
         self.W = param((self.indim, self.attdim), name="attention_ff").uniform()
         self.U = param((self.attdim,), name="attention_agg").uniform()
 
-    def apply(self, criterion, data):   # criterion: (batsize, crit_dim), data: (batsize, seqlen, datadim)
+    def getscores(self, criterion, data):   # criterion: (batsize, crit_dim), data: (batsize, seqlen, datadim)
         def rec(x_t, crit):
             combo = self._get_combo(x_t, crit)  # (batsize, crit_dim + datadim)
             trans = T.dot(combo, self.W)        # (batsize, innerdim)
@@ -95,7 +103,7 @@ class LinearGateAttentionGenerator(AttentionGenerator):
             ret = T.dot(trans, self.U)                                  # (batsize, )
             return T.nnet.sigmoid(ret)                                  # apply sigmoid
         o, _ = T.scan(fn=rec, sequences=data.dimswap(1, 0), non_sequences=criterion)
-        return o.dimswap(1, 0)
+        return o.dimswap(1, 0)     # (batsize, seqlen)
 
     def _get_combo(self, x_t, crit):
         return T.concatenate([x_t, crit], axis=1)

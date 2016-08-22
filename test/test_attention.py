@@ -1,9 +1,40 @@
 from unittest import TestCase
-from teafacto.blocks.attention import Attention, WeightedSumAttCon, LinearSumAttentionGenerator, LinearGateAttentionGenerator
+from teafacto.blocks.attention import Attention, WeightedSumAttCon, LinearSumAttentionGenerator, LinearGateAttentionGenerator, DotprodAttGen
 from teafacto.blocks.rnn import SeqDecoder, RewAttRNNEncDecoder
 from teafacto.blocks.rnu import GRU
 from teafacto.blocks.basic import Softmax, MatDot as Lin, IdxToOneHot
 import numpy as np
+
+class AttentionGenTest(TestCase):
+    def test_shapes(self):
+        batsize, seqlen = 100, 7
+        criterionshape = (batsize, 10)
+        datashape = (batsize, seqlen, 10)
+        attgen = DotprodAttGen()
+        # generate data
+        criterion = np.random.random(criterionshape)
+        data = np.random.random(datashape)
+        # predict and test
+        pred = attgen.predict(criterion, data)
+        self.assertEqual(pred.shape, (batsize, seqlen))
+        self.assertTrue(np.allclose(pred.sum(axis=1), np.ones((pred.shape[0],))))
+
+    def test_mask(self):
+        batsize, seqlen = 100, 7
+        criterionshape = (batsize, 10)
+        datashape = (batsize, seqlen, 15)
+        attgen = LinearGateAttentionGenerator(indim=25, attdim=12)
+        # generate data
+        criterion = np.random.random(criterionshape)
+        data = np.random.random(datashape)
+        mask = np.ones((batsize, seqlen))
+        maskids = np.random.randint(2, seqlen+1, (batsize,))
+        for i in range(maskids.shape[0]):
+            mask[i, maskids[i]:] = 0
+        # predict and test
+        pred = attgen.predict(criterion, data, mask)
+        maskthrough = np.not_equal(pred, 0)
+        self.assertTrue(np.all(maskthrough == mask))
 
 
 

@@ -42,13 +42,13 @@ class SeqEncDec(Block):
             mask = "auto"
         else:
             mask = maskseq
-        enco, allenco = self.enc(inpseq, mask=mask)
+        enco, allenco, encmask = self.enc(inpseq, mask=mask)
         mask = None
         if self.statetrans is not None:
             topstate = self.statetrans(enco, allenco)
-            deco = self.dec(allenco, outseq, initstates=[topstate], mask=mask)
+            deco = self.dec(allenco, outseq, initstates=[topstate], mask=mask, encmask=encmask)
         else:
-            deco = self.dec(allenco, outseq, mask=mask)      # no state transfer
+            deco = self.dec(allenco, outseq, mask=mask, encmask=encmask)      # no state transfer
         return deco
 
     def get_init_info(self, inpseq, batsize, maskseq=None):     # TODO: must evaluate enc here, in place, without any side effects
@@ -80,6 +80,7 @@ class SeqEncDecAtt(SeqEncDec):
                  statetrans=None, vecout=False, **kw):
         enc = SeqEncoder(*enclayers)\
             .with_outputs\
+            .with_mask\
             .maskoption(MaskSetMode.ZERO)
         smo = False if vecout else None
         dec = SeqDecoder(

@@ -124,11 +124,15 @@ class FullRankEval(object):
     def eval(self, pred, gold, debug=False):
         for i in range(pred.shape[0]):
             self.metrics["all"].accumulate(gold[i], pred[i])
-            self.metrics["subj"].accumulate(gold[i][0], pred[i][0])
-            if not debug:
-                self.metrics["pred"].accumulate(gold[i][1], pred[i][1])
+            if debug == "subj":
+                self.metrics["subj"].accumulate(gold[i][0], pred[i][0])
+                self.metrics["pred"].accumulate(gold[i][0], gold[i][0])     #dummy
+            elif debug == "pred":
+                self.metrics["pred"].accumulate(gold[i][0], pred[i][0])
+                self.metrics["subj"].accumulate(gold[i][0], gold[i][0])     #dummy
             else:
-                self.metrics["pred"].accumulate(gold[i][0], gold[i][0])
+                self.metrics["subj"].accumulate(gold[i][0], pred[i][0])
+                self.metrics["pred"].accumulate(gold[i][1], pred[i][1])
         return self.metrics
 
 
@@ -156,6 +160,7 @@ def run(
         checkdata=False,        # starts interactive shell for data inspection
         printpreds=False,
         subjpred=False,
+        predpred=False
     ):
     if debug:       # debug settings
         sumhingeloss = True
@@ -164,6 +169,7 @@ def run(
         epochs = 20
         printpreds = True
         subjpred = True
+        predpred = False
     # load the right file
     tt = ticktock("script")
     tt.tick()
@@ -172,10 +178,15 @@ def run(
         = readdata(mode, testcans="testcans.pkl", debug=debug)
     entmat = entmat.astype("int32")
 
-    if subjpred is True:
+    if subjpred is True and predpred is False:
         traingold = traingold[:, [0]]
         validgold = validgold[:, [0]]
         testgold = testgold[:, [0]]
+    if predpred is True and subjpred is False:
+        traingold = traingold[:, [1]]
+        validgold = validgold[:, [1]]
+        testgold = testgold[:, [1]]
+
 
     if checkdata:
         rwd = {v: k for k, v in worddic.items()}
@@ -292,7 +303,7 @@ def run(
         #negidxgenargs = ([numents], {})
 
     tt.tick("training")
-    nscorer = scorer.nstrain([traindata, traingoldshifted, traingold]).transform(PreProc(entmat)) \
+    nscorer = scorer.nstrain([traindata, traingoldshifted, traingold]).transform(transf) \
         .negsamplegen(NegIdxGen(*negidxgenargs[0], **negidxgenargs[1])).negrate(negrate).objective(obj) \
         .adagrad(lr=lr).l2(wreg).grad_total_norm(1.0) \
         .validate_on([validdata, validgoldshifted, validgold]) \
@@ -306,7 +317,8 @@ def run(
     pred, scores = s.decode(testdata, 0, testgold.shape[1],
                             candata=entmat, canids=canids,
                             transform=transf.f, debug=printpreds)
-    evalres = eval.eval(pred, testgold, debug=debug)
+    debugarg = "subj" if subjpred else "pred" if predpred else False
+    evalres = eval.eval(pred, testgold, debug=debugarg)
     for k, evalre in evalres.items():
         print("{}:\t{}".format(k, evalre))
     tt.tock("evaluated")
