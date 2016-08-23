@@ -75,6 +75,8 @@ def readdata(mode, testcans=None, debug=False, specids=False, usetypes=False):  
             pass
             #embed()
 
+    #embed()
+
     def shiftidxstup(t, shift=1, mask=-1):
         return tuple([shiftidxs(te, shift=shift, mask=mask) for te in t])
 
@@ -241,7 +243,7 @@ def run(
             subjpred = True
         #preeval = True
         specemb = 100
-        margin = 2.
+        margin = 1.
         balancednegidx = True
         usetypes=True
     # load the right file
