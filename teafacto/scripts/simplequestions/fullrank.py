@@ -10,7 +10,8 @@ from teafacto.eval.metrics import ClassAccuracy
 from teafacto.modelusers import RecPredictor
 
 
-def readdata(mode, testcans=None, debug=False, specids=False):  # if none, included in file
+def readdata(mode, testcans=None, debug=False, specids=False, usetypes=False):  # if none, included in file
+
     if debug:
         testcans = None
     if mode == "char":
@@ -24,6 +25,13 @@ def readdata(mode, testcans=None, debug=False, specids=False):  # if none, inclu
         p = "../../../data/simplequestions/datamat.charword.mem.fb2m.pkl"
     else:
         raise Exception("unknown mode")
+    if usetypes:
+        enttyp = {}
+        typdic = {"None": 0}
+        with open("../../../data/simplequestions/datamat.fb2m.types.map") as f:
+            for line in f:
+                e, t = line[:-1].split("\t")
+                enttyp[e] = t
     x = pickle.load(open(p))
     worddic = x["worddic"] if mode == "word" else x["chardic"]
     worddic = {k: v+1 for k, v in worddic.items()}
@@ -45,9 +53,17 @@ def readdata(mode, testcans=None, debug=False, specids=False):  # if none, inclu
     entmat = np.concatenate([addtoentmat, entmat], axis=0)
 
     if specids: # prepend special id's (non-unique for entities, unique for predicates, unique for others)
-        mid = 1
-        # same ids for all entitites
         prependmat = np.zeros((entmat.shape[0], 1), dtype="int32")
+        mid = 1
+        if usetypes:
+            reventdic = {v: k for k, v in entdic.items()}
+            for i in range(1, numents):
+                t = enttyp[reventdic[i]]
+                if t not in typdic:
+                    typdic[t] = len(typdic)
+                    mid = len(typdic)
+                prependmat[i] = typdic[t]
+        # same ids for all entitites
         # unique predicate ids
         for i in range(numents, entmat.shape[0]):
             prependmat[i] = mid
@@ -209,13 +225,14 @@ def run(
         subjpred=False,
         predpred=False,
         specemb=-1,
-        balancednegidx=False
+        balancednegidx=False,
+        usetypes=False,
     ):
     if debug:       # debug settings
         sumhingeloss = True
         numbats = 10
         lr = 0.02
-        epochs = 20
+        epochs = 40
         printpreds = True
         whatpred = "subj"
         if whatpred == "pred":
@@ -223,16 +240,17 @@ def run(
         elif whatpred == "subj":
             subjpred = True
         #preeval = True
-        specemb = 50
+        specemb = 100
         margin = 2.
         balancednegidx = True
+        usetypes=True
     # load the right file
     tt = ticktock("script")
     specids = specemb > 0
     tt.tick()
     (traindata, traingold), (validdata, validgold), (testdata, testgold), \
     worddic, entdic, entmat, relstarts, canids\
-        = readdata(mode, testcans="testcans.pkl", debug=debug, specids=specids)
+        = readdata(mode, testcans="testcans.pkl", debug=debug, specids=specids, usetypes=usetypes)
     entmat = entmat.astype("int32")
 
     if subjpred is True and predpred is False:
