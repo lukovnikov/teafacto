@@ -1,4 +1,4 @@
-from teafacto.core.base import tensorops as T, Block, asblock
+from teafacto.core.base import tensorops as T, Block, asblock, param
 from teafacto.util import issequence
 from IPython import embed
 
@@ -21,6 +21,29 @@ class CosineDistance(Block):
 class EuclideanDistance(Block):
     def apply(self, l, r):
         return (l-r).norm(2, axis=1)
+
+
+class LinearDistance(Block):
+    def __init__(self, indim, aggdim, **kw):
+        super(LinearDistance, self).__init__(**kw)
+        self.W = param((indim, aggdim), name="attention_ff").uniform()
+        self.U = param((aggdim,), name="attention_agg").uniform()
+
+    def apply(self, l, r):
+        con = T.concatenate([l, r], axis=1)
+        att = T.dot(con, self.W)
+        ret = T.dot(att, self.U)
+        return ret
+
+class GenDotDistance(Block):
+    def __init__(self, ldim, rdim, **kw):
+        super(GenDotDistance, self).__init__(**kw)
+        self.W = param((rdim, ldim), name="gendotdist").glorotuniform()
+
+    def apply(self, l, r):  # (batsize, dims)
+        ldot = T.dot(self.W, l.T) # (batsize, rdim)
+        ret = T.batched_dot(ldot.T, r)
+        return ret
 
 #endregion
 

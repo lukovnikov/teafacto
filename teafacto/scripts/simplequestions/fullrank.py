@@ -1,7 +1,8 @@
 from teafacto.util import argprun, ticktock
 from teafacto.blocks.seqproc import SimpleSeq2Vec, SeqEncDecAtt, SimpleSeqEncDecAtt, SeqUnroll
-from teafacto.blocks.match import SeqMatchScore
-from teafacto.core.base import Val, tensorops as T
+from teafacto.blocks.match import SeqMatchScore, GenDotDistance
+from teafacto.blocks.basic import VectorEmbed
+from teafacto.core.base import Val, tensorops as T, Block
 import pickle, numpy as np, sys, os
 from IPython import embed
 from teafacto.search import SeqEncDecSearch
@@ -9,7 +10,7 @@ from teafacto.eval.metrics import ClassAccuracy
 from teafacto.modelusers import RecPredictor
 
 
-def readdata(mode, testcans=None, debug=False):  # if none, included in file
+def readdata(mode, testcans=None, debug=False, specids=False):  # if none, included in file
     if debug:
         testcans = None
     if mode == "char":
@@ -42,6 +43,21 @@ def readdata(mode, testcans=None, debug=False):  # if none, included in file
     addtoentmat = -np.ones_like(entmat[np.newaxis, 0], dtype="int32")
     addtoentmat[0, 0] = 0
     entmat = np.concatenate([addtoentmat, entmat], axis=0)
+
+    if specids: # prepend special id's (non-unique for entities, unique for predicates, unique for others)
+        mid = 1
+        # same ids for all entitites
+        prependmat = np.zeros((entmat.shape[0], 1), dtype="int32")
+        # unique predicate ids
+        for i in range(numents, entmat.shape[0]):
+            prependmat[i] = mid
+            mid += 1
+        # unique other ids
+        prependmat[0] = mid
+        entmat = np.concatenate([prependmat, entmat], axis=1)
+        if debug:
+            pass
+            #embed()
 
     def shiftidxstup(t, shift=1, mask=-1):
         return tuple([shiftidxs(te, shift=shift, mask=mask) for te in t])
@@ -94,7 +110,7 @@ class SeqEncDecRankSearch(SeqEncDecSearch):
                     candatai = candata[canidsi]
                     canrepsi = self.canenc.predict(candatai)
                     curvectori = np.repeat(curvectors[np.newaxis, i, ...], canrepsi.shape[0], axis=0)
-                    scoresi = self.scorer.predict(canrepsi, curvectori)
+                    scoresi = self.scorer.predict(curvectori, canrepsi)
                     curout[i] = canids[i][np.argmax(scoresi)]
                     accscoresj[i] += np.max(scoresi)
                     if debug:
@@ -136,10 +152,41 @@ class FullRankEval(object):
         return self.metrics
 
 
+class EntEmbEnc(Block):
+    def __init__(self, enc, vocsize, embdim, **kw):
+        super(EntEmbEnc, self).__init__(**kw)
+        self.enc = enc
+        self.emb = VectorEmbed(vocsize, embdim)
+
+    def apply(self, x, mask=None):
+        enco = self.enc(x[:, 1:], mask=mask)
+        embo = self.emb(x[:, 0])
+        ret = T.concatenate([enco, embo], axis=1)                   # (?, encdim+embdim)
+        return ret
+
+    @property
+    def outdim(self):
+        return self.enc.outdim + self.emb.outdim
+
+
+class EntEmbEncRep(EntEmbEnc):
+    ''' Replaces encoding with embedding based on repsplit index '''
+    def __init__(self, enc, vocsize, repsplit, **kw):
+        super(EntEmbEncRep, self).__init__(enc, vocsize, enc.outdim, **kw)
+        self.split = repsplit
+
+    def apply(self, x, mask=None):
+        enco = self.enc(x[:, 1:], mask=mask)
+        embo = self.emb(x[:, 0])
+        repl = x[:, 0] >= self.split
+        mask = None
+        ret = (1 - mask) * enco + mask * embo
+
 def shiftdata(d):  # idx (batsize, seqlen)
     ds = np.zeros_like(d)
     ds[:, 1:] = d[:, :-1]
     return ds
+
 
 def run(
         epochs=50,
@@ -160,7 +207,9 @@ def run(
         checkdata=False,        # starts interactive shell for data inspection
         printpreds=False,
         subjpred=False,
-        predpred=False
+        predpred=False,
+        specemb=-1,
+        balancednegidx=False
     ):
     if debug:       # debug settings
         sumhingeloss = True
@@ -168,15 +217,22 @@ def run(
         lr = 0.02
         epochs = 20
         printpreds = True
-        subjpred = True
-        predpred = False
+        whatpred = "subj"
+        if whatpred == "pred":
+            predpred = True
+        elif whatpred == "subj":
+            subjpred = True
         #preeval = True
+        specemb = 50
+        margin = 2.
+        balancednegidx = True
     # load the right file
     tt = ticktock("script")
+    specids = specemb > 0
     tt.tick()
     (traindata, traingold), (validdata, validgold), (testdata, testgold), \
     worddic, entdic, entmat, relstarts, canids\
-        = readdata(mode, testcans="testcans.pkl", debug=debug)
+        = readdata(mode, testcans="testcans.pkl", debug=debug, specids=specids)
     entmat = entmat.astype("int32")
 
     if subjpred is True and predpred is False:
@@ -230,16 +286,26 @@ def run(
                          maskid=-1,
                          bidir=membidir)
 
-    encdec = SimpleSeqEncDecAtt(inpvocsize=numwords, inpembdim=memembdim,
+    if specids:     # include vectorembedder
+        numentembs = len(np.unique(entmat[:, 0]))
+        entenc = EntEmbEnc(entenc, numentembs, specemb)
+        # adjust params for enc/dec construction
+        #encinnerdim[-1] += specemb
+        #innerdim[-1] += specemb
+
+    encdec = SimpleSeqEncDecAtt(inpvocsize=numwords, inpembdim=embdim,
                     encdim=encinnerdim, bidir=bidir, outembdim=entenc,
-                    decdim=innerdim, outconcat=False, vecout=True,
+                    decdim=innerdim, outconcat=True, vecout=True,
                     statetrans=True)
 
     scorerargs = ([encdec, SeqUnroll(entenc)],
-                  {"argproc": lambda x, y, z: ((x, y), (z,))})
+                  {"argproc": lambda x, y, z: ((x, y), (z,)),
+                   "scorer": GenDotDistance(encinnerdim[-1]+innerdim[-1], entenc.outdim)})
     if sumhingeloss:
         scorerargs[1]["aggregator"] = lambda x: x  # no aggregation of scores
     scorer = SeqMatchScore(*scorerargs[0], **scorerargs[1])
+
+    #scorer.save("scorer.test.save")
 
     # TODO: below this line, check and test
     class PreProc(object):
@@ -265,7 +331,7 @@ def run(
             self.midsplit = midsplit
 
         def __call__(self, datas, sgold, gold):    # the whole target sequence is corrupted, corruption targets the whole set of entities and relations together
-            if self.midsplit is None:
+            if self.midsplit is None or not balancednegidx:
                 return datas, sgold, np.random.randint(self.min, self.max, gold.shape).astype("int32")
             else:
                 entrand = np.random.randint(self.min, self.midsplit, gold.shape)
@@ -310,6 +376,8 @@ def run(
         .validate_on([validdata, validgoldshifted, validgold]) \
         .train(numbats=numbats, epochs=epochs)
     tt.tock("trained")
+
+    #scorer.save("scorer.test.save")
 
     # eval
     tt.tick("evaluating")

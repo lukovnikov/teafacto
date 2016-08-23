@@ -90,7 +90,8 @@ class LinearSumAttentionGenerator(AttentionGenerator):    # simple feedforward
 
 
 class LinearGateAttentionGenerator(AttentionGenerator):
-    def __init__(self, **kw):
+    def __init__(self, nonlinearities=False, **kw):
+        self.nonlinearities = nonlinearities
         super(LinearGateAttentionGenerator, self).__init__(**kw)
         self.W = param((self.indim, self.attdim), name="attention_ff").uniform()
         self.U = param((self.attdim,), name="attention_agg").uniform()
@@ -99,9 +100,12 @@ class LinearGateAttentionGenerator(AttentionGenerator):
         def rec(x_t, crit):
             combo = self._get_combo(x_t, crit)  # (batsize, crit_dim + datadim)
             trans = T.dot(combo, self.W)        # (batsize, innerdim)
-            trans = T.tanh(trans)                                       # apply tanh
+            if self.nonlinearities:
+                trans = T.tanh(trans)                                       # apply tanh
             ret = T.dot(trans, self.U)                                  # (batsize, )
-            return T.nnet.sigmoid(ret)                                  # apply sigmoid
+            if self.nonlinearities:
+                ret = T.nnet.sigmoid(ret)                                  # apply sigmoid
+            return ret
         o, _ = T.scan(fn=rec, sequences=data.dimswap(1, 0), non_sequences=criterion)
         return o.dimswap(1, 0)     # (batsize, seqlen)
 
