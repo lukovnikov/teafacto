@@ -1,8 +1,9 @@
 from unittest import TestCase
 
-from teafacto.blocks.rnn import SeqEncoder
-from teafacto.blocks.rnu import GRU
 import numpy as np
+
+from teafacto.blocks.seq.rnn import SeqEncoder
+from teafacto.blocks.seq.rnu import GRU
 from teafacto.util import issequence
 
 

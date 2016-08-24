@@ -1,9 +1,9 @@
+import os
 from unittest import TestCase
 
 import numpy as np
-import os
 
-from teafacto.blocks.rnu import GRU, LSTM, IFGRU
+from teafacto.blocks.seq.rnu import GRU, LSTM, IFGRU
 from teafacto.core.base import param, Input
 
 

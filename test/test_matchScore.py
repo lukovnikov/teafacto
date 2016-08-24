@@ -1,8 +1,11 @@
 from unittest import TestCase
-from teafacto.blocks.match import MatchScore, SeqMatchScore, CosineDistance
-from teafacto.blocks.seqproc import SeqUnroll
-from teafacto.blocks.basic import VectorEmbed
+
 import numpy as np
+
+from teafacto.blocks.seq.oldseqproc import SeqUnroll
+from teafacto.blocks.basic import VectorEmbed
+from teafacto.blocks.match import SeqMatchScore, CosineDistance
+
 
 class TestMatchScore(TestCase):
 

@@ -1,14 +1,13 @@
 import pickle
 
-import numpy as np, os
-
-from theano import tensor as TT
+import numpy as np
+import os
 import theano
+from theano import tensor as TT
 
-from teafacto.core.base import Block, param, tensorops as T
+from teafacto.blocks.seq.oldseqproc import SimpleSeqTransducer
 from teafacto.blocks.basic import Softmax
-
-from teafacto.blocks.seqproc import SimpleSeqTransducer
+from teafacto.core.base import Block, param, tensorops as T
 from teafacto.util import argprun
 
 

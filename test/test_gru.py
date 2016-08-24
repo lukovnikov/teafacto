@@ -1,8 +1,10 @@
 from unittest import TestCase
 
-from teafacto.blocks.rnu import GRU
+import numpy as np
+import theano
 from theano import tensor as T
-import theano, numpy as np
+
+from teafacto.blocks.seq.rnu import GRU
 
 
 class TestGRUBasic(TestCase):

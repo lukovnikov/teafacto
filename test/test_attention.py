@@ -1,9 +1,12 @@
 from unittest import TestCase
-from teafacto.blocks.attention import Attention, WeightedSumAttCon, LinearSumAttentionGenerator, LinearGateAttentionGenerator, DotprodAttGen
-from teafacto.blocks.rnn import SeqDecoder, RewAttRNNEncDecoder
-from teafacto.blocks.rnu import GRU
-from teafacto.blocks.basic import Softmax, MatDot as Lin, IdxToOneHot
+
 import numpy as np
+
+from teafacto.blocks.seq.attention import Attention, WeightedSumAttCon, LinearSumAttentionGenerator, LinearGateAttentionGenerator, DotprodAttGen
+from teafacto.blocks.seq.rnn import SeqDecoder
+from teafacto.blocks.seq.rnu import GRU
+from teafacto.blocks.basic import IdxToOneHot
+
 
 class AttentionGenTest(TestCase):
     def test_shapes(self):

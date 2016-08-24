@@ -1,7 +1,8 @@
 from unittest import TestCase
 
-from teafacto.blocks.rnn import RNNAutoEncoder, RewAttRNNEncDecoder, RewAttSumDecoder, FwdAttRNNEncDecoder, FwdAttSumDecoder, BiFwdAttSumDecoder, BiRewAttSumDecoder
 import numpy as np
+
+from teafacto.blocks.seq.rnn import RNNAutoEncoder, RewAttRNNEncDecoder, RewAttSumDecoder, FwdAttRNNEncDecoder, FwdAttSumDecoder, BiFwdAttSumDecoder, BiRewAttSumDecoder
 
 
 def shiftdata(x):

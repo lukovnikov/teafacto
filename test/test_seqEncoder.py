@@ -1,8 +1,11 @@
 from unittest import TestCase
-from teafacto.blocks.rnn import SeqEncoder, MaskSetMode
-from teafacto.blocks.rnu import GRU
-from teafacto.blocks.basic import IdxToOneHot, MatDot, Softmax
+
 import numpy as np
+
+from teafacto.blocks.seq.rnn import SeqEncoder, MaskSetMode
+from teafacto.blocks.seq.rnu import GRU
+from teafacto.blocks.basic import IdxToOneHot
+
 
 class TestSeqEncoder(TestCase):
     def test_output_shape(self):

@@ -1,7 +1,8 @@
 from unittest import TestCase
+
 import numpy as np
 
-from teafacto.blocks.rnn import SimpleEncoderDecoder
+from teafacto.blocks.seq.rnn import SimpleEncoderDecoder
 
 
 class TestSimpleEncoderDecoder(TestCase):

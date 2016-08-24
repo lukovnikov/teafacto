@@ -1,6 +1,6 @@
 from base import Block
-from teafacto.blocks.rnn import RecStack
-from teafacto.blocks.rnu import RNUBase
+from teafacto.blocks.seq.rnn import RecStack
+from teafacto.blocks.seq.rnu import RNUBase
 
 
 def stack(*layers, **kw):

@@ -1,13 +1,11 @@
-from teafacto.core.base import Block, asblock, tensorops as T, param, Val
-from teafacto.core.stack import stack
+from teafacto.blocks.seq.attention import LinearGateAttentionGenerator, WeightedSumAttCon, Attention
+from teafacto.blocks.seq.rnn import SeqEncoder, SeqDecoder, RecStack
+from teafacto.blocks.seq.rnu import GRU
 from teafacto.blocks.basic import Softmax, MatDot as Lin, VectorEmbed, ConcatBlock
-from teafacto.blocks.rnn import SeqEncoder, SeqDecoder, RecStack
-from teafacto.blocks.rnu import GRU
 from teafacto.blocks.lang.wordembed import WordEncoderPlusGlove, WordEmbed
-from teafacto.blocks.attention import LinearGateAttentionGenerator, WeightedSumAttCon, Attention
-from teafacto.blocks.memory import MemoryBlock, LinearGateMemAddr, GeneralDotMemAddr, DotMemAddr, TransDotMemAddr
-
-import numpy as np
+from teafacto.blocks.memory import MemoryBlock, GeneralDotMemAddr, DotMemAddr, TransDotMemAddr
+from teafacto.core.base import Block
+from teafacto.core.stack import stack
 
 
 class FBBasicCompositeEncoder(Block):    # SeqEncoder of WordEncoderPlusGlove, fed to single-layer Softmax output

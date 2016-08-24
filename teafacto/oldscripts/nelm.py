@@ -9,7 +9,7 @@ from matplotlib import pyplot as plt
 from teafacto.core.optimizers import SGD
 from teafacto.xxrnnkm import RNNTFSGDSM
 
-from blocks.rnn import GRU
+from blocks.seq.rnn import GRU
 from teafacto.models.kb.smsm import RNNESMSM
 
 

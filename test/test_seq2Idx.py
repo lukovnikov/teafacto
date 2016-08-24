@@ -1,6 +1,8 @@
 from unittest import TestCase
-from teafacto.blocks.seqproc import SimpleSeq2Idx
+
 import numpy as np
+
+from teafacto.blocks.seq.oldseqproc import SimpleSeq2Idx
 
 
 class TestSeq2Idx(TestCase):

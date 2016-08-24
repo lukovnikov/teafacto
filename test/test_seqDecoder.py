@@ -1,8 +1,10 @@
 from unittest import TestCase
-from teafacto.blocks.rnn import SeqDecoder
-from teafacto.blocks.rnu import GRU
-from teafacto.blocks.basic import IdxToOneHot
+
 import numpy as np
+
+from teafacto.blocks.seq.rnn import SeqDecoder
+from teafacto.blocks.seq.rnu import GRU
+from teafacto.blocks.basic import IdxToOneHot
 
 
 class TestSeqDecoder(TestCase):

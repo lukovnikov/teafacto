@@ -1,9 +1,10 @@
 from unittest import TestCase
-from teafacto.blocks.lang.wordembed import WordEncoder, WordEncoderPlusGlove, WordEmbedPlusGlove
-from teafacto.blocks.lang.wordvec import Glove
-from teafacto.blocks.seqproc import Seq2Vec, SimpleSeq2Vec
+
 import numpy as np
 
+from teafacto.blocks.seq.oldseqproc import Seq2Vec, SimpleSeq2Vec
+from teafacto.blocks.lang.wordembed import WordEncoder, WordEncoderPlusGlove, WordEmbedPlusGlove
+from teafacto.blocks.lang.wordvec import Glove
 
 
 class TestWordEncoder(TestCase):

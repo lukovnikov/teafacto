@@ -1,13 +1,18 @@
-from teafacto.util import argprun, ticktock
-from teafacto.blocks.seqproc import SimpleSeq2Vec, SeqEncDecAtt, SimpleSeqEncDecAtt, SeqUnroll
-from teafacto.blocks.match import SeqMatchScore, GenDotDistance
-from teafacto.blocks.basic import VectorEmbed
-from teafacto.core.base import Val, tensorops as T, Block
-import pickle, numpy as np, sys, os
+import numpy as np
+import os
+import pickle
+import sys
+
 from IPython import embed
-from teafacto.search import SeqEncDecSearch
+
+from teafacto.blocks.seq.encdec import SimpleSeqEncDecAtt
+
+from teafacto.blocks.basic import VectorEmbed
+from teafacto.blocks.match import SeqMatchScore, GenDotDistance
+from teafacto.core.base import Val, tensorops as T, Block
 from teafacto.eval.metrics import ClassAccuracy
-from teafacto.modelusers import RecPredictor
+from teafacto.search import SeqEncDecSearch
+from teafacto.util import argprun, ticktock
 
 
 def readdata(mode, testcans=None, debug=False, specids=False, usetypes=False):  # if none, included in file
@@ -230,6 +235,7 @@ def run(
         specemb=-1,
         balancednegidx=False,
         usetypes=False,
+        inconcat=False,
     ):
     if debug:       # debug settings
         sumhingeloss = True
@@ -316,10 +322,15 @@ def run(
         #encinnerdim[-1] += specemb
         #innerdim[-1] += specemb
 
+    if inconcat:
+        outconcat = False
+    else:
+        outconcat = True
+
     encdec = SimpleSeqEncDecAtt(inpvocsize=numwords, inpembdim=embdim,
                     encdim=encinnerdim, bidir=bidir, outembdim=entenc,
-                    decdim=innerdim, outconcat=True, vecout=True,
-                    statetrans=True)
+                    decdim=innerdim, outconcat=outconcat, inconcat=inconcat,
+                    vecout=True, statetrans=True)
 
     scorerargs = ([encdec, SeqUnroll(entenc)],
                   {"argproc": lambda x, y, z: ((x, y), (z,)),

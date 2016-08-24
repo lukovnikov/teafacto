@@ -1,5 +1,5 @@
-from teafacto.blocks.rnu import GatedRNU
-from teafacto.blocks.attention import Attention, ArgmaxAttCon, WeightedSumAttCon, LinearGateAttentionGenerator, DotprodAttGen
+from teafacto.blocks.seq.attention import ArgmaxAttCon, WeightedSumAttCon, DotprodAttGen
+from teafacto.blocks.seq.rnu import GatedRNU
 from teafacto.core.base import tensorops as T
 from teafacto.util import issequence
 

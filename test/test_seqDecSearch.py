@@ -1,8 +1,11 @@
+import numpy as np
+import pandas as pd
+import re
 from unittest import TestCase
-from teafacto.search import SeqEncDecSearch
-from teafacto.blocks.seqproc import SimpleSeqEncDecAtt
+
+from teafacto.blocks.seq.oldseqproc import SimpleSeqEncDecAtt
 from teafacto.blocks.lang.wordembed import Glove
-import re, pandas as pd, numpy as np
+from teafacto.search import SeqEncDecSearch
 
 
 def word2int(word):

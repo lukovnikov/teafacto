@@ -1,8 +1,9 @@
 from unittest import TestCase
-from teafacto.blocks.seqproc import SimpleSeq2Vec
-from teafacto.blocks.match import MatchScore
+
 import numpy as np
-import theano
+
+from teafacto.blocks.seq.oldseqproc import SimpleSeq2Vec
+from teafacto.blocks.match import MatchScore
 
 
 class TestSimpleSeq2Vec(TestCase):

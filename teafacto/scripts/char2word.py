@@ -1,11 +1,11 @@
-import sys, re, os.path, numpy as np
-from IPython import embed
-from teafacto.util import argprun, tokenize, ticktock
-from teafacto.blocks.match import MatchScore, CosineDistance, DotDistance, EuclideanDistance
-from teafacto.blocks.lang.wordvec import Glove
-from teafacto.blocks.seqproc import SeqEncoder, SimpleSeq2Vec
-from teafacto.core.base import Block
 import pickle
+
+import numpy as np
+
+from teafacto.blocks.seq.oldseqproc import SimpleSeq2Vec
+from teafacto.blocks.lang.wordvec import Glove
+from teafacto.blocks.match import MatchScore, CosineDistance, EuclideanDistance
+from teafacto.util import argprun, ticktock
 
 
 def run(

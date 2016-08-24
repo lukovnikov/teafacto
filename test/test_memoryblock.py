@@ -1,11 +1,13 @@
 from unittest import TestCase
-from teafacto.blocks.memory import MemoryBlock
+
+import numpy as np
+
+from teafacto.blocks.seq.rnn import SeqEncoder
+from teafacto.blocks.seq.rnu import GRU
+from teafacto.blocks.basic import IdxToOneHot
 from teafacto.blocks.lang.wordembed import WordEmbedGlove
 from teafacto.blocks.lang.wordvec import Glove
-from teafacto.blocks.rnn import SeqEncoder
-from teafacto.blocks.rnu import GRU
-from teafacto.blocks.basic import IdxToOneHot
-import numpy as np
+from teafacto.blocks.memory import MemoryBlock
 
 
 class TestMemoryBlock(TestCase):

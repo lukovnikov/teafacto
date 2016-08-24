@@ -1,7 +1,10 @@
-from teafacto.util import argprun
 from collections import OrderedDict
+
 import numpy as np
-from teafacto.blocks.seqproc import SimpleSeq2Idx
+
+from teafacto.blocks.seq.oldseqproc import SimpleSeq2Idx
+from teafacto.util import argprun
+
 
 def readdic(dicp):
     dic = OrderedDict()

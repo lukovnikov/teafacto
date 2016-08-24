@@ -1,7 +1,8 @@
 from unittest import TestCase
-from teafacto.blocks.seqproc import SimpleSeqTransDec
-from teafacto.blocks.seqproc import SimpleSeqTransducer, SimpleSeqTransDec
+
 import numpy as np
+
+from teafacto.blocks.seq.oldseqproc import SimpleSeqTransducer, SimpleSeqTransDec
 
 
 def shiftdata(x, right=1):

@@ -1,12 +1,12 @@
-import sys, re
+import numpy as np
+import pickle
 from IPython import embed
-from teafacto.util import argprun, tokenize
-from teafacto.blocks.memory import LinearGateMemAddr, DotMemAddr
-from teafacto.blocks.lang.wordvec import Glove
+
+from teafacto.blocks.seq.oldseqproc import SimpleSeq2Vec, Seq2Vec, SimpleVec2Idx, MemVec2Idx, Seq2Idx
 from teafacto.blocks.lang.wordembed import WordEncoderPlusGlove
-from collections import OrderedDict
-import numpy as np, pickle
-from teafacto.blocks.seqproc import SimpleSeq2Idx, SimpleSeq2Vec, Seq2Vec, SimpleVec2Idx, MemVec2Idx, Seq2Idx
+from teafacto.blocks.lang.wordvec import Glove
+from teafacto.blocks.memory import LinearGateMemAddr, DotMemAddr
+from teafacto.util import argprun, tokenize
 
 
 def readdata(p):

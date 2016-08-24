@@ -5,7 +5,7 @@ import theano
 from teafacto.core.trainutil import SGDBase, Saveable, Profileable, Normalizable, Predictor, uniform
 from theano import tensor as T
 
-from blocks.rnn import RNUBase
+from teafacto.blocks.seq.rnn import RNUBase
 
 __author__ = 'denis'
 

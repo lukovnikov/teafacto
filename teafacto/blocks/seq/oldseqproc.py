@@ -1,14 +1,14 @@
-from teafacto.blocks.rnn import MakeRNU
-from teafacto.blocks.attention import Attention, LinearGateAttentionGenerator, WeightedSumAttCon
+from teafacto.blocks.seq.attention import Attention, LinearGateAttentionGenerator, WeightedSumAttCon
+from teafacto.blocks.seq.rnn import MakeRNU
+from teafacto.blocks.seq.rnn import RecStack, SeqDecoder, BiRNU, SeqEncoder, MaskSetMode, MaskMode
+from teafacto.blocks.seq.rnu import GRU
 from teafacto.blocks.basic import MatDot as Lin, Softmax
 from teafacto.blocks.basic import VectorEmbed, IdxToOneHot, MatDot
-from teafacto.blocks.rnn import RecStack, SeqDecoder, BiRNU, SeqEncoder, MaskSetMode, MaskMode
-from teafacto.blocks.rnu import GRU
+from teafacto.blocks.memory import MemoryStack, MemoryBlock, DotMemAddr
+from teafacto.blocks.pool import Pool
 from teafacto.core.base import Block, tensorops as T, Val, asblock
 from teafacto.core.stack import stack
-from teafacto.blocks.memory import MemoryStack, MemoryBlock, DotMemAddr, GeneralDotMemAddr, LinearGateMemAddr
-from teafacto.util import issequence, isnumber
-from teafacto.blocks.pool import Pool
+from teafacto.util import issequence
 
 
 class SeqUnroll(Block):

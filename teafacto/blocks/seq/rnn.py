@@ -1,9 +1,10 @@
-from teafacto.blocks.attention import WeightedSumAttCon, Attention, AttentionConsumer, LinearGateAttentionGenerator
+from enum import Enum
+
+from teafacto.blocks.seq.attention import WeightedSumAttCon, Attention, AttentionConsumer, LinearGateAttentionGenerator
+from teafacto.blocks.seq.rnu import GRU, ReccableBlock, RecurrentBlock, RNUBase
 from teafacto.blocks.basic import IdxToOneHot, Softmax, MatDot
-from teafacto.blocks.rnu import GRU, ReccableBlock, RecurrentBlock, RNUBase
 from teafacto.core.base import Block, tensorops as T, asblock
 from teafacto.util import issequence
-from enum import Enum
 
 
 class RecStack(ReccableBlock):
@@ -308,6 +309,82 @@ class SeqEncoder(AttentionConsumer, Block):
         return self
 
 
+class SeqDecAtt(Block):
+    """ seq decoder with attention with new inconcat implementation """
+    def __init__(self, layers, softmaxoutblock=None, innerdim=None, attention=None, **kw):
+        super(SeqDecAtt, self).__init__(**kw)
+        self.embedder = layers[0]
+        self.block = RecStack(*layers[1:])
+        self.outdim = innerdim
+        self.attention = attention
+        self._mask = False
+        self._attention = None
+        assert(isinstance(self.block, ReccableBlock))
+        if softmaxoutblock is None: # default softmax out block
+            sm = Softmax()
+            self.lin = MatDot(indim=self.outdim, dim=self.embedder.indim)
+            self.softmaxoutblock = asblock(lambda x: sm(self.lin(x)))
+        elif softmaxoutblock is False:
+            self.softmaxoutblock = asblock(lambda x: x)
+        else:
+            self.softmaxoutblock = softmaxoutblock
+
+    @property
+    def numstates(self):
+        return self.block.numstates
+
+    def apply(self, context, seq, initstates=None, mask=None, encmask=None, **kw):  # context: (batsize, enc.innerdim), seq: idxs-(batsize, seqlen)
+        if initstates is None:
+            initstates = seq.shape[0]
+        elif issequence(initstates):
+            if len(initstates) < self.numstates:  # fill up with batsizes for lower layers
+                initstates = [seq.shape[0]] * (self.numstates - len(initstates)) + initstates
+        init_info, nonseq = self.get_init_info(context, initstates, encmask=encmask)  # sets init states to provided ones
+        outputs, _ = T.scan(fn=self.rec,
+                            sequences=seq.dimswap(1, 0),
+                            outputs_info=[None] + init_info,
+                            non_sequences=nonseq)
+        ret = outputs[0].dimswap(1, 0)  # returns probabilities of symbols --> (batsize, seqlen, vocabsize)
+        if mask == "auto":
+            mask = (seq > 0).astype("int32")
+        ret = self.applymask(ret, mask)
+        return ret
+
+    @classmethod
+    def applymask(cls, xseq, maskseq):
+        if maskseq is None:
+            return xseq
+        else:
+            mask = T.tensordot(maskseq, T.ones((xseq.shape[2],)), 0)  # f32^(batsize, seqlen, outdim) -- maskseq stacked
+            masker = T.concatenate(
+                [T.ones((xseq.shape[0], xseq.shape[1], 1)),
+                 T.zeros((xseq.shape[0], xseq.shape[1], xseq.shape[2] - 1))],
+                axis=2)  # f32^(batsize, seqlen, outdim) -- gives 100% prob to output 0
+            ret = xseq * mask + masker * (1.0 - mask)
+            return ret
+
+    def get_init_info(self, context, initstates, encmask=None):
+        ret = self.block.get_init_info(initstates)
+        return [0] + ret, [encmask, context]
+
+    def rec(self, x_t, t, *args):  # x_t: (batsize), context: (batsize, enc.innerdim)
+        states_tm1 = args[:-1]
+        ctx = args[-1]
+        encmask = args[-2]
+        h_tm1 = states_tm1[0]   # ???
+        x_t_emb = self.embedder(x_t)  # i_t: (batsize, embdim)
+        # get context with attention
+        ctx_t = self.attention(h_tm1, ctx, mask=encmask)
+        # do inconcat
+        i_t = T.concatenate([x_t_emb, ctx_t], axis=1)
+        rnuret = self.block.rec(i_t, *states_tm1)
+        t += 1
+        pre_y_t = rnuret[0]
+        states_t = rnuret[1:]
+        y_t = self.softmaxoutblock(pre_y_t)
+        return [y_t, t] + states_t
+
+
 class SeqDecoder(Block):
     '''
     Decodes a sequence of symbols given context
@@ -372,6 +449,7 @@ class SeqDecoder(Block):
             return ret
 
     def get_init_info(self, context, context_0, initstates, encmask=None):
+        # TODO: get ctx_0 with new inconcat idea
         ret = self.block.get_init_info(initstates)
         context_0 = self._get_ctx_t0(context, context_0)
         return [context_0, 0] + ret, [encmask, context]
@@ -391,6 +469,7 @@ class SeqDecoder(Block):
         return ctx_0
 
     def rec(self, x_t, ctx_tm1, t, *args):  # x_t: (batsize), context: (batsize, enc.innerdim)
+        # TODO: implement new inconcat
         states_tm1 = args[:-1]
         ctx = args[-1]
         encmask = args[-2]

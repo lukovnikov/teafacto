@@ -1,19 +1,20 @@
-import sys, re, os.path
-from IPython import embed
-from teafacto.util import argprun, tokenize, ticktock
-from teafacto.blocks.memory import LinearGateMemAddr, DotMemAddr
-from teafacto.blocks.match import MatchScore
-from teafacto.blocks.lang.wordvec import Glove
-from teafacto.blocks.basic import VectorEmbed
-from teafacto.core.base import tensorops as T, Val
-from collections import OrderedDict
-import numpy as np, pickle
-from teafacto.blocks.seqproc import SimpleSeq2Idx, SimpleSeq2Vec, SimpleVec2Idx, MemVec2Idx, Seq2Idx
-from multiprocessing import Pool, cpu_count
+import os.path
+import sys
 from contextlib import closing
+from multiprocessing import Pool, cpu_count
+
+import numpy as np
+import pickle
+from IPython import embed
+
+from teafacto.blocks.seq.oldseqproc import SimpleSeq2Vec
+from teafacto.blocks.basic import VectorEmbed
+from teafacto.blocks.lang.wordvec import Glove
+from teafacto.blocks.match import MatchScore
+from teafacto.core.base import Val
 from teafacto.datahelp.labelsearch import SimpleQuestionsLabelIndex
 from teafacto.eval.metrics import ClassAccuracy, RecallAt
-from teafacto.core.base import tensorops as T
+from teafacto.util import argprun, tokenize, ticktock
 
 # persistent memoization
 from tempfile import mkdtemp
