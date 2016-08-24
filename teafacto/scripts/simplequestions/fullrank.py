@@ -221,7 +221,8 @@ def run(
         wreg=0.000001,
         bidir=False,
         layers=1,
-        innerdim=200,
+        encdim=200,
+        decdim=400,
         embdim=100,
         negrate=1,
         margin=1.,
@@ -297,21 +298,21 @@ def run(
     print "%d words, %d entities" % (numwords, numents)
 
     if bidir:
-        encinnerdim = [innerdim / 2] * layers
+        encinnerdim = [encdim / 2] * layers
     else:
-        encinnerdim = [innerdim] * layers
+        encinnerdim = [encdim] * layers
 
     memembdim = embdim
     memlayers = layers
     membidir = bidir
     if membidir:
-        innerdim = [innerdim/2]*memlayers
+        decinnerdim = [decdim/2]*memlayers
     else:
-        innerdim = [innerdim]*memlayers
+        decinnerdim = [decdim]*memlayers
 
     entenc = SimpleSeq2Vec(indim=numwords,
                          inpembdim=memembdim,
-                         innerdim=innerdim,
+                         innerdim=decinnerdim,
                          maskid=-1,
                          bidir=membidir)
 
@@ -324,11 +325,11 @@ def run(
 
     encdec = SimpleSeqEncDecAtt(inpvocsize=numwords, inpembdim=embdim,
                     encdim=encinnerdim, bidir=bidir, outembdim=entenc,
-                    decdim=innerdim, vecout=True, statetrans="matdot")
+                    decdim=decinnerdim, vecout=True, statetrans="matdot")
 
     scorerargs = ([encdec, SeqUnroll(entenc)],
                   {"argproc": lambda x, y, z: ((x, y), (z,)),
-                   "scorer": GenDotDistance(innerdim[-1], entenc.outdim)})
+                   "scorer": GenDotDistance(decinnerdim[-1], entenc.outdim)})
     if sumhingeloss:
         scorerargs[1]["aggregator"] = lambda x: x  # no aggregation of scores
     scorer = SeqMatchScore(*scorerargs[0], **scorerargs[1])

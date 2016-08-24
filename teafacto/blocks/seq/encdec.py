@@ -102,7 +102,7 @@ class SimpleSeqEncDecAtt(SeqEncDecAtt):
         if statetrans is True:
             if lastencinnerdim != lastdecinnerdim:  # state shape mismatch
                 statetrans = MatDot(lastencinnerdim, lastdecinnerdim)
-        elif statetrans is "matdot":
+        elif statetrans == "matdot":
             statetrans = MatDot(lastencinnerdim, lastdecinnerdim)
 
         super(SimpleSeqEncDecAtt, self).__init__(self.enclayers, self.declayers,
