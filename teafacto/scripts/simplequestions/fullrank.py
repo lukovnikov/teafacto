@@ -117,6 +117,7 @@ class SeqEncDecRankSearch(SeqEncDecSearch):
         outs = []
         while not stop:
             curvectors = self.mu.feed(curout)
+            curout = np.ones_like(curout, dtype=curout.dtype) * initsymbolidx
             accscoresj = np.zeros((inpseq.shape[0],))
             self.tt.tick()
             for i in range(curvectors.shape[0]):    # for each example, find the highest scoring suited cans and their scores
@@ -129,7 +130,7 @@ class SeqEncDecRankSearch(SeqEncDecSearch):
                     canrepsi = self.canenc.predict(candatai)
                     curvectori = np.repeat(curvectors[np.newaxis, i, ...], canrepsi.shape[0], axis=0)
                     scoresi = self.scorer.predict(curvectori, canrepsi)
-                    curout[i] = canids[i][np.argmax(scoresi)]
+                    curout[i] = canidsi[np.argmax(scoresi)]
                     accscoresj[i] += np.max(scoresi)
                     if debug:
                         print i, sorted(zip(canidsi, scoresi), key=lambda (x, y): y, reverse=True)
@@ -234,18 +235,18 @@ def run(
         sumhingeloss = True
         numbats = 10
         lr = 0.02
-        epochs = 40
+        epochs = 10
         printpreds = True
-        whatpred = "subj"
+        whatpred = "all"
         if whatpred == "pred":
             predpred = True
         elif whatpred == "subj":
             subjpred = True
-        #preeval = True
+        preeval = True
         specemb = 100
         margin = 1.
         balancednegidx = True
-        usetypes=True
+        #usetypes=True
     # load the right file
     tt = ticktock("script")
     specids = specemb > 0
@@ -254,6 +255,8 @@ def run(
     worddic, entdic, entmat, relstarts, canids\
         = readdata(mode, testcans="testcans.pkl", debug=debug, specids=specids, usetypes=usetypes)
     entmat = entmat.astype("int32")
+
+    #embed()
 
     if subjpred is True and predpred is False:
         traingold = traingold[:, [0]]
@@ -406,6 +409,8 @@ def run(
     pred, scores = s.decode(testdata, 0, testgold.shape[1],
                             candata=entmat, canids=canids,
                             transform=transf.f, debug=printpreds)
+    if printpreds:
+        print pred
     debugarg = "subj" if subjpred else "pred" if predpred else False
     evalres = eval.eval(pred, testgold, debug=debugarg)
     for k, evalre in evalres.items():
