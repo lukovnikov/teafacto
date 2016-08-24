@@ -2,7 +2,7 @@ from unittest import TestCase
 
 import numpy as np
 
-from teafacto.blocks.seq.oldseqproc import SimpleSeq2Vec
+from teafacto.blocks.seq.enc import SimpleSeq2Vec
 from teafacto.blocks.match import MatchScore
 
 

@@ -1,6 +1,7 @@
 import numpy as np
 
-from teafacto.blocks.seq.oldseqproc import SimpleSeq2Vec, SimpleVec2Idx, MemVec2Idx
+from teafacto.blocks.seq.oldseqproc import SimpleVec2Idx, MemVec2Idx
+from teafacto.blocks.seq.enc import SimpleSeq2Vec
 from teafacto.blocks.seq.enc import Seq2Idx
 from teafacto.blocks.lang.wordvec import Glove
 from teafacto.blocks.memory import LinearGateMemAddr, DotMemAddr

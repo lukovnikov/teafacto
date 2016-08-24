@@ -4,16 +4,21 @@ import numpy as np
 
 
 class TestSimpleSeqEncDecAtt(TestCase):
-    def test_shapes(self):
-        inpvocsize = 1000
-        outvocsize = 103
-        inpembdim = 100
-        outembdim = 50
-        encdim = 97
-        decdim = 100
-        attdim = 80
-        bidir = False
-        batsize = 111
+    def test_unidir_shapes(self):
+        self.do_test_shapes(False)
+
+    def test_bidir_shapes(self):
+        self.do_test_shapes(True)
+
+    def do_test_shapes(self, bidir=False):
+        inpvocsize = 100
+        outvocsize = 13
+        inpembdim = 10
+        outembdim = 5
+        encdim = 9
+        decdim = 7
+        attdim = 8
+        batsize = 11
         inpseqlen = 7
         outseqlen = 5
 
@@ -30,8 +35,7 @@ class TestSimpleSeqEncDecAtt(TestCase):
         outseq = np.random.randint(0, outvocsize, (batsize, outseqlen)).astype("int32")
 
         predenco, _, _ = m.enc.predict(inpseq)
-        self.assertEqual(predenco.shape, (batsize, encdim))
+        self.assertEqual(predenco.shape, (batsize, encdim if not bidir else encdim*2))
 
         pred = m.predict(inpseq, outseq)
         self.assertEqual(pred.shape, (batsize, outseqlen, outvocsize))
-

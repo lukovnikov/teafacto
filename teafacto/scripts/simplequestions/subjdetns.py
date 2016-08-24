@@ -7,7 +7,7 @@ import numpy as np
 import pickle
 from IPython import embed
 
-from teafacto.blocks.seq.oldseqproc import SimpleSeq2Vec
+from teafacto.blocks.seq.enc import SimpleSeq2Vec
 from teafacto.blocks.basic import VectorEmbed
 from teafacto.blocks.lang.wordvec import Glove
 from teafacto.blocks.match import MatchScore

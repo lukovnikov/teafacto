@@ -2,7 +2,8 @@ import numpy as np
 import pickle
 from IPython import embed
 
-from teafacto.blocks.seq.oldseqproc import SimpleSeq2Vec, SimpleVec2Idx, MemVec2Idx
+from teafacto.blocks.seq.oldseqproc import SimpleVec2Idx, MemVec2Idx
+from teafacto.blocks.seq.enc import SimpleSeq2Vec
 from teafacto.blocks.seq.enc import Seq2Idx, Seq2Vec
 from teafacto.blocks.lang.wordembed import WordEncoderPlusGlove
 from teafacto.blocks.lang.wordvec import Glove

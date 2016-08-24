@@ -1,3 +1,6 @@
+from blocks.basic import IdxToOneHot, VectorEmbed
+from blocks.pool import Pool
+from blocks.seq.rnn import MakeRNU
 from teafacto.blocks.seq.oldseqproc import Vec2Idx, SimpleVec2Idx
 from teafacto.blocks.seq.rnn import SeqEncoder, MaskMode
 from teafacto.core.base import Block, tensorops as T
@@ -61,5 +64,23 @@ class Seq2Vec(Block):
         if self.pool is not None:
             ret = self.pool(ret)
         return ret
+
+
+class SimpleSeq2Vec(Seq2Vec):
+    def __init__(self, indim=400, inpembdim=50, inpemb=None, innerdim=100, maskid=0, bidir=False, pool=False, **kw):
+        if inpemb is None:
+            if inpembdim is None:
+                inpemb = IdxToOneHot(indim)
+                inpembdim = indim
+            else:
+                inpemb = VectorEmbed(indim=indim, dim=inpembdim)
+        rnn, lastdim = self.makernu(inpembdim, innerdim, bidir=bidir)
+        self.outdim = lastdim
+        poolblock = None if pool is False else Pool((None,), axis=(1,), mode="max")
+        super(SimpleSeq2Vec, self).__init__(inpemb, rnn, maskid, pool=poolblock, **kw)
+
+    @staticmethod
+    def makernu(inpembdim, innerdim, bidir=False):
+        return MakeRNU.make(inpembdim, innerdim, bidir=bidir)
 
 

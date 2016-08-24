@@ -6,6 +6,7 @@ import sys
 from IPython import embed
 
 from teafacto.blocks.seq.encdec import SimpleSeqEncDecAtt
+from teafacto.blocks.seq.enc import SimpleSeq2Vec, SeqUnroll
 
 from teafacto.blocks.basic import VectorEmbed
 from teafacto.blocks.match import SeqMatchScore, GenDotDistance
@@ -235,7 +236,6 @@ def run(
         specemb=-1,
         balancednegidx=False,
         usetypes=False,
-        inconcat=False,
     ):
     if debug:       # debug settings
         sumhingeloss = True
@@ -248,7 +248,7 @@ def run(
             predpred = True
         elif whatpred == "subj":
             subjpred = True
-        preeval = True
+        #preeval = True
         specemb = 100
         margin = 1.
         balancednegidx = True
@@ -322,19 +322,13 @@ def run(
         #encinnerdim[-1] += specemb
         #innerdim[-1] += specemb
 
-    if inconcat:
-        outconcat = False
-    else:
-        outconcat = True
-
     encdec = SimpleSeqEncDecAtt(inpvocsize=numwords, inpembdim=embdim,
                     encdim=encinnerdim, bidir=bidir, outembdim=entenc,
-                    decdim=innerdim, outconcat=outconcat, inconcat=inconcat,
-                    vecout=True, statetrans=True)
+                    decdim=innerdim, vecout=True, statetrans="matdot")
 
     scorerargs = ([encdec, SeqUnroll(entenc)],
                   {"argproc": lambda x, y, z: ((x, y), (z,)),
-                   "scorer": GenDotDistance(encinnerdim[-1]+innerdim[-1], entenc.outdim)})
+                   "scorer": GenDotDistance(innerdim[-1], entenc.outdim)})
     if sumhingeloss:
         scorerargs[1]["aggregator"] = lambda x: x  # no aggregation of scores
     scorer = SeqMatchScore(*scorerargs[0], **scorerargs[1])
