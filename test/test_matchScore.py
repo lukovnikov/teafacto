@@ -2,7 +2,7 @@ from unittest import TestCase
 
 import numpy as np
 
-from teafacto.blocks.seq.oldseqproc import SeqUnroll
+from teafacto.blocks.seq.enc import SeqUnroll
 from teafacto.blocks.basic import VectorEmbed
 from teafacto.blocks.match import SeqMatchScore, CosineDistance
 

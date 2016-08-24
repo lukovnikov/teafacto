@@ -1,28 +1,14 @@
-from teafacto.blocks.seq.attention import Attention, LinearGateAttentionGenerator, WeightedSumAttCon
-from teafacto.blocks.seq.rnn import MakeRNU
-from teafacto.blocks.seq.rnn import RecStack, SeqDecoder, BiRNU, SeqEncoder, MaskSetMode, MaskMode
-from teafacto.blocks.seq.rnu import GRU
 from teafacto.blocks.basic import MatDot as Lin, Softmax
 from teafacto.blocks.basic import VectorEmbed, IdxToOneHot, MatDot
 from teafacto.blocks.memory import MemoryStack, MemoryBlock, DotMemAddr
 from teafacto.blocks.pool import Pool
+from teafacto.blocks.seq.attention import Attention, LinearGateAttentionGenerator, WeightedSumAttCon
+from teafacto.blocks.seq.rnn import MakeRNU
+from teafacto.blocks.seq.rnn import RecStack, SeqDecoder, BiRNU, SeqEncoder, MaskSetMode, MaskMode
+from teafacto.blocks.seq.rnu import GRU
 from teafacto.core.base import Block, tensorops as T, Val, asblock
 from teafacto.core.stack import stack
 from teafacto.util import issequence
-
-
-class SeqUnroll(Block):
-    def __init__(self, block, **kw):
-        self.inner = block
-        super(SeqUnroll, self).__init__(**kw)
-
-    def apply(self, seq):   # (batsize, seqlen, ...)
-        x = seq.dimswap(1, 0)
-        ret, _ = T.scan(self.rec, sequences=x)
-        return ret.dimswap(1, 0)
-
-    def rec(self, *args, **kwargs):
-        return self.inner(*args, **kwargs)
 
 
 class SeqEncDec(Block):
@@ -268,55 +254,11 @@ class SimpleSeqTransDec(SeqTransDec):
 
 # BASIC SEQ TO IDX
 # specify by  enc and out
-class Seq2Idx(Block):
-    def __init__(self, seq2vec, vec2idx, **kw):
-        self.enc = seq2vec
-        self.out = vec2idx
-        super(Seq2Idx, self).__init__(**kw)
-
-    def apply(self, x, mask=None):         # x: idx^(batsize, seqlen)
-        enco = self.enc(x, mask=mask)      # (batsize, innerdim)
-        out = self.out(enco)    # (batsize, probs)
-        return out
-
 # specify by layers
-class LayerSeq2Idx(Seq2Idx):
-    def __init__(self, inpemb, enclayers, outlayers, maskid=0, **kw):
-        enc = Seq2Vec(inpemb, enclayers, maskid)
-        out = Vec2Idx(outlayers)
-        super(LayerSeq2Idx, self).__init__(enc, out, **kw)
-
-
 # specify by dims
-class SimpleSeq2Idx(Seq2Idx):
-    def __init__(self, indim=400, outdim=100, inpembdim=50, innerdim=100, maskid=0, bidir=False, **kw):
-        enc = SimpleSeq2Vec(indim=indim, inpembdim=inpembdim, innerdim=innerdim, maskid=0, bidir=bidir)
-        out = SimpleVec2Idx(indim=enc.outdim, outdim=outdim)
-        super(SimpleSeq2Idx, self).__init__(enc, out, **kw)
-
-
 # components:
 # seq2vec
 # specify by layers
-class Seq2Vec(Block):
-    def __init__(self, inpemb, enclayers, maskid=0, pool=None, **kw):
-        super(Seq2Vec, self).__init__(**kw)
-        self.maskid = maskid
-        self.inpemb = inpemb
-        if not issequence(enclayers):
-            enclayers = [enclayers]
-        self.pool = pool
-        self.enc = SeqEncoder(inpemb, *enclayers).maskoptions(maskid, MaskMode.AUTO)
-        if self.pool is not None:
-            self.enc = self.enc.all_outputs
-
-    def apply(self, x, mask=None):
-        ret = self.enc(x, mask=mask)
-        if self.pool is not None:
-            ret = self.pool(ret)
-        return ret
-
-
 # specify by dims
 class SimpleSeq2Vec(Seq2Vec):
     def __init__(self, indim=400, inpembdim=50, inpemb=None, innerdim=100, maskid=0, bidir=False, pool=False, **kw):

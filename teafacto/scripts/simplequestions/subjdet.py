@@ -5,7 +5,8 @@ import numpy as np
 import pickle
 from IPython import embed
 
-from teafacto.blocks.seq.oldseqproc import SimpleSeq2Vec, SimpleVec2Idx, MemVec2Idx, Seq2Idx
+from teafacto.blocks.seq.oldseqproc import SimpleSeq2Vec, SimpleVec2Idx, MemVec2Idx
+from teafacto.blocks.seq.enc import Seq2Idx
 from teafacto.blocks.lang.wordvec import Glove
 from teafacto.blocks.memory import LinearGateMemAddr, DotMemAddr
 from teafacto.util import argprun, tokenize

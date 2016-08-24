@@ -2,7 +2,7 @@ from collections import OrderedDict
 
 import numpy as np
 
-from teafacto.blocks.seq.oldseqproc import SimpleSeq2Idx
+from teafacto.blocks.seq.enc import SimpleSeq2Idx
 from teafacto.util import argprun
 
 

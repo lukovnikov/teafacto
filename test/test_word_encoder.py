@@ -2,7 +2,8 @@ from unittest import TestCase
 
 import numpy as np
 
-from teafacto.blocks.seq.oldseqproc import Seq2Vec, SimpleSeq2Vec
+from teafacto.teafacto.blocks.seq.oldseqproc import SimpleSeq2Vec
+from blocks.seq.enc import Seq2Vec
 from teafacto.blocks.lang.wordembed import WordEncoder, WordEncoderPlusGlove, WordEmbedPlusGlove
 from teafacto.blocks.lang.wordvec import Glove
 

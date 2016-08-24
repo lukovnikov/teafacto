@@ -1,7 +1,8 @@
 import numpy as np
 from IPython import embed
 
-from teafacto.blocks.seq.oldseqproc import SimpleSeq2Vec, Seq2Vec, SimpleVec2Idx, MemVec2Idx, Seq2Idx
+from teafacto.blocks.seq.oldseqproc import SimpleSeq2Vec, SimpleVec2Idx, MemVec2Idx
+from teafacto.blocks.seq.enc import Seq2Idx, Seq2Vec
 from teafacto.blocks.lang.wordembed import WordEncoderPlusGlove
 from teafacto.blocks.lang.wordvec import Glove
 from teafacto.blocks.memory import LinearGateMemAddr, DotMemAddr
