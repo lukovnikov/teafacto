@@ -1,4 +1,5 @@
 from enum import Enum
+import numpy as np
 
 from teafacto.blocks.seq.attention import WeightedSumAttCon, Attention, AttentionConsumer, LinearGateAttentionGenerator
 from teafacto.blocks.seq.rnu import GRU, ReccableBlock, RecurrentBlock, RNUBase
@@ -336,7 +337,14 @@ class SeqDecoder(Block):
     def numstates(self):
         return self.block.numstates
 
-    def apply(self, context, seq, context_0=None, initstates=None, mask=None, encmask=None, **kw):  # context: (batsize, enc.innerdim), seq: idxs-(batsize, seqlen)
+    def _get_seq_emb_t0(self, num, startsymemb=None):
+        # seq_emb = self.embedder(seq[:, 1:])    # (batsize, seqlen-1, embdim)
+        dim = self.embedder.outdim
+        seq_emb_t0_sym = T.zeros((dim,), dtype="float32") if startsymemb is None else startsymemb
+        seq_emb_t0 = T.repeat(seq_emb_t0_sym[np.newaxis, :], num, axis=0)
+        return seq_emb_t0
+
+    def apply(self, context, seq, context_0=None, initstates=None, mask=None, encmask=None, startsymemb=None, **kw):  # context: (batsize, enc.innerdim), seq: idxs-(batsize, seqlen)
         if initstates is None:
             initstates = seq.shape[0]
         elif issequence(initstates):
@@ -344,8 +352,15 @@ class SeqDecoder(Block):
                 initstates = [seq.shape[0]] * (self.numstates - len(initstates)) + initstates
         init_info, nonseq = self.get_init_info(context, initstates,
                                     ctx_0=context_0, encmask=encmask)  # sets init states to provided ones
+        embedder = self.embedder
+        def recemb(x):
+            return embedder(x)
+        seq_emb, _ = T.scan(fn=recemb, sequences=seq[:, 1:].dimswap(1, 0))
+        seq_emb = seq_emb.dimswap(1, 0)
+        seq_emb_t0 = self._get_seq_emb_t0(seq_emb.shape[0], startsymemb=startsymemb)
+        seq_emb = T.concatenate([seq_emb_t0.dimshuffle(0, "x", 1), seq_emb], axis=1)
         outputs, _ = T.scan(fn=self.rec,
-                            sequences=seq.dimswap(1, 0),
+                            sequences=seq_emb.dimswap(1, 0),
                             outputs_info=[None] + init_info,
                             non_sequences=nonseq)
         ret = outputs[0].dimswap(1, 0)  # returns probabilities of symbols --> (batsize, seqlen, vocabsize)
@@ -384,11 +399,11 @@ class SeqDecoder(Block):
             ctx_t = self.attention(h_tm1, ctx, mask=encmask)
         return ctx_t
 
-    def rec(self, x_t, ctx_tm1, t, *args):  # x_t: (batsize), context: (batsize, enc.innerdim)
+    def rec(self, x_t_emb, ctx_tm1, t, *args):  # x_t_emb: (batsize, embdim), context: (batsize, enc.innerdim)
         states_tm1 = args[:-2]
         ctx = args[-1]
         encmask = args[-2]
-        x_t_emb = self.embedder(x_t)  # i_t: (batsize, embdim)
+        #x_t_emb = self.embedder(x_t)  # i_t: (batsize, embdim)
         # do inconcat
         i_t = T.concatenate([x_t_emb, ctx_tm1], axis=1) if self.inconcat else x_t_emb
         rnuret = self.block.rec(i_t, *states_tm1)

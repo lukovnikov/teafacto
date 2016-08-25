@@ -1,7 +1,7 @@
 from teafacto.core.base import Block, asblock, Val, issequence
 from teafacto.blocks.seq.rnn import SeqEncoder, MaskMode, MaskSetMode, SeqDecoder, BiRNU
 from teafacto.blocks.seq.rnu import GRU
-from teafacto.blocks.seq.attention import Attention, WeightedSumAttCon, GenDotProdAttGen
+from teafacto.blocks.seq.attention import Attention, WeightedSumAttCon, GenDotProdAttGen, ForwardAttGen
 from teafacto.blocks.basic import VectorEmbed, IdxToOneHot, MatDot
 
 

@@ -12,12 +12,11 @@ from teafacto.blocks.basic import VectorEmbed
 from teafacto.blocks.match import SeqMatchScore, GenDotDistance
 from teafacto.core.base import Val, tensorops as T, Block
 from teafacto.eval.metrics import ClassAccuracy
-from teafacto.search import SeqEncDecSearch
+from teafacto.modelusers import RecPredictor, SeqEncDecPredictor
 from teafacto.util import argprun, ticktock
 
 
-def readdata(mode, testcans=None, debug=False, specids=False, usetypes=False):  # if none, included in file
-
+def readdata(mode, testcans=None, debug=False, specids=False, usetypes=False, maskid=0):  # if none, included in file
     if debug:
         testcans = None
     if mode == "char":
@@ -25,10 +24,8 @@ def readdata(mode, testcans=None, debug=False, specids=False, usetypes=False):  
             p = "../../../data/simplequestions/datamat.char.mini.pkl"
         else:
             p = "../../../data/simplequestions/datamat.char.mem.fb2m.pkl"
-    elif mode == "word":
+    elif mode == "word" or mode == "charword":
         p = "../../../data/simplequestions/datamat.word.mem.fb2m.pkl"
-    elif mode == "charword":
-        p = "../../../data/simplequestions/datamat.charword.mem.fb2m.pkl"
     else:
         raise Exception("unknown mode")
     if usetypes:
@@ -39,24 +36,12 @@ def readdata(mode, testcans=None, debug=False, specids=False, usetypes=False):  
                 e, t = line[:-1].split("\t")
                 enttyp[e] = t
     x = pickle.load(open(p))
-    worddic = x["worddic"] if mode == "word" else x["chardic"]
-    worddic = {k: v+1 for k, v in worddic.items()}
-    worddic["|"] = 0
-    worddic2 = x["worddic"] if mode == "charword" else None
+
+    worddic = x["worddic"] if mode == "word" or mode == "charword" else x["chardic"]
     entdic = x["entdic"]
-    entdic = {k: v+1 for k, v in entdic.items()}
-    entdic["|"] = 0
-    numents = x["numents"]+1
+    numents = x["numents"]
 
-    def shiftidxs(mat, shift=1, mask=-1):
-        shifted = mat + shift
-        shifted[shifted == (mask + shift)] = mask
-        return shifted
-
-    entmat = shiftidxs(x["entmat"])
-    addtoentmat = -np.ones_like(entmat[np.newaxis, 0], dtype="int32")
-    addtoentmat[0, 0] = 0
-    entmat = np.concatenate([addtoentmat, entmat], axis=0)
+    entmat = x["entmat"]
 
     if specids: # prepend special id's (non-unique for entities, unique for predicates, unique for others)
         prependmat = np.zeros((entmat.shape[0], 1), dtype="int32")
@@ -74,43 +59,53 @@ def readdata(mode, testcans=None, debug=False, specids=False, usetypes=False):  
         for i in range(numents, entmat.shape[0]):
             prependmat[i] = mid
             mid += 1
-        # unique other ids
-        prependmat[0] = mid
         entmat = np.concatenate([prependmat, entmat], axis=1)
         if debug:
             pass
             #embed()
 
-    #embed()
+    train = x["train"]
+    valid = x["valid"]
+    test  = x["test"]
 
-    def shiftidxstup(t, shift=1, mask=-1):
-        return tuple([shiftidxs(te, shift=shift, mask=mask) for te in t])
-
-    train = shiftidxstup(x["train"])
-    valid = shiftidxstup(x["valid"])
-    test  = shiftidxstup(x["test"])
+    wordmat, chardic = buildwordmat(worddic, maskid=maskid) if mode == "charword" else None, None
 
     if testcans is None:
         canids = x["testcans"]
     else:
         canids = pickle.load(open(testcans))
-    for i in range(len(canids)):  # offset existing canids
-        canids[i] = [canid + 1 for canid in canids[i]]
-    for canidl in canids:  # these are already offset
-        canidl.extend(range(numents, entmat.shape[0]))  # include all relations
+    for canidl in canids:  # include all relations
+        canidl.extend(range(numents, entmat.shape[0]))
 
-    return train, valid, test, worddic, entdic, entmat, numents, canids
+    return train, valid, test, worddic, entdic, entmat, numents, canids, \
+           wordmat, chardic
 
 
-class SeqEncDecRankSearch(SeqEncDecSearch):
+def buildwordmat(wd, maskid=-1, topmaxlen=40):
+    rwd = {v: k for k, v in wd.items()}
+    wordmat = maskid * np.ones((len(rwd), topmaxlen)).astype("int32")
+    for i in range(len(rwd)):
+        w = rwd[i]
+        w = w[:min(topmaxlen, len(w))]
+        wordmat[i, :len(w)] = [ord(c) for c in w]
+    uniqueords = set(np.unique(wordmat)).difference({maskid})
+    chardic = dict(zip([chr(x) for x in sorted(uniqueords)], range(len(uniqueords))))
+    wordmat = np.vectorize(lambda x: chardic[chr(x)])(wordmat)
+    return wordmat, chardic
+
+
+class SeqEncDecRankSearch(object):
     def __init__(self, model, canenc, scorer, agg, beamsize=1, *buildargs, **kw):
-        super(SeqEncDecRankSearch, self).__init__(model, beamsize, *buildargs, **kw)
+        super(SeqEncDecRankSearch, self).__init__(**kw)
+        self.model = model
+        self.beamsize = beamsize
+        self.mu = SeqEncDecPredictor(model, *buildargs)
         self.scorer = scorer
         self.canenc = canenc
         self.agg = agg
         self.tt = ticktock("RankSearch")
 
-    def decode(self, inpseq, initsymbolidx, maxlen=100, candata=None,
+    def decode(self, inpseq, maxlen=100, candata=None,
                canids=None, transform=None, debug=False):
         assert(candata is not None and canids is not None)
 
@@ -118,12 +113,12 @@ class SeqEncDecRankSearch(SeqEncDecSearch):
         self.mu.settransform(transform)
         stop = False
         j = 0
-        curout = np.repeat([initsymbolidx], inpseq.shape[0]).astype("int32")
+        curout = np.repeat([self.mu.startsym], inpseq.shape[0]).astype("int32")
         accscores = []
         outs = []
         while not stop:
             curvectors = self.mu.feed(curout)
-            curout = np.ones_like(curout, dtype=curout.dtype) * initsymbolidx
+            curout = np.ones_like(curout, dtype=curout.dtype)
             accscoresj = np.zeros((inpseq.shape[0],))
             self.tt.tick()
             for i in range(curvectors.shape[0]):    # for each example, find the highest scoring suited cans and their scores
@@ -203,9 +198,15 @@ class EntEmbEncRep(EntEmbEnc):
     def apply(self, x, mask=None):
         enco = self.enc(x[:, 1:], mask=mask)
         embo = self.emb(x[:, 0])
-        repl = x[:, 0] >= self.split
-        mask = None
+        repl = x[:, [0]] >= self.split
+        mask = T.repeat(repl, enco.shape[1], axis=1)
         ret = (1 - mask) * enco + mask * embo
+        return ret
+
+    @property
+    def outdim(self):
+        return self.emb.outdim
+
 
 def shiftdata(d):  # idx (batsize, seqlen)
     ds = np.zeros_like(d)
@@ -222,7 +223,7 @@ def run(
         bidir=False,
         layers=1,
         encdim=200,
-        decdim=400,
+        decdim=200,
         embdim=100,
         negrate=1,
         margin=1.,
@@ -254,13 +255,16 @@ def run(
         margin = 1.
         balancednegidx = True
         #usetypes=True
+        #mode = "charword"
     # load the right file
+    maskid = -1
     tt = ticktock("script")
     specids = specemb > 0
     tt.tick()
     (traindata, traingold), (validdata, validgold), (testdata, testgold), \
-    worddic, entdic, entmat, relstarts, canids\
-        = readdata(mode, testcans="testcans.pkl", debug=debug, specids=specids, usetypes=usetypes)
+    worddic, entdic, entmat, relstarts, canids, wordmat, chardic\
+        = readdata(mode, testcans="testcans.pkl", debug=debug, specids=specids,
+                   usetypes=usetypes, maskid=maskid)
     entmat = entmat.astype("int32")
 
     #embed()
@@ -313,7 +317,7 @@ def run(
     entenc = SimpleSeq2Vec(indim=numwords,
                          inpembdim=memembdim,
                          innerdim=decinnerdim,
-                         maskid=-1,
+                         maskid=maskid,
                          bidir=membidir)
 
     if specids:     # include vectorembedder
@@ -325,7 +329,7 @@ def run(
 
     encdec = SimpleSeqEncDecAtt(inpvocsize=numwords, inpembdim=embdim,
                     encdim=encinnerdim, bidir=bidir, outembdim=entenc,
-                    decdim=decinnerdim, vecout=True, statetrans="matdot")
+                    decdim=decinnerdim, vecout=True, statetrans=True)
 
     scorerargs = ([encdec, SeqUnroll(entenc)],
                   {"argproc": lambda x, y, z: ((x, y), (z,)),
@@ -385,7 +389,7 @@ def run(
         tt.tick("pre-evaluating")
         s = SeqEncDecRankSearch(encdec, entenc, scorer.s, scorer.agg)
         eval = FullRankEval()
-        pred, scores = s.decode(testdata, 0, testgold.shape[1],
+        pred, scores = s.decode(testdata, testgold.shape[1],
                                 candata=entmat, canids=canids,
                                 transform=transf.f, debug=printpreds)
         evalres = eval.eval(pred, testgold, debug=debug)
@@ -412,7 +416,7 @@ def run(
     tt.tick("evaluating")
     s = SeqEncDecRankSearch(encdec, entenc, scorer.s, scorer.agg)
     eval = FullRankEval()
-    pred, scores = s.decode(testdata, 0, testgold.shape[1],
+    pred, scores = s.decode(testdata, testgold.shape[1],
                             candata=entmat, canids=canids,
                             transform=transf.f, debug=printpreds)
     if printpreds:

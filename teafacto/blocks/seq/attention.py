@@ -87,6 +87,23 @@ class GenDotProdAttGen(AttentionGenerator):
         return ret
 
 
+class ForwardAttGen(AttentionGenerator):
+    def __init__(self, **kw):
+        super(ForwardAttGen, self).__init__(**kw)
+        self.W = param((self.indim, self.attdim), name="att_W").glorotuniform()
+        self.U = param((self.memdim, self.attdim), name="att_U").glorotuniform()
+        self.V = param((self.attdim,), name="att_V").uniform()
+
+    def getscores(self, crit, data):
+        l = T.dot(data, self.W)     # (batsize, seqlen, attdim)
+        r = T.dot(crit, self.U)     # (batsize, attdim)
+        r = r.dimshuffle(0, "x", 1) # (batsize, 1, attdim)
+        a = T.tanh(l + r)   # (batsize, seqlen, attdim)
+        ret = T.dot(a, self.V)
+        return ret
+
+
+
 class LinearSumAttentionGenerator(AttentionGenerator):  #EVIL # simple feedforward
     def __init__(self, **kw):
         super(LinearSumAttentionGenerator, self).__init__(**kw)
@@ -142,11 +159,10 @@ class AttentionConsumer(Block):
 
 class WeightedSumAttCon(AttentionConsumer):    # applies attention to sequence while summing up
     def apply(self, data, weights):   # data: (batsize, seqlen, elem_dim)
-        def rec(x_t, att_t, acc):       # x_t: (batsize, elem_dim), att_t: (batsize, ), acc: (batsize, elem_dim)
-            acc += T.batched_dot(x_t, att_t)
-            return acc  # (batsize, elem_dim)
-        o, _ = T.scan(fn=rec, sequences=[data.dimswap(1, 0), weights.T], outputs_info=T.zeros((data.shape[0], data.shape[2])))
-        return o[-1, :, :]
+                                      # weights: (batsize, seqlen)
+        w = weights.dimshuffle(0, 1, 'x')
+        ret = data * w
+        return T.sum(ret, axis=1)
 
 
 class ArgmaxAttCon(AttentionConsumer):
