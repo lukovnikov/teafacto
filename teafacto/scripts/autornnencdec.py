@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 from IPython import embed
 
-from teafacto.blocks.seq.oldseqproc import SimpleSeqEncDecAtt
+from teafacto.blocks.seq.encdec import SimpleSeqEncDecAtt
 from teafacto.blocks.seq.rnn import RNNAutoEncoder, SeqDecoder, SeqEncoder, BiFwdAttSumDecoder
 from teafacto.blocks.seq.rnu import GRU
 from teafacto.blocks.basic import IdxToOneHot, VectorEmbed, Softmax, MatDot as Lin

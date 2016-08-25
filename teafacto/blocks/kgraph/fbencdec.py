@@ -86,7 +86,7 @@ class FBSeqSimpEncDecAtt(Block):
         self.dec = SeqDecoder(
             [VectorEmbed(indim=self.outdim, dim=self.entembdim), GRU(dim=self.entembdim, innerdim=self.decinnerdim)],
             attention=Attention(attgen, attcon),
-            outconcat=True,
+            outconcat=True, inconcat=False,
             innerdim=self.encinnerdim + self.decinnerdim
         )
 
@@ -116,7 +116,7 @@ class FBSeqCompEncDecAtt(Block):
         self.dec = SeqDecoder(
             [VectorEmbed(indim=self.outdim, dim=self.entembdim), GRU(dim=self.entembdim, innerdim=self.decinnerdim)],
             attention=Attention(attgen, attcon),
-            outconcat=True,
+            outconcat=True, inconcat=False,
             innerdim=self.encinnerdim + self.decinnerdim)
 
     def apply(self, inpseq, outseq):
@@ -283,7 +283,7 @@ class FBSeqCompEncMemDecAtt(FBSeqCompositeEncMemDec):
 
         self.dec = SeqDecoder(
             [self.memblock, GRU(dim=self.entembdim + self.encinnerdim, innerdim=self.decinnerdim)],
-            outconcat=True,
+            outconcat=True, inconcat=False,
             attention=Attention(attgen, attcon),
             innerdim=self.decinnerdim + self.encinnerdim,
             softmaxoutblock=self.softmaxoutblock

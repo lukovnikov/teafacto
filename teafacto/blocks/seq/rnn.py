@@ -309,14 +309,17 @@ class SeqEncoder(AttentionConsumer, Block):
         return self
 
 
-class SeqDecAtt(Block):
+class SeqDecoder(Block):
     """ seq decoder with attention with new inconcat implementation """
-    def __init__(self, layers, softmaxoutblock=None, innerdim=None, attention=None, **kw):
-        super(SeqDecAtt, self).__init__(**kw)
+    def __init__(self, layers, softmaxoutblock=None, innerdim=None,
+                 attention=None, inconcat=True, outconcat=False, **kw):
+        super(SeqDecoder, self).__init__(**kw)
         self.embedder = layers[0]
         self.block = RecStack(*layers[1:])
         self.outdim = innerdim
         self.attention = attention
+        self.inconcat = inconcat
+        self.outconcat = outconcat
         self._mask = False
         self._attention = None
         assert(isinstance(self.block, ReccableBlock))
@@ -333,13 +336,14 @@ class SeqDecAtt(Block):
     def numstates(self):
         return self.block.numstates
 
-    def apply(self, context, seq, initstates=None, mask=None, encmask=None, **kw):  # context: (batsize, enc.innerdim), seq: idxs-(batsize, seqlen)
+    def apply(self, context, seq, context_0=None, initstates=None, mask=None, encmask=None, **kw):  # context: (batsize, enc.innerdim), seq: idxs-(batsize, seqlen)
         if initstates is None:
             initstates = seq.shape[0]
         elif issequence(initstates):
             if len(initstates) < self.numstates:  # fill up with batsizes for lower layers
                 initstates = [seq.shape[0]] * (self.numstates - len(initstates)) + initstates
-        init_info, nonseq = self.get_init_info(context, initstates, encmask=encmask)  # sets init states to provided ones
+        init_info, nonseq = self.get_init_info(context, initstates,
+                                    ctx_0=context_0, encmask=encmask)  # sets init states to provided ones
         outputs, _ = T.scan(fn=self.rec,
                             sequences=seq.dimswap(1, 0),
                             outputs_info=[None] + init_info,
@@ -363,136 +367,38 @@ class SeqDecAtt(Block):
             ret = xseq * mask + masker * (1.0 - mask)
             return ret
 
-    def get_init_info(self, context, initstates, encmask=None):
-        ret = self.block.get_init_info(initstates)
-        return [0] + ret, [encmask, context]
+    def get_init_info(self, context, initstates, ctx_0=None, encmask=None):
+        initstates = self.block.get_init_info(initstates)
+        ctx_0 = self._get_ctx_t(context, initstates, encmask) if ctx_0 is None else ctx_0
+        if encmask is None:
+            encmask = T.ones(context.shape[:2], dtype="float32")
+        return [ctx_0, 0] + initstates, [encmask, context]
 
-    def rec(self, x_t, t, *args):  # x_t: (batsize), context: (batsize, enc.innerdim)
-        states_tm1 = args[:-1]
-        ctx = args[-1]
-        encmask = args[-2]
-        h_tm1 = states_tm1[0]   # ???
-        x_t_emb = self.embedder(x_t)  # i_t: (batsize, embdim)
-        # get context with attention
-        ctx_t = self.attention(h_tm1, ctx, mask=encmask)
-        # do inconcat
-        i_t = T.concatenate([x_t_emb, ctx_t], axis=1)
-        rnuret = self.block.rec(i_t, *states_tm1)
-        t += 1
-        pre_y_t = rnuret[0]
-        states_t = rnuret[1:]
-        y_t = self.softmaxoutblock(pre_y_t)
-        return [y_t, t] + states_t
-
-
-class SeqDecoder(Block):
-    '''
-    Decodes a sequence of symbols given context
-    output: probabilities over symbol space: float: (batsize, seqlen, vocabsize)
-
-    ! must pass in a recurrent block that takes two arguments: context_t and x_t
-    ! first input is TERMINUS ==> suggest to set TERMINUS(0) embedding to all zeroes (in s2vf)
-    ! first layer must be an embedder or IdxToOneHot, otherwise, an IdxToOneHot is created automatically based on given dim
-    '''
-    def __init__(self, layers, softmaxoutblock=None, innerdim=None, attention=None, inconcat=False, outconcat=False, **kw): # limit says at most how many is produced
-        super(SeqDecoder, self).__init__(**kw)
-        self.embedder = layers[0]
-        self.block = RecStack(*layers[1:])
-        self.outdim = innerdim
-        self.inconcat = inconcat
-        self.outconcat = outconcat
-        self.attention = attention
-        self._mask = False
-        self._attention = None
-        assert(isinstance(self.block, ReccableBlock))
-        if softmaxoutblock is None: # default softmax out block
-            sm = Softmax()
-            self.lin = MatDot(indim=self.outdim, dim=self.embedder.indim)
-            self.softmaxoutblock = asblock(lambda x: sm(self.lin(x)))
-        elif softmaxoutblock is False:
-            self.softmaxoutblock = asblock(lambda x: x)
-        else:
-            self.softmaxoutblock = softmaxoutblock
-
-    @property
-    def numstates(self):
-        return self.block.numstates
-
-    def apply(self, context, seq, context_0=None, initstates=None, mask=None, encmask=None, **kw):    # context: (batsize, enc.innerdim), seq: idxs-(batsize, seqlen)
-        if initstates is None:
-            initstates = seq.shape[0]
-        elif issequence(initstates):
-            if len(initstates) < self.numstates:    # fill up with batsizes for lower layers
-                initstates = [seq.shape[0]]*(self.numstates - len(initstates)) + initstates
-        init_info, ctx = self.get_init_info(context, context_0, initstates, encmask=encmask)  # sets init states to provided ones
-        outputs, _ = T.scan(fn=self.rec,
-                            sequences=seq.dimswap(1, 0),
-                            outputs_info=[None] + init_info,
-                            non_sequences=ctx)
-        ret = outputs[0].dimswap(1, 0)     # returns probabilities of symbols --> (batsize, seqlen, vocabsize)
-        if mask == "auto":
-            mask = (seq > 0).astype("int32")
-        ret = self.applymask(ret, mask)
-        return ret
-
-    @classmethod
-    def applymask(cls, xseq, maskseq):
-        if maskseq is None:
-            return xseq
-        else:
-            mask = T.tensordot(maskseq, T.ones((xseq.shape[2],)), 0)  # f32^(batsize, seqlen, outdim) -- maskseq stacked
-            masker = T.concatenate(
-                [T.ones((xseq.shape[0], xseq.shape[1], 1)),
-                 T.zeros((xseq.shape[0], xseq.shape[1], xseq.shape[2] - 1))],
-                axis=2)  # f32^(batsize, seqlen, outdim) -- gives 100% prob to output 0
-            ret = xseq * mask + masker * (1.0 - mask)
-            return ret
-
-    def get_init_info(self, context, context_0, initstates, encmask=None):
-        # TODO: get ctx_0 with new inconcat idea
-        ret = self.block.get_init_info(initstates)
-        context_0 = self._get_ctx_t0(context, context_0)
-        return [context_0, 0] + ret, [encmask, context]
-
-    def _get_ctx_t0(self, ctx, ctx_0=None):
-        if ctx_0 is None:
-            if ctx.d.ndim == 2:     # static context
-                ctx_0 = ctx
-            elif ctx.d.ndim > 2:   # dynamic context (batsize, inseqlen, inencdim)
-                assert(self.attention is not None)      # 3D context only processable with attention (dynamic context)
-                w_0 = T.ones((ctx.shape[0], ctx.shape[1]), dtype=T.config.floatX) / ctx.shape[1].astype(T.config.floatX)    #  ==> make uniform weights (??)
-                ctx_0 = self.attention.attentionconsumer(ctx, w_0)
-                '''else:
-                    ctx_0 = ctx[:, -1, :]       # take the last context'''
-            else:
-                print "sum ting wong in SeqDecoder _get_ctx_t0()"
-        return ctx_0
+    def _get_ctx_t(self, ctx, states_tm1, encmask):
+        if ctx.d.ndim == 2:     # static context
+            ctx_t = ctx
+        elif ctx.d.ndim > 2:
+            # ctx is 3D, always dynamic context
+            assert(self.attention is not None)
+            h_tm1 = states_tm1[0]   # ??? --> will it also work with multi-state RNUs?
+            ctx_t = self.attention(h_tm1, ctx, mask=encmask)
+        return ctx_t
 
     def rec(self, x_t, ctx_tm1, t, *args):  # x_t: (batsize), context: (batsize, enc.innerdim)
-        # TODO: implement new inconcat
-        states_tm1 = args[:-1]
+        states_tm1 = args[:-2]
         ctx = args[-1]
         encmask = args[-2]
-        i_t = self.embedder(x_t)                             # i_t: (batsize, embdim)
-        j_t = self._get_j_t(i_t, ctx_tm1)
-        rnuret = self.block.rec(j_t, *states_tm1)     # list of matrices (batsize, **somedims**)
-        ret = rnuret
-        t = t + 1
-        h_t = ret[0]
-        states_t = ret[1:]
-        ctx_t = self._gen_context(ctx, h_t, encmask)
-        g_t = self._get_g_t(h_t, ctx_t)
-        y_t = self.softmaxoutblock(g_t)
-        return [y_t, ctx_t, t] + states_t #, {}, T.until( (i > 1) * T.eq(mask.norm(1), 0) )
-
-    def _get_j_t(self, i_t, ctx_tm1):
-        return T.concatenate([i_t, ctx_tm1], axis=1) if self.inconcat else i_t
-
-    def _get_g_t(self, h_t, ctx_t):
-        return T.concatenate([h_t, ctx_t], axis=1) if self.outconcat else h_t
-
-    def _gen_context(self, multicontext, criterion, encmask):
-        return self.attention(criterion, multicontext, mask=encmask) if self.attention is not None else multicontext
+        x_t_emb = self.embedder(x_t)  # i_t: (batsize, embdim)
+        # do inconcat
+        i_t = T.concatenate([x_t_emb, ctx_tm1], axis=1) if self.inconcat else x_t_emb
+        rnuret = self.block.rec(i_t, *states_tm1)
+        t += 1
+        h_t = rnuret[0]
+        states_t = rnuret[1:]
+        ctx_t = self._get_ctx_t(ctx, states_t, encmask)  # get context with attention
+        _y_t = T.concatenate([h_t, ctx_t], axis=1) if self.outconcat else h_t
+        y_t = self.softmaxoutblock(_y_t)
+        return [y_t, ctx_t, t] + states_t
 
 # ----------------------------------------------------------------------------------------------------------------------
 
@@ -505,7 +411,7 @@ class SimpleEncoderDecoder(Block):  # gets two sequences of indexes for training
         encrec = GRU(dim=input_vocsize, innerdim=innerdim)
         decrecrnu = GRU(dim=output_vocsize, innerdim=innerdim)
         self.enc = SeqEncoder(input_embedder, encrec)
-        self.dec = SeqDecoder([output_embedder, decrecrnu], outconcat=True, innerdim=innerdim+innerdim)
+        self.dec = SeqDecoder([output_embedder, decrecrnu], outconcat=True, inconcat=False, innerdim=innerdim+innerdim)
 
     def apply(self, inpseq, outseq):
         enco = self.enc(inpseq)
@@ -564,7 +470,7 @@ class FwdAttRNNEncDecoder(Block):
         attcon = SeqEncoder(None,
             GRU(dim=vocsize, innerdim=encdim))
         self.dec = SeqDecoder([IdxToOneHot(outvocsize), GRU(dim=outvocsize, innerdim=innerdim)],
-                              outconcat=True,
+                              outconcat=True, inconcat=False,
                               attention=Attention(attgen, attcon),
                               innerdim=innerdim+encdim)
 
@@ -596,7 +502,7 @@ class FwdAttSumDecoder(Block):
         attgen = LinearGateAttentionGenerator(indim=innerdim+encdim, innerdim=attdim)
         attcon = WeightedSumAttCon()
         self.dec = SeqDecoder([IdxToOneHot(outvocsize), GRU(dim=outvocsize, innerdim=innerdim)],
-                              outconcat=True,
+                              outconcat=True, inconcat=False,
                               attention=Attention(attgen, attcon),
                               innerdim=innerdim+encdim
                               )
@@ -614,7 +520,7 @@ class BiFwdAttSumDecoder(Block):
         attgen = LinearGateAttentionGenerator(indim=innerdim+encdim*2, innerdim=attdim)
         attcon = WeightedSumAttCon()
         self.dec = SeqDecoder([IdxToOneHot(outvocsize), GRU(dim=outvocsize, innerdim=innerdim)],
-                              outconcat=True,
+                              outconcat=True, inconcat=False,
                               attention=Attention(attgen, attcon),
                               innerdim=innerdim+encdim*2
                               )
@@ -632,7 +538,7 @@ class BiRewAttSumDecoder(Block):
         attgen = LinearGateAttentionGenerator(indim=innerdim+encdim*2, innerdim=attdim)
         attcon = WeightedSumAttCon()
         self.dec = SeqDecoder([IdxToOneHot(outvocsize), GRU(dim=outvocsize+encdim*2, innerdim=innerdim)],
-                              inconcat=True,
+                              inconcat=True, outconcat=False,
                               attention=Attention(attgen, attcon),
                               innerdim=innerdim
                               )

@@ -9,7 +9,7 @@ from teafacto.core.base import Block, tensorops as T, Val, asblock
 from teafacto.core.stack import stack
 from teafacto.util import issequence
 
-
+"""
 class SeqEncDec(Block):
     def __init__(self, enc, dec, statetrans=None, **kw):
         super(SeqEncDec, self).__init__(**kw)
@@ -37,10 +37,6 @@ class SeqEncDec(Block):
         return deco
 
     def get_init_info(self, inpseq, batsize, maskseq=None):     # TODO: must evaluate enc here, in place, without any side effects
-        """
-        VERY DIFFERENT FROM THE PURELY SYMBOLIC GET_INIT_INFO IN REAL REC BLOCKS !!!
-        This one is used in decoder/prediction
-        """
         enco, allenco, encmask = self.enc.predict(inpseq, mask=maskseq)
 
         if self.statetrans is not None:
@@ -159,7 +155,7 @@ class SimpleSeqEncDecAtt(SeqEncDecAtt):
             i += 1
         declayers = [outemb] + decrnus
         return declayers
-
+"""
 
 class SeqTransducer(Block):
     def __init__(self, embedder, *layers, **kw):

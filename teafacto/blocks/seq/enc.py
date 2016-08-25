@@ -1,6 +1,6 @@
-from blocks.basic import IdxToOneHot, VectorEmbed
-from blocks.pool import Pool
-from blocks.seq.rnn import MakeRNU
+from teafacto.blocks.basic import IdxToOneHot, VectorEmbed
+from teafacto.blocks.pool import Pool
+from teafacto.blocks.seq.rnn import MakeRNU
 from teafacto.blocks.seq.oldseqproc import Vec2Idx, SimpleVec2Idx
 from teafacto.blocks.seq.rnn import SeqEncoder, MaskMode
 from teafacto.core.base import Block, tensorops as T

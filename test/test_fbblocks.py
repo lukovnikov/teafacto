@@ -83,7 +83,7 @@ class TestFBSeqCompositeEncMemDecLinearGate(TestCase):
         cseqlen = 5
         entembdim = 79
         eseqlen = 2
-        attdim = 117
+        attdim = 118
 
         entencdim = innerdim
 

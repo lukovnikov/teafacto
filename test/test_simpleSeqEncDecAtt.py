@@ -2,7 +2,7 @@ from unittest import TestCase
 
 import numpy as np
 
-from teafacto.blocks.seq.oldseqproc import SimpleSeqEncDecAtt
+from teafacto.blocks.seq.encdec import SimpleSeqEncDecAtt
 
 
 class TestSimpleSeqEncDecAtt(TestCase):

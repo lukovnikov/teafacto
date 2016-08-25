@@ -3,7 +3,7 @@ import pandas as pd
 import re
 from unittest import TestCase
 
-from teafacto.blocks.seq.oldseqproc import SimpleSeqEncDecAtt
+from teafacto.blocks.seq.encdec import SimpleSeqEncDecAtt
 from teafacto.blocks.lang.wordembed import Glove
 from teafacto.search import SeqEncDecSearch
 

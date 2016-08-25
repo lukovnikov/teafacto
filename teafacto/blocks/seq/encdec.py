@@ -1,8 +1,8 @@
 from teafacto.core.base import Block, asblock, Val, issequence
-from teafacto.blocks.seq.rnn import SeqEncoder, MaskMode, MaskSetMode, SeqDecAtt, BiRNU
+from teafacto.blocks.seq.rnn import SeqEncoder, MaskMode, MaskSetMode, SeqDecoder, BiRNU
 from teafacto.blocks.seq.rnu import GRU
 from teafacto.blocks.seq.attention import Attention, LinearGateAttentionGenerator, WeightedSumAttCon
-from teafacto.blocks.basic import VectorEmbed, IdxToOneHot, MatDot, Softmax
+from teafacto.blocks.basic import VectorEmbed, IdxToOneHot, MatDot
 
 
 class SeqEncDec(Block):
@@ -55,17 +55,18 @@ class SeqEncDec(Block):
 
 class SeqEncDecAtt(SeqEncDec):
     def __init__(self, enclayers, declayers, attgen, attcon,
-                 decinnerdim, statetrans=None, vecout=False, **kw):
+                 decinnerdim, statetrans=None, vecout=False,
+                 inconcat=True, outconcat=False, **kw):
         enc = SeqEncoder(*enclayers)\
             .with_outputs\
             .with_mask\
             .maskoptions(-1, MaskMode.AUTO, MaskSetMode.ZERO)
         smo = False if vecout else None
-        dec = SeqDecAtt(
+        dec = SeqDecoder(
             declayers,
             attention=Attention(attgen, attcon),
-            innerdim=decinnerdim,
-            softmaxoutblock=smo,
+            innerdim=decinnerdim, inconcat=inconcat,
+            softmaxoutblock=smo, outconcat=outconcat
         )
         super(SeqEncDecAtt, self).__init__(enc, dec, statetrans=statetrans, **kw)
 
@@ -83,6 +84,8 @@ class SimpleSeqEncDecAtt(SeqEncDecAtt):
                  rnu=GRU,
                  statetrans=None,
                  vecout=False,
+                 inconcat=True,
+                 outconcat=False,
                  **kw):
         encinnerdim = [encdim] if not issequence(encdim) else encdim
         decinnerdim = [decdim] if not issequence(decdim) else decdim
@@ -91,10 +94,12 @@ class SimpleSeqEncDecAtt(SeqEncDecAtt):
             self.getenclayers(inpembdim, inpvocsize, encinnerdim, bidir, rnu)
 
         self.declayers = \
-            self.getdeclayers(outembdim, outvocsize, lastencinnerdim, decinnerdim, rnu)
+            self.getdeclayers(outembdim, outvocsize, lastencinnerdim,
+                              decinnerdim, rnu, inconcat)
 
         # attention
         lastdecinnerdim = decinnerdim[-1]
+        argdecinnerdim = lastdecinnerdim if outconcat is False else lastencinnerdim + lastdecinnerdim
         attgen = LinearGateAttentionGenerator(indim=lastencinnerdim + lastdecinnerdim,
                                               attdim=attdim)
         attcon = WeightedSumAttCon()
@@ -106,7 +111,8 @@ class SimpleSeqEncDecAtt(SeqEncDecAtt):
             statetrans = MatDot(lastencinnerdim, lastdecinnerdim)
 
         super(SimpleSeqEncDecAtt, self).__init__(self.enclayers, self.declayers,
-            attgen, attcon, lastdecinnerdim, statetrans=statetrans, vecout=vecout, **kw)
+            attgen, attcon, argdecinnerdim, statetrans=statetrans, vecout=vecout,
+            inconcat=inconcat, outconcat=outconcat, **kw)
 
     def getenclayers(self, inpembdim, inpvocsize, encinnerdim, bidir, rnu):
         if inpembdim is None:
@@ -132,7 +138,8 @@ class SimpleSeqEncDecAtt(SeqEncDecAtt):
         enclayers = [inpemb] + encrnus
         return enclayers, lastencinnerdim
 
-    def getdeclayers(self, outembdim, outvocsize, lastencinnerdim, decinnerdim, rnu):
+    def getdeclayers(self, outembdim, outvocsize, lastencinnerdim,
+                     decinnerdim, rnu, inconcat):
         if outembdim is None:
             outemb = IdxToOneHot(outvocsize)
             outembdim = outvocsize
@@ -142,7 +149,7 @@ class SimpleSeqEncDecAtt(SeqEncDecAtt):
         else:
             outemb = VectorEmbed(indim=outvocsize, dim=outembdim)
         decrnus = []
-        firstdecdim = outembdim + lastencinnerdim
+        firstdecdim = outembdim + lastencinnerdim if inconcat else outembdim
         dims = [firstdecdim] + decinnerdim
         i = 1
         while i < len(dims):

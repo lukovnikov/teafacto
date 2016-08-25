@@ -249,7 +249,7 @@ def run(
             predpred = True
         elif whatpred == "subj":
             subjpred = True
-        #preeval = True
+        preeval = True
         specemb = 100
         margin = 1.
         balancednegidx = True
