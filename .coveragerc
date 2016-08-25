@@ -5,6 +5,7 @@ omit =
     teafacto/oldscripts/*
     teafacto/eval/*
     teafacto/models/*
+    teafacto/datahelp/*
     test
 branch = True
 
@@ -20,4 +21,5 @@ omit =
     teafacto/oldscripts/*
     teafacto/eval/*
     teafacto/models/*
+    teafacto/datahelp/*
     test
