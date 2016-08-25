@@ -1,8 +1,4 @@
-import numpy as np
-import os
-import pickle
-import sys
-
+import numpy as np, os, pickle, sys, math
 from IPython import embed
 
 from teafacto.blocks.seq.encdec import SimpleSeqEncDecAtt
@@ -105,50 +101,58 @@ class SeqEncDecRankSearch(object):
         self.agg = agg
         self.tt = ticktock("RankSearch")
 
-    def decode(self, inpseq, maxlen=100, candata=None,
-               canids=None, transform=None, debug=False):
+    def decode(self, inpseqs, maxlen=100, candata=None,
+               canids=None, transform=None, debug=False, split=1):
         assert(candata is not None and canids is not None)
+        totret = []
+        totsco = []
+        splitsize = int(math.ceil(inpseqs.shape[0]*1./split))
 
-        self.mu.setbuildargs(inpseq)
-        self.mu.settransform(transform)
-        stop = False
-        j = 0
-        curout = np.repeat([self.mu.startsym], inpseq.shape[0]).astype("int32")
-        accscores = []
-        outs = []
-        while not stop:
-            curvectors = self.mu.feed(curout)
-            curout = np.ones_like(curout, dtype=curout.dtype)
-            accscoresj = np.zeros((inpseq.shape[0],))
-            self.tt.tick()
-            for i in range(curvectors.shape[0]):    # for each example, find the highest scoring suited cans and their scores
-                #print len(canids[i])
-                if len(canids[i]) == 0:
-                    curout[i] = -1
-                else:
-                    canidsi = canids[i]
-                    candatai = candata[canidsi]
-                    canrepsi = self.canenc.predict(candatai)
-                    curvectori = np.repeat(curvectors[np.newaxis, i, ...], canrepsi.shape[0], axis=0)
-                    scoresi = self.scorer.predict(curvectori, canrepsi)
-                    curout[i] = canidsi[np.argmax(scoresi)]
-                    accscoresj[i] += np.max(scoresi)
-                    if debug:
-                        print i, sorted(zip(canidsi, scoresi), key=lambda (x, y): y, reverse=True)
-                        print sorted(filter(lambda (x, y): x < 4711, zip(canidsi, scoresi)), key=lambda (x, y): y, reverse=True)
-                        print sorted(filter(lambda (x, y): x >= 4711, zip(canidsi, scoresi)), key=lambda (x, y): y,
-                                     reverse=True)
-                    #embed()
-                self.tt.progress(i, curvectors.shape[0], live=True)
-            accscores.append(accscoresj[:, np.newaxis])
-            outs.append(curout)
-            j += 1
-            stop = j == maxlen
-            self.tt.tock("done one timestep")
-        accscores = np.sum(np.concatenate(accscores, axis=1), axis=1)
-        ret = np.stack(outs).T
-        assert (ret.shape[0] == inpseq.shape[0] and ret.shape[1] <= maxlen)
-        return ret, accscores
+        for isplit in range(split):
+            inpseq = inpseqs[isplit*splitsize: min(inpseqs.shape[0], (isplit+1)*splitsize)]
+            self.mu.reset()
+            self.mu.setbuildargs(inpseq)
+            self.mu.settransform(transform)
+            stop = False
+            j = 0
+            curout = np.repeat([self.mu.startsym], inpseq.shape[0]).astype("int32")
+            accscores = []
+            outs = []
+            while not stop:
+                curvectors = self.mu.feed(curout)
+                curout = np.ones_like(curout, dtype=curout.dtype)
+                accscoresj = np.zeros((inpseq.shape[0],))
+                self.tt.tick()
+                for i in range(curvectors.shape[0]):    # for each example, find the highest scoring suited cans and their scores
+                    #print len(canids[i])
+                    if len(canids[i]) == 0:
+                        curout[i] = -1
+                    else:
+                        canidsi = canids[i]
+                        candatai = candata[canidsi]
+                        canrepsi = self.canenc.predict(candatai)
+                        curvectori = np.repeat(curvectors[np.newaxis, i, ...], canrepsi.shape[0], axis=0)
+                        scoresi = self.scorer.predict(curvectori, canrepsi)
+                        curout[i] = canidsi[np.argmax(scoresi)]
+                        accscoresj[i] += np.max(scoresi)
+                        if debug:
+                            print i+isplit*splitsize, sorted(zip(canidsi, scoresi), key=lambda (x, y): y, reverse=True)
+                            print sorted(filter(lambda (x, y): x < 4711, zip(canidsi, scoresi)), key=lambda (x, y): y, reverse=True)
+                            print sorted(filter(lambda (x, y): x >= 4711, zip(canidsi, scoresi)), key=lambda (x, y): y,
+                                         reverse=True)
+                        #embed()
+                    self.tt.progress(i, curvectors.shape[0], live=True)
+                accscores.append(accscoresj[:, np.newaxis])
+                outs.append(curout)
+                j += 1
+                stop = j == maxlen
+                self.tt.tock("done one timestep")
+            accscores = np.sum(np.concatenate(accscores, axis=1), axis=1)
+            ret = np.stack(outs).T
+            assert (ret.shape[0] == inpseq.shape[0] and ret.shape[1] <= maxlen)
+            totret.append(ret)
+            totsco.append(accscores)
+        return np.concatenate(totret, axis=0), np.concatenate(totsco, axis=0)
 
 
 class FullRankEval(object):
@@ -238,6 +242,7 @@ def run(
         specemb=-1,
         balancednegidx=False,
         usetypes=False,
+        evalsplits=7,
     ):
     if debug:       # debug settings
         sumhingeloss = True
@@ -250,12 +255,13 @@ def run(
             predpred = True
         elif whatpred == "subj":
             subjpred = True
-        #preeval = True
-        specemb = 100
+        preeval = True
+        #specemb = 100
         margin = 1.
         balancednegidx = True
         #usetypes=True
         #mode = "charword"
+        #checkdata = True
     # load the right file
     maskid = -1
     tt = ticktock("script")
@@ -390,7 +396,7 @@ def run(
         s = SeqEncDecRankSearch(encdec, entenc, scorer.s, scorer.agg)
         eval = FullRankEval()
         pred, scores = s.decode(testdata, testgold.shape[1],
-                                candata=entmat, canids=canids,
+                                candata=entmat, canids=canids, split=evalsplits,
                                 transform=transf.f, debug=printpreds)
         evalres = eval.eval(pred, testgold, debug=debug)
         for k, evalre in evalres.items():
@@ -417,7 +423,7 @@ def run(
     s = SeqEncDecRankSearch(encdec, entenc, scorer.s, scorer.agg)
     eval = FullRankEval()
     pred, scores = s.decode(testdata, testgold.shape[1],
-                            candata=entmat, canids=canids,
+                            candata=entmat, canids=canids, split=evalsplits,
                             transform=transf.f, debug=printpreds)
     if printpreds:
         print pred

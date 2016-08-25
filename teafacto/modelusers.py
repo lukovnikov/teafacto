@@ -21,6 +21,14 @@ class RecPredictor(ModelUser):
         self.transf = None
         self.startsym = kw["startsym"] if "startsym" in kw else -999
 
+    def reset(self):
+        self.buildargs = []
+        self.buildkwargs = {}
+        self.statevals = None
+        self.nonseqvals = None
+        self.transf = None
+        self.f = None
+
     def setbuildargs(self, *args):
         self.buildargs = args
 
@@ -103,6 +111,7 @@ class SeqEncDecPredictor(RecPredictor):
         self.nonseqvals = [self.evalstate(x) for x in nonseqs]
         startemb = self.model.dec._get_seq_emb_t0(inpvar.shape[0])
         self.startembf = theano.function(inputs=[inpvar.d], outputs=[startemb.d])
+        print "built"
 
     def feed(self, inp):  # inps: idxs^(batsize, ...)
         if self.f is None:  # build
