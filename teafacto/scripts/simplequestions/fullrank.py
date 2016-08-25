@@ -100,6 +100,7 @@ class SeqEncDecRankSearch(object):
         self.canenc = canenc
         self.agg = agg
         self.tt = ticktock("RankSearch")
+        self.ott = ticktock("RankSearch")
 
     def decode(self, inpseqs, maxlen=100, candata=None,
                canids=None, transform=None, debug=False, split=1):
@@ -109,6 +110,7 @@ class SeqEncDecRankSearch(object):
         splitsize = int(math.ceil(inpseqs.shape[0]*1./split))
 
         for isplit in range(split):
+            self.ott.tick()
             inpseq = inpseqs[isplit*splitsize: min(inpseqs.shape[0], (isplit+1)*splitsize)]
             self.mu.reset()
             self.mu.setbuildargs(inpseq)
@@ -152,6 +154,7 @@ class SeqEncDecRankSearch(object):
             assert (ret.shape[0] == inpseq.shape[0] and ret.shape[1] <= maxlen)
             totret.append(ret)
             totsco.append(accscores)
+            self.ott.tock("done {}/{} splits".format(isplit+1, split))
         return np.concatenate(totret, axis=0), np.concatenate(totsco, axis=0)
 
 
