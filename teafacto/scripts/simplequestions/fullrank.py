@@ -245,7 +245,7 @@ def run(
         specemb=-1,
         balancednegidx=False,
         usetypes=False,
-        evalsplits=7,
+        evalsplits=50,
     ):
     if debug:       # debug settings
         sumhingeloss = True
@@ -258,10 +258,11 @@ def run(
             predpred = True
         elif whatpred == "subj":
             subjpred = True
-        preeval = True
-        #specemb = 100
+        #preeval = True
+        specemb = 100
         margin = 1.
         balancednegidx = True
+        evalsplits = 1
         #usetypes=True
         #mode = "charword"
         #checkdata = True
@@ -338,7 +339,7 @@ def run(
 
     encdec = SimpleSeqEncDecAtt(inpvocsize=numwords, inpembdim=embdim,
                     encdim=encinnerdim, bidir=bidir, outembdim=entenc,
-                    decdim=decinnerdim, vecout=True, statetrans=True)
+                    decdim=decinnerdim, vecout=True, statetrans="matdot")
 
     scorerargs = ([encdec, SeqUnroll(entenc)],
                   {"argproc": lambda x, y, z: ((x, y), (z,)),
@@ -382,7 +383,6 @@ def run(
                 ret = entrand * mask + relrand * (1 - mask)
                 return datas, sgold, ret.astype("int32")
 
-    # !!! MASKS ON OUTPUT SHOULD BE IMPLEMENTED FOR VARIABLE LENGTH OUTPUT SEQS
     obj = lambda p, n: n - p
     if hingeloss:
         obj = lambda p, n: (n - p + margin).clip(0, np.infty)
