@@ -76,7 +76,18 @@ class DotprodAttGen(AttentionGenerator):
         return T.batched_dot(data, criterion)
 
 
-class LinearSumAttentionGenerator(AttentionGenerator):    # simple feedforward
+class GenDotProdAttGen(AttentionGenerator):
+    def __init__(self, **kw):
+        super(GenDotProdAttGen, self).__init__(**kw)
+        self.W = param((self.indim, self.memdim), name="attention").glorotuniform()
+
+    def getscores(self, crit, data): # crit: (batsize, crit_dim), data: (batsize, seqlen, datadim)
+        a = T.dot(data, self.W)     # (batsize, seqlen, memdim)
+        ret = T.batched_dot(a, crit)
+        return ret
+
+
+class LinearSumAttentionGenerator(AttentionGenerator):  #EVIL # simple feedforward
     def __init__(self, **kw):
         super(LinearSumAttentionGenerator, self).__init__(**kw)
         self.W = param((self.indim, self.attdim), name="attention_ff").uniform()
@@ -89,7 +100,7 @@ class LinearSumAttentionGenerator(AttentionGenerator):    # simple feedforward
         return o.dimswap(1, 0)       # returns (batsize, seqlen), softmaxed on seqlen
 
 
-class LinearGateAttentionGenerator(AttentionGenerator):
+class LinearGateAttentionGenerator(AttentionGenerator): #EVIL
     def __init__(self, nonlinearities=False, **kw):
         self.nonlinearities = nonlinearities
         super(LinearGateAttentionGenerator, self).__init__(**kw)
@@ -97,6 +108,7 @@ class LinearGateAttentionGenerator(AttentionGenerator):
         self.U = param((self.attdim,), name="attention_agg").uniform()
 
     def getscores(self, criterion, data):   # criterion: (batsize, crit_dim), data: (batsize, seqlen, datadim)
+        datapart = T.dot(data, self.W[:data.shape[2], :])
         def rec(x_t, crit):
             combo = self._get_combo(x_t, crit)  # (batsize, crit_dim + datadim)
             trans = T.dot(combo, self.W)        # (batsize, innerdim)

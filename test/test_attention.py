@@ -2,10 +2,21 @@ from unittest import TestCase
 
 import numpy as np
 
-from teafacto.blocks.seq.attention import Attention, WeightedSumAttCon, LinearSumAttentionGenerator, LinearGateAttentionGenerator, DotprodAttGen
+from teafacto.blocks.seq.attention import Attention, WeightedSumAttCon, LinearSumAttentionGenerator, LinearGateAttentionGenerator, DotprodAttGen, GenDotProdAttGen
 from teafacto.blocks.seq.rnn import SeqDecoder
 from teafacto.blocks.seq.rnu import GRU
 from teafacto.blocks.basic import IdxToOneHot
+
+
+class TestGenDotProdAttGen(TestCase):
+    def test_shapes(self):
+        batsize, seqlen, datadim, critdim = 100, 7, 50, 40
+        crit = np.random.random((batsize, critdim))
+        data = np.random.random((batsize, seqlen, datadim))
+        m = GenDotProdAttGen(indim=datadim, memdim=critdim)
+        pred = m.predict(crit, data)
+        self.assertEqual(pred.shape, (batsize, seqlen))
+        self.assertTrue(np.allclose(np.sum(pred, axis=1), np.ones((pred.shape[0],))))
 
 
 class AttentionGenTest(TestCase):
