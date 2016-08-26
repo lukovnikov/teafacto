@@ -315,8 +315,6 @@ def run(
             return (" " if mode == "word" else "").join([rwd[xid] if xid > -1 else "" for xid in xids])
         embed()
 
-    reventdic = {v: k for k, v in entdic.items()}
-    revworddic = {v: k for k, v in worddic.items()}
     print traindata.shape, traingold.shape, testdata.shape, testgold.shape
 
     tt.tock("data loaded")
@@ -466,7 +464,7 @@ def run(
         os.makedirs(dirname)
     savenamegen = lambda i: "{}/{}.res".format(dirname, i)
     savename = None
-    for i in xrange(100):
+    for i in xrange(1000):
         savename = savenamegen(i)
         if not os.path.exists(savename):
             break

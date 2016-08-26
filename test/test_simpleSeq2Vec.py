@@ -2,7 +2,7 @@ from unittest import TestCase
 
 import numpy as np
 
-from teafacto.blocks.seq.enc import SimpleSeq2Vec
+from teafacto.blocks.seq.enc import SimpleSeq2Vec, SimpleSeq2Sca
 from teafacto.blocks.match import MatchScore
 
 
@@ -19,3 +19,12 @@ class TestSimpleSeq2Vec(TestCase):
     def test_output(self):
         print self.mo, self.mo.ndim
         #theano.printing.pydotprint(self.mo.d, "debug.png")
+
+
+class TestSimpleSeq2Sca(TestCase):
+    def test_shape(self):
+        enc = SimpleSeq2Sca(indim=100, inpembdim=10, innerdim=20)
+        x = np.random.randint(0, 10, (33, 5))
+        prd, mask = enc.predict(x)
+        self.assertEqual(prd.shape, (33, 5))
+        self.assertEqual(mask.shape, (33, 5))

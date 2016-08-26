@@ -1,0 +1,334 @@
+from teafacto.scripts.simplequestions.fullrank import readdata, SeqEncDecRankSearch, FullRankEval, shiftdata, EntEncRep, EntEnc, EntEmbEnc
+from teafacto.util import argprun, ticktock
+import numpy as np, os, sys, math
+from IPython import embed
+from teafacto.core.base import Val, tensorops as T, Block
+
+from teafacto.blocks.seq.enc import SimpleSeq2Vec, SimpleSeq2Sca, SeqUnroll
+from teafacto.blocks.match import SeqMatchScore, GenDotDistance
+from teafacto.blocks.basic import VectorEmbed
+
+
+class CustomSeq2Pair(Block):
+    def __init__(self, inpemb, encdim=100, scadim=100, maskid=0, bidir=False, scalayers=1, enclayers=1, **kw):
+        super(CustomSeq2Pair, self).__init__(**kw)
+        self.tosca = SimpleSeq2Sca(inpemb=inpemb, inpembdim=inpemb.outdim, innerdim=scadim, maskid=maskid, bidir=bidir, layers=scalayers)
+        self.subjenc = SimpleSeq2Vec(inpemb=inpemb, inpembdim=inpemb.outdim, innerdim=encdim, maskid=maskid, bidir=bidir, layers=enclayers)
+        self.predenc = SimpleSeq2Vec(inpemb=inpemb, inpembdim=inpemb.outdim, innerdim=encdim, maskid=maskid, bidir=bidir, layers=enclayers)
+
+    def apply(self, x):
+        weights, mask = self.tosca(x)
+        subjenco = self.subjenc(x, weights=weights)[:, np.newaxis, :]
+        predenco = self.predenc(x, weights=(1-weights))[:, np.newaxis, :]
+        return T.concatenate([subjenco, predenco], axis=1)
+
+    @property
+    def outdim(self):
+        assert(self.subjenc.outdim == self.predenc.outdim)
+        return self.subjenc.outdim
+
+
+class CustomEntEnc(Block):
+    def __init__(self, subjenc, predenc, offset, **kw):
+        super(CustomEntEnc, self).__init__(**kw)
+        self.subjenc = subjenc
+        self.predenc = predenc
+        self.offset = offset
+
+    def apply(self, x): # (batsize, 2, syms)
+        subjenco = self.subjenc(x[:, 0, :]).dimshuffle(0, "x", 1)
+        predenco = self.predenc(x[:, 1, 0] - self.offset).dimshuffle(0, "x", 1)
+        ret = T.concatenate([subjenco, predenco], axis=1)
+        return ret
+
+    @property
+    def outdim(self):
+        return self.subjenc.outdim
+
+
+class CustomRankSearch(object):
+    def __init__(self, model, canenc, scorer, agg, *buildargs, **kw):
+        super(CustomRankSearch, self).__init__(**kw)
+        self.model = model
+        self.scorer = scorer
+        self.canenc = canenc
+        self.agg = agg
+        self.tt = ticktock("RankSearch")
+        self.ott = ticktock("RankSearch")
+
+    def search(self, inpseqs, maxlen=100, candata=None,
+               canids=None, transform=None, debug=False, split=1):
+        assert(candata is not None and canids is not None)
+        totret = []
+        totsco = []
+        splitsize = int(math.ceil(inpseqs.shape[0]*1./split))
+
+        for isplit in range(split):
+            self.ott.tick()
+            inpseq = inpseqs[isplit*splitsize: min(inpseqs.shape[0], (isplit+1)*splitsize)]
+            pred = self.model.predict(inpseq)
+            stop = False
+            j = 0
+            curout = np.repeat([self.mu.startsym], inpseq.shape[0]).astype("int32")
+            accscores = []
+            outs = []
+            while not stop:
+                curvectors = self.mu.feed(curout)
+                curout = np.ones_like(curout, dtype=curout.dtype)
+                accscoresj = np.zeros((inpseq.shape[0],))
+                self.tt.tick()
+                for i in range(curvectors.shape[0]):    # for each example, find the highest scoring suited cans and their scores
+                    #print len(canids[i])
+                    if len(canids[i]) == 0:
+                        curout[i] = -1
+                    else:
+                        canidsi = canids[i]
+                        candatai = candata[canidsi]
+                        canrepsi = self.canenc.predict(candatai)
+                        curvectori = np.repeat(curvectors[np.newaxis, i, ...], canrepsi.shape[0], axis=0)
+                        scoresi = self.scorer.predict(curvectori, canrepsi)
+                        curout[i] = canidsi[np.argmax(scoresi)]
+                        accscoresj[i] += np.max(scoresi)
+                        if debug:
+                            print i+isplit*splitsize, sorted(zip(canidsi, scoresi), key=lambda (x, y): y, reverse=True)
+                            print sorted(filter(lambda (x, y): x < 4711, zip(canidsi, scoresi)), key=lambda (x, y): y, reverse=True)
+                            print sorted(filter(lambda (x, y): x >= 4711, zip(canidsi, scoresi)), key=lambda (x, y): y,
+                                         reverse=True)
+                        #embed()
+                    self.tt.progress(i, curvectors.shape[0], live=True)
+                accscores.append(accscoresj[:, np.newaxis])
+                outs.append(curout)
+                j += 1
+                stop = j == maxlen
+                self.tt.tock("done one timestep")
+            accscores = np.sum(np.concatenate(accscores, axis=1), axis=1)
+            ret = np.stack(outs).T
+            assert (ret.shape[0] == inpseq.shape[0] and ret.shape[1] <= maxlen)
+            totret.append(ret)
+            totsco.append(accscores)
+            self.ott.tock("done {}/{} splits".format(isplit+1, split))
+        return np.concatenate(totret, axis=0), np.concatenate(totsco, axis=0)
+
+
+def run(
+        epochs=50,
+        mode="char",    # "char" or "word" or "charword"
+        numbats=1000,
+        lr=0.1,
+        wreg=0.000001,
+        bidir=False,
+        layers=1,
+        encdim=200,
+        decdim=200,
+        embdim=100,
+        negrate=1,
+        margin=1.,
+        hingeloss=False,
+        debug=False,
+        preeval=False,
+        sumhingeloss=False,
+        checkdata=False,        # starts interactive shell for data inspection
+        printpreds=False,
+        subjpred=False,
+        predpred=False,
+        specemb=-1,
+        usetypes=False,
+        evalsplits=50,
+        relembrep=False,
+    ):
+    if debug:       # debug settings
+        sumhingeloss = True
+        numbats = 10
+        lr = 0.02
+        epochs = 10
+        printpreds = True
+        whatpred = "all"
+        if whatpred == "pred":
+            predpred = True
+        elif whatpred == "subj":
+            subjpred = True
+        #preeval = True
+        specemb = 100
+        margin = 1.
+        evalsplits = 1
+        relembrep = True
+        #usetypes=True
+        #mode = "charword"
+        #checkdata = True
+    # load the right file
+    maskid = -1
+    tt = ticktock("script")
+    specids = specemb > 0
+    tt.tick()
+    (traindata, traingold), (validdata, validgold), (testdata, testgold), \
+    worddic, entdic, entmat, relstarts, canids, wordmat, chardic\
+        = readdata(mode, testcans="testcans.pkl", debug=debug, specids=True,
+                   usetypes=usetypes, maskid=maskid)
+    entmat = entmat.astype("int32")
+
+    if checkdata:
+        rwd = {v: k for k, v in worddic.items()}
+        red = {v: k for k, v in entdic.items()}
+        def p(xids):
+            return (" " if mode == "word" else "").join([rwd[xid] if xid > -1 else "" for xid in xids])
+        embed()
+
+    print traindata.shape, traingold.shape, testdata.shape, testgold.shape
+
+    tt.tock("data loaded")
+
+    numwords = max(worddic.values()) + 1
+    numents = max(entdic.values()) + 1
+    print "%d words, %d entities" % (numwords, numents)
+
+    if bidir:
+        encinnerdim = [encdim / 2] * layers
+    else:
+        encinnerdim = [encdim] * layers
+
+    memembdim = embdim
+    memlayers = layers
+    membidir = bidir
+    if membidir:
+        decinnerdim = [decdim / 2] * memlayers
+    else:
+        decinnerdim = [decdim] * memlayers
+
+    emb = VectorEmbed(numwords, embdim)
+    inpenc = CustomSeq2Pair(inpemb=emb, encdim=encinnerdim, scadim=encinnerdim,
+                            enclayers=layers, scalayers=layers, bidir=bidir,
+                            maskid=maskid)
+    '''
+    pred = inpenc.predict(testdata)
+    print pred
+    print pred.shape
+    sys.exit()
+    '''
+
+    subjenc = EntEnc(SimpleSeq2Vec(inpemb=emb,
+                                  innerdim=decinnerdim,
+                                  maskid=maskid,
+                                  bidir=membidir))
+
+    numentembs = len(np.unique(entmat[:, 0]))
+    repsplit = entmat[relstarts, 0]
+    if specids:  # include vectorembedder
+        subjenc = EntEmbEnc(subjenc, numentembs, specemb)
+    predenc = VectorEmbed(indim=numents-relstarts, dim=subjenc.outdim)
+    entenc = CustomEntEnc(subjenc, predenc, repsplit)
+
+        # adjust params for enc/dec construction
+        # encinnerdim[-1] += specemb
+        # innerdim[-1] += specemb
+
+
+    scorerkwargs = {"argproc": lambda x, y: ((x,), (y,)),
+                   "scorer": GenDotDistance(inpenc.outdim, entenc.outdim)}
+    if sumhingeloss:
+        scorerkwargs["aggregator"] = lambda x: x  # no aggregation of scores
+    scorer = SeqMatchScore(inpenc, entenc, **scorerkwargs)
+
+    # scorer.save("scorer.test.save")
+
+    # TODO: below this line, check and test
+    class PreProc(object):
+        def __init__(self, entmat):
+            self.f = PreProcE(entmat)
+
+        def __call__(self, encdata, decgold):  # gold: idx^(batsize, seqlen)
+            return (encdata, self.f(decgold)), {}
+
+    class PreProcE(object):
+        def __init__(self, entmat):
+            self.em = Val(entmat)
+
+        def __call__(self, x):
+            return self.em[x]
+
+    transf = PreProc(entmat)
+
+    class NegIdxGen(object):
+        def __init__(self, rng, midsplit):
+            self.min = 0
+            self.max = rng
+            self.midsplit = midsplit
+
+        def __call__(self, datas, gold):
+            entrand = np.random.randint(self.min, self.midsplit, (gold.shape[0], 1))
+            relrand = np.random.randint(self.midsplit, self.max, (gold.shape[0], 1))
+            ret = np.concatenate([entrand, relrand], axis=1)
+            return datas, ret.astype("int32")
+
+
+    obj = lambda p, n: n - p
+    if hingeloss:
+        obj = lambda p, n: (n - p + margin).clip(0, np.infty)
+    if sumhingeloss:  #
+        obj = lambda p, n: T.sum((n - p + margin).clip(0, np.infty), axis=1)
+
+    # embed()
+    # eval
+    if preeval or True:
+        tt.tick("pre-evaluating")
+        s = CustomRankSearch(inpenc, entenc, scorer.s, scorer.agg)
+        eval = FullRankEval()
+        pred, scores = s.search(testdata, testgold.shape[1],
+                                candata=entmat, canids=canids, split=evalsplits,
+                                transform=transf, debug=printpreds)
+        evalres = eval.eval(pred, testgold, debug=debug)
+        for k, evalre in evalres.items():
+            print("{}:\t{}".format(k, evalre))
+        tt.tock("pre-evaluated")
+
+    negidxgenargs = ([numents], {"midsplit": relstarts})
+    if debug:
+        pass
+        # negidxgenargs = ([numents], {})
+
+    tt.tick("training")
+    nscorer = scorer.nstrain([traindata, traingold]).transform(transf) \
+        .negsamplegen(NegIdxGen(*negidxgenargs[0], **negidxgenargs[1])).negrate(negrate).objective(obj) \
+        .adagrad(lr=lr).l2(wreg).grad_total_norm(1.0) \
+        .validate_on([validdata, validgold]) \
+        .train(numbats=numbats, epochs=epochs)
+    tt.tock("trained")
+
+    # scorer.save("scorer.test.save")
+
+    # eval
+    tt.tick("evaluating")
+    s = SeqEncDecRankSearch(encdec, entenc, scorer.s, scorer.agg)
+    eval = FullRankEval()
+    pred, scores = s.decode(testdata, testgold.shape[1],
+                            candata=entmat, canids=canids, split=evalsplits,
+                            transform=transf.f, debug=printpreds)
+    if printpreds:
+        print pred
+    debugarg = "subj" if subjpred else "pred" if predpred else False
+    evalres = eval.eval(pred, testgold, debug=debugarg)
+    for k, evalre in evalres.items():
+        print("{}:\t{}".format(k, evalre))
+    tt.tock("evaluated")
+
+    # save
+    basename = os.path.splitext(os.path.basename(__file__))[0]
+    dirname = basename + ".results"
+    if not os.path.exists(dirname):
+        os.makedirs(dirname)
+    savenamegen = lambda i: "{}/{}.res".format(dirname, i)
+    savename = None
+    for i in xrange(1000):
+        savename = savenamegen(i)
+        if not os.path.exists(savename):
+            break
+        savename = None
+    if savename is None:
+        raise Exception("exceeded number of saved results")
+    with open(savename, "w") as f:
+        f.write("{}\n".format(" ".join(sys.argv)))
+        for k, evalre in evalres.items():
+            f.write("{}:\t{}\n".format(k, evalre))
+
+
+if __name__ == "__main__":
+    argprun(run)

@@ -3,7 +3,7 @@ from teafacto.blocks.pool import Pool
 from teafacto.blocks.seq.rnn import MakeRNU
 from teafacto.blocks.seq.oldseqproc import Vec2Idx, SimpleVec2Idx
 from teafacto.blocks.seq.rnn import SeqEncoder, MaskMode
-from teafacto.core.base import Block, tensorops as T
+from teafacto.core.base import Block, tensorops as T, param
 from teafacto.util import issequence
 
 
@@ -59,8 +59,8 @@ class Seq2Vec(Block):
         if self.pool is not None:
             self.enc = self.enc.all_outputs
 
-    def apply(self, x, mask=None):
-        ret = self.enc(x, mask=mask)
+    def apply(self, x, mask=None, weights=None):
+        ret = self.enc(x, mask=mask, weights=weights)
         if self.pool is not None:
             ret = self.pool(ret)
         return ret
@@ -74,6 +74,8 @@ class SimpleSeq2Vec(Seq2Vec):
                 inpembdim = indim
             else:
                 inpemb = VectorEmbed(indim=indim, dim=inpembdim)
+        else:
+            inpembdim = inpemb.outdim
         rnn, lastdim = self.makernu(inpembdim, innerdim, bidir=bidir)
         self.outdim = lastdim
         poolblock = None if pool is False else Pool((None,), axis=(1,), mode="max")
@@ -82,5 +84,27 @@ class SimpleSeq2Vec(Seq2Vec):
     @staticmethod
     def makernu(inpembdim, innerdim, bidir=False):
         return MakeRNU.make(inpembdim, innerdim, bidir=bidir)
+
+
+class SimpleSeq2Sca(SimpleSeq2Vec):
+    def __init__(self, **kw):
+        super(SimpleSeq2Sca, self).__init__(**kw)
+        self.enc.all_outputs.with_mask
+        if "innerdim" in kw:
+            kwindim = kw["innerdim"]
+            if issequence(kwindim):
+                summdim = kwindim[-1]
+            else:
+                summdim = kwindim
+        else:
+            summdim = 100
+        self.summ = param((summdim,), name="summarize").uniform()
+
+    def apply(self, x, mask=None):
+        enco, mask = self.enc(x, mask=mask)
+        return T.nnet.sigmoid(T.dot(enco, self.summ)), mask
+
+
+
 
 
