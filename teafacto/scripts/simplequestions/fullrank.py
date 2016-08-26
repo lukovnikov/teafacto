@@ -241,7 +241,7 @@ def shiftdata(d):  # idx (batsize, seqlen)
 def run(
         epochs=50,
         mode="char",    # "char" or "word" or "charword"
-        numbats=100,
+        numbats=1000,
         lr=0.1,
         wreg=0.000001,
         bidir=False,
