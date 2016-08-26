@@ -179,6 +179,19 @@ class FullRankEval(object):
         return self.metrics
 
 
+class EntEnc(Block):
+    def __init__(self, enc, **kw):
+        self.enc = enc
+        super(EntEnc, self).__init__(**kw)
+
+    def apply(self, x, mask=None):
+        return self.enc(x[:, 1:], mask=mask)
+
+    @property
+    def outdim(self):
+        return self.enc.outdim
+
+
 class EntEmbEnc(Block):
     def __init__(self, enc, vocsize, embdim, **kw):
         super(EntEmbEnc, self).__init__(**kw)
@@ -186,7 +199,7 @@ class EntEmbEnc(Block):
         self.emb = VectorEmbed(vocsize, embdim)
 
     def apply(self, x, mask=None):
-        enco = self.enc(x[:, 1:], mask=mask)
+        enco = self.enc(x, mask=mask)
         embo = self.emb(x[:, 0])
         ret = T.concatenate([enco, embo], axis=1)                   # (?, encdim+embdim)
         return ret
@@ -196,18 +209,22 @@ class EntEmbEnc(Block):
         return self.enc.outdim + self.emb.outdim
 
 
-class EntEmbEncRep(EntEmbEnc):
+class EntEncRep(Block):
     ''' Replaces encoding with embedding based on repsplit index '''
     def __init__(self, enc, vocsize, repsplit, **kw):
-        super(EntEmbEncRep, self).__init__(enc, vocsize, enc.outdim, **kw)
+        super(EntEncRep, self).__init__(**kw)
+        self.enc = enc
+        self.emb = VectorEmbed(vocsize, enc.outdim)
         self.split = repsplit
 
     def apply(self, x, mask=None):
-        enco = self.enc(x[:, 1:], mask=mask)
+        enco = self.enc(x, mask=mask)
         embo = self.emb(x[:, 0])
-        repl = x[:, [0]] >= self.split
-        mask = T.repeat(repl, enco.shape[1], axis=1)
-        ret = (1 - mask) * enco + mask * embo
+        mask = x[:, 0] >= self.split      # (batsize, )
+        mask = mask[:, np.newaxis]
+        #mask = T.repeat(mask, enco.shape[1], axis=1)
+        #ret = T.switch(x[:, 0] >= self.split, embo, enco)
+        ret = (1-mask) * enco + mask * embo
         return ret
 
     @property
@@ -246,6 +263,7 @@ def run(
         balancednegidx=False,
         usetypes=False,
         evalsplits=50,
+        relembrep=False,
     ):
     if debug:       # debug settings
         sumhingeloss = True
@@ -263,6 +281,7 @@ def run(
         margin = 1.
         balancednegidx = True
         evalsplits = 1
+        relembrep = True
         #usetypes=True
         #mode = "charword"
         #checkdata = True
@@ -273,7 +292,7 @@ def run(
     tt.tick()
     (traindata, traingold), (validdata, validgold), (testdata, testgold), \
     worddic, entdic, entmat, relstarts, canids, wordmat, chardic\
-        = readdata(mode, testcans="testcans.pkl", debug=debug, specids=specids,
+        = readdata(mode, testcans="testcans.pkl", debug=debug, specids=True,
                    usetypes=usetypes, maskid=maskid)
     entmat = entmat.astype("int32")
 
@@ -324,15 +343,19 @@ def run(
     else:
         decinnerdim = [decdim]*memlayers
 
-    entenc = SimpleSeq2Vec(indim=numwords,
+    entenc = EntEnc(SimpleSeq2Vec(indim=numwords,
                          inpembdim=memembdim,
                          innerdim=decinnerdim,
                          maskid=maskid,
-                         bidir=membidir)
+                         bidir=membidir))
 
+    numentembs = len(np.unique(entmat[:, 0]))
     if specids:     # include vectorembedder
-        numentembs = len(np.unique(entmat[:, 0]))
         entenc = EntEmbEnc(entenc, numentembs, specemb)
+    if relembrep:
+        repsplit = entmat[relstarts, 0]
+        entenc = EntEncRep(entenc, numentembs, repsplit)
+
         # adjust params for enc/dec construction
         #encinnerdim[-1] += specemb
         #innerdim[-1] += specemb
