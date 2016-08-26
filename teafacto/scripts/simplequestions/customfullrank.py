@@ -5,22 +5,25 @@ from IPython import embed
 from teafacto.core.base import Val, tensorops as T, Block
 
 from teafacto.blocks.seq.enc import SimpleSeq2Vec, SimpleSeq2Sca, SeqUnroll
-from teafacto.blocks.match import SeqMatchScore, GenDotDistance
-from teafacto.blocks.basic import VectorEmbed
+from teafacto.blocks.match import SeqMatchScore, GenDotDistance, DotDistance, CosineDistance
+from teafacto.blocks.basic import VectorEmbed, MatDot
 
 
 class CustomSeq2Pair(Block):
-    def __init__(self, inpemb, encdim=100, scadim=100, maskid=0, bidir=False, scalayers=1, enclayers=1, **kw):
+    def __init__(self, inpemb, encdim=100, scadim=100, maskid=0, bidir=False, scalayers=1, enclayers=1, outdim=100, **kw):
         super(CustomSeq2Pair, self).__init__(**kw)
         self.tosca = SimpleSeq2Sca(inpemb=inpemb, inpembdim=inpemb.outdim, innerdim=scadim, maskid=maskid, bidir=bidir, layers=scalayers)
         self.subjenc = SimpleSeq2Vec(inpemb=inpemb, inpembdim=inpemb.outdim, innerdim=encdim, maskid=maskid, bidir=bidir, layers=enclayers)
         self.predenc = SimpleSeq2Vec(inpemb=inpemb, inpembdim=inpemb.outdim, innerdim=encdim, maskid=maskid, bidir=bidir, layers=enclayers)
+        self.subjmd = MatDot(self.subjenc.outdim, outdim)
+        self.predmd = MatDot(self.predenc.outdim, outdim)
 
     def apply(self, x):
         weights, mask = self.tosca(x)
         subjenco = self.subjenc(x, weights=weights)[:, np.newaxis, :]
         predenco = self.predenc(x, weights=(1-weights))[:, np.newaxis, :]
-        return T.concatenate([subjenco, predenco], axis=1)
+        ret = T.concatenate([self.subjmd(subjenco), self.predmd(predenco)], axis=1)
+        return ret
 
     @property
     def outdim(self):
@@ -47,7 +50,7 @@ class CustomEntEnc(Block):
 
 
 class CustomRankSearch(object):
-    def __init__(self, model, canenc, scorer, agg, *buildargs, **kw):
+    def __init__(self, model, canenc, scorer, agg, relstarts=0, *buildargs, **kw):
         super(CustomRankSearch, self).__init__(**kw)
         self.model = model
         self.scorer = scorer
@@ -55,6 +58,7 @@ class CustomRankSearch(object):
         self.agg = agg
         self.tt = ticktock("RankSearch")
         self.ott = ticktock("RankSearch")
+        self.relstarts = relstarts
 
     def search(self, inpseqs, maxlen=100, candata=None,
                canids=None, transform=None, debug=False, split=1):
@@ -67,13 +71,15 @@ class CustomRankSearch(object):
             self.ott.tick()
             inpseq = inpseqs[isplit*splitsize: min(inpseqs.shape[0], (isplit+1)*splitsize)]
             pred = self.model.predict(inpseq)
-            stop = False
-            j = 0
-            curout = np.repeat([self.mu.startsym], inpseq.shape[0]).astype("int32")
             accscores = []
             outs = []
-            while not stop:
-                curvectors = self.mu.feed(curout)
+            for i in range(pred.shape[0]):
+                subjcans = filter(lambda x: x < self.relstarts, canids[i+isplit*splitsize])
+                predcans = filter(lambda x: x >= self.relstarts, canids[i+isplit*splitsize])
+                # TODO
+                subjvecs = self.canenc.subjenc.predict.transform(transform)(subjcans)
+                predvecs = self.canenc.predenc.predict.transform(transform)(predcans)
+
                 curout = np.ones_like(curout, dtype=curout.dtype)
                 accscoresj = np.zeros((inpseq.shape[0],))
                 self.tt.tick()
@@ -98,8 +104,6 @@ class CustomRankSearch(object):
                     self.tt.progress(i, curvectors.shape[0], live=True)
                 accscores.append(accscoresj[:, np.newaxis])
                 outs.append(curout)
-                j += 1
-                stop = j == maxlen
                 self.tt.tock("done one timestep")
             accscores = np.sum(np.concatenate(accscores, axis=1), axis=1)
             ret = np.stack(outs).T
@@ -194,16 +198,8 @@ def run(
     else:
         decinnerdim = [decdim] * memlayers
 
+
     emb = VectorEmbed(numwords, embdim)
-    inpenc = CustomSeq2Pair(inpemb=emb, encdim=encinnerdim, scadim=encinnerdim,
-                            enclayers=layers, scalayers=layers, bidir=bidir,
-                            maskid=maskid)
-    '''
-    pred = inpenc.predict(testdata)
-    print pred
-    print pred.shape
-    sys.exit()
-    '''
 
     subjenc = EntEnc(SimpleSeq2Vec(inpemb=emb,
                                   innerdim=decinnerdim,
@@ -217,13 +213,17 @@ def run(
     predenc = VectorEmbed(indim=numents-relstarts, dim=subjenc.outdim)
     entenc = CustomEntEnc(subjenc, predenc, repsplit)
 
+    inpenc = CustomSeq2Pair(inpemb=emb, encdim=encinnerdim, scadim=encinnerdim,
+                            enclayers=layers, scalayers=layers, bidir=bidir,
+                            maskid=maskid, outdim=subjenc.outdim)
+
         # adjust params for enc/dec construction
         # encinnerdim[-1] += specemb
         # innerdim[-1] += specemb
 
 
     scorerkwargs = {"argproc": lambda x, y: ((x,), (y,)),
-                   "scorer": GenDotDistance(inpenc.outdim, entenc.outdim)}
+                   "scorer": DotDistance()}
     if sumhingeloss:
         scorerkwargs["aggregator"] = lambda x: x  # no aggregation of scores
     scorer = SeqMatchScore(inpenc, entenc, **scorerkwargs)
@@ -270,11 +270,11 @@ def run(
     # eval
     if preeval or True:
         tt.tick("pre-evaluating")
-        s = CustomRankSearch(inpenc, entenc, scorer.s, scorer.agg)
+        s = CustomRankSearch(inpenc, entenc, scorer.s, scorer.agg, relstarts=relstarts)
         eval = FullRankEval()
         pred, scores = s.search(testdata, testgold.shape[1],
                                 candata=entmat, canids=canids, split=evalsplits,
-                                transform=transf, debug=printpreds)
+                                transform=transf.f, debug=printpreds)
         evalres = eval.eval(pred, testgold, debug=debug)
         for k, evalre in evalres.items():
             print("{}:\t{}".format(k, evalre))
