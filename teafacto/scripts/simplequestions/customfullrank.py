@@ -71,45 +71,42 @@ class CustomRankSearch(object):
             self.ott.tick()
             inpseq = inpseqs[isplit*splitsize: min(inpseqs.shape[0], (isplit+1)*splitsize)]
             pred = self.model.predict(inpseq)
-            accscores = []
+            scores = []
             outs = []
             for i in range(pred.shape[0]):
-                subjcans = filter(lambda x: x < self.relstarts, canids[i+isplit*splitsize])
-                predcans = filter(lambda x: x >= self.relstarts, canids[i+isplit*splitsize])
-                # TODO
-                subjvecs = self.canenc.subjenc.predict.transform(transform)(subjcans)
-                predvecs = self.canenc.predenc.predict.transform(transform)(predcans)
+                canidsi = canids[i+isplit*splitsize]
+                canidsii = [None, None]
+                subjcans = filter(lambda x: x < self.relstarts, canidsi)
+                predcans = filter(lambda x: x >= self.relstarts, canidsi)
 
-                curout = np.ones_like(curout, dtype=curout.dtype)
-                accscoresj = np.zeros((inpseq.shape[0],))
-                self.tt.tick()
-                for i in range(curvectors.shape[0]):    # for each example, find the highest scoring suited cans and their scores
-                    #print len(canids[i])
-                    if len(canids[i]) == 0:
-                        curout[i] = -1
-                    else:
-                        canidsi = canids[i]
-                        candatai = candata[canidsi]
-                        canrepsi = self.canenc.predict(candatai)
-                        curvectori = np.repeat(curvectors[np.newaxis, i, ...], canrepsi.shape[0], axis=0)
-                        scoresi = self.scorer.predict(curvectori, canrepsi)
-                        curout[i] = canidsi[np.argmax(scoresi)]
-                        accscoresj[i] += np.max(scoresi)
-                        if debug:
-                            print i+isplit*splitsize, sorted(zip(canidsi, scoresi), key=lambda (x, y): y, reverse=True)
-                            print sorted(filter(lambda (x, y): x < 4711, zip(canidsi, scoresi)), key=lambda (x, y): y, reverse=True)
-                            print sorted(filter(lambda (x, y): x >= 4711, zip(canidsi, scoresi)), key=lambda (x, y): y,
-                                         reverse=True)
-                        #embed()
-                    self.tt.progress(i, curvectors.shape[0], live=True)
-                accscores.append(accscoresj[:, np.newaxis])
-                outs.append(curout)
-                self.tt.tock("done one timestep")
-            accscores = np.sum(np.concatenate(accscores, axis=1), axis=1)
-            ret = np.stack(outs).T
-            assert (ret.shape[0] == inpseq.shape[0] and ret.shape[1] <= maxlen)
-            totret.append(ret)
-            totsco.append(accscores)
+                canidsii[0] = subjcans + [0]*max(0, len(predcans) - len(subjcans))
+                canidsii[1] = predcans + [self.relstarts]*max(0, - len(predcans) + len(subjcans))
+                canidsii = np.asarray(canidsii, dtype="int32").T
+                canvecs = self.canenc.predict.transform(transform)(canidsii)
+
+                entvecs = canvecs[:len(subjcans), 0, :]
+                predvecs = canvecs[:len(predcans), 0, :]
+
+                subjinpveci = np.repeat(pred[[i], 0], len(subjcans), axis=0)
+                predinpveci = np.repeat(pred[[i], 1], len(predcans), axis=0)
+
+                subjscores = self.scorer.predict(subjinpveci, entvecs)
+                predscores = self.scorer.predict(predinpveci, predvecs)
+
+                subjswscores = sorted(zip(subjcans, list(subjscores)), key=lambda (x,y): y, reverse=True)
+                predswscores = sorted(zip(predcans, list(predscores)), key=lambda (x,y): y, reverse=True)
+
+                best = [subjswscores[0][0], predswscores[0][0]]
+                scor = [subjswscores[0][1], predswscores[0][1]]
+                scores.append(scor)
+                outs.append(best)
+
+                self.tt.progress(i, pred.shape[0], live=True)
+            scores = np.sum(np.asarray(scores, dtype="float32"), axis=1)
+            outs = np.asarray(outs, dtype="int32")
+            assert (outs.shape[0] == inpseq.shape[0] and outs.shape[1] <= maxlen)
+            totret.append(outs)
+            totsco.append(scores)
             self.ott.tock("done {}/{} splits".format(isplit+1, split))
         return np.concatenate(totret, axis=0), np.concatenate(totsco, axis=0)
 
@@ -210,7 +207,7 @@ def run(
     repsplit = entmat[relstarts, 0]
     if specids:  # include vectorembedder
         subjenc = EntEmbEnc(subjenc, numentembs, specemb)
-    predenc = VectorEmbed(indim=numents-relstarts, dim=subjenc.outdim)
+    predenc = VectorEmbed(indim=numents-relstarts+1, dim=subjenc.outdim)
     entenc = CustomEntEnc(subjenc, predenc, repsplit)
 
     inpenc = CustomSeq2Pair(inpemb=emb, encdim=encinnerdim, scadim=encinnerdim,
@@ -236,14 +233,15 @@ def run(
             self.f = PreProcE(entmat)
 
         def __call__(self, encdata, decgold):  # gold: idx^(batsize, seqlen)
-            return (encdata, self.f(decgold)), {}
+            return (encdata, self.f(decgold)[0][0]), {}
 
     class PreProcE(object):
         def __init__(self, entmat):
             self.em = Val(entmat)
 
         def __call__(self, x):
-            return self.em[x]
+            ret = self.em[x]
+            return (ret,), {}
 
     transf = PreProc(entmat)
 
@@ -259,6 +257,7 @@ def run(
             ret = np.concatenate([entrand, relrand], axis=1)
             return datas, ret.astype("int32")
 
+    #embed()
 
     obj = lambda p, n: n - p
     if hingeloss:
@@ -268,7 +267,7 @@ def run(
 
     # embed()
     # eval
-    if preeval or True:
+    if preeval:
         tt.tick("pre-evaluating")
         s = CustomRankSearch(inpenc, entenc, scorer.s, scorer.agg, relstarts=relstarts)
         eval = FullRankEval()
@@ -297,9 +296,10 @@ def run(
 
     # eval
     tt.tick("evaluating")
-    s = SeqEncDecRankSearch(encdec, entenc, scorer.s, scorer.agg)
+
+    s = CustomRankSearch(inpenc, entenc, scorer.s, scorer.agg, relstarts=relstarts)
     eval = FullRankEval()
-    pred, scores = s.decode(testdata, testgold.shape[1],
+    pred, scores = s.search(testdata, testgold.shape[1],
                             candata=entmat, canids=canids, split=evalsplits,
                             transform=transf.f, debug=printpreds)
     if printpreds:
