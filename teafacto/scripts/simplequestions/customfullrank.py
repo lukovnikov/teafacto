@@ -75,29 +75,33 @@ class CustomRankSearch(object):
             outs = []
             for i in range(pred.shape[0]):
                 canidsi = canids[i+isplit*splitsize]
-                canidsii = [None, None]
-                subjcans = filter(lambda x: x < self.relstarts, canidsi)
-                predcans = filter(lambda x: x >= self.relstarts, canidsi)
+                if len(canidsi) == 0:
+                    best = [-1, -1]
+                    scor = [0., 0.]
+                else:
+                    canidsii = [None, None]
+                    subjcans = filter(lambda x: x < self.relstarts, canidsi)
+                    predcans = filter(lambda x: x >= self.relstarts, canidsi)
 
-                canidsii[0] = subjcans + [0]*max(0, len(predcans) - len(subjcans))
-                canidsii[1] = predcans + [self.relstarts]*max(0, - len(predcans) + len(subjcans))
-                canidsii = np.asarray(canidsii, dtype="int32").T
-                canvecs = self.canenc.predict.transform(transform)(canidsii)
+                    canidsii[0] = subjcans + [0]*max(0, len(predcans) - len(subjcans))
+                    canidsii[1] = predcans + [self.relstarts]*max(0, - len(predcans) + len(subjcans))
+                    canidsii = np.asarray(canidsii, dtype="int32").T
+                    canvecs = self.canenc.predict.transform(transform)(canidsii)
 
-                entvecs = canvecs[:len(subjcans), 0, :]
-                predvecs = canvecs[:len(predcans), 0, :]
+                    entvecs = canvecs[:len(subjcans), 0, :]
+                    predvecs = canvecs[:len(predcans), 0, :]
 
-                subjinpveci = np.repeat(pred[[i], 0], len(subjcans), axis=0)
-                predinpveci = np.repeat(pred[[i], 1], len(predcans), axis=0)
+                    subjinpveci = np.repeat(pred[[i], 0], len(subjcans), axis=0)
+                    predinpveci = np.repeat(pred[[i], 1], len(predcans), axis=0)
 
-                subjscores = self.scorer.predict(subjinpveci, entvecs)
-                predscores = self.scorer.predict(predinpveci, predvecs)
+                    subjscores = self.scorer.predict(subjinpveci, entvecs)
+                    predscores = self.scorer.predict(predinpveci, predvecs)
 
-                subjswscores = sorted(zip(subjcans, list(subjscores)), key=lambda (x,y): y, reverse=True)
-                predswscores = sorted(zip(predcans, list(predscores)), key=lambda (x,y): y, reverse=True)
+                    subjswscores = sorted(zip(subjcans, list(subjscores)), key=lambda (x,y): y, reverse=True)
+                    predswscores = sorted(zip(predcans, list(predscores)), key=lambda (x,y): y, reverse=True)
 
-                best = [subjswscores[0][0], predswscores[0][0]]
-                scor = [subjswscores[0][1], predswscores[0][1]]
+                    best = [subjswscores[0][0], predswscores[0][0]]
+                    scor = [subjswscores[0][1], predswscores[0][1]]
                 scores.append(scor)
                 outs.append(best)
 
@@ -136,7 +140,6 @@ def run(
         usetypes=False,
         evalsplits=50,
         cosine=False,
-        relembrep=False,
     ):
     if debug:       # debug settings
         sumhingeloss = True
@@ -150,7 +153,7 @@ def run(
         elif whatpred == "subj":
             subjpred = True
         #preeval = True
-        specemb = 100
+        #specemb = 100
         margin = 1.
         evalsplits = 1
         relembrep = True
@@ -199,7 +202,8 @@ def run(
 
     emb = VectorEmbed(numwords, embdim)
 
-    subjenc = EntEnc(SimpleSeq2Vec(inpemb=emb,
+    subjenc = EntEnc(SimpleSeq2Vec(invocsize=numwords,
+                                   inpembdim=embdim,
                                   innerdim=decinnerdim,
                                   maskid=maskid,
                                   bidir=membidir))
@@ -280,14 +284,9 @@ def run(
             print("{}:\t{}".format(k, evalre))
         tt.tock("pre-evaluated")
 
-    negidxgenargs = ([numents], {"midsplit": relstarts})
-    if debug:
-        pass
-        # negidxgenargs = ([numents], {})
-
     tt.tick("training")
     nscorer = scorer.nstrain([traindata, traingold]).transform(transf) \
-        .negsamplegen(NegIdxGen(*negidxgenargs[0], **negidxgenargs[1])).negrate(negrate).objective(obj) \
+        .negsamplegen(NegIdxGen(numents, relstarts)).negrate(negrate).objective(obj) \
         .adagrad(lr=lr).l2(wreg).grad_total_norm(1.0) \
         .validate_on([validdata, validgold]) \
         .train(numbats=numbats, epochs=epochs)
