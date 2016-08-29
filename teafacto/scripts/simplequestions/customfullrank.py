@@ -135,6 +135,7 @@ def run(
         specemb=-1,
         usetypes=False,
         evalsplits=50,
+        cosine=False,
         relembrep=False,
     ):
     if debug:       # debug settings
@@ -218,9 +219,9 @@ def run(
         # encinnerdim[-1] += specemb
         # innerdim[-1] += specemb
 
-
+    dist = DotDistance() if not cosine else CosineDistance()
     scorerkwargs = {"argproc": lambda x, y: ((x,), (y,)),
-                   "scorer": DotDistance()}
+                   "scorer": dist}
     if sumhingeloss:
         scorerkwargs["aggregator"] = lambda x: x  # no aggregation of scores
     scorer = SeqMatchScore(inpenc, entenc, **scorerkwargs)
