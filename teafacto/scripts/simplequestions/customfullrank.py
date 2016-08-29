@@ -75,33 +75,32 @@ class CustomRankSearch(object):
             outs = []
             for i in range(pred.shape[0]):
                 canidsi = canids[i+isplit*splitsize]
-                if len(canidsi) == 0:
-                    best = [-1, -1]
-                    scor = [0., 0.]
-                else:
-                    canidsii = [None, None]
-                    subjcans = filter(lambda x: x < self.relstarts, canidsi)
-                    predcans = filter(lambda x: x >= self.relstarts, canidsi)
+                canidsii = [None, None]
+                subjcans = filter(lambda x: x < self.relstarts, canidsi)
+                predcans = filter(lambda x: x >= self.relstarts, canidsi)
 
-                    canidsii[0] = subjcans + [0]*max(0, len(predcans) - len(subjcans))
-                    canidsii[1] = predcans + [self.relstarts]*max(0, - len(predcans) + len(subjcans))
-                    canidsii = np.asarray(canidsii, dtype="int32").T
-                    canvecs = self.canenc.predict.transform(transform)(canidsii)
+                canidsii[0] = subjcans + [0] * max(0, len(predcans) - len(subjcans))
+                canidsii[1] = predcans + [self.relstarts] * max(0, - len(predcans) + len(subjcans))
+                canidsii = np.asarray(canidsii, dtype="int32").T
+                canvecs = self.canenc.predict.transform(transform)(canidsii)
 
-                    entvecs = canvecs[:len(subjcans), 0, :]
-                    predvecs = canvecs[:len(predcans), 0, :]
+                entvecs = canvecs[:len(subjcans), 0, :]
+                predvecs = canvecs[:len(predcans), 0, :]
 
-                    subjinpveci = np.repeat(pred[[i], 0], len(subjcans), axis=0)
-                    predinpveci = np.repeat(pred[[i], 1], len(predcans), axis=0)
+                subjinpveci = np.repeat(pred[[i], 0], len(subjcans), axis=0)
+                predinpveci = np.repeat(pred[[i], 1], len(predcans), axis=0)
 
-                    subjscores = self.scorer.predict(subjinpveci, entvecs)
-                    predscores = self.scorer.predict(predinpveci, predvecs)
+                subjscores = self.scorer.predict(subjinpveci, entvecs)
+                predscores = self.scorer.predict(predinpveci, predvecs)
 
-                    subjswscores = sorted(zip(subjcans, list(subjscores)), key=lambda (x,y): y, reverse=True)
-                    predswscores = sorted(zip(predcans, list(predscores)), key=lambda (x,y): y, reverse=True)
+                subjswscores = sorted(zip(subjcans, list(subjscores)), key=lambda (x, y): y, reverse=True)
+                predswscores = sorted(zip(predcans, list(predscores)), key=lambda (x, y): y, reverse=True)
 
-                    best = [subjswscores[0][0], predswscores[0][0]]
-                    scor = [subjswscores[0][1], predswscores[0][1]]
+                best = [subjswscores[0][0] if len(subjswscores) > 0 else -1,
+                        predswscores[0][0] if len(predswscores) > 0 else -1]
+                scor = [subjswscores[0][1] if len(subjswscores) > 0 else 0,
+                        predswscores[0][1] if len(predswscores) > 0 else 0]
+
                 scores.append(scor)
                 outs.append(best)
 
@@ -152,7 +151,7 @@ def run(
             predpred = True
         elif whatpred == "subj":
             subjpred = True
-        #preeval = True
+        preeval = True
         #specemb = 100
         margin = 1.
         evalsplits = 1
