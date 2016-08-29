@@ -156,7 +156,6 @@ def run(
         #specemb = 100
         margin = 1.
         evalsplits = 1
-        relembrep = True
         #usetypes=True
         #mode = "charword"
         #checkdata = True
@@ -234,15 +233,28 @@ def run(
 
     # TODO: below this line, check and test
     class PreProc(object):
-        def __init__(self, entmat):
+        def __init__(self, entmat, wordmat=None):
             self.f = PreProcE(entmat)
+            self.w = PreProcL(wordmat) if wordmat is not None else wordmat
 
         def __call__(self, encdata, decgold):  # gold: idx^(batsize, seqlen)
-            return (encdata, self.f(decgold)[0][0]), {}
+            if self.w is not None:
+                encdata = self.w(encdata)[0][0]
+            if self.f is not None:
+                decgold = self.f(decgold)[0][0]
+            return (encdata, decgold), {}
 
     class PreProcE(object):
         def __init__(self, entmat):
             self.em = Val(entmat)
+
+        def __call__(self, x):
+            ret = self.em[x]
+            return (ret,), {}
+
+    class PreProcL(object):
+        def __init__(self, wordmat):
+            self.em = Val(wordmat)
 
         def __call__(self, x):
             ret = self.em[x]

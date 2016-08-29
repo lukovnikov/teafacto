@@ -21,6 +21,7 @@ def readdata(mode, testcans=None, debug=False, specids=False, usetypes=False, ma
         else:
             p = "../../../data/simplequestions/datamat.char.mem.fb2m.pkl"
     elif mode == "word" or mode == "charword":
+        # BEWARE: all entities without labels have only the token "RARE" as label in entmat
         p = "../../../data/simplequestions/datamat.word.mem.fb2m.pkl"
     else:
         raise Exception("unknown mode")
