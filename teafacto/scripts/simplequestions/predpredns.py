@@ -149,7 +149,7 @@ def run(
     scores = np.zeros((predencs.shape[0], predembs.shape[0]))
     for i in range(predencs.shape[0]):
         for j in range(predembs.shape[0]):
-            scores[i, j] = scorer.s.predict(predencs[i], predembs[j])[0]
+            scores[i, j] = scorer.s.predict([predencs[i]], [predembs[j]])[0]
     best = np.argmax(scores, axis=1)
     embed()
     accuracy = np.sum(best == testgold)*1. / testgold.shape[0]
