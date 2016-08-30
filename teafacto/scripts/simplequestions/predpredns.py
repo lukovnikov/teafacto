@@ -150,10 +150,11 @@ def run(
     for i in range(predencs.shape[0]):
         for j in range(predembs.shape[0]):
             scores[i, j] = scorer.s.predict([predencs[i]], [predembs[j]])[0]
+        tt.progress(i, predencs.shape[0])
     best = np.argmax(scores, axis=1)
-    embed()
     accuracy = np.sum(best == testgold)*1. / testgold.shape[0]
     print accuracy
+    embed()
 
     tt.tock("evaluated")
 
