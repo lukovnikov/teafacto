@@ -149,7 +149,7 @@ def run(
     scores = np.dot(predencs, predembs.T)   # (batsize, numrels)
     best = np.argmax(scores, axis=1)
     embed()
-    accuracy = np.sum(best == testgold) / testgold.shape[0]
+    accuracy = np.sum(best == testgold)*1. / testgold.shape[0]
     print accuracy
 
     tt.tock("evaluated")
