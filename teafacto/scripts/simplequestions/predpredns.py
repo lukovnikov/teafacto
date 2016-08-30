@@ -148,9 +148,9 @@ def run(
     predencs = inpenc.predict(testdata)     # (batsize, embdim)
     scores = np.zeros((predencs.shape[0], predembs.shape[0]))
     for i in range(predencs.shape[0]):
-        for j in range(predembs.shape[0]):
-            scores[i, j] = scorer.s.predict([predencs[i]], [predembs[j]])[0]
-        tt.progress(i, predencs.shape[0])
+        scores[i, :] = scorer.s.predict(np.repeat(predencs[np.newaxis, i], predembs.shape[0], axis=0),
+                                        predembs)[0]
+        tt.progress(i, predencs.shape[0], live=True)
     best = np.argmax(scores, axis=1)
     accuracy = np.sum(best == testgold)*1. / testgold.shape[0]
     print accuracy
