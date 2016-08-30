@@ -96,6 +96,11 @@ class CustomRankSearch(object):
                 subjswscores = sorted(zip(subjcans, list(subjscores)), key=lambda (x, y): y, reverse=True)
                 predswscores = sorted(zip(predcans, list(predscores)), key=lambda (x, y): y, reverse=True)
 
+                if debug:
+                    print i
+                    print subjswscores
+                    print predswscores
+
                 best = [subjswscores[0][0] if len(subjswscores) > 0 else -1,
                         predswscores[0][0] if len(predswscores) > 0 else -1]
                 scor = [subjswscores[0][1] if len(subjswscores) > 0 else 0,
