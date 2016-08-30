@@ -144,6 +144,7 @@ def run(
         usetypes=False,
         evalsplits=50,
         cosine=False,
+        loadmodel=False,
     ):
     if debug:       # debug settings
         sumhingeloss = True
@@ -189,6 +190,7 @@ def run(
     numents = max(entdic.values()) + 1
     print "%d words, %d entities" % (numwords, numents)
 
+
     if bidir:
         encinnerdim = [encdim / 2] * layers
     else:
@@ -233,9 +235,6 @@ def run(
         scorerkwargs["aggregator"] = lambda x: x  # no aggregation of scores
     scorer = SeqMatchScore(inpenc, entenc, **scorerkwargs)
 
-    # scorer.save("scorer.test.save")
-
-    # TODO: below this line, check and test
     class PreProc(object):
         def __init__(self, entmat, wordmat=None):
             self.f = PreProcE(entmat)
@@ -300,15 +299,17 @@ def run(
             print("{}:\t{}".format(k, evalre))
         tt.tock("pre-evaluated")
 
-    tt.tick("training")
-    nscorer = scorer.nstrain([traindata, traingold]).transform(transf) \
-        .negsamplegen(NegIdxGen(numents, relstarts)).negrate(negrate).objective(obj) \
-        .adagrad(lr=lr).l2(wreg).grad_total_norm(1.0) \
-        .validate_on([validdata, validgold]) \
-        .train(numbats=numbats, epochs=epochs)
-    tt.tock("trained")
-
-    # scorer.save("scorer.test.save")
+    if not loadmodel:
+        tt.tick("training")
+        nscorer = scorer.nstrain([traindata, traingold]).transform(transf) \
+            .negsamplegen(NegIdxGen(numents, relstarts)).negrate(negrate).objective(obj) \
+            .adagrad(lr=lr).l2(wreg).grad_total_norm(1.0) \
+            .validate_on([validdata, validgold]) \
+            .train(numbats=numbats, epochs=epochs)
+        tt.tock("trained")
+        scorer.save("customfullrank.scorer.save")
+    else:
+        scorer = SeqMatchScore.load("customfullrank.scorer.save")
 
     # eval
     tt.tick("evaluating")

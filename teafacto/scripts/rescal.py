@@ -32,7 +32,7 @@ class TransE(Block):
         entembs = self.A(sp[:, 0])
         relembs = self.R(sp[:, 1])
         ret = entembs + relembs
-        return self.scorer(ret, self.A(o))
+        return self.scorer(ret, self.A(o)) ** 2
 
 
 def run(
