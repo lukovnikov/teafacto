@@ -156,14 +156,27 @@ def run(
     best = np.argmax(scores, axis=1)
     sortedbest = [sorted(zip(np.arange(scores.shape[1]), list(scores[i])),
                   reverse=True, key=lambda (x, y): y) for i in range(scores.shape[0]) ]
-    mrr = 0.0
     sortedbestmat = np.array([[x for (x,y) in z] for z in sortedbest], dtype="int32")
+    # MRR
+    mrr = 0.0
     for i in range(sortedbestmat.shape[1]):
         mrr += np.sum(sortedbestmat[:, i] == testgold) * 1./(i+1)
     mrr /= testgold.shape[0]
+    # Accuracy
     accuracy = np.sum(best == testgold)*1. / testgold.shape[0]
+    # R@X
+    def ratx(ratnum):
+        acc = 0.0
+        for i in range(min(ratnum, sortedbestmat.shape[1])):
+            acc += 1.0 * np.sum(sortedbestmat[:, i] == testgold)
+        acc /= testgold.shape[0]
+        return acc
+    rat10 = ratx(10)
+    rat50 = ratx(50)
+    rat100 = ratx(100)
     print "Accuracy: {}%".format(accuracy*100)
     print "MRR: {}".format(mrr)
+    print "Recall: @10: {}\t @50: {}\t @100: {}".format(rat10, rat50, rat100)
     embed()
 
     tt.tock("evaluated")
