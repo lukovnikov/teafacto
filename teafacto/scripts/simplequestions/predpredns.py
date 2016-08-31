@@ -102,7 +102,7 @@ def run(
         decinnerdim = [decdim] * memlayers
 
     emb = VectorEmbed(numwords, embdim)
-    predemb = VectorEmbed(numents - relstarts + 1, decinnerdim[-1], init="zero")
+    predemb = VectorEmbed(numents - relstarts + 1, decinnerdim[-1], init="uniform")
     inpenc = SimpleSeq2Vec(inpemb=emb,
                            inpembdim=emb.outdim,
                            innerdim=encinnerdim,
@@ -166,17 +166,17 @@ def run(
     accuracy = np.sum(best == testgold)*1. / testgold.shape[0]
     # R@X
     def ratx(ratnum):
+        return rat(ratnum, sortedbestmat, testgold)
+
+    def rat(ratnum, sortedpred, gold):
         acc = 0.0
         for i in range(min(ratnum, sortedbestmat.shape[1])):
-            acc += 1.0 * np.sum(sortedbestmat[:, i] == testgold)
+            acc += 1.0 * np.sum(sortedpred[:, i] == gold)
         acc /= testgold.shape[0]
         return acc
-    rat10 = ratx(10)
-    rat50 = ratx(50)
-    rat100 = ratx(100)
     print "Accuracy: {}%".format(accuracy*100)
     print "MRR: {}".format(mrr)
-    print "Recall: @10: {}\t @50: {}\t @100: {}".format(rat10, rat50, rat100)
+    print "Recall: @10: {}\t @50: {}\t @100: {}".format(ratx(10), ratx(50), ratx(100))
     embed()
 
     tt.tock("evaluated")
