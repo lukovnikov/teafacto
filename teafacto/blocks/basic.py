@@ -75,13 +75,20 @@ class IdxToOneHot(Embedder):
 
 
 class VectorEmbed(Embedder):
-    def __init__(self, indim=1000, dim=50, value=None, normalize=False, trainfrac=1.0, **kw):
+    def __init__(self, indim=1000, dim=50, value=None,
+                 normalize=False, trainfrac=1.0, init=None, **kw):
         super(VectorEmbed, self).__init__(indim, dim, **kw)
         self.dim = dim
         self.indim = indim
         self.trainfrac = trainfrac
         if value is None:
-            self.W = param((indim, dim), lrmul=self.trainfrac, name="embedder").glorotuniform()
+            self.W = param((indim, dim), lrmul=self.trainfrac, name="embedder")
+            if init == "zero":
+                self.W = self.W.constant(0.0)
+            elif init == "glorot" or init == None:
+                self.W = self.W.glorotuniform()
+            elif init == "uniform":
+                self.W = self.W.uniform()
         else:
             if trainfrac == 0.0:
                 self.W = Val(value, name="embedder_val")

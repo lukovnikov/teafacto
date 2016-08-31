@@ -217,7 +217,7 @@ def run(
     repsplit = entmat[relstarts, 0]
     if specids:  # include vectorembedder
         subjenc = EntEmbEnc(subjenc, numentembs, specemb)
-    predenc = VectorEmbed(indim=numents-relstarts+1, dim=subjenc.outdim)
+    predenc = VectorEmbed(indim=numents-relstarts+1, dim=subjenc.outdim, init="zero")
     entenc = CustomEntEnc(subjenc, predenc, repsplit)
 
     inpenc = CustomSeq2Pair(inpemb=emb, encdim=encinnerdim, scadim=encinnerdim,

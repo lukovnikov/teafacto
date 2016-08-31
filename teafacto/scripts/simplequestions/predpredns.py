@@ -102,7 +102,7 @@ def run(
         decinnerdim = [decdim] * memlayers
 
     emb = VectorEmbed(numwords, embdim)
-    predemb = VectorEmbed(numents - relstarts + 1, decinnerdim[-1])
+    predemb = VectorEmbed(numents - relstarts + 1, decinnerdim[-1], init="zero")
     inpenc = SimpleSeq2Vec(inpemb=emb,
                            inpembdim=emb.outdim,
                            innerdim=encinnerdim,
@@ -154,8 +154,16 @@ def run(
                              predembs)
         tt.progress(i, predencs.shape[0], live=True)
     best = np.argmax(scores, axis=1)
+    sortedbest = [sorted(zip(np.arange(scores.shape[1]), list(scores[i])),
+                  reverse=True, key=lambda (x, y): y) for i in range(scores.shape[0]) ]
+    mrr = 0.0
+    sortedbestmat = np.array([[x for (x,y) in z] for z in sortedbest], dtype="int32")
+    for i in range(sortedbestmat.shape[1]):
+        mrr += np.sum(sortedbestmat[:, i] == testgold) * 1./(i+1)
+    mrr /= testgold.shape[0]
     accuracy = np.sum(best == testgold)*1. / testgold.shape[0]
-    print accuracy
+    print "Accuracy: {}%".format(accuracy*100)
+    print "MRR: {}".format(mrr)
     embed()
 
     tt.tock("evaluated")
