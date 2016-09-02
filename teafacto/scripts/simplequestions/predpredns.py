@@ -176,7 +176,7 @@ def run(
         return acc
     print "Accuracy: {}%".format(accuracy*100)
     print "MRR: {}".format(mrr)
-    print "Recall: @10: {}\t @50: {}\t @100: {}".format(ratx(10), ratx(50), ratx(100))
+    print "Recall: @10: {}%\t @50: {}%\t @100: {}%".format(ratx(10)*100, ratx(50)*100, ratx(100)*100)
     embed()
 
     tt.tock("evaluated")
