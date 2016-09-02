@@ -102,7 +102,7 @@ def run(
         decinnerdim = [decdim] * memlayers
 
     emb = VectorEmbed(numwords, embdim)
-    predemb = VectorEmbed(numents - relstarts + 1, decinnerdim[-1], init="uniform")
+    predemb = VectorEmbed(numents - relstarts + 1, decdim, init="uniform")
     inpenc = SimpleSeq2Vec(inpemb=emb,
                            inpembdim=emb.outdim,
                            innerdim=encinnerdim,
