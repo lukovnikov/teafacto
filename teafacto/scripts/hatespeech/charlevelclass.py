@@ -92,7 +92,7 @@ def run(epochs=50,
                         innerdim=encdim, maskid=maskid, bidir=bidir,
                         layers=layers, numclasses=2)
     pred = enc.predict(traindata[:5, :])
-    enc = enc.train([traindata], traingold).adadelta(lr=lr)\
+    enc = enc.train([traindata], traingold).adadelta(lr=lr).grad_total_norm(1.0)\
         .cross_entropy().split_validate(6, random=True).accuracy()\
         .train(numbats=numbats, epochs=epochs)
 
