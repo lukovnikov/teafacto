@@ -42,11 +42,6 @@ def run(
         lr = 0.02
         epochs = 1
         printpreds = True
-        whatpred = "all"
-        if whatpred == "pred":
-            predpred = True
-        elif whatpred == "subj":
-            subjpred = True
         preeval = True
         # specemb = 100
         margin = 1.

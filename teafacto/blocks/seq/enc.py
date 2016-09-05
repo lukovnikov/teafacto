@@ -1,4 +1,4 @@
-from teafacto.blocks.basic import IdxToOneHot, VectorEmbed
+from teafacto.blocks.basic import IdxToOneHot, VectorEmbed, MatDot, Softmax
 from teafacto.blocks.pool import Pool
 from teafacto.blocks.seq.rnn import MakeRNU
 from teafacto.blocks.seq.oldseqproc import Vec2Idx, SimpleVec2Idx
@@ -84,6 +84,17 @@ class SimpleSeq2Vec(Seq2Vec):
     @staticmethod
     def makernu(inpembdim, innerdim, bidir=False):
         return MakeRNU.make(inpembdim, innerdim, bidir=bidir)
+
+
+class SimpleSeq2Idx(SimpleSeq2Vec):
+    def __init__(self, numclasses=2, **kwargs):
+        super(SimpleSeq2Idx, self).__init__(**kwargs)
+        self.numclasses = numclasses
+        self.smol = MatDot(indim=self.outdim, dim=self.numclasses)
+
+    def apply(self, x, mask=None, weights=None):
+        ret = super(SimpleSeq2Vec, self).apply(x, mask=mask, weights=weights)
+        return Softmax()(self.smol(ret))
 
 
 class SimpleSeq2Sca(SimpleSeq2Vec):

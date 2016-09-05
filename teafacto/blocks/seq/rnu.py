@@ -72,7 +72,7 @@ class ReccableBlock(RecurrentBlock):    # exposes a rec function
         y_tm1 = T.zeros_like(y_t)
         y_tm1 = states[0]               # TODO: beware with multiple layers (here will be the bottom first)
         y_t_out = (y_t.T * m_t + y_tm1.T * (1 - m_t)).T
-        states_out = [(a.T * m_t + b.T * (1 - m_t)).T for a, b in zip(newstates, states)]
+        states_out = [(a.T * m_t + b.T * (1 - m_t)).T for a, b in zip(newstates, states)]   # TODO: try replace with switch expression
         return [y_t_out] + states_out
 
 

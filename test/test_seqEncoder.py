@@ -31,6 +31,22 @@ class TestSeqEncoder(TestCase):
         mpred = m.predict(data, weights, mask)
         self.assertEqual(mpred.shape, (batsize, seqlen, dim))
 
+
+    def test_mask_dynamic_pad(self):
+        batsize = 10
+        seqlen = 5
+        dim = 6
+        indim = 5
+        m = SeqEncoder(IdxToOneHot(indim), GRU(dim=indim, innerdim=dim)).maskoption(-1).all_outputs
+        data = np.random.randint(0, indim, (batsize, seqlen)).astype("int32")
+        rmasker = np.random.randint(2, seqlen, (batsize, )).astype("int32")
+        print rmasker
+        for i in range(data.shape[0]):
+            data[i, rmasker[i]:] = -1
+        print data
+        pred = m.predict(data)
+        print pred
+
     def test_mask_no_state_updates(self):
         batsize = 10
         seqlen = 3
