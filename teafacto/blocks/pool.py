@@ -2,6 +2,25 @@ from teafacto.core.base import Block
 from teafacto.core.base import tensorops as T
 
 
+class OneDPool(Block):
+    def __init__(self, mode="max", **kw):
+        """
+        :param axis:
+        :param stride:
+        :param pad:
+        :param mode:
+        :param ignore_border:
+        :param kw:
+        """
+        self.mode = mode
+
+    def apply(self, x, mask=None):  # (batsize, seqlen, dim) and (batsize, seqlen)
+        if mask is None:
+            mask = T.zeros((x.shape[0], x.shape[1]))
+
+        T.scan(fn=self.rec, sequences=[x, mask])
+
+
 class Pool(Block):
     def __init__(self, size, axis=None, stride=None, pad=None,
                  mode="max", ignore_border=True, **kw):
@@ -36,7 +55,7 @@ class Pool(Block):
         self.ignore_border = ignore_border
         super(Pool, self).__init__(**kw)
 
-    def apply(self, x):
+    def apply(self, x, mask=None):
         assert x.ndim >= 2
         curaxes = range(x.ndim)
         if self.axis is not None:

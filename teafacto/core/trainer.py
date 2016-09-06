@@ -108,8 +108,13 @@ class ModelTrainer(object):
         self._set_objective(squared_error)
         return self
 
+    def squared_loss(self):
+        self._set_objective(lambda x, y: (1 - x * y) ** 2)        # [-1, +1](batsize, )
+        return self
+
     def binary_cross_entropy(self): # theano binary cross entropy (through lasagne), probs: (batsize,) float, gold: (batsize,) float
         self._set_objective(binary_crossentropy)
+        return self
 
     def accuracy(self, top_k=1):
         def categorical_accuracy(predictions, targets, top_k=1): # !!! copied from Lasagne # TODO: import properly

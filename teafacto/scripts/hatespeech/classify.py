@@ -1,4 +1,4 @@
-from teafacto.blocks.seq.enc import SimpleSeq2Idx
+from teafacto.blocks.seq.enc import SimpleSeq2Bool
 from teafacto.util import argprun, ticktock, tokenize
 import csv, numpy as np, sys
 
@@ -90,12 +90,14 @@ def run(epochs=50,
                  "../../../data/hatespeech/test.csv",
                  masksym=maskid, mode=mode, maxlen=maxlen)
     encdim = [encdim] * layers
-    enc = SimpleSeq2Idx(indim=len(dic), inpembdim=embdim,
+    enc = SimpleSeq2Bool(indim=len(dic), inpembdim=embdim,
                         innerdim=encdim, maskid=maskid, bidir=bidir,
                         numclasses=2)
     pred = enc.predict(traindata[:5, :])
+    print pred
+    traingold = traingold * 2 - 1.
     enc = enc.train([traindata], traingold).adadelta(lr=lr).grad_total_norm(1.0)\
-        .cross_entropy().autovalidate().cross_entropy().accuracy()\
+        .squared_loss().split_validate(6, random=True).squared_loss()\
         .train(numbats=numbats, epochs=epochs)
 
     enc.save("hatemodel.{}.Emb{}D.Enc{}D.{}L.model".format(mode, embdim, encdim, layers))

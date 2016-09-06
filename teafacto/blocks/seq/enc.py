@@ -57,12 +57,14 @@ class Seq2Vec(Block):
         self.pool = pool
         self.enc = SeqEncoder(inpemb, *enclayers).maskoptions(maskid, MaskMode.AUTO)
         if self.pool is not None:
-            self.enc = self.enc.all_outputs
+            self.enc = self.enc.all_outputs.with_mask
 
     def apply(self, x, mask=None, weights=None):
-        ret = self.enc(x, mask=mask, weights=weights)
         if self.pool is not None:
-            ret = self.pool(ret)
+            ret, mask = self.enc(x, mask=mask, weights=weights)
+            ret = self.pool(ret, mask)
+        else:
+            ret = self.enc(x, mask=mask, weights=weights)
         return ret
 
 
@@ -93,8 +95,18 @@ class SimpleSeq2Idx(SimpleSeq2Vec):
         self.smol = MatDot(indim=self.outdim, dim=self.numclasses)
 
     def apply(self, x, mask=None, weights=None):
-        ret = super(SimpleSeq2Vec, self).apply(x, mask=mask, weights=weights)
+        ret = super(SimpleSeq2Idx, self).apply(x, mask=mask, weights=weights)
         return Softmax()(self.smol(ret))
+
+
+class SimpleSeq2Bool(SimpleSeq2Vec):
+    def __init__(self, **kwargs):
+        super(SimpleSeq2Bool, self).__init__(**kwargs)
+        self.summ = param((self.outdim,), name="summarizer").uniform()
+
+    def apply(self, x, mask=None, weights=None):
+        ret = super(SimpleSeq2Bool, self).apply(x, mask=mask, weights=weights)
+        return T.tanh(T.dot(ret, self.summ))
 
 
 class SimpleSeq2Sca(SimpleSeq2Vec):
