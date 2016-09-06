@@ -80,10 +80,11 @@ def run(epochs=50,
         embdim=100,
         encdim=200,
         bidir=False,
-        mode="char",        # "char" or "word"
+        wordlevel=False,        # "char" or "word"
         maxlen=75,
         ):
     maskid = -1
+    mode = "word" if wordlevel else "char"
     (traindata, traingold), (testdata, testgold), dic = \
         readdata("../../../data/hatespeech/train.csv",
                  "../../../data/hatespeech/test.csv",
@@ -94,7 +95,7 @@ def run(epochs=50,
                         numclasses=2)
     pred = enc.predict(traindata[:5, :])
     enc = enc.train([traindata], traingold).adadelta(lr=lr).grad_total_norm(1.0)\
-        .cross_entropy().split_validate(6, random=True).cross_entropy().accuracy()\
+        .cross_entropy().autovalidate().cross_entropy().accuracy()\
         .train(numbats=numbats, epochs=epochs)
 
     enc.save("hatemodel.{}.Emb{}D.Enc{}D.{}L.model".format(mode, embdim, encdim, layers))
