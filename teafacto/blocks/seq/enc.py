@@ -59,6 +59,11 @@ class Seq2Vec(Block):
         if self.pool is not None:
             self.enc = self.enc.all_outputs.with_mask
 
+    @property
+    def all_outputs(self):
+        self.enc = self.enc.all_outputs
+        return self
+
     def apply(self, x, mask=None, weights=None):
         if self.pool is not None:
             ret, mask = self.enc(x, mask=mask, weights=weights)

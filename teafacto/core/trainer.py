@@ -116,6 +116,10 @@ class ModelTrainer(object):
         self._set_objective(binary_crossentropy)
         return self
 
+    def bin_accuracy(self, sep=0):
+        self._set_objective(lambda x, y: theano.tensor.eq(x > sep, y > sep))
+        return self
+
     def accuracy(self, top_k=1):
         def categorical_accuracy(predictions, targets, top_k=1): # !!! copied from Lasagne # TODO: import properly
             if targets.ndim == predictions.ndim:

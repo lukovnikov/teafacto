@@ -20,6 +20,19 @@ class TestSimpleSeq2Vec(TestCase):
         print self.mo, self.mo.ndim
         #theano.printing.pydotprint(self.mo.d, "debug.png")
 
+    def test_mask(self):
+        np.random.seed(1337)
+        enc = SimpleSeq2Vec(indim=100, inpembdim=10, innerdim=4, maskid=-1, layers=2).all_outputs
+        x = np.random.randint(0, 100, (33, 5))
+        maskr = np.random.randint(1, x.shape[1], (x.shape[0],))
+        for i in range(x.shape[0]):
+            x[i, maskr[i]:] = -1
+        pred = enc.predict(x)
+        print maskr
+        print x
+        print pred
+        print pred.shape
+
 
 class TestSimpleSeq2Sca(TestCase):
     def test_shape(self):
@@ -28,3 +41,5 @@ class TestSimpleSeq2Sca(TestCase):
         prd, mask = enc.predict(x)
         self.assertEqual(prd.shape, (33, 5))
         self.assertEqual(mask.shape, (33, 5))
+
+

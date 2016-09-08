@@ -1,0 +1,8 @@
+1,0,"this is bad sentence"
+0,0,"this is good sentence"
+1,0,"this is bad"
+0,0,"this is good"
+0,0,"good for you"
+0,0,"good for me"
+1,0,"eskimo *** is mighty cold"
+0,0,"feels good. is good."

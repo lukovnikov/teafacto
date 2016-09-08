@@ -1,4 +1,6 @@
-from teafacto.blocks.seq.enc import SimpleSeq2Bool
+from teafacto.blocks.seq.enc import SimpleSeq2Bool, SimpleSeq2Vec, SimpleSeq2Idx
+from teafacto.blocks.basic import VectorEmbed
+from teafacto.core.base import Val
 from teafacto.util import argprun, ticktock, tokenize
 import csv, numpy as np, sys
 
@@ -14,14 +16,16 @@ def readdata(trainp, testp, mode=None, masksym=-1, maxlen=100):
 def readdata_word(trainp, testp, maxlen=100, masksym=-1):
     tt = ticktock("data reader")
 
-    def readdataset(p, wdic={}):
+    def readdataset(p, wdic, maxlen=100):
         dataret = []
         goldret = []
         toolong = 0
+        realmaxlen = 0
         with open(p) as f:
             data = csv.reader(f, delimiter=",")
             for row in data:
                 rowelems = tokenize(row[2])
+                realmaxlen = max(realmaxlen, len(rowelems))
                 if len(rowelems) > maxlen:
                     toolong += 1
                 for rowelem in set(rowelems):
@@ -30,14 +34,15 @@ def readdata_word(trainp, testp, maxlen=100, masksym=-1):
                 dataret.append([wdic[x] for x in rowelems])
                 goldret.append(row[0])
         print "{} comments were too long".format(toolong)
+        maxlen = min(maxlen, realmaxlen)
         datamat = np.ones((len(dataret) - 1, maxlen)).astype("int32") * masksym
         for i in range(1, len(dataret)):
             datamat[i - 1, :min(len(dataret[i]), maxlen)] = dataret[i][:min(len(dataret[i]), maxlen)]
         return datamat, np.asarray(goldret[1:], dtype="int32"), wdic
 
     tt.tick("reading data")
-    traindata, traingold, wdic = readdataset(trainp)
-    testdata, testgold, wdic = readdataset(testp, wdic=wdic)
+    traindata, traingold, wdic = readdataset(trainp, {}, maxlen=maxlen)
+    testdata, testgold, wdic = readdataset(testp, wdic=wdic, maxlen=maxlen)
     tt.tock("data read")
     return (traindata, traingold), (testdata, testgold), wdic
 
@@ -77,27 +82,58 @@ def run(epochs=50,
         numbats=25,
         lr=0.1,
         layers=1,
-        embdim=100,
+        embdim=200,
         encdim=200,
         bidir=False,
         wordlevel=False,        # "char" or "word"
         maxlen=75,
+        maxwordlen=15,
         ):
     maskid = -1
+    charword = False
     mode = "word" if wordlevel else "char"
     (traindata, traingold), (testdata, testgold), dic = \
         readdata("../../../data/hatespeech/train.csv",
                  "../../../data/hatespeech/test.csv",
                  masksym=maskid, mode=mode, maxlen=maxlen)
+    # data stats
+    print "class distribution in train: {}% positive".format(np.sum(traingold)*1. / np.sum(np.ones_like(traingold)))
+    print "class distribution in test: {}% positive".format(np.sum(testgold)*1. / np.sum(np.ones_like(testgold)))
+    if mode == "word" and charword is True:      # create wordmat
+        realmaxwordlen = reduce(lambda x, y: max(x,y), [len(z) for z in dic.keys()], 0)
+        maxwordlen = min(realmaxwordlen, maxwordlen)
+        wordmat = maskid * np.ones((len(dic), maxwordlen))
+        chardic = {}
+        revdic = {v: k for k, v in dic.items()}
+        for i in range(wordmat.shape[0]):
+            w = revdic[i]
+            w = w[:min(len(w), maxwordlen)]
+            for c in w:
+                if c not in chardic:
+                    chardic[c] = len(chardic)
+            wordmat[i, :len(w)] = w
+
+    inpemb = VectorEmbed(indim=len(dic), dim=embdim)
+    if mode == "word" and charword:
+        inpemb = SimpleSeq2Vec(indim=len(chardic), inpembdim=embdim,
+                               innerdim=embdim, maskid=maskid)
+
     encdim = [encdim] * layers
-    enc = SimpleSeq2Bool(indim=len(dic), inpembdim=embdim,
+    enc = SimpleSeq2Idx(inpemb=inpemb, inpembdim=embdim,
                         innerdim=encdim, maskid=maskid, bidir=bidir,
                         numclasses=2)
-    pred = enc.predict(traindata[:5, :])
-    print pred
-    traingold = traingold * 2 - 1.
-    enc = enc.train([traindata], traingold).adadelta(lr=lr).grad_total_norm(1.0)\
-        .squared_loss().split_validate(6, random=True).squared_loss()\
+    #print enc.predict(traindata[:5, :])
+    transf = lambda x: x
+    if mode == "word" and charword:
+        class PreProc(object):
+            def __init__(self, wordmat):
+                self.em = Val(wordmat)
+            def __call__(self, x):
+                return self.em[x]
+        transf = PreProc(wordmat)
+    enc = enc.train([traindata], traingold)\
+        .adadelta(lr=lr).grad_total_norm(1.0)\
+        .cross_entropy().split_validate(6, random=True).cross_entropy().accuracy()\
         .train(numbats=numbats, epochs=epochs)
 
     enc.save("hatemodel.{}.Emb{}D.Enc{}D.{}L.model".format(mode, embdim, encdim, layers))

@@ -18,7 +18,7 @@ class OneDPool(Block):
         if mask is None:
             mask = T.zeros((x.shape[0], x.shape[1]))
 
-        T.scan(fn=self.rec, sequences=[x, mask])
+        T.scan(fn=self.rec, sequences=[x.dimswap(1, 0), mask.dimswap(1, 0)])
 
 
 class Pool(Block):
