@@ -23,7 +23,7 @@ def run(epochs=10,
     # model
     tt.tick("building model")
 
-    m = SimpleSeq2Idx(indim=len(worddic), inpembdim=embdim,
+    m = SimpleSeq2Idx(indim=len(worddic), inpembdim=embdim, numclasses=len(entdic),
                       innerdim=encdim, maskid=0, layers=layers)
     tt.tock("built model")
     tt.tick("training")
