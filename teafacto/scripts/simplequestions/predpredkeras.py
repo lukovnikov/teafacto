@@ -34,7 +34,7 @@ def run(epochs=10,
         entmat += 1
         entdic = x["entdic"]
         entdic = {k: v - numents for k, v in entdic.items() if v >= numents}
-        traingold = traingold[:, 1] - numents
+        traingold = traingold[:, [1]] - numents
         validgold = validgold[:, 1] - numents
         testgold = testgold[:, 1] - numents
         def pp(idseq):
@@ -42,6 +42,7 @@ def run(epochs=10,
             if k == 0 else "<???>" for k in idseq])
 
         #embed()
+        print traindata.shape, traingold.shape
 
     # model
     m = Sequential()
