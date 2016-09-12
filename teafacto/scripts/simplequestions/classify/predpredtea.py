@@ -24,10 +24,10 @@ def run(epochs=10,
     tt.tick("building model")
 
     m = SimpleSeq2Idx(indim=len(worddic), inpembdim=embdim,
-                      innerdim=encdim, maskid=0)
+                      innerdim=encdim, maskid=0, layers=layers)
     tt.tock("built model")
     tt.tick("training")
-    m.train([traindata], traingold).adadelta().cross_entropy()\
+    m.train([traindata], traingold).adadelta(lr=lr).cross_entropy()\
         .validate_on([validdata], validgold).cross_entropy().accuracy()\
         .train(numbats=numbats, epochs=epochs)
     tt.tock("trained")

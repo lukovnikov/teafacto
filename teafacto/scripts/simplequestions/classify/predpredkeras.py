@@ -109,7 +109,7 @@ def run(epochs=10,
     m.add(Activation("softmax"))
 
     m.compile(loss="categorical_crossentropy",
-              optimizer=Adadelta(),
+              optimizer=Adadelta(lr=lr),
               metrics=["accuracy"])
     tt.tock("built model")
     tt.tick("training")
