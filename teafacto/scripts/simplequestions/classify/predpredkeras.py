@@ -91,10 +91,12 @@ def run(epochs=10,
     m = Sequential()
     m.add(Embedding(len(worddic)+1, embdim, mask_zero=True))
     if type == "rnn":
+        print("doing RNN")
         for i in range(layers - 1):
             m.add(GRU(encdim, return_sequences=True))
         m.add(GRU(encdim, return_sequences=False))
     elif type == "cnn":
+        print("doing CNN")
         for i in range(layers):
             m.add(Convolution1D(encdim, encdim))
         m.add(GlobalMaxPooling1D())
