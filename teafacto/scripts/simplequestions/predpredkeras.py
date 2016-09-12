@@ -1,7 +1,7 @@
 import pickle, numpy as np
 
 from keras.models import Sequential
-from keras.layers import LSTM, Embedding, Dense, Activation
+from keras.layers import LSTM, GRU, Embedding, Dense, Activation
 from keras.optimizers import Adadelta
 
 from teafacto.util import argprun
@@ -13,6 +13,7 @@ def run(epochs=10,
         lr=0.1,
         embdim=200,
         encdim=300,
+        layers=1,
         p="../../data/simplequestions/datamat.word.mem.fb2m.pkl",
         ):
     # load data for classification
@@ -45,8 +46,9 @@ def run(epochs=10,
     # model
     m = Sequential()
     m.add(Embedding(len(worddic), embdim, mask_zero=True))
-    m.add(LSTM(encdim, return_sequences=True))
-    m.add(LSTM(encdim, return_sequences=False))
+    for i in range(layers - 1):
+        m.add(GRU(encdim, return_sequences=True))
+    m.add(GRU(encdim, return_sequences=False))
     m.add(Dense(len(entdic)))
     m.add(Activation("softmax"))
 
