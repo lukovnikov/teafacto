@@ -111,6 +111,10 @@ def run(epochs=10,
     m.fit(traindata, traingold, nb_epoch=epochs, batch_size=batsize,
           validation_data=(validdata, validgold))
     tt.tock("trained")
+    tt.tick("testing")
+    score, acc = m.evaluate(testdata, testgold, batch_size=batsize)
+    print("Score: {}\nAccuracy: {}".format(score, acc))
+    tt.tock("tested")
 
 if __name__ == "__main__":
     argprun(run)
