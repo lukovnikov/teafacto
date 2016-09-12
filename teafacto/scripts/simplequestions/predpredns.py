@@ -65,6 +65,8 @@ def run(
     worddic, entdic, entmat, relstarts, canids, wordmat, chardic \
         = readdata(mode, testcans="testcans.pkl", debug=debug, specids=True,
                    usetypes=usetypes, maskid=maskid)
+
+    embed()
     entmat = entmat.astype("int32")
     # transform for predpred
     traingold = traingold[:, 1] - relstarts
