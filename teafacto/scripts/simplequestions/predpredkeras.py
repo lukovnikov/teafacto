@@ -40,7 +40,7 @@ def run(epochs=10,
             print " ".join([rwd[k] if k in rwd else ""
             if k == 0 else "<???>" for k in idseq])
 
-        embed()
+        #embed()
 
     # model
     m = Sequential()
@@ -52,7 +52,7 @@ def run(epochs=10,
 
     m.compile(loss="categorical_crossentropy",
               optimizer=Adadelta(),
-              metrics="accuracy")
+              metrics=["accuracy"])
 
     m.fit(traindata, traingold, nb_epoch=epochs, batch_size=batsize,
           validation_data=(validdata, validgold))
