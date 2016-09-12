@@ -46,11 +46,14 @@ class GlobalMaxPooling1D(_GlobalPooling1D):
 def cleandata(traindata, validdata=None, testdata=None, dic=None, rarefreq=5):
     counts = np.bincount(traindata.flatten())     # !no neg ids! counts of words in traindata
     retain = set(list(np.argwhere(counts > rarefreq)[:, 0]))
-    dropper = np.vectorize(lambda x: x if x in retain else dic["<RARE>"])
+    transdic = {0: 0, dic["<RARE>"]: 1}
+    for i in retain.difference(set(transdic.keys())):
+        transdic[i] = len(transdic)
+    dropper = np.vectorize(lambda x: transdic[x] if x in transdic else dic["<RARE>"])
     traindata = dropper(traindata)
     validdata = dropper(validdata) if validdata is not None else validdata
     testdata = dropper(testdata) if testdata is not None else testdata
-    outdic = {k: v for k, v in dic.items() if v in retain}
+    outdic = {k: transdic[v] for k, v in dic.items() if v in transdic}
     #embed()
     return traindata, validdata, testdata, outdic
 
