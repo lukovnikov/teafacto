@@ -35,12 +35,13 @@ def run(epochs=10,
         entmat += 1
         entdic = x["entdic"]
         entdic = {k: v - numents for k, v in entdic.items() if v >= numents}
+        numrels = len(entdic)
         traingold = traingold[:, 1] - numents
-        traingold = np_utils.to_categorical(traingold)
+        traingold = np_utils.to_categorical(traingold, nb_classes=numrels)
         validgold = validgold[:, 1] - numents
-        validgold = np_utils.to_categorical(validgold)
+        validgold = np_utils.to_categorical(validgold, nb_classes=numrels)
         testgold = testgold[:, 1] - numents
-        testgold = np_utils.to_categorical(testgold)
+        testgold = np_utils.to_categorical(testgold, nb_classes=numrels)
         def pp(idseq):
             print " ".join([rwd[k] if k in rwd else ""
             if k == 0 else "<???>" for k in idseq])
