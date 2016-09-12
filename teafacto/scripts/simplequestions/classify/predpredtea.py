@@ -27,8 +27,8 @@ def run(epochs=10,
                       innerdim=encdim, maskid=0, layers=layers)
     tt.tock("built model")
     tt.tick("training")
-    m.train([traindata], traingold).adadelta(lr=lr).cross_entropy()\
-        .validate_on([validdata], validgold).cross_entropy().accuracy()\
+    m.train([traindata], traingold).adadelta(lr=lr).cross_entropy().grad_total_norm(1.)\
+        .validate_on([validdata], validgold).cross_entropy().accuracy().takebest()\
         .train(numbats=numbats, epochs=epochs)
     tt.tock("trained")
     tt.tick("testing")

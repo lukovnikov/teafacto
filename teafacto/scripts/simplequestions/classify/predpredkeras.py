@@ -42,7 +42,20 @@ class GlobalMaxPooling1D(_GlobalPooling1D):
         #tot = K.sum(mask, axis=1) if mask is not None else x.shape[1]  # (samples, )
         #return sum / tot
 
-def readdata(p):
+
+def cleandata(traindata, validdata=None, testdata=None, dic=None, rarefreq=5):
+    counts = np.bincount(traindata.flatten())     # !no neg ids! counts of words in traindata
+    retain = set(list(np.argwhere(counts > rarefreq)[:, 0]))
+    dropper = np.vectorize(lambda x: x if x in retain else dic["<RARE>"])
+    traindata = dropper(traindata)
+    validdata = dropper(validdata) if validdata is not None else validdata
+    testdata = dropper(testdata) if testdata is not None else testdata
+    outdic = {k: v for k, v in dic.items() if v in retain}
+    #embed()
+    return traindata, validdata, testdata, outdic
+
+
+def readdata(p, clean=False, rarefreq=4):
     with open(p) as f:
         x = pickle.load(f)
         traindata, traingold = x["train"]
@@ -70,6 +83,8 @@ def readdata(p):
 
         # embed()
         print traindata.shape, traingold.shape
+        if clean:
+            traindata, validdata, testdata, worddic = cleandata(traindata, validdata=validdata, testdata=testdata, dic=worddic, rarefreq=rarefreq)
         return (traindata, traingold), (validdata, validgold), (testdata, testgold), entdic, entmat, worddic, numents
 
 def run(epochs=10,
@@ -79,13 +94,15 @@ def run(epochs=10,
         encdim=300,
         layers=1,
         type="rnn",  # rnn or cnn
+        clean=False,
+        rarefreq=4,
         p="../../data/simplequestions/datamat.word.mem.fb2m.pkl",
         ):
     # load data for classification
     tt = ticktock("script")
-    tt.tick()
+    tt.tick("loading data")
     (traindata, traingold), (validdata, validgold), (testdata, testgold), \
-        entdic, entmat, worddic, numents = readdata(p)
+        entdic, entmat, worddic, numents = readdata(p, clean=clean, rarefreq=rarefreq)
     numrels = len(entdic)
     traingold = np_utils.to_categorical(traingold, nb_classes=numrels)
     validgold = np_utils.to_categorical(validgold, nb_classes=numrels)
