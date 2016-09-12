@@ -84,6 +84,7 @@ def readdata(p, clean=False, rarefreq=4):
         # embed()
         print traindata.shape, traingold.shape
         if clean:
+            print "cleaning"
             traindata, validdata, testdata, worddic = cleandata(traindata, validdata=validdata, testdata=testdata, dic=worddic, rarefreq=rarefreq)
         return (traindata, traingold), (validdata, validgold), (testdata, testgold), entdic, entmat, worddic, numents
 
