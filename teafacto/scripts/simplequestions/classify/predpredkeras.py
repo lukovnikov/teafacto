@@ -8,7 +8,6 @@ from keras.engine import Layer, InputSpec
 from keras import backend as K
 
 from teafacto.util import argprun, ticktock
-from teafacto.scripts.simplequestions.fullrank import readdata
 from IPython import embed
 
 class _GlobalPooling1D(Layer):
@@ -43,6 +42,36 @@ class GlobalMaxPooling1D(_GlobalPooling1D):
         #tot = K.sum(mask, axis=1) if mask is not None else x.shape[1]  # (samples, )
         #return sum / tot
 
+def readdata(p):
+    with open(p) as f:
+        x = pickle.load(f)
+        traindata, traingold = x["train"]
+        traindata += 1
+        validdata, validgold = x["valid"]
+        validdata += 1
+        testdata, testgold = x["test"]
+        testdata += 1
+        worddic = x["worddic"]
+        numents = x["numents"]
+        worddic = {k: v + 1 for k, v in worddic.items()}
+        rwd = {v: k for k, v in worddic.items()}
+        entmat = x["entmat"]
+        entmat = entmat[numents:, :]
+        entmat += 1
+        entdic = x["entdic"]
+        entdic = {k: v - numents for k, v in entdic.items() if v >= numents}
+        traingold = traingold[:, 1] - numents
+        validgold = validgold[:, 1] - numents
+        testgold = testgold[:, 1] - numents
+
+        def pp(idseq):
+            print " ".join([rwd[k] if k in rwd else ""
+            if k == 0 else "<???>" for k in idseq])
+
+        # embed()
+        print traindata.shape, traingold.shape
+        return (traindata, traingold), (validdata, validgold), (testdata, testgold), entdic, entmat, worddic, numents
+
 def run(epochs=10,
         batsize=100,
         lr=0.1,
@@ -55,36 +84,12 @@ def run(epochs=10,
     # load data for classification
     tt = ticktock("script")
     tt.tick()
-    with open(p) as f:
-        x = pickle.load(f)
-        traindata, traingold = x["train"]
-        traindata += 1
-        validdata, validgold = x["valid"]
-        validdata += 1
-        testdata, testgold = x["test"]
-        testdata += 1
-        worddic = x["worddic"]
-        numents = x["numents"]
-        worddic = {k: v+1 for k, v in worddic.items()}
-        rwd = {v: k for k, v in worddic.items()}
-        entmat = x["entmat"]
-        entmat = entmat[numents:, :]
-        entmat += 1
-        entdic = x["entdic"]
-        entdic = {k: v - numents for k, v in entdic.items() if v >= numents}
-        numrels = len(entdic)
-        traingold = traingold[:, 1] - numents
-        traingold = np_utils.to_categorical(traingold, nb_classes=numrels)
-        validgold = validgold[:, 1] - numents
-        validgold = np_utils.to_categorical(validgold, nb_classes=numrels)
-        testgold = testgold[:, 1] - numents
-        testgold = np_utils.to_categorical(testgold, nb_classes=numrels)
-        def pp(idseq):
-            print " ".join([rwd[k] if k in rwd else ""
-            if k == 0 else "<???>" for k in idseq])
-
-        #embed()
-        print traindata.shape, traingold.shape
+    (traindata, traingold), (validdata, validgold), (testdata, testgold), \
+        entdic, entmat, worddic, numents = readdata(p)
+    numrels = len(entdic)
+    traingold = np_utils.to_categorical(traingold, nb_classes=numrels)
+    validgold = np_utils.to_categorical(validgold, nb_classes=numrels)
+    testgold = np_utils.to_categorical(testgold, nb_classes=numrels)
     tt.tock("loaded data")
     # model
     tt.tick("building model")
