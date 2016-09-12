@@ -35,6 +35,7 @@ def run(epochs=10,
     tt.tock("trained")
     tt.tick("testing")
     preds = m.predict(testdata)
+    preds = np.argmax(preds, axis=1)
     acc = preds == testgold
     acc = np.sum(acc) * 1.0 / testdata.shape[0]
     print("Accuracy: {}".format(acc))
