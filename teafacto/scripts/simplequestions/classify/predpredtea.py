@@ -11,6 +11,8 @@ def run(epochs=10,
         embdim=200,
         encdim=300,
         layers=1,
+        clean=False,
+        rarefreq=4,
         type="rnn",  # rnn or cnn
         p="../../data/simplequestions/datamat.word.mem.fb2m.pkl",
         ):
@@ -18,7 +20,7 @@ def run(epochs=10,
     tt = ticktock("script")
     tt.tick("loading data")
     (traindata, traingold), (validdata, validgold), (testdata, testgold), \
-        entdic, entmat, worddic, numents = readdata(p)
+        entdic, entmat, worddic, numents = readdata(p, clean=clean, rarefreq=rarefreq)
     tt.tock("loaded data")
     # model
     tt.tick("building model")
