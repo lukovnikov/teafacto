@@ -414,8 +414,9 @@ class Block(Elem, Saveable): # block with parameters
                 self.block = block
 
             def transform(self, f):
-                assert(isfunction(f))
-                self.transf = f if f is not None and isfunction(f) else self.transf
+                if f is not None:
+                    assert(isfunction(f))
+                    self.transf = f if f is not None and isfunction(f) else self.transf
                 return self
 
             def __call__(self, *inputdata, **kwinputdata):    # do predict, take into account prediction settings set
@@ -679,8 +680,9 @@ class NSTrainConfig():
         self.obj = f
         return self.getret()
 
-    def transform(self, f):
-        self.trans = f
+    def transform(self, f=None):
+        if f is not None:
+            self.trans = f
         return self.getret()
 
     def negrate(self, n):

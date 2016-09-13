@@ -1,6 +1,7 @@
 from teafacto.util import argprun, ticktock
 import numpy as np, os, sys, math, pickle
 from IPython import embed
+from teafacto.core.base import Val
 from teafacto.blocks.basic import VectorEmbed
 from teafacto.blocks.seq.enc import SimpleSeq2Vec
 from teafacto.blocks.match import CosineDistance, MatchScore
@@ -57,6 +58,7 @@ def run(epochs=50,
         hingeloss=False,
         debug=False,
         checkdata=False,
+        predencode=False,
         ):
     maskid = -1
     tt = ticktock("predpred")
@@ -89,7 +91,32 @@ def run(epochs=50,
                                  layers=layers)
 
     # predicate-side model
-    predemb = VectorEmbed(numents, decdim)
+    if predencode:
+        predemb = SimpleSeq2Vec(inpemb=wordemb,
+                                inpembdim=wordemb.outdim,
+                                innerdim=decdim,
+                                maskid=maskid,
+                                bidir=bidir,
+                                layers=layers)
+        class PreProc(object):
+            def __init__(self, entmat):
+                self.f = PreProcE(entmat)
+
+            def __call__(self, encdata, decgold):
+                return (encdata, self.f(decgold)[0][0])
+
+        class PreProcE(object):
+            def __init__(self, entmat):
+                self.em = Val(entmat)
+
+            def __call__(self, x):
+                return (self.em[x],), {}
+        transf = PreProc(entmat)
+        predtransf = transf.f
+    else:
+        predemb = VectorEmbed(numents, decdim)
+        transf = None
+        predtransf = None
 
     # scoring
     dist = CosineDistance()
@@ -110,7 +137,7 @@ def run(epochs=50,
         obj = lambda p, n: n - p
 
     tt.tick("training")
-    nscorer = scorer.nstrain([traindata, traingold]) \
+    nscorer = scorer.nstrain([traindata, traingold]).transform(transf) \
                 .negsamplegen(NegIdxGen(numents)) \
                 .negrate(negrate) \
                 .objective(obj) \
@@ -124,11 +151,11 @@ def run(epochs=50,
     qenc_pred = question_enc.predict(testdata)
     scores = []
     for i in range(qenc_pred.shape[0]):
-        cans = testsubjsrels[i][0] + testsubjsrels[i][1]
-        if len(cans) < 1:
+        cans = testsubjsrels[i][0] #+ testsubjsrels[i][1]
+        if len(cans) == 0:
             scores.append([(-1, -np.infty)])
             continue
-        canembs = predemb.predict(cans)
+        canembs = predemb.predict.transform(predtransf)(cans)
         scoresi = scorer.s.predict(np.repeat(qenc_pred[np.newaxis, i],
                                              canembs.shape[0], axis=0),
                                    canembs)
