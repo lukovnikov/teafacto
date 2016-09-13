@@ -10,16 +10,20 @@ def reluri_tokenize(reluri):
 def run(trainp="../fb_train.tsv",
         testp="../fb_test.tsv",
         validp="../fb_valid.tsv",
-        outp="datamat.word.fb2m.pkl",
+        outp="../datamat.word.fb2m.pkl",
         entnames="../subjnames_fb2m.map",
         rellist="../predicates_fb2m.list",
         maxnamelen=30):
     # worddic
-    wordlist = set()
     worddic = {"<RARE>": 0}
     wordcounts = {"<RARE>": 0}
     def addwords(*words):       # adds a word to the worddic
-        wordlist.update(*words)
+        for word in words:
+            if word not in worddic:
+                worddic[word] = len(worddic)
+            if word not in wordcounts:
+                wordcounts[word] = 0
+            wordcounts[word] += 1
 
     # entity names
     entdic = {}
@@ -46,7 +50,6 @@ def run(trainp="../fb_train.tsv",
         entswonames.add(entid)
         entmatr.append(["<RARE>"])
 
-    embed()
     # relation uri's
     reldic = {}
     relmatr = []
