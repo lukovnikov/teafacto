@@ -19,7 +19,7 @@ def readdata(p="../../../../data/simplequestions/clean/datamat.word.fb2m.pkl",
     testsubjsrels = {k: ([], []) for k in set(list(testsubjs))}
     for line in open(relsperentp):
         subj, relsout, relsin = line.split("\t")
-        if entdic[subj] in testsubjsrels:
+        if subj in entdic and entdic[subj] in testsubjsrels:
             testsubjsrels[entdic[subj]] = (
                 [entdic[x] for x in relsout.split(" ")],
                 [entdic[x] for x in relsin.split(" ")]
@@ -119,7 +119,7 @@ def run(epochs=50,
     qenc_pred = question_enc.predict(testdata)
     scores = []
     for i in range(qenc_pred.shape[0]):
-        cans = testsubjsrels[i]
+        cans = testsubjsrels[i][0] + testsubjsrels[i][1]
         if len(cans) < 1:
             scores.append([(-1, -np.infty)])
             continue
