@@ -113,7 +113,7 @@ def run(epochs=50,
                  "../../../data/hatespeech/test.csv",
                  masksym=maskid, mode=mode, maxlen=maxlen)
 
-    embed()
+    #embed()
     # data stats
     print "class distribution in train: {}% positive".format(np.sum(traingold)*1. / np.sum(np.ones_like(traingold)))
     print "class distribution in test: {}% positive".format(np.sum(testgold)*1. / np.sum(np.ones_like(testgold)))
@@ -125,6 +125,7 @@ def run(epochs=50,
                               outdim=len(dic))
 
     m = GenClass(wordemb, clasemb, enc)
+
 
     # shift traindata
     straindata = np.zeros((traindata.shape[0], 1), dtype="int32")
@@ -138,6 +139,23 @@ def run(epochs=50,
     #enc.save("hatemodel.{}.Emb{}D.Enc{}D.{}L.model".format(mode, embdim, encdim, layers))
 
 
+    # pre predict
+    stestdata = np.zeros((testdata.shape[0], 1), dtype="int32")
+    stestdata = np.concatenate([stestdata, testdata[:, :-1]], axis=1)
+    negpreds = m.predict(stestdata, np.zeros_like(testgold))  # (batsize, seqlen, vocsize)
+    pospreds = m.predict(stestdata, np.ones_like(testgold))
+    negprobs = negpreds[
+        np.arange(negpreds.shape[0])[:, None],
+        np.arange(negpreds.shape[1])[None, :],
+        testdata]
+    posprobs = pospreds[
+        np.arange(pospreds.shape[0])[:, None],
+        np.arange(pospreds.shape[1])[None, :],
+        testdata]
+    negprobs = np.sum(-np.log(negprobs), axis=1)
+    posprobs = np.sum(-np.log(posprobs), axis=1)
+    pred = negprobs < posprobs
+    embed()
 
 
 
