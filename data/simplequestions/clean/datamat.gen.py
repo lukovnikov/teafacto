@@ -36,7 +36,7 @@ def run(trainp="../fb_train.tsv",
         if entity_id not in entdic:
             entdic[entity_id] = len(entdic)
         if c % 1e3 == 0:
-            print("{.0f}k".format(c/1e3))
+            print("{}k".format(c/1e3))
         c += 1
 
     entswonames = set()
