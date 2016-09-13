@@ -18,7 +18,7 @@ def readdata(p="../../../../data/simplequestions/clean/datamat.word.fb2m.pkl",
     testsubjs = testgold[:, 0]
     testsubjsrels = {k: ([], []) for k in set(list(testsubjs))}
     for line in open(relsperentp):
-        subj, relsout, relsin = line.split("\t")
+        subj, relsout, relsin = line[:-1].split("\t")
         if subj in entdic and entdic[subj] in testsubjsrels:
             testsubjsrels[entdic[subj]] = (
                 [entdic[x] for x in relsout.split(" ")],
