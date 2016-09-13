@@ -187,7 +187,7 @@ def run(
     best = np.argmax(scores, axis=1)
     sortedbest = [sorted(zip(np.arange(scores.shape[1]), list(scores[i])),
                   reverse=True, key=lambda (x, y): y) for i in range(scores.shape[0]) ]
-    sortedbestmat = np.array([[x for (x,y) in z] for z in sortedbest], dtype="int32")
+    sortedbestmat = np.array([[x for (x, y) in z] for z in sortedbest], dtype="int32")
     # MRR
     mrr = 0.0
     for i in range(sortedbestmat.shape[1]):

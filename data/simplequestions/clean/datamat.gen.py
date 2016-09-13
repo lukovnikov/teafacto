@@ -10,7 +10,7 @@ def reluri_tokenize(reluri):
 def run(trainp="../fb_train.tsv",
         testp="../fb_test.tsv",
         validp="../fb_valid.tsv",
-        outp="../datamat.word.fb2m.pkl",
+        outp="datamat.word.fb2m.pkl",
         entnames="../subjnames_fb2m.map",
         rellist="../predicates_fb2m.list",
         maxnamelen=30):
