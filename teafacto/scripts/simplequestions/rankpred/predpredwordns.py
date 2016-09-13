@@ -7,7 +7,10 @@ from teafacto.blocks.match import CosineDistance, MatchScore
 
 def readdata(p="../../../../data/simplequestions/clean/datamat.word.fb2m.pkl",
              relsperentp="../../../../data/simplequestions/allrelsperent.dmp"):
+    tt = ticktock("dataloader")
+    tt.tick("loading datamat")
     x = pickle.load(open(p))
+    tt.tock("datamat loaded")
     worddic = x["worddic"]
     entdic = x["entdic"]
     numents = x["numents"]
@@ -17,13 +20,16 @@ def readdata(p="../../../../data/simplequestions/clean/datamat.word.fb2m.pkl",
     testdata, testgold = x["test"]
     testsubjs = testgold[:, 0]
     testsubjsrels = {k: ([], []) for k in set(list(testsubjs))}
+    tt.tick("loading test cans")
     for line in open(relsperentp):
         subj, relsout, relsin = line[:-1].split("\t")
+        embed()
         if subj in entdic and entdic[subj] in testsubjsrels:
             testsubjsrels[entdic[subj]] = (
                 [entdic[x] for x in relsout.split(" ")],
                 [entdic[x] for x in relsin.split(" ")]
             )
+    tt.tock("test cans loaded")
     # select and offset mats
     traingold = traingold[:, 1] - numents
     validgold = validgold[:, 1] - numents
