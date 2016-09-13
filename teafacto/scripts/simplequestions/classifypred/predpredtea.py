@@ -1,8 +1,9 @@
 import pickle, numpy as np
 
 from teafacto.util import argprun, ticktock
-from teafacto.scripts.simplequestions.classify.predpredkeras import readdata
+from teafacto.scripts.simplequestions.classifypred.predpredkeras import readdata
 from teafacto.blocks.seq.enc import SimpleSeq2Idx
+from teafacto.blocks.lang.wordvec import Glove
 from IPython import embed
 
 def run(epochs=10,
@@ -13,6 +14,7 @@ def run(epochs=10,
         layers=1,
         clean=False,
         rarefreq=4,
+        glove=0,
         type="rnn",  # rnn or cnn
         p="../../data/simplequestions/datamat.word.mem.fb2m.pkl",
         ):
@@ -24,6 +26,7 @@ def run(epochs=10,
     tt.tock("loaded data")
     # model
     tt.tick("building model")
+
 
     m = SimpleSeq2Idx(indim=len(worddic)+1, inpembdim=embdim, numclasses=len(entdic),
                       innerdim=encdim, maskid=0, layers=layers)

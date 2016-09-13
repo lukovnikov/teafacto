@@ -35,6 +35,7 @@ def run(
         evalsplits=50,
         cosine=False,
         loadmodel=False,
+        relsfromsubj=""
 ):
     if debug:  # debug settings
         hingeloss = True
