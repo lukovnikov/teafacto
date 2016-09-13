@@ -89,7 +89,7 @@ class GenClass(Block):
     def apply(self, seq, clas):     # seq: idx^(batsize, seqlen), clas: idx^(batsize,)
         seqemb = self.wemb(seq)     # (batsize, seqlen, wembdim)
         clasemb = self.cemb(clas)   # (batsize, cembdim)
-        clasemb = clasemb.dimshuffle(0, 'x', 1).repeat(seq.shape[1], axis=1)
+        clasemb = clasemb.dimshuffle(0, 'x', 1).repeat(seqemb.shape[1], axis=1)
         ret = T.concatenate([seqemb, clasemb], axis=2)
         return self.transducer(ret)
 
@@ -101,7 +101,7 @@ def run(epochs=50,
         embdim=100,
         encdim=200,
         bidir=False,
-        wordlevel=False,        # "char" or "word"
+        wordlevel=True,        # "char" or "word"
         maxlen=75,
         maxwordlen=15,
         ):
@@ -118,8 +118,8 @@ def run(epochs=50,
     wordemb = VectorEmbed(indim=len(dic), dim=embdim)
     clasemb = VectorEmbed(indim=2, dim=embdim)
     encdim = [encdim] * layers
-    enc = SimpleSeqTransducer(inpemb=Eye(embdim), innerdim=encdim,
-                              outdim=wordemb.outdim)
+    enc = SimpleSeqTransducer(inpemb=Eye(embdim*2), innerdim=encdim,
+                              outdim=len(dic))
 
     m = GenClass(wordemb, clasemb, enc)
 
