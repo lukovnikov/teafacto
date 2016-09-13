@@ -5,8 +5,8 @@ from teafacto.blocks.basic import VectorEmbed
 from teafacto.blocks.seq.enc import SimpleSeq2Vec
 from teafacto.blocks.match import CosineDistance, MatchScore
 
-def readdata(p="../../../data/simplequestions/clean/datamat.word.fb2m.pkl",
-             relsperentp="../../../data/simplequestions/allrelsperent.dmp"):
+def readdata(p="../../../../data/simplequestions/clean/datamat.word.fb2m.pkl",
+             relsperentp="../../../../data/simplequestions/allrelsperent.dmp"):
     x = pickle.load(open(p))
     worddic = x["worddic"]
     entdic = x["entdic"]
