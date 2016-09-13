@@ -115,7 +115,7 @@ def run(trainp="../fb_train.tsv",
     relmat = np.zeros((len(relmatr), maxnamelen), dtype="int32") - 1
     for i in range(len(relmatr)):
         x = relmatr[i]
-        relmatr[i, :len(x)] = [worddic[a] for a in x]
+        relmat[i, :len(x)] = [worddic[a] for a in x]
 
     # package
     entmat = np.concatenate([entmat, relmat], axis=0)
