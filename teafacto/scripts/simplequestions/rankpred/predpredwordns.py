@@ -23,11 +23,10 @@ def readdata(p="../../../../data/simplequestions/clean/datamat.word.fb2m.pkl",
     tt.tick("loading test cans")
     for line in open(relsperentp):
         subj, relsout, relsin = line[:-1].split("\t")
-        embed()
         if subj in entdic and entdic[subj] in testsubjsrels:
             testsubjsrels[entdic[subj]] = (
-                [entdic[x] for x in relsout.split(" ")],
-                [entdic[x] for x in relsin.split(" ")]
+                [entdic[x] for x in relsout.split(" ")] if relsout != "" else [],
+                [entdic[x] for x in relsin.split(" ")] if relsin != "" else []
             )
     tt.tock("test cans loaded")
     # select and offset mats
