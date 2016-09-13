@@ -4,6 +4,7 @@ from teafacto.blocks.basic import VectorEmbed, Eye
 from teafacto.core.base import Val, Block, tensorops as T
 from teafacto.util import argprun, ticktock, tokenize
 import csv, numpy as np, sys
+from IPython import embed
 
 
 def readdata(trainp, testp, mode=None, masksym=-1, maxlen=100):
@@ -101,7 +102,7 @@ def run(epochs=50,
         embdim=100,
         encdim=200,
         bidir=False,
-        wordlevel=True,        # "char" or "word"
+        wordlevel=False,        # "char" or "word"
         maxlen=75,
         maxwordlen=15,
         ):
@@ -111,6 +112,8 @@ def run(epochs=50,
         readdata("../../../data/hatespeech/train.csv",
                  "../../../data/hatespeech/test.csv",
                  masksym=maskid, mode=mode, maxlen=maxlen)
+
+    embed()
     # data stats
     print "class distribution in train: {}% positive".format(np.sum(traingold)*1. / np.sum(np.ones_like(traingold)))
     print "class distribution in test: {}% positive".format(np.sum(testgold)*1. / np.sum(np.ones_like(testgold)))
