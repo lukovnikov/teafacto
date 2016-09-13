@@ -103,7 +103,7 @@ def run(epochs=50,
                 self.f = PreProcE(entmat)
 
             def __call__(self, encdata, decgold):
-                return (encdata, self.f(decgold)[0][0])
+                return (encdata, self.f(decgold)[0][0]), {}
 
         class PreProcE(object):
             def __init__(self, entmat):
@@ -119,8 +119,7 @@ def run(epochs=50,
         predtransf = None
 
     # scoring
-    dist = CosineDistance()
-    scorer = MatchScore(question_enc, predemb, scorer=dist)
+    scorer = MatchScore(question_enc, predemb, scorer=CosineDistance())
 
     class NegIdxGen(object):
         def __init__(self, rng):
