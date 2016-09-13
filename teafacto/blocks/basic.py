@@ -73,6 +73,14 @@ class IdxToOneHot(Embedder):
     def apply(self, inp):
         return self.W[inp, :]
 
+class Eye(Block):
+    def __init__(self, dim, **kw):
+        super(Eye, self).__init__(**kw)
+        self.outdim = dim
+
+    def apply(self, inp):
+        return inp
+
 
 class VectorEmbed(Embedder):
     def __init__(self, indim=1000, dim=50, value=None,

@@ -1,4 +1,4 @@
-from teafacto.blocks.basic import MatDot as Lin, Softmax
+from teafacto.blocks.basic import Linear as Lin, Softmax
 from teafacto.blocks.basic import VectorEmbed, IdxToOneHot, MatDot
 from teafacto.blocks.memory import MemoryStack, MemoryBlock, DotMemAddr
 from teafacto.blocks.seq.attention import Attention, LinearGateAttentionGenerator, WeightedSumAttCon
@@ -186,8 +186,12 @@ class SeqTransducer(Block):
 
 
 class SimpleSeqTransducer(SeqTransducer):
-    def __init__(self, indim=400, embdim=50, innerdim=100, outdim=50, **kw):
-        self.emb = VectorEmbed(indim=indim, dim=embdim)
+    def __init__(self, indim=400, embdim=50, inpemb=None, innerdim=100, outdim=50, **kw):
+        if inpemb is None:
+            self.emb = VectorEmbed(indim=indim, dim=embdim)
+        else:
+            self.emb = inpemb
+            embdim = self.emb.outdim
         if not issequence(innerdim):
             innerdim = [innerdim]
         innerdim = [embdim] + innerdim
