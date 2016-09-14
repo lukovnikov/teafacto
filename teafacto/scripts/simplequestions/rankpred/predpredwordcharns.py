@@ -205,7 +205,4 @@ def run(epochs=50,
 
 
 if __name__ == "__main__":
-    from teafacto.blocks.lang.wordvec import Glove
-    g = Glove(50)
-    buildwordmat(g.D)
     argprun(run)
