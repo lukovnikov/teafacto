@@ -66,6 +66,7 @@ class MemVec(Block):      # simplified and more specific version of above class
         self.block = block
         self.data = None
         self.innervar = None
+        self.outdim = block.outdim
 
     def load(self, *data):
         self.data = [Val(d) if not isinstance(d, (Var, Val)) else d for d in data]
