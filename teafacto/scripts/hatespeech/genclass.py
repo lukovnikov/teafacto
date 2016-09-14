@@ -135,7 +135,7 @@ def run(epochs=50,
 
 
     # shift traindata
-    straindata = np.zeros((traindata.shape[0], 1), dtype="int32")
+    straindata = np.ones((traindata.shape[0], 1), dtype="int32")
     straindata = np.concatenate([straindata, traindata[:, :-1]], axis=1)
 
     m = m.train([straindata, traingold], traindata)\
@@ -147,7 +147,7 @@ def run(epochs=50,
 
 
     # pre predict
-    stestdata = np.zeros((testdata.shape[0], 1), dtype="int32")
+    stestdata = np.ones((testdata.shape[0], 1), dtype="int32")
     stestdata = np.concatenate([stestdata, testdata[:, :-1]], axis=1)
     negpreds = m.predict(stestdata, np.zeros_like(testgold))  # (batsize, seqlen, vocsize)
     pospreds = m.predict(stestdata, np.ones_like(testgold))
