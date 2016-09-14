@@ -59,6 +59,23 @@ class MemoryBlock(Embedder):
         return self.innervar[idxs, :]
 
 
+class MemVec(Block):      # simplified and more specific version of above class
+    """ wraps around any X2Vec model to make a static "memory" block """
+    def __init__(self, block, **kw):
+        super(MemVec, self).__init__(**kw)
+        self.block = block
+        self.data = None
+        self.innervar = None
+
+    def load(self, *data):
+        self.data = [Val(d) if not isinstance(d, (Var, Val)) else d for d in data]
+        self.innervar = self.block(*self.data)
+
+    def apply(self, idxs):
+        assert(self.innervar is not None)
+        return self.innervar[idxs]
+
+
 class MemoryAddress(Block):
     def __init__(self, memblock, **kw):
         super(MemoryAddress, self).__init__(**kw)
