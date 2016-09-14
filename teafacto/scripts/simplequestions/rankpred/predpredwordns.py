@@ -5,6 +5,7 @@ from teafacto.core.base import Val
 from teafacto.blocks.basic import VectorEmbed
 from teafacto.blocks.seq.enc import SimpleSeq2Vec
 from teafacto.blocks.match import CosineDistance, MatchScore
+from teafacto.blocks.memory import MemVec
 
 def readdata(p="../../../../data/simplequestions/clean/datamat.word.fb2m.pkl",
              relsperentp="../../../../data/simplequestions/allrelsperent.dmp"):
@@ -92,31 +93,16 @@ def run(epochs=50,
 
     # predicate-side model
     if predencode:
-        predemb = SimpleSeq2Vec(inpemb=wordemb,
+        predemb = MemVec(SimpleSeq2Vec(inpemb=wordemb,
                                 inpembdim=wordemb.outdim,
                                 innerdim=decdim,
                                 maskid=maskid,
                                 bidir=bidir,
                                 layers=layers)
-        class PreProc(object):
-            def __init__(self, entmat):
-                self.f = PreProcE(entmat)
-
-            def __call__(self, encdata, decgold):
-                return (encdata, self.f(decgold)[0][0]), {}
-
-        class PreProcE(object):
-            def __init__(self, entmat):
-                self.em = Val(entmat)
-
-            def __call__(self, x):
-                return (self.em[x],), {}
-        transf = PreProc(entmat)
-        predtransf = transf.f
+                         )
+        predemb.load(entmat)
     else:
         predemb = VectorEmbed(numents, decdim)
-        transf = None
-        predtransf = None
 
     # scoring
     scorer = MatchScore(question_enc, predemb, scorer=CosineDistance())
@@ -136,7 +122,7 @@ def run(epochs=50,
         obj = lambda p, n: n - p
 
     tt.tick("training")
-    nscorer = scorer.nstrain([traindata, traingold]).transform(transf) \
+    nscorer = scorer.nstrain([traindata, traingold]) \
                 .negsamplegen(NegIdxGen(numents)) \
                 .negrate(negrate) \
                 .objective(obj) \
@@ -154,7 +140,7 @@ def run(epochs=50,
         if len(cans) == 0:
             scores.append([(-1, -np.infty)])
             continue
-        canembs = predemb.predict.transform(predtransf)(cans)
+        canembs = predemb.predict(cans)
         scoresi = scorer.s.predict(np.repeat(qenc_pred[np.newaxis, i],
                                              canembs.shape[0], axis=0),
                                    canembs)
