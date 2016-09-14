@@ -77,7 +77,7 @@ class ConcatEmbed(Block):
 
     def apply(self, idxs):
         axis = idxs.ndim
-        blockrets = [block[idxs] for block in self.blocks]
+        blockrets = [block(idxs) for block in self.blocks]
         ret = T.concatenate(blockrets, axis=axis)
         return ret
 
