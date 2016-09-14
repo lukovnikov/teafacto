@@ -7,15 +7,15 @@ import csv, numpy as np, sys
 from IPython import embed
 
 
-def readdata(trainp, testp, mode=None, masksym=-1, maxlen=100):
+def readdata(trainp, testp, mode=None, maxlen=100):
     assert(mode is not None)
     if mode is "char":
-        return readdata_char(trainp, testp, maxlen=maxlen, masksym=masksym)
+        return readdata_char(trainp, testp, maxlen=maxlen)
     elif mode is "word":
-        return readdata_word(trainp, testp, maxlen=maxlen, masksym=masksym)
+        return readdata_word(trainp, testp, maxlen=maxlen)
 
 
-def readdata_word(trainp, testp, maxlen=100, masksym=-1):
+def readdata_word(trainp, testp, maxlen=100):
     tt = ticktock("data reader")
 
     def readdataset(p, wdic, maxlen=100):
@@ -37,19 +37,19 @@ def readdata_word(trainp, testp, maxlen=100, masksym=-1):
                 goldret.append(row[0])
         print "{} comments were too long".format(toolong)
         maxlen = min(maxlen, realmaxlen)
-        datamat = np.ones((len(dataret) - 1, maxlen)).astype("int32") * masksym
+        datamat = np.zeros((len(dataret) - 1, maxlen)).astype("int32")
         for i in range(1, len(dataret)):
             datamat[i - 1, :min(len(dataret[i]), maxlen)] = dataret[i][:min(len(dataret[i]), maxlen)]
         return datamat, np.asarray(goldret[1:], dtype="int32"), wdic
 
     tt.tick("reading data")
-    traindata, traingold, wdic = readdataset(trainp, {"<START>": 0}, maxlen=maxlen)
+    traindata, traingold, wdic = readdataset(trainp, {"<PAD>": 0, "<START>": 1}, maxlen=maxlen)
     testdata, testgold, wdic = readdataset(testp, wdic=wdic, maxlen=maxlen)
     tt.tock("data read")
     return (traindata, traingold), (testdata, testgold), wdic
 
 
-def readdata_char(trainp, testp, maxlen=1000, masksym=-1):
+def readdata_char(trainp, testp, maxlen=1000):
     tt = ticktock("data reader")
     def readdataset(p):
         dataret = []
@@ -63,7 +63,7 @@ def readdata_char(trainp, testp, maxlen=1000, masksym=-1):
                 dataret.append([ord(x) for x in row[2]])
                 goldret.append(row[0])
         print "{} comments were too long".format(toolong)
-        datamat = np.ones((len(dataret)-1, maxlen)).astype("int32") * masksym
+        datamat = -np.ones((len(dataret)-1, maxlen)).astype("int32")
         for i in range(1, len(dataret)):
             datamat[i-1, :min(len(dataret[i]), maxlen)] = dataret[i][:min(len(dataret[i]), maxlen)]
         return datamat, np.asarray(goldret[1:], dtype="int32")
@@ -71,11 +71,15 @@ def readdata_char(trainp, testp, maxlen=1000, masksym=-1):
     traindata, traingold = readdataset(trainp)
     testdata, testgold = readdataset(testp)
     allchars = set(list(np.unique(traindata))).union(set(list(np.unique(testdata))))
-    chardic = dict(zip(list(allchars), range(len(allchars))))
-    chardic[masksym] = masksym
+    chardic = {-1: 0}
+    allchars.remove(-1)
+    chardic.update(dict(zip(list(allchars), range(2, len(allchars) + 2))))
     traindata = np.vectorize(lambda x: chardic[x])(traindata)
     testdata = np.vectorize(lambda x: chardic[x])(testdata)
-    chardic = {chr(k): v for k, v in chardic.items() if k != masksym}
+    del chardic[-1]
+    chardic = {chr(k): v for k, v in chardic.items()}
+    chardic["<PAD>"] = 0
+    chardic["<START>"] = 1
     tt.tock("data read")
     return (traindata, traingold), (testdata, testgold), chardic
 
@@ -106,14 +110,17 @@ def run(epochs=50,
         maxlen=75,
         maxwordlen=15,
         ):
-    maskid = -1
     mode = "word" if wordlevel else "char"
     (traindata, traingold), (testdata, testgold), dic = \
         readdata("../../../data/hatespeech/train.csv",
                  "../../../data/hatespeech/test.csv",
-                 masksym=maskid, mode=mode, maxlen=maxlen)
+                 mode=mode, maxlen=maxlen)
 
-    #embed()
+    revdic = {v: k for k, v in dic.items()}
+    def pp(s):
+        print "".join([revdic[x] if x in revdic else "<???>" for x in s])
+
+    embed()
     # data stats
     print "class distribution in train: {}% positive".format(np.sum(traingold)*1. / np.sum(np.ones_like(traingold)))
     print "class distribution in test: {}% positive".format(np.sum(testgold)*1. / np.sum(np.ones_like(testgold)))

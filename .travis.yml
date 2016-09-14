@@ -25,3 +25,4 @@ cache:
     - $HOME/.theano
 notifications:
   slack: eisbonn:qosRnEbOef7JTnLqe8hf3rP7
+  email: false
