@@ -97,6 +97,7 @@ def run(epochs=50,
         debug=False,
         checkdata=False,
         predencode=False,
+        wordchar=False,
         ):
     maskid = -1
     tt = ticktock("predpred")
@@ -122,15 +123,16 @@ def run(epochs=50,
 
     # word/char model
     wordemb = VectorEmbed(numwords, embdim)
-    wordenc = MemVec(SimpleSeq2Vec(indim=numchars,
-                            inpembdim=50,
-                            innerdim=embdim,
-                            maskid=-1,
-                            bidir=False,
-                            layers=1)
-                     )
-    wordenc.load(wordmat)
-    wordemb = ConcatEmbed(wordemb, wordenc)
+    if wordchar:
+        wordenc = MemVec(SimpleSeq2Vec(indim=numchars,
+                                inpembdim=50,
+                                innerdim=embdim,
+                                maskid=-1,
+                                bidir=False,
+                                layers=1)
+                         )
+        wordenc.load(wordmat)
+        wordemb = ConcatEmbed(wordemb, wordenc)
 
     # question-side model
     question_enc = SimpleSeq2Vec(inpemb=wordemb,
