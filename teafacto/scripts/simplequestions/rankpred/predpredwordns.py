@@ -54,7 +54,7 @@ def buildsamplespace(entmat, maskid=-1):
     for i in range(entmat.shape[0]):
         for j in range(entmat.shape[1]):
             w = entmat[i, j]
-            if w == -1:
+            if w == -1:     # beginning of padding
                 break
             for oe in revin[w]:     # other entities already in revind
                 samdic[oe].add(i)
