@@ -55,7 +55,7 @@ def buildsamplespace(entmat, wd, maskid=-1):
     tt.tick("making sample space")
     #rwd = {v: k for k, v in wd.items()}
     entmatm = sparse.dok_matrix((entmat.shape[0], np.max(entmat) + 1))
-    posblacklist = {0: {wd["base"]}, 1: {wd["user"]}}
+    posblacklist = {0: {wd["base"], wd["user"]}}
     #revin = {k: set() for k in np.unique(entmat)}
     #revinm = sparse.dok_matrix((np.max(entmat), entmat.shape[0]))
     samdic = {k: set() for k in range(entmat.shape[0])}     # from ent ids to sets of ent ids
