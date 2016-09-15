@@ -168,7 +168,7 @@ def run(epochs=50,
         def __call__(self, datas, gold):
             ret = np.zeros_like(gold)
             for i in range(gold.shape[0]):
-                sampleset = self.revsamsp(gold[i])
+                sampleset = self.revsamsp[gold[i]]
                 if len(sampleset) > 5:
                     ret[i] = random.sample(sampleset, 1)[0]
                 else:
