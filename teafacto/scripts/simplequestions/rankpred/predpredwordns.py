@@ -56,7 +56,7 @@ def buildsamplespace(entmat, wd, maskid=-1):
     #rwd = {v: k for k, v in wd.items()}
     entmatm = sparse.dok_matrix((entmat.shape[0], np.max(entmat) + 1))
     posblacklist = {0: {wd["base"], wd["user"]}}
-    blacklist = set([wd[x] for x in "default domain of by the in at s this for with".split()])
+    blacklist = set([wd[x] for x in "default domain of by the in at s this for with type".split()])
     #revin = {k: set() for k in np.unique(entmat)}
     #revinm = sparse.dok_matrix((np.max(entmat), entmat.shape[0]))
     samdic = {k: set() for k in range(entmat.shape[0])}     # from ent ids to sets of ent ids
@@ -184,6 +184,7 @@ def run(epochs=50,
         obj = lambda p, n: n - p
 
     if closenegsam:
+        tt.msg("using close neg sampler")
         negidxgen = NegIdxGenClose(revsamplespace, numents)
     else:
         negidxgen = NegIdxGen(numents)
@@ -212,6 +213,8 @@ def run(epochs=50,
                                              canembs.shape[0], axis=0),
                                    canembs)
         scores.append(zip(cans, scoresi))
+        if debug:
+            embed()
         tt.progress(i, qenc_pred.shape[0], live=True)
     sortedbest = [sorted(cansi, key=lambda (x, y): y, reverse=True) for cansi in scores]
     best = [sortedbesti[0][0] for sortedbesti in sortedbest]
