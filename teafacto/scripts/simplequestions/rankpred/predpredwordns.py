@@ -1,5 +1,5 @@
 from teafacto.util import argprun, ticktock
-import numpy as np, os, sys, math, pickle
+import numpy as np, os, sys, math, pickle, random
 from IPython import embed
 from teafacto.core.base import Val
 from teafacto.blocks.basic import VectorEmbed
@@ -45,6 +45,23 @@ def readdata(p="../../../../data/simplequestions/clean/datamat.word.fb2m.pkl",
     return (traindata, traingold), (validdata, validgold), (testdata, testgold),\
            worddic, entdic, entmat, testrelcans
 
+
+def buildsamplespace(entmat, maskid=-1):
+    revin = {k: set() for k in np.unique(entmat)}
+    samdic = {k: set() for k in range(entmat.shape[0])}     # from ent ids to sets of ent ids
+    for i in range(entmat.shape[0]):
+        for j in range(entmat.shape[1]):
+            w = entmat[i, j]
+            if w == -1:
+                continue
+            for oe in revin[w]:     # other entities already in revind
+                samdic[oe].add(i)
+                samdic[i].add(oe)
+            revin[w].add(i)
+    return samdic, revin
+
+
+
 def run(epochs=50,
         numbats=700,
         lr=1.,
@@ -66,6 +83,9 @@ def run(epochs=50,
     tt.tick("loading data")
     (traindata, traingold), (validdata, validgold), (testdata, testgold), \
     worddic, entdic, entmat, testsubjsrels = readdata()
+
+    revsamplespace, revind = buildsamplespace(entmat)
+
     tt.tock("data loaded")
     if checkdata:
         rwd = {v: k for k, v in worddic.items()}
@@ -113,17 +133,38 @@ def run(epochs=50,
             self.max = rng
 
         def __call__(self, datas, gold):
-            predrand = np.random.randint(self.min, self.max, (gold.shape[0],))
+            predrand = np.random.randint(self.min, self.max, gold.shape)
             return datas, predrand.astype("int32")
+
+    class NegIdxGenClose(object):
+        def __init__(self, revsamsp, rng):
+            self.revsamsp = revsamsp
+            self.min = 0
+            self.max = rng
+
+        def __call__(self, datas, gold):
+            ret = np.zeros_like(gold)
+            for i in range(gold.shape[0]):
+                sampleset = self.revsamsp(gold[i])
+                if len(sampleset) > 5:
+                    ret[i] = random.sample(sampleset, 1)[0]
+                else:
+                    ret[i] = np.random.randint(self.min, self.max)
+            embed()
+            return datas, ret.astype("int32")
+
 
     if hingeloss:
         obj = lambda p, n: (n - p + margin).clip(0, np.infty)
     else:
         obj = lambda p, n: n - p
 
+    negidxgen = NegIdxGen(numents)
+    negidxgen = NegIdxGenClose(revsamplespace)
+
     tt.tick("training")
     nscorer = scorer.nstrain([traindata, traingold]) \
-                .negsamplegen(NegIdxGen(numents)) \
+                .negsamplegen(negidxgen) \
                 .negrate(negrate) \
                 .objective(obj) \
                 .adagrad(lr=lr).l2(wreg).grad_total_norm(1.0)\
