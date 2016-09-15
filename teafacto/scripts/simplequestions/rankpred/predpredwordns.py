@@ -50,7 +50,7 @@ def readdata(p="../../../../data/simplequestions/clean/datamat.word.fb2m.pkl",
 def buildsamplespace(entmat, maskid=-1):
     tt = ticktock("samplespace")
     tt.tick("making sample space")
-    entmatm = sparse.dok_matrix((entmat.shape[0], np.max(entmat)))
+    entmatm = sparse.dok_matrix((entmat.shape[0], np.max(entmat) + 1))
     #revin = {k: set() for k in np.unique(entmat)}
     revinm = sparse.dok_matrix((np.max(entmat), entmat.shape[0]))
     samdic = {k: set() for k in range(entmat.shape[0])}     # from ent ids to sets of ent ids
@@ -65,7 +65,7 @@ def buildsamplespace(entmat, maskid=-1):
             #    samdic[oe].add(i)
             #    samdic[i].add(oe)
             #revin[w].add(i)
-            revinm[w, i] = 1
+            #revinm[w, i] = 1
 
     tt.tock("made sample space")
     embed()
