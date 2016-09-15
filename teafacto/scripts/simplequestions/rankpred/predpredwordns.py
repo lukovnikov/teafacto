@@ -183,7 +183,7 @@ def run(epochs=50,
         obj = lambda p, n: n - p
 
     negidxgen = NegIdxGen(numents)
-    negidxgen = NegIdxGenClose(revsamplespace)
+    negidxgen = NegIdxGenClose(revsamplespace, numents)
 
     tt.tick("training")
     nscorer = scorer.nstrain([traindata, traingold]) \
