@@ -173,7 +173,7 @@ def run(epochs=50,
                     ret[i] = random.sample(sampleset, 1)[0]
                 else:
                     ret[i] = np.random.randint(self.min, self.max)
-            embed()
+            #embed()
             return datas, ret.astype("int32")
 
 
