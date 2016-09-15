@@ -38,6 +38,7 @@ def readdata(p="../../../../data/simplequestions/clean/datamat.word.fb2m.pkl",
     traingold = traingold[:, 1] - numents
     validgold = validgold[:, 1] - numents
     testgold = testgold[:, 1] - numents
+    entmat = entmat[numents:, :]
     # select and offset entdic
     entdic = {k: v - numents for k, v in entdic.items() if v >= numents}
     # make testrelcans with new idx space

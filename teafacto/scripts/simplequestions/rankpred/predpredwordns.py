@@ -100,6 +100,7 @@ def run(epochs=50,
         debug=False,
         checkdata=False,
         predencode=False,
+        closenegsam=False,
         ):
     maskid = -1
     tt = ticktock("predpred")
@@ -182,8 +183,10 @@ def run(epochs=50,
     else:
         obj = lambda p, n: n - p
 
-    negidxgen = NegIdxGen(numents)
-    negidxgen = NegIdxGenClose(revsamplespace, numents)
+    if closenegsam:
+        negidxgen = NegIdxGenClose(revsamplespace, numents)
+    else:
+        negidxgen = NegIdxGen(numents)
 
     tt.tick("training")
     nscorer = scorer.nstrain([traindata, traingold]) \
