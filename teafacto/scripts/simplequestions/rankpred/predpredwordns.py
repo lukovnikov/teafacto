@@ -23,6 +23,7 @@ def readdata(p="../../../../data/simplequestions/clean/datamat.word.fb2m.pkl",
     testdata, testgold = x["test"]
     testsubjs = testgold[:, 0]
     testsubjsrels = {k: ([], []) for k in set(list(testsubjs))}
+
     tt.tick("loading test cans")
     for line in open(relsperentp):
         subj, relsout, relsin = line[:-1].split("\t")
@@ -32,10 +33,12 @@ def readdata(p="../../../../data/simplequestions/clean/datamat.word.fb2m.pkl",
                 [entdic[x] for x in relsin.split(" ")] if relsin != "" else []
             )
     tt.tock("test cans loaded")
+
     # select and offset mats
     traingold = traingold[:, 1] - numents
     validgold = validgold[:, 1] - numents
     testgold = testgold[:, 1] - numents
+    entmat = entmat[numents:, :]
     # select and offset entdic
     entdic = {k: v - numents for k, v in entdic.items() if v >= numents}
     # make testrelcans with new idx space
@@ -52,7 +55,7 @@ def buildsamplespace(entmat, maskid=-1):
     tt.tick("making sample space")
     entmatm = sparse.dok_matrix((entmat.shape[0], np.max(entmat) + 1))
     #revin = {k: set() for k in np.unique(entmat)}
-    revinm = sparse.dok_matrix((np.max(entmat), entmat.shape[0]))
+    #revinm = sparse.dok_matrix((np.max(entmat), entmat.shape[0]))
     samdic = {k: set() for k in range(entmat.shape[0])}     # from ent ids to sets of ent ids
     #samdic = np.zeros((entmat.shape[0], entmat.shape[0]))
     for i in range(entmat.shape[0]):
@@ -66,10 +69,9 @@ def buildsamplespace(entmat, maskid=-1):
             #    samdic[i].add(oe)
             #revin[w].add(i)
             #revinm[w, i] = 1
-
+    samdicm = entmatm.dot(entmatm.T)
     tt.tock("made sample space")
-    embed()
-    return entmatm, revinm
+    return samdicm, entmatm.T
 
 
 
