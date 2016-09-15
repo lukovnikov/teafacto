@@ -53,9 +53,9 @@ def readdata(p="../../../../data/simplequestions/clean/datamat.word.fb2m.pkl",
 def buildsamplespace(entmat, wd, maskid=-1):
     tt = ticktock("samplespace")
     tt.tick("making sample space")
-    rwd = {v: k for k, v in wd.items()}
+    #rwd = {v: k for k, v in wd.items()}
     entmatm = sparse.dok_matrix((entmat.shape[0], np.max(entmat) + 1))
-    blacklist = {0: {rwd["base"]}, 1: {rwd["user"]}}
+    posblacklist = {0: {wd["base"]}, 1: {wd["user"]}}
     #revin = {k: set() for k in np.unique(entmat)}
     #revinm = sparse.dok_matrix((np.max(entmat), entmat.shape[0]))
     samdic = {k: set() for k in range(entmat.shape[0])}     # from ent ids to sets of ent ids
@@ -65,8 +65,8 @@ def buildsamplespace(entmat, wd, maskid=-1):
             w = entmat[i, j]
             if w == -1:     # beginning of padding
                 break
-            if j in blacklist:
-                if w in blacklist[j]:
+            if j in posblacklist:
+                if w in posblacklist[j]:
                     continue
             entmatm[i, w] = 1
             #for oe in revin[w]:     # other entities already in revind
