@@ -23,8 +23,6 @@ def readdata(p="../../../../data/simplequestions/clean/datamat.word.fb2m.pkl",
     testsubjs = testgold[:, 0]
     testsubjsrels = {k: ([], []) for k in set(list(testsubjs))}
 
-    wordmat, chardic = buildwordmat(worddic)
-
     tt.tick("loading test cans")
     for line in open(relsperentp):
         subj, relsout, relsin = line[:-1].split("\t")
@@ -48,7 +46,7 @@ def readdata(p="../../../../data/simplequestions/clean/datamat.word.fb2m.pkl",
 
 
     return (traindata, traingold), (validdata, validgold), (testdata, testgold),\
-           worddic, entdic, entmat, wordmat, chardic, testrelcans
+           worddic, entdic, entmat, testrelcans
 
 
 def buildwordmat(worddic, maxwordlen=30):
@@ -104,7 +102,12 @@ def run(epochs=50,
     tt = ticktock("predpred")
     tt.tick("loading data")
     (traindata, traingold), (validdata, validgold), (testdata, testgold), \
-    worddic, entdic, entmat, wordmat, chardic, testsubjsrels = readdata()
+    worddic, entdic, entmat, testsubjsrels = readdata()
+
+    if wordchar:
+        wordmat, chardic = buildwordmat(worddic)
+        numchars = max(chardic.values()) + 1
+
     tt.tock("data loaded")
     if checkdata:
         rwd = {v: k for k, v in worddic.items()}
@@ -115,7 +118,6 @@ def run(epochs=50,
 
     numwords = max(worddic.values()) + 1
     numents = max(entdic.values()) + 1
-    numchars = max(chardic.values()) + 1
 
     if bidir:
         encdim = [encdim / 2] * layers
