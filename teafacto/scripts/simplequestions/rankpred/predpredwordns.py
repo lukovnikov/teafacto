@@ -1,5 +1,6 @@
 from teafacto.util import argprun, ticktock
 import numpy as np, os, sys, math, pickle, random
+import scipy.sparse as sparse
 from IPython import embed
 from teafacto.core.base import Val
 from teafacto.blocks.basic import VectorEmbed
@@ -49,9 +50,9 @@ def readdata(p="../../../../data/simplequestions/clean/datamat.word.fb2m.pkl",
 def buildsamplespace(entmat, maskid=-1):
     tt = ticktock("samplespace")
     tt.tick("making sample space")
-    entmatm = np.zeros((entmat.shape[0], np.max(entmat)))
+    entmatm = sparse.dok_matrix((entmat.shape[0], np.max(entmat)))
     #revin = {k: set() for k in np.unique(entmat)}
-    revinm = np.zeros((np.max(entmat), entmat.shape[0]))
+    revinm = sparse.dok_matrix((np.max(entmat), entmat.shape[0]))
     samdic = {k: set() for k in range(entmat.shape[0])}     # from ent ids to sets of ent ids
     #samdic = np.zeros((entmat.shape[0], entmat.shape[0]))
     for i in range(entmat.shape[0]):
@@ -67,7 +68,8 @@ def buildsamplespace(entmat, maskid=-1):
             revinm[w, i] = 1
 
     tt.tock("made sample space")
-    return samdic, revinm
+    embed()
+    return entmatm, revinm
 
 
 
