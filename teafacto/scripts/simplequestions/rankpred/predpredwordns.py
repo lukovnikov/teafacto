@@ -50,16 +50,20 @@ def buildsamplespace(entmat, maskid=-1):
     tt = ticktock("samplespace")
     tt.tick("making sample space")
     revin = {k: set() for k in np.unique(entmat)}
+    #revin = np.zeros((np.max(entmat), entmat.shape[0]))
     samdic = {k: set() for k in range(entmat.shape[0])}     # from ent ids to sets of ent ids
+    #samdic = np.zeros((entmat.shape[0], entmat.shape[0]))
     for i in range(entmat.shape[0]):
         for j in range(entmat.shape[1]):
             w = entmat[i, j]
             if w == -1:     # beginning of padding
                 break
-            for oe in revin[w]:     # other entities already in revind
-                samdic[oe].add(i)
-                samdic[i].add(oe)
+            #for oe in revin[w]:     # other entities already in revind
+            #    samdic[oe].add(i)
+            #    samdic[i].add(oe)
             revin[w].add(i)
+            #revin[w, i] = 1
+
     tt.tock("made sample space")
     return samdic, revin
 
