@@ -47,17 +47,20 @@ def readdata(p="../../../../data/simplequestions/clean/datamat.word.fb2m.pkl",
 
 
 def buildsamplespace(entmat, maskid=-1):
+    tt = ticktock("samplespace")
+    tt.tick("making sample space")
     revin = {k: set() for k in np.unique(entmat)}
     samdic = {k: set() for k in range(entmat.shape[0])}     # from ent ids to sets of ent ids
     for i in range(entmat.shape[0]):
         for j in range(entmat.shape[1]):
             w = entmat[i, j]
             if w == -1:
-                continue
+                break
             for oe in revin[w]:     # other entities already in revind
                 samdic[oe].add(i)
                 samdic[i].add(oe)
             revin[w].add(i)
+    tt.tock("made sample space")
     return samdic, revin
 
 
