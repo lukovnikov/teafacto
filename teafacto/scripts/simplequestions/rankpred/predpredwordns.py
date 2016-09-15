@@ -78,8 +78,10 @@ def buildsamplespace(entmat, wd, maskid=-1):
             #revin[w].add(i)
             #revinm[w, i] = 1
     samdicm = entmatm.dot(entmatm.T)
+    for i in range(samdicm.shape[0]):
+        samdic[i] = set(list(np.argwhere(samdicm)[:, 1]))
     tt.tock("made sample space")
-    return samdicm, entmatm.T
+    return samdic, entmatm.T
 
 
 
