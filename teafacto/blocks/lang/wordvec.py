@@ -121,6 +121,14 @@ class AdaptedWordEmb(WordEmbBase, Block):
     def W(self):
         return self.inner.W
 
+    @property
+    def indim(self):
+        return self.inner.indim
+
+    @property
+    def outdim(self):
+        return self.inner.outdim
+
     def idtrans(self, x):
         return self.ad[x]
 
