@@ -131,7 +131,7 @@ def run(epochs=50,
 
     # question-side model
     if glove:
-        wordemb = Glove(embdim).adapt(worddic)
+        wordemb = Glove(embdim, trainfrac=0.0).adapt(worddic)
     else:
         wordemb = VectorEmbed(numwords, embdim)
     question_enc = SimpleSeq2Vec(inpemb=wordemb,
