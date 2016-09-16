@@ -4,6 +4,7 @@ import scipy.sparse as sparse
 from IPython import embed
 from teafacto.core.base import Val
 from teafacto.blocks.basic import VectorEmbed
+from teafacto.blocks.lang.wordvec import Glove
 from teafacto.blocks.seq.enc import SimpleSeq2Vec
 from teafacto.blocks.match import CosineDistance, MatchScore
 from teafacto.blocks.memory import MemVec
@@ -101,6 +102,7 @@ def run(epochs=50,
         checkdata=False,
         predencode=False,
         closenegsam=False,
+        glove=False,
         ):
     maskid = -1
     tt = ticktock("predpred")
@@ -128,7 +130,10 @@ def run(epochs=50,
         encdim = [encdim] * layers
 
     # question-side model
-    wordemb = VectorEmbed(numwords, embdim)
+    if glove:
+        wordemb = Glove(embdim).adapt(worddic)
+    else:
+        wordemb = VectorEmbed(numwords, embdim)
     question_enc = SimpleSeq2Vec(inpemb=wordemb,
                                  inpembdim=wordemb.outdim,
                                  innerdim=encdim,
@@ -138,7 +143,7 @@ def run(epochs=50,
 
     # predicate-side model
     if predencode:
-        """predemb = MemVec(SimpleSeq2Vec(inpemb=wordemb,
+        predemb = MemVec(SimpleSeq2Vec(inpemb=wordemb,
                                 inpembdim=wordemb.outdim,
                                 innerdim=decdim,
                                 maskid=maskid,
@@ -170,11 +175,11 @@ def run(epochs=50,
 
         transf = PreProc(entmat)
         predtransf = transf.f
-
+        """
     else:
         predemb = VectorEmbed(numents, decdim)
-        transf = None
-        predtransf = None
+        """transf = None
+        predtransf = None"""
 
     # scoring
     scorer = MatchScore(question_enc, predemb, scorer=CosineDistance())
@@ -218,7 +223,7 @@ def run(epochs=50,
         negidxgen = NegIdxGen(numents)
 
     tt.tick("training")
-    nscorer = scorer.nstrain([traindata, traingold]).transform(transf) \
+    nscorer = scorer.nstrain([traindata, traingold]) \
                 .negsamplegen(negidxgen) \
                 .negrate(negrate) \
                 .objective(obj) \
@@ -236,7 +241,8 @@ def run(epochs=50,
         if len(cans) == 0:
             scores.append([(-1, -np.infty)])
             continue
-        canembs = predemb.predict.transform(predtransf)(cans)
+        #canembs = predemb.predict.transform(predtransf)(cans)
+        canembs = predemb.predict(cans)
         scoresi = scorer.s.predict(np.repeat(qenc_pred[np.newaxis, i],
                                              canembs.shape[0], axis=0),
                                    canembs)

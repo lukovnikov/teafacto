@@ -83,7 +83,7 @@ class Eye(Block):
 
 
 class VectorEmbed(Embedder):
-    def __init__(self, indim=1000, dim=50, value=None,
+    def __init__(self, indim=None, dim=None, value=None,
                  normalize=False, trainfrac=1.0, init=None, **kw):
         super(VectorEmbed, self).__init__(indim, dim, **kw)
         self.dim = dim
@@ -93,19 +93,23 @@ class VectorEmbed(Embedder):
             self.W = param((indim, dim), lrmul=self.trainfrac, name="embedder")
             if init == "zero":
                 self.W = self.W.constant(0.0)
-            elif init == "glorot" or init == None:
+            elif init in ["glorot", None]:
                 self.W = self.W.glorotuniform()
             elif init == "uniform":
                 self.W = self.W.uniform()
         else:
-            if trainfrac == 0.0:
-                self.W = Val(value, name="embedder_val")
-            else:
-                self.W = Parameter(value, lrmul=self.trainfrac, name="embedder")
+            self.setvalue(value)
+            self.indim, self.dim = value.shape
         if normalize:
             self.W = self.W.normalize(axis=1)
         # assertions
         assert(self.W.d.get_value().shape == (self.indim, self.dim))
+
+    def setvalue(self, v):
+        if self.trainfrac == 0.0:
+            self.W = Val(v, name="embedder_val")
+        else:
+            self.W = Parameter(v, lrmul=self.trainfrac, name="embedder")
 
     def apply(self, inptensor):
         return self.W[inptensor]

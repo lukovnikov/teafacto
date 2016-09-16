@@ -1,4 +1,5 @@
 from teafacto.util import argprun, ticktock
+from teafacto.procutil import buildwordmat
 import numpy as np, os, sys, math, pickle
 from IPython import embed
 from teafacto.core.base import Val, Block, tensorops as T
@@ -47,25 +48,6 @@ def readdata(p="../../../../data/simplequestions/clean/datamat.word.fb2m.pkl",
 
     return (traindata, traingold), (validdata, validgold), (testdata, testgold),\
            worddic, entdic, entmat, testrelcans
-
-
-def buildwordmat(worddic, maxwordlen=30):
-    maskid = -1
-    rwd = sorted(worddic.items(), key=lambda (x, y): y)
-    realmaxlen = 0
-    wordmat = np.ones((rwd[-1][1]+1, maxwordlen), dtype="int32") * maskid
-    for i in range(len(rwd)):
-        rwdichars, rwdiidx = rwd[i]
-        realmaxlen = max(realmaxlen, len(rwdichars))
-        wordmat[rwdiidx, :min(len(rwdichars), maxwordlen)] \
-            = [ord(c) for c in rwdichars[:min(len(rwdichars), maxwordlen)]]
-    allchars = set(list(np.unique(wordmat))).difference({maskid})
-    chardic = {maskid: maskid}
-    chardic.update(dict(zip(allchars, range(len(allchars)))))
-    wordmat = np.vectorize(lambda x: chardic[x])(wordmat)
-    del chardic[maskid]
-    chardic = {chr(k): v for k, v in chardic.items()}
-    return wordmat, chardic
 
 
 class ConcatEmbed(Block):
