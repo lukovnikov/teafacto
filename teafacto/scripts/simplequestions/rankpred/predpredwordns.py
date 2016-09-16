@@ -239,13 +239,19 @@ def run(epochs=50,
     scores = []
     for i in range(qenc_pred.shape[0]):
         cans = testsubjsrels[i][0] #+ testsubjsrels[i][1]
-        cans = set(cans)
-        if atleastcan > 0:
-            while len(cans) < atleastcan:
-                rancan = np.random.randint(0, numents)
-                if rancan not in cans:
-                    cans.add(rancan)
-        cans = list(cans)
+        if len(cans) < atleastcan:
+            extracans = list(np.random.randint(0, numents, (atleastcan-len(cans),)))
+            cans = list(set(cans + extracans))
+            cans = cans[:min(len(cans), atleastcan)]
+            print len(cans)
+
+        #cans = set(cans)
+        #if atleastcan > 0:
+        #    while len(cans) < atleastcan:
+        #        rancan = np.random.randint(0, numents)
+        #        if rancan not in cans:
+        #            cans.add(rancan)
+        #cans = list(cans)
         if len(cans) == 0:
             scores.append([(-1, -np.infty)])
             continue
