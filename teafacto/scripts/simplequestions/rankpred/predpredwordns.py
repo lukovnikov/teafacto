@@ -243,7 +243,7 @@ def run(epochs=50,
             extracans = list(np.random.randint(0, numents, (atleastcan-len(cans),)))
             cans = list(set(cans + extracans))
             cans = cans[:min(len(cans), atleastcan)]
-            print len(cans)
+            print len(cans), cans
 
         #cans = set(cans)
         #if atleastcan > 0:
