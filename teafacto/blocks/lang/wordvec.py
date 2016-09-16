@@ -3,8 +3,8 @@ from collections import OrderedDict
 import numpy as np
 import os
 
-from teafacto.core.base import Block, Val
-from teafacto.blocks.basic import VectorEmbed
+from teafacto.core.base import Block, Val, tensorops as T
+from teafacto.blocks.basic import VectorEmbed, Embedder
 from teafacto.util import ticktock as TT, isnumber, isstring
 
 
@@ -26,14 +26,11 @@ class WordEmbBase(object):
     def getvector(self, word):
         try:
             if isstring(word):
-                return self.w[self.idtrans(self.D[word])]
+                return self.w[self.D[word]]
             elif isnumber(word):
-                return self.w[self.idtrans(word), :]
+                return self.w[word, :]
         except Exception:
             return None
-
-    def idtrans(self, x):
-        return x
 
     def __getitem__(self, word):
         v = self.getvector(word)
@@ -45,7 +42,7 @@ class WordEmbBase(object):
 
     @property
     def shape(self):
-        return self.W.shape
+        return self.w.shape
 
     def cosine(self, A, B):
         return np.dot(A, B) / (np.linalg.norm(A) * np.linalg.norm(B))
@@ -74,17 +71,29 @@ class WordEmbBase(object):
 
 class WordEmb(WordEmbBase, VectorEmbed): # unknown words are mapped to index 0, their embedding is a zero vector
     """ is a VectorEmbed with a dictionary to map words to ids """
-    def __init__(self, dim=50, indim=1000, value=None, worddic=None,
+    def __init__(self, dim=50, indim=None, value=None, worddic=None,
                  normalize=False, trainfrac=1.0, init=None, **kw):
         if isstring(value):     # path
             assert(init is None and worddic is None)
             value, worddic = self.loadvalue(value, dim, indim=indim)
+        elif worddic is not None:
+            wdvals = worddic.values()
+            assert(min(wdvals) > 0, "word ids must be positive non-zero")
+            assert(indim == max(wdvals)+1 or indim is None)
+            if indim is None:
+                indim = max(wdvals)+1        # to init from worddic
         super(WordEmb, self).__init__(indim=indim, dim=dim, value=value,
                                       normalize=normalize, worddic=worddic,
                                       trainfrac=trainfrac, init=init, **kw)
 
     def adapt(self, wdic):
         return AdaptedWordEmb(self, wdic)
+
+    def override(self, wordemb):
+        return OverriddenWordEmb(self, wordemb)
+
+    def augment(self, wordemb):
+        return AugmentedWordEmb(self, wordemb)
 
     def loadvalue(self, path, dim, indim=None):
         tt = TT(self.__class__.__name__)
@@ -105,10 +114,12 @@ class WordEmb(WordEmbBase, VectorEmbed): # unknown words are mapped to index 0, 
         return W, D
 
 
-class AdaptedWordEmb(WordEmbBase, Block):
+class AdaptedWordEmb(WordEmb):
     def __init__(self, wordemb, wdic, **kw):
         D = wordemb.D
-        super(AdaptedWordEmb, self).__init__(wdic, **kw)
+        super(AdaptedWordEmb, self).__init__(worddic=wdic, value=False,
+                dim=wordemb.outdim, normalize=wordemb.normalize,
+                trainfrac=wordemb.trainfrac, **kw)
         self.inner = wordemb
         self.ad = {v: D[k] if k in D else 0 for k, v in wdic.items()}
 
@@ -118,30 +129,69 @@ class AdaptedWordEmb(WordEmbBase, Block):
         self.adb = Val(valval)
 
     @property
-    def W(self):
-        return self.inner.W
-
-    @property
-    def indim(self):
-        return self.inner.indim
-
-    @property
-    def outdim(self):
-        return self.inner.outdim
-
-    def idtrans(self, x):
-        return self.ad[x]
+    def w(self):
+        return self.inner.W.d.get_value()[self.adb.d.get_value()]
 
     def apply(self, x):
         x = self.adb[x]
         return self.inner(x)
 
 
+class OverriddenWordEmb(WordEmb):
+    def __init__(self, base, override, **kw):
+        assert(base.outdim == override.outdim)
+        super(OverriddenWordEmb, self).__init__(worddic=base.D, value=False,
+                dim=base.outdim, normalize=base.normalize,
+                trainfrac=base.trainfrac, **kw)
+
+        self.base = base
+        self.override = override
+        self.ad = {v: override.D[k] if k in override.D else 0 for k, v in base.D.items()}
+        valval = np.zeros((max(self.ad.keys()) + 1,), dtype="int32")
+        for i in range(valval.shape[0]):
+            valval[i] = self.ad[i] if i in self.ad else 0
+        self.adb = Val(valval)
+
+    def apply(self, x):
+        overx = self.adb[x]
+        mask = overx > 0
+        mask = T.outer(mask, T.ones((self.outdim,)))
+        ret = T.switch(mask, self.override(overx), self.base(x))
+        return ret
+
+    @property
+    def w(self):
+        return None         # TODO
+
+
+class AugmentedWordEmb(WordEmb):
+    def __init__(self, base, augment, **kw):
+        assert(base.outdim == augment.outdim)
+        super(AugmentedWordEmb, self).__init__(worddic=base.D, value=False,
+                dim=base.outdim, normalize=base.normalize,
+                trainfrac=base.trainfrac, **kw)
+        self.base = base
+        self.augment = augment
+        self.ad = {v: augment.D[k] if k in augment.D else 0 for k, v in base.D.items()}
+        valval = np.zeros((max(self.ad.keys()) + 1,), dtype="int32")
+        for i in range(valval.shape[0]):
+            valval[i] = self.ad[i] if i in self.ad else 0
+        self.adb = Val(valval)
+
+    def apply(self, x):
+        ret = T.concatenate([self.base(x), self.augment(self.adb[x])], axis=1)
+        return ret
+
+    @property
+    def w(self):
+        return None         # TODO
+
+
 class Glove(WordEmb):
     defaultpath = "../../../data/glove/glove.6B.%dd.txt"
 
-    def __init__(self, dim, vocabsize=None, path=None, **kw):     # if dim=None, load all
+    def __init__(self, dim, vocabsize=None, path=None, trainfrac=0.0, **kw):     # if dim=None, load all
         path = self.defaultpath if path is None else path
         relpath = path % dim
         path = os.path.join(os.path.dirname(__file__), relpath)
-        super(Glove, self).__init__(dim=dim, indim=vocabsize, value=path, **kw)
+        super(Glove, self).__init__(dim=dim, indim=vocabsize, value=path, trainfrac=trainfrac, **kw)

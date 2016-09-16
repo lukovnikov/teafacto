@@ -56,10 +56,13 @@ class Linear(Block):
 
 
 class Embedder(Block):
-    def __init__(self, indim, outdim, **kw):
+    def __init__(self, indim=None, outdim=None, normalize=False, trainfrac=1., **kw):
         super(Embedder, self).__init__(**kw)
+        assert(indim is not None and outdim is not None)
         self.indim = indim
         self.outdim = outdim
+        self.normalize = normalize
+        self.trainfrac = trainfrac
 
     def apply(self, idxs):
         raise NotImplementedError("use subclass")
@@ -85,10 +88,8 @@ class Eye(Block):
 class VectorEmbed(Embedder):
     def __init__(self, indim=None, dim=None, value=None,
                  normalize=False, trainfrac=1.0, init=None, **kw):
-        super(VectorEmbed, self).__init__(indim, dim, **kw)
-        self.dim = dim
-        self.indim = indim
-        self.trainfrac = trainfrac
+        super(VectorEmbed, self).__init__(indim, dim, normalize=normalize,
+                                          trainfrac=trainfrac, **kw)
         if value is None:
             self.W = param((indim, dim), lrmul=self.trainfrac, name="embedder")
             if init == "zero":
@@ -97,13 +98,15 @@ class VectorEmbed(Embedder):
                 self.W = self.W.glorotuniform()
             elif init == "uniform":
                 self.W = self.W.uniform()
+        elif value is False:
+            self.W = None       # no initialization
         else:
             self.setvalue(value)
-            self.indim, self.dim = value.shape
-        if normalize:
+            self.indim, self.outdim = value.shape
+        if self.normalize:
             self.W = self.W.normalize(axis=1)
         # assertions
-        assert(self.W.d.get_value().shape == (self.indim, self.dim))
+        assert(self.W is None or self.W.d.get_value().shape == (self.indim, self.outdim))
 
     def setvalue(self, v):
         if self.trainfrac == 0.0:

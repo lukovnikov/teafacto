@@ -2,7 +2,7 @@ from unittest import TestCase
 
 import numpy as np
 
-from teafacto.blocks.lang.wordvec import Glove
+from teafacto.blocks.lang.wordvec import Glove, WordEmb
 
 
 class TestGlove(TestCase):
@@ -14,11 +14,11 @@ class TestGlove(TestCase):
         print self.glove.defaultpath
 
     def test_glove(self):
-        self.assertEqual(self.glove.W.shape, self.expshape)
+        self.assertEqual(self.glove.w.shape, self.expshape)
         self.assertEqual(self.glove * "the", 1)
         gblock = self.glove.block
         self.assertTrue(np.allclose(self.glove.w, gblock.W.d.get_value()))
-        self.assertEqual(self.glove.W.shape, gblock.W.d.get_value().shape)
+        self.assertEqual(self.glove.w.shape, gblock.W.d.get_value().shape)
         self.assertTrue(np.allclose(self.glove % 1, gblock.W.d.get_value()[1, :]))
         gblockpred = gblock.predict([1])
         self.assertTrue(np.allclose(gblockpred, self.glove % "the"))
@@ -49,5 +49,53 @@ class TestAdaptedGlove(TestCase):
         self.assertTrue(np.allclose(oovpred, np.zeros_like(oovpred)))
 
 
+class TestGloveOverriding(TestCase):
+    def setUp(self):
+        words = "the a his monkey inception key earlgrey"
+        wdic = dict(zip(words.split(), range(1, len(words.split()) + 1)))
+        self.baseemb = WordEmb(dim=50, worddic=wdic)
+        Glove.defaultpath = "../../../data/glove/miniglove.%dd.txt"
+        self.glove = Glove(50, 4000)
+        self.emb = self.baseemb.override(self.glove)
 
+    def test_sameasglove(self):
+        words = "key the a his"
+        pred = self.emb.predict([self.emb * x for x in words.split()])
+        gpred = self.glove.predict([self.glove * x for x in words.split()])
+        self.assertTrue(np.allclose(pred, gpred))
+
+    def test_sameasbase(self):
+        words = "inception monkey earlgrey"
+        pred = self.emb.predict([self.emb * x for x in words.split()])
+        gpred = self.baseemb.predict([self.baseemb * x for x in words.split()])
+        self.assertTrue(np.allclose(pred, gpred))
+
+    def test_notasglove(self):
+        words = "inception monkey earlgrey"
+        pred = self.emb.predict([self.emb * x for x in words.split()])
+        gpred = self.glove.predict([self.glove * x for x in words.split()])
+        self.assertFalse(np.allclose(pred, gpred))
+
+    def test_notasbase(self):
+        words = "key the a his"
+        pred = self.emb.predict([self.emb * x for x in words.split()])
+        gpred = self.baseemb.predict([self.baseemb * x for x in words.split()])
+        self.assertFalse(np.allclose(pred, gpred))
+
+
+class TestAugmentedGlove(TestCase):
+    def test_gloveglove(self):
+        Glove.defaultpath = "../../../data/glove/miniglove.%dd.txt"
+        g1 = Glove(50, 2000)
+        g2 = Glove(50, 1000)
+        gloveglove = g1.augment(g2)
+        pred = gloveglove.predict([1000])
+        self.assertTrue(np.allclose(g1 % 1000, pred[0, :50]))
+        self.assertTrue(np.allclose(g2 % 1000, pred[0, 50:]))
+        pred = gloveglove.predict([1001])
+        self.assertTrue(np.allclose(g1 % 1001, pred[0, :50]))
+        self.assertTrue(np.allclose(pred[0, 50:], np.zeros_like(pred[0, 50:])))
+        gloveglove = g2.augment(g1)
+        pred = gloveglove.predict([1, 2, 3, 4, 5, 50, 500, 1000])
+        self.assertTrue(np.allclose(pred[:, :50], pred[:, 50:]))
 
