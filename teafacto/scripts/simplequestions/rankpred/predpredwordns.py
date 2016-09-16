@@ -241,8 +241,8 @@ def run(epochs=50,
         cans = testsubjsrels[i][0] #+ testsubjsrels[i][1]
         if len(cans) < atleastcan:
             extracans = list(np.random.randint(0, numents, (atleastcan-len(cans),)))
-            cans = list(set(cans + extracans))
-            cans = cans[:min(len(cans), atleastcan)]
+            extracans = list(set(extracans))
+            cans = cans + extracans[atleastcan - len(cans)]
             print len(cans), cans
 
         #cans = set(cans)
