@@ -108,7 +108,8 @@ def run(epochs=50,
     (traindata, traingold), (validdata, validgold), (testdata, testgold), \
     worddic, entdic, entmat, testsubjsrels = readdata()
 
-    revsamplespace, revind = buildsamplespace(entmat, worddic)
+    if closenegsam:
+        revsamplespace, revind = buildsamplespace(entmat, worddic)
 
     tt.tock("data loaded")
     if checkdata:
@@ -137,7 +138,7 @@ def run(epochs=50,
 
     # predicate-side model
     if predencode:
-        predemb = MemVec(SimpleSeq2Vec(inpemb=wordemb,
+        """predemb = MemVec(SimpleSeq2Vec(inpemb=wordemb,
                                 inpembdim=wordemb.outdim,
                                 innerdim=decdim,
                                 maskid=maskid,
@@ -145,8 +146,35 @@ def run(epochs=50,
                                 layers=layers)
                          )
         predemb.load(entmat)
+        """
+        predemb = SimpleSeq2Vec(inpemb=wordemb,
+                                inpembdim=wordemb.outdim,
+                                innerdim=decdim,
+                                maskid=maskid,
+                                bidir=bidir,
+                                layers=layers)
+
+        class PreProc(object):
+            def __init__(self, entmat):
+                self.f = PreProcE(entmat)
+
+            def __call__(self, encdata, decgold):
+                return (encdata, self.f(decgold)[0][0]), {}
+
+        class PreProcE(object):
+            def __init__(self, entmat):
+                self.em = Val(entmat)
+
+            def __call__(self, x):
+                return (self.em[x],), {}
+
+        transf = PreProc(entmat)
+        predtransf = transf.f
+
     else:
         predemb = VectorEmbed(numents, decdim)
+        transf = None
+        predtransf = None
 
     # scoring
     scorer = MatchScore(question_enc, predemb, scorer=CosineDistance())
@@ -190,7 +218,7 @@ def run(epochs=50,
         negidxgen = NegIdxGen(numents)
 
     tt.tick("training")
-    nscorer = scorer.nstrain([traindata, traingold]) \
+    nscorer = scorer.nstrain([traindata, traingold]).transform(transf) \
                 .negsamplegen(negidxgen) \
                 .negrate(negrate) \
                 .objective(obj) \
@@ -208,7 +236,7 @@ def run(epochs=50,
         if len(cans) == 0:
             scores.append([(-1, -np.infty)])
             continue
-        canembs = predemb.predict(cans)
+        canembs = predemb.predict.transform(predtransf)(cans)
         scoresi = scorer.s.predict(np.repeat(qenc_pred[np.newaxis, i],
                                              canembs.shape[0], axis=0),
                                    canembs)
