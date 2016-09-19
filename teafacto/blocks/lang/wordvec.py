@@ -76,7 +76,8 @@ class WordEmb(WordEmbBase, VectorEmbed): # unknown words are mapped to index 0, 
         if isstring(value):     # path
             assert(init is None and worddic is None)
             value, worddic = self.loadvalue(value, dim, indim=indim)
-        elif worddic is not None:
+            indim = max(worddic.values()) + 1
+        if worddic is not None:
             wdvals = worddic.values()
             assert(min(wdvals) > 0, "word ids must be positive non-zero")
             assert(indim == max(wdvals)+1 or indim is None)
