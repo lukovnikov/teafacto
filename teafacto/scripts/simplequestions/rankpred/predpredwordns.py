@@ -237,6 +237,8 @@ def run(epochs=50,
     tt.tick("evaluating")
     qenc_pred = question_enc.predict(testdata)
     scores = []
+    if atleastcan > 0:
+        print "ensuring at least {} cans".format(atleastcan)
     for i in range(qenc_pred.shape[0]):
         cans = testsubjsrels[i][0] #+ testsubjsrels[i][1]
         if len(cans) < atleastcan:
