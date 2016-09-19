@@ -244,7 +244,7 @@ def run(epochs=50,
         if len(cans) < atleastcan:
             extracans = list(np.random.randint(0, numents, (atleastcan-len(cans),)))
             extracans = list(set(extracans).difference(set(cans)))
-            cans = cans + extracans[:max(0, atleastcan - len(cans))]
+            cans = cans + extracans[:max(0, min(len(extracans), atleastcan - len(cans)))]
             #print len(cans), cans
 
         #cans = set(cans)
