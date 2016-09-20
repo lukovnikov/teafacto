@@ -51,12 +51,12 @@ class SimpleRNNEncoderTest(TestCase):
 
 class SimpleRNNEncoderTestAllStates(SimpleRNNEncoderTest):
     def doswitches(self, enc):
-        return enc.with_states
+        return enc.with_states()
 
 
 class SimpleRNNEncoderTestWithOutputs(SimpleRNNEncoderTest):
     def doswitches(self, enc):
-        return enc.all_outputs
+        return enc.all_outputs()
 
     def expectshape(self, datashape, outdim):
         return (datashape[0], datashape[1], outdim)
@@ -64,7 +64,7 @@ class SimpleRNNEncoderTestWithOutputs(SimpleRNNEncoderTest):
 
 class SimpleRNNEncoderTestAllStatesWithOutputs(SimpleRNNEncoderTest):
     def doswitches(self, enc):
-        return enc.with_states.all_outputs
+        return enc.with_states().all_outputs()
 
     def expectshape(self, datashape, outdim):
         return (datashape[0], datashape[1], outdim)
@@ -94,12 +94,12 @@ class StackRNNEncoderTest(SimpleRNNEncoderTest):
 
 class StackRNNEncoderTestAllStates(StackRNNEncoderTest):
     def doswitches(self, enc):
-        return enc.with_states
+        return enc.with_states()
 
 
 class StackRNNEncoderTestWithOutputs(StackRNNEncoderTest):
     def doswitches(self, enc):
-        return enc.all_outputs
+        return enc.all_outputs()
 
     def expectshape(self, datashape, outdim):
         return (datashape[0], datashape[1], outdim)
@@ -107,7 +107,7 @@ class StackRNNEncoderTestWithOutputs(StackRNNEncoderTest):
 
 class StackRNNEncoderTestAllStatesWithOutputs(StackRNNEncoderTest):
     def doswitches(self, enc):
-        return enc.with_states.all_outputs
+        return enc.with_states().all_outputs()
 
     def expectshape(self, datashape, outdim):
         return (datashape[0], datashape[1], outdim)

@@ -58,8 +58,8 @@ class SeqEncDecAtt(SeqEncDec):
                  decinnerdim, statetrans=None, vecout=False,
                  inconcat=True, outconcat=False, **kw):
         enc = SeqEncoder(*enclayers)\
-            .with_outputs\
-            .with_mask\
+            .with_outputs()\
+            .with_mask()\
             .maskoptions(-1, MaskMode.AUTO, MaskSetMode.ZERO)
         smo = False if vecout else None
         dec = SeqDecoder(

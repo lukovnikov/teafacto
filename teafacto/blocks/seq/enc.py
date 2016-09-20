@@ -59,9 +59,8 @@ class Seq2Vec(Block):
         if self.pool is not None:
             self.enc = self.enc.all_outputs.with_mask
 
-    @property
     def all_outputs(self):
-        self.enc = self.enc.all_outputs
+        self.enc = self.enc.all_outputs()
         return self
 
     def apply(self, x, mask=None, weights=None):
@@ -106,7 +105,7 @@ class SimpleSeq2Bool(SimpleSeq2Vec):
 class SimpleSeq2Sca(SimpleSeq2Vec):
     def __init__(self, **kw):
         super(SimpleSeq2Sca, self).__init__(**kw)
-        self.enc.all_outputs.with_mask
+        self.enc.all_outputs().with_mask()
         if "innerdim" in kw:
             kwindim = kw["innerdim"]
             if issequence(kwindim):

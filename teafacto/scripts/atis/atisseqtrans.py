@@ -5,7 +5,8 @@ import os
 import theano
 from theano import tensor as TT
 
-from teafacto.blocks.seq.oldseqproc import SimpleSeqTransducer
+from teafacto.blocks.seq.trans import SimpleSeqTrans
+#from teafacto.blocks.seq.oldseqproc import SimpleSeqTransducer as SimpleSeqTrans
 from teafacto.blocks.basic import Softmax
 from teafacto.core.base import Block, param, tensorops as T
 from teafacto.util import argprun
@@ -246,7 +247,8 @@ def run(p="../../../data/atis/atis.pkl", wordembdim=100, innerdim=200, lr=0.05, 
 
     # define model
     innerdim = [innerdim] * depth
-    m = SimpleSeqTransducer(indim=numwords, embdim=wordembdim, innerdim=innerdim, outdim=numlabels)
+    m = SimpleSeqTrans(indim=numwords, embdim=wordembdim,
+                       innerdim=innerdim, outdim=numlabels)
     '''m = StupidAtis(inpembdim = wordembdim, indim = numwords, outdim = numlabels)
     m = StupidAtisNative(inpembdim=wordembdim, indim=numwords, outdim=numlabels)'''
     #m = StupidAtisScanMod(inpembdim=wordembdim, indim=numwords, outdim=numlabels)

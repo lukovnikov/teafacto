@@ -310,6 +310,10 @@ class Masked(object):
         super(Masked, self).__init__(**kw)
 
     @property
+    def hasmask(self):
+        return self._mask is not None
+
+    @property
     def mask(self):
         return self._mask
 

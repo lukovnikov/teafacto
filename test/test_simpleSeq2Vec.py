@@ -22,7 +22,7 @@ class TestSimpleSeq2Vec(TestCase):
 
     def test_mask(self):
         np.random.seed(1337)
-        enc = SimpleSeq2Vec(indim=100, inpembdim=10, innerdim=4, maskid=-1, layers=2).all_outputs
+        enc = SimpleSeq2Vec(indim=100, inpembdim=10, innerdim=4, maskid=-1, layers=2).all_outputs()
         x = np.random.randint(0, 100, (33, 5))
         maskr = np.random.randint(1, x.shape[1], (x.shape[0],))
         for i in range(x.shape[0]):

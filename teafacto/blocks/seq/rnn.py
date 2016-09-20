@@ -172,7 +172,7 @@ class SeqEncoder(AttentionConsumer, Block):
 
     def __init__(self, embedder, *layers, **kw):
         super(SeqEncoder, self).__init__(**kw)
-        self._return = {"enc"}
+        self._returnings = {"enc"}
         self._nomask = False
         self._maskconfig = kw["maskcfg"] if "maskcfg" in kw else MaskConfig(MaskMode.AUTO, 0, MaskSetMode.NONE)
         self.embedder = embedder
@@ -229,17 +229,17 @@ class SeqEncoder(AttentionConsumer, Block):
 
     def _get_apply_outputs(self, final, outputs, states, mask):
         ret = []
-        if "enc" in self._return:       # final states of topmost layer
+        if "enc" in self._returnings:       # final states of topmost layer
             ret.append(final)
-        if "all" in self._return:       # states (over all time) of topmost layer
+        if "all" in self._returnings:       # states (over all time) of topmost layer
             rete = outputs       # (batsize, seqlen, dim) --> zero-fy according to mask
             if self._maskconfig.maskset == MaskSetMode.ZERO and mask is not None:
                 fmask = T.tensordot(mask, T.ones((outputs.shape[2],)), 0)
                 rete = rete * fmask
             ret.append(rete)
-        if "states" in self._return:    # final states (over all layers)???
+        if "states" in self._returnings:    # final states (over all layers)???
             pass # TODO: do we need to support this?
-        if "mask" in self._return:
+        if "mask" in self._returnings:
             ret.append(mask)
         if len(ret) == 1:
             return ret[0]
@@ -277,36 +277,34 @@ class SeqEncoder(AttentionConsumer, Block):
         return self
 
     ### FLUENT OUTPUT SETTINGS
-    @property
     def reset_return(self):
-        self._return = set()
+        self._returnings.clear()
         return self
 
-    @property
     def with_states(self):       # TODO
         '''Call this switch to get the final states of all recurrent layers'''
-        self._return.add("states")
+        self._returnings.add("states")
         return self
 
-    @property
     def all_outputs(self):
         '''Call this switch to get the actual output of top layer as the last outputs'''
-        self._return = {"all"}
+        self.reset_return()
+        self._returnings.add("all")
         return self
 
-    @property
     def with_outputs(self):
-        self._return.add("all")
+        self._returnings.add("all")
         return self
 
-    @property
     def with_mask(self):
         ''' Calling this switch also returns the mask on original idx input sequence'''
-        self._return.add("mask")
+        self._returnings.add("mask")
         return self
 
     def setreturn(self, *args):
-        self._return = args
+        self.reset_return()
+        for arg in args:
+            self._returnings.add(arg)
         return self
 
 
@@ -497,7 +495,7 @@ class FwdAttRNNEncDecoder(Block):
 class RewAttSumDecoder(Block):
     def __init__(self, vocsize=25, outvocsize=25, encdim=200, innerdim=200, attdim=50, **kw):
         super(RewAttSumDecoder, self).__init__(**kw)
-        self.rnn = SeqEncoder(IdxToOneHot(vocsize), GRU(dim=vocsize, innerdim=encdim)).all_outputs
+        self.rnn = SeqEncoder(IdxToOneHot(vocsize), GRU(dim=vocsize, innerdim=encdim)).all_outputs()
         attgen = LinearGateAttentionGenerator(indim=innerdim+encdim, innerdim=attdim)
         attcon = WeightedSumAttCon()
         self.dec = SeqDecoder([IdxToOneHot(outvocsize), GRU(dim=outvocsize+encdim, innerdim=innerdim)],
@@ -513,7 +511,7 @@ class RewAttSumDecoder(Block):
 class FwdAttSumDecoder(Block):
     def __init__(self, vocsize=25, outvocsize=25, encdim=300, innerdim=200, attdim=50, **kw):
         super(FwdAttSumDecoder, self).__init__(**kw)
-        self.rnn = SeqEncoder(IdxToOneHot(vocsize), GRU(dim=vocsize, innerdim=encdim)).all_outputs
+        self.rnn = SeqEncoder(IdxToOneHot(vocsize), GRU(dim=vocsize, innerdim=encdim)).all_outputs()
         attgen = LinearGateAttentionGenerator(indim=innerdim+encdim, innerdim=attdim)
         attcon = WeightedSumAttCon()
         self.dec = SeqDecoder([IdxToOneHot(outvocsize), GRU(dim=outvocsize, innerdim=innerdim)],
@@ -531,7 +529,7 @@ class BiFwdAttSumDecoder(Block):
     def __init__(self, vocsize=25, outvocsize=25, encdim=300, innerdim=200, attdim=50, **kw):
         super(BiFwdAttSumDecoder, self).__init__(**kw)
         self.rnn = SeqEncoder(IdxToOneHot(vocsize),
-                                  BiRNU.fromrnu(GRU, dim=vocsize, innerdim=encdim)).all_outputs
+                                  BiRNU.fromrnu(GRU, dim=vocsize, innerdim=encdim)).all_outputs()
         attgen = LinearGateAttentionGenerator(indim=innerdim+encdim*2, innerdim=attdim)
         attcon = WeightedSumAttCon()
         self.dec = SeqDecoder([IdxToOneHot(outvocsize), GRU(dim=outvocsize, innerdim=innerdim)],
@@ -549,7 +547,7 @@ class BiRewAttSumDecoder(Block):
     def __init__(self, vocsize=25, outvocsize=25, encdim=300, innerdim=200, attdim=50, **kw):
         super(BiRewAttSumDecoder, self).__init__(**kw)
         self.rnn = SeqEncoder(IdxToOneHot(vocsize),
-                                  BiRNU.fromrnu(GRU, dim=vocsize, innerdim=encdim)).all_outputs
+                                  BiRNU.fromrnu(GRU, dim=vocsize, innerdim=encdim)).all_outputs()
         attgen = LinearGateAttentionGenerator(indim=innerdim+encdim*2, innerdim=attdim)
         attcon = WeightedSumAttCon()
         self.dec = SeqDecoder([IdxToOneHot(outvocsize), GRU(dim=outvocsize+encdim*2, innerdim=innerdim)],
