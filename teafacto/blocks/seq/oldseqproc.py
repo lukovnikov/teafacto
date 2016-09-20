@@ -166,7 +166,9 @@ class SeqTransducer(Block):
         outdim = kw["outdim"]
         del kw["smodim"]; del kw["outdim"]
         super(SeqTransducer, self).__init__(**kw)
-        self.block = RecStack(*(layers + (Lin(indim=smodim, dim=outdim), Softmax())))
+        self.block = RecStack(*(layers +
+                                (Lin(indim=smodim, dim=outdim),
+                                 Softmax())))
 
     def apply(self, inpseq, maskseq=None):    # inpseq: idx^(batsize, seqlen), maskseq: f32^(batsize, seqlen)
         embseq = self.embedder(inpseq)

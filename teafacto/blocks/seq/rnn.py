@@ -188,7 +188,7 @@ class SeqEncoder(AttentionConsumer, Block):
     def apply(self, seq, weights=None, mask=None): # seq: (batsize, seqlen, dim), weights: (batsize, seqlen) OR (batsize, seqlen, seqlen*, dim) ==> reduce the innermost seqlen
         # embed
         if self.embedder is not None:
-            seqemb = self.embedder(seq)
+            seqemb = self.embedder(seq)     # maybe this way of embedding is not so nice for memory
         else:
             seqemb = seq
         # compute full mask
@@ -589,3 +589,10 @@ class MakeRNU(object):
                 prevdim = fspec["dim"]
             rnns.append(rnn)
         return rnns, prevdim
+
+    @staticmethod
+    def fromdims(innerdim, rnu=GRU):
+        assert(len(innerdim) >= 2)
+        initdim = innerdim[0]
+        otherdim = innerdim[1:]
+        return MakeRNU.make(initdim, otherdim, rnu=rnu)

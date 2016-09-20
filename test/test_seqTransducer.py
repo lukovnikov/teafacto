@@ -2,7 +2,8 @@ from unittest import TestCase
 
 import numpy as np
 
-from teafacto.blocks.seq.oldseqproc import SimpleSeqTransducer, SimpleSeqTransDec
+from teafacto.blocks.seq.oldseqproc import SimpleSeqTransDec
+from teafacto.blocks.seq.trans import SimpleSeqTrans
 
 
 def shiftdata(x, right=1):
@@ -27,7 +28,7 @@ class TestSeqTransducer(TestCase):
         traingold = np.random.randint(0, outvocsize, (batsize, seqlen))
 
         # model
-        m = SimpleSeqTransducer(indim=invocsize, embdim=inembdim, innerdim=innerdim, outdim=outvocsize)
+        m = SimpleSeqTrans(indim=invocsize, embdim=inembdim, innerdim=innerdim, outdim=outvocsize)
 
         pred = m.predict(traindata)
         self.assertEqual(pred.shape, (batsize, seqlen, outvocsize))
