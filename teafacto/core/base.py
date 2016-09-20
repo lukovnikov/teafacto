@@ -304,7 +304,34 @@ class Elem(object):    # carries name
         self._name = name
 
 
-class Val(Elem, TensorWrapped):
+class Masked(object):
+    def __init__(self, mask=None, **kw):
+        self._mask = mask
+        super(Masked, self).__init__(**kw)
+
+    @property
+    def mask(self):
+        return self._mask
+
+    @mask.setter
+    def mask(self, m):
+        self._mask = m
+
+    @mask.deleter
+    def mask(self):
+        self._mask = None
+
+    def makemask(self, arg=0):      # default: mask zero
+        if isfunction(arg):
+            self._mask = arg(self)
+        elif isnumber(arg):
+            self._mask = tensorops.eq(self, arg)
+        else:
+            raise Exception("wrong input argument type")
+        return self
+
+
+class Val(Elem, TensorWrapped, Masked):
     def __init__(self, value, name=None, **kw):
         super(Val, self).__init__(name=name, **kw)
         if not isinstance(value, np.ndarray):
@@ -326,7 +353,7 @@ class Val(Elem, TensorWrapped):
 
 
 ### WORRY ABOUT THIS
-class Var(Elem, TensorWrapped): # result of applying a block on theano variables
+class Var(Elem, TensorWrapped, Masked): # result of applying a block on theano variables
     """ Var has params propagated from all the blocks used to compute it """
     def __init__(self, value, name=None, **kw):
         nam = name if name is not None else value.name
@@ -338,6 +365,10 @@ class Var(Elem, TensorWrapped): # result of applying a block on theano variables
 
     def push_params(self, setofparams):
         self._params.update(setofparams)
+
+    @property
+    def v(self):
+        return self.eval()
 
     def eval(self, argdic={}):
         return self.d.eval(dict(map(lambda (x, y): (x.d, y), argdic.items())))
