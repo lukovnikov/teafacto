@@ -125,7 +125,7 @@ class LinearGateAttentionGenerator(AttentionGenerator): #EVIL
         self.U = param((self.attdim,), name="attention_agg").uniform()
 
     def getscores(self, criterion, data):   # criterion: (batsize, crit_dim), data: (batsize, seqlen, datadim)
-        datapart = T.dot(data, self.W[:data.shape[2], :])
+        #datapart = T.dot(data, self.W[:data.shape[2], :])
         def rec(x_t, crit):
             combo = self._get_combo(x_t, crit)  # (batsize, crit_dim + datadim)
             trans = T.dot(combo, self.W)        # (batsize, innerdim)

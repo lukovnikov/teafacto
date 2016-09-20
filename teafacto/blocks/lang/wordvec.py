@@ -79,7 +79,7 @@ class WordEmb(WordEmbBase, VectorEmbed): # unknown words are mapped to index 0, 
             indim = max(worddic.values()) + 1
         if worddic is not None:
             wdvals = worddic.values()
-            assert(min(wdvals) > 0, "word ids must be positive non-zero")
+            assert(min(wdvals) > 0)     # word ids must be positive non-zero
             assert(indim == max(wdvals)+1 or indim is None)
             if indim is None:
                 indim = max(wdvals)+1        # to init from worddic

@@ -237,7 +237,7 @@ class FBSeqCompositeEncMemDec(Block):
         self.softmaxoutblock = stack(self.memaddr(self.memblock, indim=self.decinnerdim, memdim=self.memblock.outdim, attdim=self.attdim), Softmax())
         self.dec = SeqDecoder(
             [entemb2,  #self.memblock,
-             GRU(dim=entemb.dim + self.encinnerdim, innerdim=self.decinnerdim),             # GRU(dim=self.memblock.outdim + self.encinnerdim, innerdim=self.decinnerdim),
+             GRU(dim=entemb.outdim + self.encinnerdim, innerdim=self.decinnerdim),             # GRU(dim=self.memblock.outdim + self.encinnerdim, innerdim=self.decinnerdim),
              ],
             inconcat=True,
             innerdim=self.decinnerdim,
