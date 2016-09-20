@@ -188,7 +188,7 @@ class SeqTransducer(Block):
 
 
 class SimpleSeqTransducer(SeqTransducer):
-    def __init__(self, indim=400, embdim=50, inpemb=None, innerdim=100, outdim=50, **kw):
+    def __init__(self, indim=400, embdim=50, inpemb=None, innerdim=100, outdim=50, rnu=GRU, **kw):
         if inpemb is None:
             self.emb = VectorEmbed(indim=indim, dim=embdim)
         else:
@@ -197,15 +197,8 @@ class SimpleSeqTransducer(SeqTransducer):
         if not issequence(innerdim):
             innerdim = [innerdim]
         innerdim = [embdim] + innerdim
-        self.rnn = self.getrnnfrominnerdim(innerdim)
+        self.rnn = MakeRNU.fromdims(innerdim, rnu=rnu)[0]
         super(SimpleSeqTransducer, self).__init__(self.emb, *self.rnn, smodim=innerdim[-1], outdim=outdim, **kw)
-
-    @classmethod
-    def getrnnfrominnerdim(self, innerdim, rnu=GRU):
-        assert(len(innerdim) >= 2)
-        initdim = innerdim[0]
-        otherdim = innerdim[1:]
-        return MakeRNU.make(initdim, otherdim, rnu=rnu)[0]
 
 
 class SeqTransDec(Block):
@@ -249,7 +242,7 @@ class SimpleSeqTransDec(SeqTransDec):
         if not issequence(innerdim):
             innerdim = [innerdim]
         innerdim = [inpembdim+outembdim] + innerdim
-        self.rnn = SimpleSeqTransducer.getrnnfrominnerdim(innerdim)
+        self.rnn = MakeRNU.fromdims(innerdim)[0]
         super(SimpleSeqTransDec, self).__init__(self.inpemb, self.outemb, *self.rnn, smodim=innerdim[-1], outdim=outdim, **kw)
 
 

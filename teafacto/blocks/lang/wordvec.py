@@ -88,13 +88,13 @@ class WordEmb(WordEmbBase, VectorEmbed): # unknown words are mapped to index 0, 
                                       trainfrac=trainfrac, init=init, **kw)
 
     def adapt(self, wdic):
-        return AdaptedWordEmb(self, wdic)
+        return AdaptedWordEmb(self, wdic, maskid=self.maskid)
 
     def override(self, wordemb):
-        return OverriddenWordEmb(self, wordemb)
+        return OverriddenWordEmb(self, wordemb, maskid=self.maskid)
 
     def augment(self, wordemb):
-        return AugmentedWordEmb(self, wordemb)
+        return AugmentedWordEmb(self, wordemb, maskid=self.maskid)
 
     def loadvalue(self, path, dim, indim=None):
         tt = TT(self.__class__.__name__)
@@ -133,9 +133,11 @@ class AdaptedWordEmb(WordEmb):
     def w(self):
         return self.inner.W.d.get_value()[self.adb.d.get_value()]
 
-    def apply(self, x):
-        x = self.adb[x]
-        return self.inner(x)
+    def apply(self, inp):
+        x = self.adb[inp]
+        ret = self.inner(x)
+        self._maskfrom(ret, inp)
+        return ret
 
 
 class OverriddenWordEmb(WordEmb):
@@ -158,6 +160,7 @@ class OverriddenWordEmb(WordEmb):
         mask = overx > 0
         mask = T.outer(mask, T.ones((self.outdim,)))
         ret = T.switch(mask, self.override(overx), self.base(x))
+        self._maskfrom(ret, x)
         return ret
 
     @property
@@ -181,6 +184,7 @@ class AugmentedWordEmb(WordEmb):
 
     def apply(self, x):
         ret = T.concatenate([self.base(x), self.augment(self.adb[x])], axis=1)
+        self._maskfrom(ret, x)
         return ret
 
     @property

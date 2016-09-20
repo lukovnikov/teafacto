@@ -594,3 +594,4 @@ class MakeRNU(object):
         initdim = innerdim[0]
         otherdim = innerdim[1:]
         return MakeRNU.make(initdim, otherdim, rnu=rnu)
+

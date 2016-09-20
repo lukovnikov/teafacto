@@ -3,6 +3,17 @@ from unittest import TestCase
 import numpy as np
 
 from teafacto.blocks.lang.wordvec import Glove, WordEmb
+from teafacto.blocks.basic import VectorEmbed
+from teafacto.core.base import Val
+
+
+class TestVectorEmbed(TestCase):
+    def test_embed_masker(self):
+        x = VectorEmbed(indim=5, dim=5, maskid=0)
+        v = Val(np.random.randint(0, 5, (4, 3)))
+        xo = x(v)
+        self.assertEqual(v.v.shape, xo.mask.v.shape)
+        self.assertTrue(np.all((v.v == 0) == xo.mask.v))
 
 
 class TestGlove(TestCase):
@@ -10,8 +21,12 @@ class TestGlove(TestCase):
     def setUp(self):
         self.expshape = (4001, 50)
         Glove.defaultpath = "../../../data/glove/miniglove.%dd.txt"
-        self.glove = Glove(self.expshape[1], self.expshape[0]-1)
+        self.glove = Glove(self.expshape[1], self.expshape[0]-1, maskid=-1)
         print self.glove.defaultpath
+
+    def test_glove_embed_masker(self):
+        v = Val(np.random.randint(-1, 5, (4, 3)))
+        self.assertTrue(np.all((v.v == -1) == self.glove(v).mask.v))
 
     def test_glove(self):
         self.assertEqual(self.glove.w.shape, self.expshape)
@@ -29,8 +44,13 @@ class TestAdaptedGlove(TestCase):
     def setUp(self):
         wdic = {"the": 10, "a": 5, "his": 50, "abracadabrqmsd--qsdfmqgf-": 6}
         Glove.defaultpath = "../../../data/glove/miniglove.%dd.txt"
-        self.glove = Glove(50, 4000).adapt(wdic)
-        self.vanillaglove = Glove(50, 4000)
+        self.glove = Glove(50, 4000, maskid=-1).adapt(wdic)
+        self.vanillaglove = Glove(50, 4000, maskid=-1)
+
+    def test_embed_masker(self):
+        v = Val(np.random.randint(-1, 5, (4, 3)))
+        self.assertTrue(np.all((v.v == -1) == self.glove(v).mask.v))
+
 
     def test_map(self):
         self.assertEqual(self.glove * "a", 5)
@@ -53,10 +73,14 @@ class TestGloveOverriding(TestCase):
     def setUp(self):
         words = "the a his monkey inception key earlgrey"
         wdic = dict(zip(words.split(), range(1, len(words.split()) + 1)))
-        self.baseemb = WordEmb(dim=50, worddic=wdic)
+        self.baseemb = WordEmb(dim=50, worddic=wdic, maskid=-1)
         Glove.defaultpath = "../../../data/glove/miniglove.%dd.txt"
         self.glove = Glove(50, 4000)
         self.emb = self.baseemb.override(self.glove)
+
+    def test_embed_masker(self):
+        v = Val(np.random.randint(-1, 5, (4, 3)))
+        self.assertTrue(np.all((v.v == -1) == self.emb(v).mask.v))
 
     def test_sameasglove(self):
         words = "key the a his"

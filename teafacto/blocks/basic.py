@@ -27,6 +27,7 @@ class ConcatBlock(Block):
             res.append(block(*arglist, **argdic))
         return T.concatenate(res, axis=self.axis)
 
+
 class Softmax(Block):
     def apply(self, inptensor): # matrix
         return T.nnet.softmax(inptensor)
@@ -85,11 +86,25 @@ class Eye(Block):
         return inp
 
 
+class Masker(Block):
+    def __init__(self, maskid=None, **kw):
+        self.maskid = maskid
+        super(Masker, self).__init__(**kw)
+
+    def apply(self, x):
+        if self.maskid is not None:
+            return T.eq(x, self.maskid)
+        else:
+            return x
+
+
+
 class VectorEmbed(Embedder):
     def __init__(self, indim=None, dim=None, value=None,
-                 normalize=False, trainfrac=1.0, init=None, **kw):
+                 normalize=False, trainfrac=1.0, init=None, maskid=None, **kw):
         super(VectorEmbed, self).__init__(indim, dim, normalize=normalize,
                                           trainfrac=trainfrac, **kw)
+        self.maskid = maskid
         if value is None:
             self.W = param((indim, dim), lrmul=self.trainfrac, name="embedder")
             if init == "zero":
@@ -115,4 +130,13 @@ class VectorEmbed(Embedder):
             self.W = Parameter(v, lrmul=self.trainfrac, name="embedder")
 
     def apply(self, inptensor):
-        return self.W[inptensor]
+        ret = self.W[inptensor]
+        self._maskfrom(ret, inptensor)
+        return ret
+
+    def _maskfrom(self, ret, x):
+        if self.maskid is not None:
+            mask = T.eq(x, self.maskid)
+        else:
+            mask = None
+        ret.mask = mask

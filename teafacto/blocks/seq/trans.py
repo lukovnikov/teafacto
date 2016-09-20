@@ -5,10 +5,14 @@ from teafacto.blocks.basic import VectorEmbed, Linear as Lin, Softmax
 from teafacto.util import issequence
 
 
-class SeqTrans(SeqEncoder):
+class SeqTrans(Block):
     def __init__(self, embedder, *layers, **kw):
-        super(SeqTrans, self).__init__(embedder, *layers, **kw)
-        self.all_outputs()
+        super(SeqTrans, self).__init__(**kw)
+        self.enc = SeqEncoder(embedder, *layers)
+        self.enc.all_outputs().maskoption(MaskMode.NONE)
+
+    def apply(self, x):
+        return self.enc(x)
 
 
 class SimpleSeqTrans(SeqTrans):
@@ -24,7 +28,4 @@ class SimpleSeqTrans(SeqTrans):
         innerdim = [embdim] + innerdim
         rnn, _ = MakeRNU.fromdims(innerdim, rnu=rnu)
         smo = Lin(indim=innerdim[-1], dim=outdim)
-        super(SimpleSeqTrans, self).__init__(emb,
-                                             *(rnn
-                                             + [smo,
-                                                Softmax()]), **kw)
+        super(SimpleSeqTrans, self).__init__(emb, *(rnn + [smo, Softmax()]), **kw)
