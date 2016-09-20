@@ -93,17 +93,6 @@ class SimpleSeq2Vec(Seq2Vec):
         return MakeRNU.make(inpembdim, innerdim, bidir=bidir)
 
 
-class SimpleSeq2Idx(SimpleSeq2Vec):
-    def __init__(self, numclasses=2, **kwargs):
-        super(SimpleSeq2Idx, self).__init__(**kwargs)
-        self.numclasses = numclasses
-        self.smol = Linear(indim=self.outdim, dim=self.numclasses)
-
-    def apply(self, x, mask=None, weights=None):
-        ret = super(SimpleSeq2Idx, self).apply(x, mask=mask, weights=weights)
-        return Softmax()(self.smol(ret))
-
-
 class SimpleSeq2Bool(SimpleSeq2Vec):
     def __init__(self, **kwargs):
         super(SimpleSeq2Bool, self).__init__(**kwargs)
