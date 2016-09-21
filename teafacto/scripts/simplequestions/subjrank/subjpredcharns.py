@@ -1,4 +1,4 @@
-import pickle, sys, os, numpy as np
+import cPickle as pickle, sys, os, numpy as np
 from IPython import embed
 from teafacto.util import ticktock, tokenize
 
