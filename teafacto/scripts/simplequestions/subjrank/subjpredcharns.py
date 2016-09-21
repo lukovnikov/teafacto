@@ -11,6 +11,10 @@ def readdata(mode="char",
 
     if os.path.isfile(cachep):      # load
         ret = pickle.load(open(cachep))
+        entdic = ret[-1]
+        subjinfo = loadsubjinfo(entinfp, entdic)
+
+        testcans = loadtestcans()
     else:
         # everything in word space !!!!!
         tt = ticktock("dataloader")
@@ -24,10 +28,6 @@ def readdata(mode="char",
         traindata, traingold = x["train"]
         validdata, validgold = x["valid"]
         testdata, testgold = x["test"]
-
-        subjinfo = loadsubjinfo(entinfp, entdic)
-
-        testcans = loadtestcans()
 
         if mode == "char":
             tt.tick("transforming to chars")
@@ -56,7 +56,7 @@ def readdata(mode="char",
                 print "".join([rcd[xe] for xe in x])
             worddic = chardic
         ret = ((traindata, traingold), (validdata, validgold), (testdata, testgold),
-               entmat, worddic, entdic, testcans, subjinfo)
+               entmat, worddic, entdic)
         if cachep is not None:
             tt.tick("dumping to cache")
             pickle.dump(ret, open(cachep, "w"))
