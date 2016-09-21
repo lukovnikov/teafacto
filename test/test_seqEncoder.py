@@ -23,7 +23,7 @@ class TestSeqEncoder(TestCase):
         seqlen = 5
         dim = 3
         indim = 7
-        m = SeqEncoder(IdxToOneHot(indim), GRU(dim=indim, innerdim=dim)).all_outputs
+        m = SeqEncoder(IdxToOneHot(indim), GRU(dim=indim, innerdim=dim)).all_outputs()
         data = np.random.randint(0, indim, (batsize, seqlen)).astype("int32")
         mask = np.zeros_like(data).astype("float32")
         mask[:, 0:2] = 1
@@ -37,7 +37,7 @@ class TestSeqEncoder(TestCase):
         seqlen = 5
         dim = 6
         indim = 5
-        m = SeqEncoder(IdxToOneHot(indim), GRU(dim=indim, innerdim=dim)).maskoption(-1).all_outputs
+        m = SeqEncoder(IdxToOneHot(indim), GRU(dim=indim, innerdim=dim)).maskoption(-1).all_outputs()
         data = np.random.randint(0, indim, (batsize, seqlen)).astype("int32")
         rmasker = np.random.randint(2, seqlen, (batsize, )).astype("int32")
         print rmasker
@@ -52,7 +52,7 @@ class TestSeqEncoder(TestCase):
         seqlen = 3
         dim = 7
         indim = 5
-        m = SeqEncoder(IdxToOneHot(indim), GRU(dim=indim, innerdim=dim)).maskoption(-1).all_outputs
+        m = SeqEncoder(IdxToOneHot(indim), GRU(dim=indim, innerdim=dim)).maskoption(-1).all_outputs()
         data = np.random.randint(0, indim, (batsize, seqlen)).astype("int32")
         data[:, 1] = 0
         ndata = np.ones_like(data) * -1
@@ -70,7 +70,7 @@ class TestSeqEncoder(TestCase):
         seqlen = 3
         dim = 7
         indim = 5
-        m = SeqEncoder(IdxToOneHot(indim), GRU(dim=indim, innerdim=dim)).maskoptions(-1, MaskSetMode.ZERO).all_outputs
+        m = SeqEncoder(IdxToOneHot(indim), GRU(dim=indim, innerdim=dim)).maskoptions(-1, MaskSetMode.ZERO).all_outputs()
         data = np.random.randint(0, indim, (batsize, seqlen)).astype("int32")
         data[:, 1] = 0
         ndata = np.ones_like(data) * -1

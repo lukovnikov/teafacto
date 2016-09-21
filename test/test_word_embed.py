@@ -80,7 +80,8 @@ class TestGloveOverriding(TestCase):
 
     def test_embed_masker(self):
         v = Val(np.random.randint(-1, 5, (4, 3)))
-        self.assertTrue(np.all((v.v == -1) == self.emb(v).mask.v))
+        m = self.emb(v).mask
+        self.assertTrue(np.all((v.v == -1) == m.v))
 
     def test_sameasglove(self):
         words = "key the a his"

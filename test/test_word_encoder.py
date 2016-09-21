@@ -53,7 +53,7 @@ class TestWordEncoderPlusGlove(TestCase):
         encdim = 4
         embdim = 50
         block = WordEncoderPlusGlove(numchars=numchars, numwords=numwords, encdim=encdim, embdim=embdim, maskid=-1)
-        block.enc.enc.all_outputs
+        block.enc.enc.all_outputs()
         pred = block.enc.enc.predict(data[:, 1:])
         i = 1
         while i < pred.shape[1]:
@@ -88,7 +88,7 @@ class TestWordEncoderPlusGlove(TestCase):
                                        embtrainfrac=0)
         rnn, lastdim = SimpleSeq2Vec.makernu(embdim + encdim, innerdim, bidir=False)
         enc = Seq2Vec(wordemb, rnn, maskid=-1)
-        enc.enc.with_outputs
+        enc.enc.with_outputs()
         finalpred, pred = enc.predict(data)
         #print pred.shape, finalpred.shape
         #print pred[0], finalpred[0]
