@@ -12,7 +12,7 @@ def readdata(mode="char",
     if os.path.isfile(cachep):      # load
         tt.tick("loading from cache")
         ret = pickle.load(open(cachep))
-        entdic = ret[-1]
+        entdic, worddic = ret[-1], ret[-2]
         tt.tock("loaded from cache")
     else:
         # everything in word space !!!!!
@@ -30,10 +30,10 @@ def readdata(mode="char",
         if mode == "char":
             tt.tick("transforming to chars")
             rwd = {v: k for k, v in worddic.items()}
-            traindata = wordmat2charmat(traindata, rwd)
-            validdata = wordmat2charmat(validdata, rwd)
-            testdata = wordmat2charmat(testdata, rwd)
-            entmat = wordmat2charmat(entmat, rwd, maxmaxlen=50)
+            traindata = wordmat2charmat(traindata, rwd, maxmaxlen=110)
+            validdata = wordmat2charmat(validdata, rwd, maxmaxlen=110)
+            testdata = wordmat2charmat(testdata, rwd, maxmaxlen=110)
+            entmat = wordmat2charmat(entmat, rwd, maxmaxlen=75)
             tt.tick()
             allchars = set(list(np.unique(traindata)))\
                 .union(set(list(np.unique(validdata))))\
@@ -49,9 +49,6 @@ def readdata(mode="char",
             entmat = dicmap(entmat)
             tt.tock("transformed to chars")
             chardic = {chr(k): v for k, v in chardic.items() if k in range(256)}
-            rcd = {v: k for k, v in chardic.items()}
-            def cpp(x):
-                print "".join([rcd[xe] for xe in x])
             worddic = chardic
         ret = ((traindata, traingold), (validdata, validgold), (testdata, testgold),
                entmat, worddic, entdic)
@@ -62,8 +59,14 @@ def readdata(mode="char",
 
     subjinfo = loadsubjinfo(entinfp, entdic)
     testcans = loadtestcans()
-    embed()
-    return ret
+
+    debug = True
+    if debug:
+        rcd = {v: k for k, v in worddic.items()}
+        def cpp(x):
+            print "".join([rcd[xe] if xe in rcd else "" for xe in x])
+        embed()
+    return ret + (subjinfo, testcans)
 
 
 def wordmat2charmat(wm, rwd, maxmaxlen=120, maskid=-1):       # wm: (numsam, len)
@@ -103,7 +106,7 @@ def loadsubjinfo(entinfp, entdic, cachep=None):#"subjinfo.cache.pkl"):
         c = 0
         for line in open(entinfp):
             subjuri, subjc, objc, subjname, typuri, typname = line[:-1].split("\t")
-            subjinf[entdic[subjuri]] = (typname.lower().split(), typuri, subjc, objc)
+            subjinf[entdic[subjuri]] = (subjname, typname.lower().split(), typuri, subjc, objc)
             if c % 1000 == 0:
                 tt.live(str(c))
             c += 1
