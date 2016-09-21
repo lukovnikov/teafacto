@@ -8,13 +8,14 @@ def readdata(mode="char",
              entinfp="../../../../data/simplequestions/clean/subjs-counts-labels-types.fb2m.tsv",
              maskid=-1,
              cachep="subjpredcharns.readdata.cache.pkl"):
-
+    tt = ticktock("dataloader")
     if os.path.isfile(cachep):      # load
+        tt.tick("loading from cache")
         ret = pickle.load(open(cachep))
         entdic = ret[-1]
+        tt.tock("loaded from cache")
     else:
         # everything in word space !!!!!
-        tt = ticktock("dataloader")
         tt.tick("loading datamat")
         x = pickle.load(open(p))
         tt.tock("datamat loaded")
@@ -47,6 +48,7 @@ def readdata(mode="char",
             testdata = dicmap(testdata)
             entmat = dicmap(entmat)
             tt.tock("transformed to chars")
+            chardic = {chr(k): v for k, v in chardic.items() if k in range(256)}
             rcd = {v: k for k, v in chardic.items()}
             def cpp(x):
                 print "".join([rcd[xe] for xe in x])
@@ -71,7 +73,7 @@ def wordmat2charmat(wm, rwd, maxmaxlen=120, maskid=-1):       # wm: (numsam, len
     toolong = 0
     cm = maskid * np.ones((wm.shape[0], maxmaxlen), dtype="int32")
     for i in range(wm.shape[0]):
-        string = " ".join([rwd[x] if x != maskid else "" for x in wm[i]])
+        string = " ".join([rwd[x] for x in wm[i] if x != maskid])
         maxlen = max(maxlen, len(string))
         if len(string) > maxmaxlen:
             toolong += 1
