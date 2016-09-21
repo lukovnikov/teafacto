@@ -9,6 +9,7 @@ from teafacto.blocks.seq.enc import SimpleSeq2Vec
 from teafacto.blocks.match import CosineDistance, MatchScore
 from teafacto.blocks.memory import MemVec
 
+
 def readdata(p="../../../../data/simplequestions/clean/datamat.word.fb2m.pkl",
              relsperentp="../../../../data/simplequestions/allrelsperent.dmp"):
     tt = ticktock("dataloader")
@@ -83,7 +84,6 @@ def buildsamplespace(entmat, wd, maskid=-1):
         samdic[i] = list(np.argwhere(samdicm[i, :])[:, 1])
     tt.tock("made sample space")
     return samdic, entmatm.T
-
 
 
 def run(epochs=50,

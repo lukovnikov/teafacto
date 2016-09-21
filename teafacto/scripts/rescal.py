@@ -23,8 +23,8 @@ class Rescal(Block):
 
 class TransE(Block):
     def __init__(self, embdim, numents, numrels, **kw):
-        self.A = VectorEmbed(indim=numents, dim=embdim)
-        self.R = VectorEmbed(indim=numrels, dim=embdim)
+        self.A = VectorEmbed(indim=numents, dim=embdim, normalize=True)
+        self.R = VectorEmbed(indim=numrels, dim=embdim, normalize=True)
         self.scorer = EuclideanDistance()
         super(TransE, self).__init__(**kw)
 
