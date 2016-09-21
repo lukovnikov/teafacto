@@ -33,7 +33,7 @@ def readdata(mode="char",
             traindata = wordmat2charmat(traindata, rwd)
             validdata = wordmat2charmat(validdata, rwd)
             testdata = wordmat2charmat(testdata, rwd)
-            entmat = wordmat2charmat(entmat, rwd)
+            entmat = wordmat2charmat(entmat, rwd, maxmaxlen=50)
             tt.tick()
             allchars = set(list(np.unique(traindata)))\
                 .union(set(list(np.unique(validdata))))\
