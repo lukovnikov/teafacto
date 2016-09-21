@@ -36,12 +36,16 @@ def readdata(mode="char",
             validdata = wordmat2charmat(validdata, rwd)
             testdata = wordmat2charmat(testdata, rwd)
             entmat = wordmat2charmat(entmat, rwd)
+            tt.tick()
             allchars = set(list(np.unique(traindata)))\
                 .union(set(list(np.unique(validdata))))\
                 .union(set(list(np.unique(testdata))))\
                 .union(set(list(np.unique(entmat))))
+            tt.tock("collected unique chars").tick()
             chardic = dict(zip(allchars, range(len(allchars))))
-            dicmap = np.vectorize(lambda x: chardic[x] if x != maskid else maskid)
+            assert(maskid not in chardic)
+            chardic[maskid] = maskid
+            dicmap = np.vectorize(lambda x: chardic[x])
             traindata = dicmap(traindata)
             validdata = dicmap(validdata)
             testdata = dicmap(testdata)
@@ -54,7 +58,9 @@ def readdata(mode="char",
         ret = ((traindata, traingold), (validdata, validgold), (testdata, testgold),
                entmat, worddic, entdic, testcans, subjinfo)
         if cachep is not None:
+            tt.tick("dumping to cache")
             pickle.dump(ret, open(cachep, "w"))
+            tt.tock("dumped to cache")
     embed()
 
 
