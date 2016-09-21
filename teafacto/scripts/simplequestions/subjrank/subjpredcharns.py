@@ -12,9 +12,6 @@ def readdata(mode="char",
     if os.path.isfile(cachep):      # load
         ret = pickle.load(open(cachep))
         entdic = ret[-1]
-        subjinfo = loadsubjinfo(entinfp, entdic)
-
-        testcans = loadtestcans()
     else:
         # everything in word space !!!!!
         tt = ticktock("dataloader")
@@ -43,7 +40,6 @@ def readdata(mode="char",
                 .union(set(list(np.unique(entmat))))
             tt.tock("collected unique chars").tick()
             chardic = dict(zip(allchars, range(len(allchars))))
-            assert(maskid not in chardic)
             chardic[maskid] = maskid
             dicmap = np.vectorize(lambda x: chardic[x])
             traindata = dicmap(traindata)
@@ -61,7 +57,11 @@ def readdata(mode="char",
             tt.tick("dumping to cache")
             pickle.dump(ret, open(cachep, "w"))
             tt.tock("dumped to cache")
+
+    subjinfo = loadsubjinfo(entinfp, entdic)
+    testcans = loadtestcans()
     embed()
+    return ret
 
 
 def wordmat2charmat(wm, rwd, maxmaxlen=120, maskid=-1):       # wm: (numsam, len)
