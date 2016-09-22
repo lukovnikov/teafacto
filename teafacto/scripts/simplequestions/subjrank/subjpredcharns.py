@@ -1,6 +1,11 @@
 import cPickle as pickle, sys, os, numpy as np
 from IPython import embed
-from teafacto.util import ticktock, tokenize
+
+from teafacto.util import ticktock, tokenize, argprun
+from teafacto.blocks.seq.enc import SimpleSeq2Vec, SimpleSeqStar2Vec
+from teafacto.blocks.seq.rnn import SeqEncoder, MaskMode, EncLastDim
+from teafacto.blocks.basic import VectorEmbed
+from teafacto.blocks.seq.rnu import GRU
 
 
 def readdata(mode="char",
@@ -128,4 +133,7 @@ def loadsubjinfo(entinfp, entdic, cachep=None):#"subjinfo.cache.pkl"):
 
 
 if __name__ == "__main__":
-    readdata()
+    x = np.random.randint(0, 50, (5, 8, 9))
+    m = SimpleSeqStar2Vec(indim=50, inpembdim=10, innerdim=[20, 30], maskid=0)
+    pred = m.predict(x)
+    print pred.shape

@@ -1,6 +1,6 @@
 from teafacto.blocks.basic import IdxToOneHot, VectorEmbed, MatDot, Softmax, Linear
 from teafacto.blocks.pool import Pool
-from teafacto.blocks.seq.rnn import MakeRNU
+from teafacto.blocks.seq.rnn import MakeRNU, EncLastDim
 from teafacto.blocks.seq.oldseqproc import Vec2Idx, SimpleVec2Idx
 from teafacto.blocks.seq.rnn import SeqEncoder, MaskMode
 from teafacto.core.base import Block, tensorops as T, param
@@ -85,11 +85,59 @@ class SimpleSeq2Vec(Seq2Vec):
         rnn, lastdim = self.makernu(inpembdim, innerdim, bidir=bidir)
         self.outdim = lastdim
         poolblock = None if pool is False else Pool((None,), axis=(1,), mode="max")
-        super(SimpleSeq2Vec, self).__init__(inpemb, rnn, maskid, pool=poolblock, **kw)
+        super(SimpleSeq2Vec, self).__init__(inpemb, rnn, maskid=maskid, pool=poolblock, **kw)
 
     @staticmethod
     def makernu(inpembdim, innerdim, bidir=False):
         return MakeRNU.make(inpembdim, innerdim, bidir=bidir)
+
+
+class SeqStar2Vec(Block):
+    def __init__(self, baseemb, *layersforencs, **kw):
+        super(SeqStar2Vec, self).__init__(**kw)
+        self.maskid = None if "maskid" not in kw else kw["maskid"]
+        self.encoders = []
+        atbase = True
+        for layers in layersforencs:
+            if not issequence(layers):
+                layers = [layers]
+            if atbase:
+                enc = SeqEncoder(baseemb, *layers).maskoptions(MaskMode.NONE)
+                atbase = False
+            else:
+                enc = SeqEncoder(None, *layers).maskoptions(MaskMode.NONE)
+            self.encoders.append(enc)
+
+    def apply(self, x):     # (batsize, outerseqlen, innerseqlen)
+        y = x
+        xm = T.neq(x, self.maskid) if self.maskid is not None else None
+        for enc in self.encoders:
+            y = EncLastDim(enc)(y, mask=xm)
+            xm = T.sum(xm, axis=-1) > 0 if self.maskid is not None else None
+        return y
+
+
+class SimpleSeqStar2Vec(SeqStar2Vec):
+    def __init__(self, indim=400, inpembdim=50, inpemb=None, innerdim=100, maskid=None, bidir=False, **kw):
+        if inpemb is None:
+            if inpembdim is None:
+                inpemb = IdxToOneHot(indim)
+                inpembdim = indim
+            else:
+                inpemb = VectorEmbed(indim=indim, dim=inpembdim)
+        else:
+            inpembdim = inpemb.outdim
+        lastdim = inpembdim
+        if not issequence(innerdim):    # single encoder
+            innerdim = [innerdim]
+        rnns = []
+        for innerdimi in innerdim:
+            if not issequence(innerdimi):    # one layer in encoder
+                innerdimi = [innerdimi]
+            rnn, lastdim = MakeRNU.make(lastdim, innerdimi, bidir=bidir)
+            rnns.append(rnn)
+        self.outdim = lastdim
+        super(SimpleSeqStar2Vec, self).__init__(inpemb, *rnns, maskid=maskid, **kw)
 
 
 class SimpleSeq2Bool(SimpleSeq2Vec):

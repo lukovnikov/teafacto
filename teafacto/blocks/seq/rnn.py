@@ -3,9 +3,9 @@ import numpy as np
 
 from teafacto.blocks.seq.attention import WeightedSumAttCon, Attention, AttentionConsumer, LinearGateAttentionGenerator
 from teafacto.blocks.seq.rnu import GRU, ReccableBlock, RecurrentBlock, RNUBase
-from teafacto.blocks.basic import IdxToOneHot, Softmax, MatDot
+from teafacto.blocks.basic import IdxToOneHot, Softmax, MatDot, Eye
 from teafacto.core.base import Block, tensorops as T, asblock
-from teafacto.util import issequence
+from teafacto.util import issequence, isnumber
 
 
 class RecStack(ReccableBlock):
@@ -163,6 +163,36 @@ class MaskConfig(object):
             raise NotImplementedError("unrecognized mask configuration option")
 
 
+class EncLastDim(Block):
+    def __init__(self, enc, **kw):
+        super(EncLastDim, self).__init__(**kw)
+        self.enc = enc
+
+    def apply(self, x, mask=None):
+        if self.enc.embedder is None:
+            mindim = 3
+            maskdim = x.ndim - 1
+        else:
+            mindim = 2
+            maskdim = x.ndim
+        if mask is not None:
+            assert(mask.ndim == maskdim)
+        else:
+            mask = T.ones(x.shape[:maskdim])
+        if x.ndim == mindim:
+            return self.enc(x, mask=mask)
+        elif x.ndim > mindim:
+            ret, _ = T.scan(fn=self.outerrec, sequences=[x, mask], outputs_info=None)
+            return ret
+        else:
+            raise Exception("cannot have less than {} dims".format(mindim))
+
+    def outerrec(self, xred, mask):  # x: ndim-1
+        ret = self.apply(xred, mask=mask)
+        return ret
+
+
+
 class SeqEncoder(AttentionConsumer, Block):
     '''
     Encodes a sequence of vectors into a vector, input dims and output dims specified by the RNU unit
@@ -187,16 +217,17 @@ class SeqEncoder(AttentionConsumer, Block):
 
     def apply(self, seq, weights=None, mask=None): # seq: (batsize, seqlen, dim), weights: (batsize, seqlen) OR (batsize, seqlen, seqlen*, dim) ==> reduce the innermost seqlen
         # embed
-        if self.embedder is not None:
-            seqemb = self.embedder(seq)     # maybe this way of embedding is not so nice for memory
-        else:
+        if self.embedder is None:
             seqemb = seq
-        # compute full mask
-        if self._maskconfig.maskmode == MaskMode.AUTO_FORCE or \
-                (mask is None and self._maskconfig.maskmode == MaskMode.AUTO) or \
-                mask == "auto":
-            mask = self._autogenerate_mask(seq, seqemb)
+        else:
+            seqemb = self.embedder(seq)     # maybe this way of embedding is not so nice for memory
+            # auto mask
+            if self._maskconfig.maskmode == MaskMode.AUTO_FORCE or \
+                    (mask is None and self._maskconfig.maskmode == MaskMode.AUTO) or \
+                    mask == "auto":
+                mask = self._autogenerate_mask(seq, seqemb)
 
+        # full mask
         fullmask = None
         if mask is not None:
             fullmask = mask
