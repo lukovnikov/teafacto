@@ -125,7 +125,7 @@ def run(epochs=50,
         closenegsam=False,
         glove=False,
         atleastcan=0,
-        wordchar=True
+        wordchar=False,
         ):
     maskid = -1
     tt = ticktock("predpred")
