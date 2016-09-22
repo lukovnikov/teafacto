@@ -69,7 +69,7 @@ def wordmat2wordchartensor(wordmat, worddic=None, maxchars=30, maskid=-1):
     chartensor = wordcharmat[wordmat, :]
     chartensor[wordmat == -1] = -1
     out = np.concatenate([wordmat[:, :, np.newaxis], chartensor], axis=2)
-    embed()
+    #embed()
     return out
 
 
