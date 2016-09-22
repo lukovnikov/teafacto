@@ -158,6 +158,7 @@ def run(epochs=50,
     else:
         wordemb = VectorEmbed(numwords, embdim)
     if wordchar:
+        print "wordchar model"
         question_enc = WordCharSentEnc(numchars=256, charembdim=50, charinnerdim=embdim,
                                        wordemb=wordemb, wordinnerdim=encdim, maskid=maskid,
                                        bidir=bidir)
