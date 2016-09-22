@@ -6,6 +6,7 @@ import os
 from teafacto.core.base import Block, Val, tensorops as T
 from teafacto.blocks.basic import VectorEmbed, Embedder
 from teafacto.util import ticktock as TT, isnumber, isstring
+from teafacto.blocks.seq.enc import SimpleSeqStar2Vec
 
 
 class WordEmbBase(object):

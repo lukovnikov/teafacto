@@ -5,13 +5,15 @@ from IPython import embed
 from teafacto.core.base import Val
 from teafacto.blocks.basic import VectorEmbed
 from teafacto.blocks.lang.wordvec import Glove
+from teafacto.blocks.lang.sentenc import WordCharSentEnc
 from teafacto.blocks.seq.enc import SimpleSeq2Vec
 from teafacto.blocks.match import CosineDistance, MatchScore
 from teafacto.blocks.memory import MemVec
 
 
 def readdata(p="../../../../data/simplequestions/clean/datamat.word.fb2m.pkl",
-             relsperentp="../../../../data/simplequestions/allrelsperent.dmp"):
+             relsperentp="../../../../data/simplequestions/allrelsperent.dmp",
+             wordchar=False):
     tt = ticktock("dataloader")
     tt.tick("loading datamat")
     x = pickle.load(open(p))
@@ -25,6 +27,11 @@ def readdata(p="../../../../data/simplequestions/clean/datamat.word.fb2m.pkl",
     testdata, testgold = x["test"]
     testsubjs = testgold[:, 0]
     testsubjsrels = {k: ([], []) for k in set(list(testsubjs))}
+
+    if wordchar:
+        traindata = wordmat2wordchartensor(traindata, worddic=worddic)
+        validdata = wordmat2wordchartensor(validdata, worddic=worddic)
+        testdata = wordmat2wordchartensor(testdata, worddic=worddic)
 
     tt.tick("loading test cans")
     for line in open(relsperentp):
@@ -50,6 +57,20 @@ def readdata(p="../../../../data/simplequestions/clean/datamat.word.fb2m.pkl",
 
     return (traindata, traingold), (validdata, validgold), (testdata, testgold),\
            worddic, entdic, entmat, testrelcans
+
+
+def wordmat2wordchartensor(wordmat, worddic=None, maxchars=30, maskid=-1):
+    rwd = {v: k for k, v in worddic.items()}
+    wordcharmat = maskid * np.ones((max(rwd.keys())+1, maxchars), dtype="int32")
+    for i in rwd.keys():
+        word = rwd[i]
+        word = word[:min(maxchars, len(word))]
+        wordcharmat[i, :len(word)] = [ord(ch) for ch in word]
+    chartensor = wordcharmat[wordmat, :]
+    chartensor[wordmat == -1] = -1
+    out = np.concatenate([wordmat[:, :, np.newaxis], chartensor], axis=2)
+    embed()
+    return out
 
 
 def buildsamplespace(entmat, wd, maskid=-1):
@@ -93,8 +114,8 @@ def run(epochs=50,
         bidir=False,
         layers=1,
         embdim=200,
-        encdim=200,
-        decdim=200,
+        encdim=400,
+        decdim=400,
         negrate=1,
         margin=1.,
         hingeloss=False,
@@ -104,12 +125,13 @@ def run(epochs=50,
         closenegsam=False,
         glove=False,
         atleastcan=0,
+        wordchar=True
         ):
     maskid = -1
     tt = ticktock("predpred")
     tt.tick("loading data")
     (traindata, traingold), (validdata, validgold), (testdata, testgold), \
-    worddic, entdic, entmat, testsubjsrels = readdata()
+    worddic, entdic, entmat, testsubjsrels = readdata(wordchar=wordchar)
 
     if closenegsam:
         revsamplespace, revind = buildsamplespace(entmat, worddic)
@@ -135,12 +157,17 @@ def run(epochs=50,
         wordemb = Glove(embdim).adapt(worddic)
     else:
         wordemb = VectorEmbed(numwords, embdim)
-    question_enc = SimpleSeq2Vec(inpemb=wordemb,
-                                 inpembdim=wordemb.outdim,
-                                 innerdim=encdim,
-                                 maskid=maskid,
-                                 bidir=bidir,
-                                 layers=layers)
+    if wordchar:
+        question_enc = WordCharSentEnc(numchars=256, charembdim=50, charinnerdim=embdim,
+                                       wordemb=wordemb, wordinnerdim=encdim, maskid=maskid,
+                                       bidir=bidir)
+    else:
+        question_enc = SimpleSeq2Vec(inpemb=wordemb,
+                                     inpembdim=wordemb.outdim,
+                                     innerdim=encdim,
+                                     maskid=maskid,
+                                     bidir=bidir,
+                                     layers=layers)
 
     # predicate-side model
     if predencode:

@@ -6,6 +6,8 @@ from teafacto.blocks.seq.enc import SimpleSeq2Vec, SimpleSeqStar2Vec
 from teafacto.blocks.seq.rnn import SeqEncoder, MaskMode, EncLastDim
 from teafacto.blocks.basic import VectorEmbed
 from teafacto.blocks.seq.rnu import GRU
+from teafacto.blocks.lang.sentenc import WordCharSentEnc
+from teafacto.blocks.lang.wordvec import Glove
 
 
 def readdata(mode="char",
@@ -133,7 +135,12 @@ def loadsubjinfo(entinfp, entdic, cachep=None):#"subjinfo.cache.pkl"):
 
 
 if __name__ == "__main__":
-    x = np.random.randint(0, 50, (5, 8, 9))
-    m = SimpleSeqStar2Vec(indim=50, inpembdim=10, innerdim=[20, 30], maskid=0)
+    x = np.random.randint(0, 50, (5, 4, 3))
+    x = np.concatenate([np.random.randint(0, 1000, (5, 4, 1)), x], axis=2)
+    x = np.concatenate([x, np.zeros_like(x)], axis=1)
+    print x, x.shape
+    m = WordCharSentEnc(numchars=50, charembdim=10, charinnerdim=20,
+                        wordemb=Glove(50, 1000), wordinnerdim=3,
+                        maskid=0, returnall=True)
     pred = m.predict(x)
-    print pred.shape
+    print pred, pred.shape
