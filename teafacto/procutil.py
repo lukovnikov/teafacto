@@ -18,3 +18,22 @@ def buildwordmat(worddic, maxwordlen=30):
     del chardic[maskid]
     chardic = {chr(k): v for k, v in chardic.items()}
     return wordmat, chardic
+
+
+def wordmat2wordchartensor(wordmat, worddic=None, maxchars=30, maskid=-1):
+    chartensor = wordmat2chartensor(wordmat, worddic=worddic, maxchars=maxchars, maskid=maskid)
+    out = np.concatenate([wordmat[:, :, np.newaxis], chartensor], axis=2)
+    #embed()
+    return out
+
+
+def wordmat2chartensor(wordmat, worddic=None, maxchars=30, maskid=-1):
+    rwd = {v: k for k, v in worddic.items()}
+    wordcharmat = maskid * np.ones((max(rwd.keys())+1, maxchars), dtype="int32")
+    for i in rwd.keys():
+        word = rwd[i]
+        word = word[:min(maxchars, len(word))]
+        wordcharmat[i, :len(word)] = [ord(ch) for ch in word]
+    chartensor = wordcharmat[wordmat, :]
+    chartensor[wordmat == -1] = -1
+    return chartensor

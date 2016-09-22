@@ -191,6 +191,10 @@ class EncLastDim(Block):
         ret = self.apply(xred, mask=mask)
         return ret
 
+    @property
+    def outdim(self):
+        return self.enc.outdim
+
 
 
 class SeqEncoder(AttentionConsumer, Block):

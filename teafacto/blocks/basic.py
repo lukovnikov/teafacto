@@ -140,3 +140,16 @@ class VectorEmbed(Embedder):
         else:
             mask = None
         ret.mask = mask
+
+
+class SMO(Block):   # softmax output layer
+    def __init__(self, inner, outdim=2, **kw):
+        super(SMO, self).__init__(**kw)
+        self.inner = inner
+        self.outdim = outdim
+        self.outl = Linear(inner.outdim, outdim)
+
+    def apply(self, *args, **kwargs):
+        vec = self.inner(*args, **kwargs)
+        ret = self.outl(vec)
+        return Softmax()(ret)

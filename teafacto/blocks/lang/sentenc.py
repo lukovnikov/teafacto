@@ -30,6 +30,9 @@ class WordCharSentEnc(Block):
         # word level inits
         if wordemb is None:
             self.wordemb = VectorEmbed(indim=numwords, dim=wordembdim)
+        elif wordemb is False:
+            self.wordemb = None
+            wordembdim = 0
         else:
             self.wordemb = wordemb
             wordembdim = wordemb.outdim
@@ -39,14 +42,19 @@ class WordCharSentEnc(Block):
         self.wordenc = SeqEncoder(None, *wordlayers).maskoptions(MaskMode.NONE)
         if returnall:
             self.wordenc.all_outputs()
+        self.outdim = outdim
 
     def apply(self, x):     # (batsize, numwords, 1 + numcharsperword)
-        chartensor = x[:, :, 1:]
-        wordmat = x[:, :, 0]
-        assert(wordmat.ndim == 2)
-        wordencs = EncLastDim(self.charenc)(chartensor)     # (batsize, numwords, wordencdim)
-        wordembs = self.wordemb(wordmat)                    # (batsize, numwords, wordembdim)
-        wordvecs = T.concatenate([wordencs, wordembs], axis=2)
-        wmask = T.neq(wordmat, self.maskid) if self.maskid is not None else None
+        if self.wordemb is not None:
+            chartensor = x[:, :, 1:]
+            wordencs = EncLastDim(self.charenc)(chartensor)     # (batsize, numwords, wordencdim)
+            wordmat = x[:, :, 0]
+            assert(wordmat.ndim == 2)
+            wordembs = self.wordemb(wordmat)    # (batsize, numwords, wordembdim)
+            wordvecs = T.concatenate([wordencs, wordembs], axis=2)
+            wmask = T.neq(wordmat, self.maskid) if self.maskid is not None else None
+        else:
+            wordvecs = EncLastDim(self.charenc)(x)
+            wmask = T.gt(T.sum(T.eq(x, self.maskid), axis=2), 0)
         sentenc = self.wordenc(wordvecs, mask=wmask)
         return sentenc
