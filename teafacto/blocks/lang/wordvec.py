@@ -2,6 +2,7 @@ from collections import OrderedDict
 
 import numpy as np
 import os
+from IPython import embed
 
 from teafacto.core.base import Block, Val, tensorops as T
 from teafacto.blocks.basic import VectorEmbed, Embedder
@@ -80,7 +81,7 @@ class WordEmb(WordEmbBase, VectorEmbed): # unknown words are mapped to index 0, 
             indim = max(worddic.values()) + 1
         if worddic is not None:
             wdvals = worddic.values()
-
+            embed()
             assert(min(wdvals) > 0)     # word ids must be positive non-zero
             assert(indim == max(wdvals)+1 or indim is None)
             if indim is None:
