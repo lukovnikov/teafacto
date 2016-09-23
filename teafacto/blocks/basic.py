@@ -143,11 +143,11 @@ class VectorEmbed(Embedder):
 
 
 class SMO(Block):   # softmax output layer
-    def __init__(self, inner, outdim=2, **kw):
+    def __init__(self, inner, outdim=2, nobias=False, **kw):
         super(SMO, self).__init__(**kw)
         self.inner = inner
         self.outdim = outdim
-        self.outl = Linear(inner.outdim, outdim)
+        self.outl = Linear(inner.outdim, outdim) if not nobias else MatDot(inner.outdim, outdim)
 
     def apply(self, *args, **kwargs):
         vec = self.inner(*args, **kwargs)

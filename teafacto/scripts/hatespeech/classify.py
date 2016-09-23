@@ -126,7 +126,7 @@ def run(epochs=50,
     else:
         enc = SimpleSeq2Vec(inpemb=inpemb, innerdim=encdim, maskid=maskid, bidir=bidir)
 
-    m = SMO(enc, outdim=2)
+    m = SMO(enc, outdim=2, nobias=True)
     #print enc.predict(traindata[:5, :])
     m = m.train([traindata], traingold)\
         .adadelta(lr=lr).grad_total_norm(1.0)\
