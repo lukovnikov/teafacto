@@ -11,50 +11,60 @@ class CharWordSentEnc(SimpleSeqStar2Vec):
         super(CharWordSentEnc, self).__init__(indim=numchars, inpembdim=charembdim, innerdim=[wordembdim, innerdim], maskid=maskid)
 
 
-class WordCharSentEnc(Block):
+class TwoLevelEncoder(Block):
+    def __init__(self, l1enc=None, l2emb=None, l2enc=None,
+                 maskid=None, **kw):
+        super(TwoLevelEncoder, self).__init__(**kw)
+        self.l2emb = l2emb
+        self.l1enc = l1enc
+        self.l2enc = l2enc
+        self.maskid = maskid
+
+    def apply(self, x):
+        if self.l2emb is not None:
+            l1tensor = x[:, :, 1:]
+            l1encs = EncLastDim(self.l1enc)(l1tensor)
+            l2mat = x[:, :, 0]
+            assert(l2mat.ndim == 2)
+            l2embs = self.l2emb(l2mat)
+            l2vecs = T.concatenate([l1encs, l2embs], axis=2)
+            wmask = T.neq(l2mat, self.maskid) if self.maskid is not None else None
+        else:
+            l2vecs = EncLastDim(self.l1enc)(x)
+            wmask = T.gt(T.sum(T.eq(x, self.maskid), axis=2), 0)
+        fenc = self.l2enc(l2vecs, mask=wmask)
+        return fenc
+
+
+class WordCharSentEnc(TwoLevelEncoder):
     def __init__(self, numchars=256, charembdim=50, charemb=None, charinnerdim=100,
                  numwords=1000, wordembdim=100, wordemb=None, wordinnerdim=200,
                  maskid=None, bidir=False, returnall=False, **kw):
-        super(WordCharSentEnc, self).__init__(**kw)
-        self.maskid = maskid
         # char level inits
         if charemb is None:
-            self.charemb = VectorEmbed(indim=numchars, dim=charembdim)
+            charemb = VectorEmbed(indim=numchars, dim=charembdim)
         else:
-            self.charemb = charemb
+            charemb = charemb
             charembdim = charemb.outdim
         if not issequence(charinnerdim):
             charinnerdim = [charinnerdim]
         charlayers, lastchardim = MakeRNU.make(charembdim, charinnerdim, bidir=bidir)
-        self.charenc = SeqEncoder(self.charemb, *charlayers).maskoptions(maskid, MaskMode.AUTO)
+        charenc = SeqEncoder(charemb, *charlayers).maskoptions(maskid, MaskMode.AUTO)
         # word level inits
         if wordemb is None:
-            self.wordemb = VectorEmbed(indim=numwords, dim=wordembdim)
+            wordemb = VectorEmbed(indim=numwords, dim=wordembdim)
         elif wordemb is False:
-            self.wordemb = None
+            wordemb = None
             wordembdim = 0
         else:
-            self.wordemb = wordemb
+            wordemb = wordemb
             wordembdim = wordemb.outdim
         if not issequence(wordinnerdim):
             wordinnerdim = [wordinnerdim]
         wordlayers, outdim = MakeRNU.make(wordembdim + lastchardim, wordinnerdim, bidir=bidir)
-        self.wordenc = SeqEncoder(None, *wordlayers).maskoptions(MaskMode.NONE)
+        wordenc = SeqEncoder(None, *wordlayers).maskoptions(MaskMode.NONE)
         if returnall:
-            self.wordenc.all_outputs()
+            wordenc.all_outputs()
         self.outdim = outdim
-
-    def apply(self, x):     # (batsize, numwords, 1 + numcharsperword)
-        if self.wordemb is not None:
-            chartensor = x[:, :, 1:]
-            wordencs = EncLastDim(self.charenc)(chartensor)     # (batsize, numwords, wordencdim)
-            wordmat = x[:, :, 0]
-            assert(wordmat.ndim == 2)
-            wordembs = self.wordemb(wordmat)    # (batsize, numwords, wordembdim)
-            wordvecs = T.concatenate([wordencs, wordembs], axis=2)
-            wmask = T.neq(wordmat, self.maskid) if self.maskid is not None else None
-        else:
-            wordvecs = EncLastDim(self.charenc)(x)
-            wmask = T.gt(T.sum(T.eq(x, self.maskid), axis=2), 0)
-        sentenc = self.wordenc(wordvecs, mask=wmask)
-        return sentenc
+        super(WordCharSentEnc, self).__init__(l1enc=charenc,
+                l2emb=wordemb, l2enc=wordenc, maskid=maskid)

@@ -3,7 +3,7 @@ import numpy as np
 
 from teafacto.blocks.seq.attention import WeightedSumAttCon, Attention, AttentionConsumer, LinearGateAttentionGenerator
 from teafacto.blocks.seq.rnu import GRU, ReccableBlock, RecurrentBlock, RNUBase
-from teafacto.blocks.basic import IdxToOneHot, Softmax, MatDot, Eye
+from teafacto.blocks.basic import IdxToOneHot, Softmax, MatDot, Eye, VectorEmbed
 from teafacto.core.base import Block, tensorops as T, asblock
 from teafacto.util import issequence, isnumber
 
@@ -341,6 +341,21 @@ class SeqEncoder(AttentionConsumer, Block):
         for arg in args:
             self._returnings.add(arg)
         return self
+
+
+class RNNSeqEncoder(SeqEncoder):
+    def __init__(self, indim=500, inpembdim=100, inpemb=None,
+                 innerdim=200, bidir=False, maskid=None, **kw):
+        if inpemb is None:
+            inpemb = VectorEmbed(indim=indim, dim=inpembdim, maskid=maskid)
+        elif inpemb is False:
+            inpemb = None
+        else:
+            inpembdim = inpemb.outdim
+        if not issequence(innerdim):
+            innerdim = [innerdim]
+        layers = MakeRNU.make(inpembdim, innerdim, bidir=bidir)
+        super(RNNSeqEncoder, self).__init__(inpemb, *layers, **kw)
 
 
 class SeqDecoder(Block):
