@@ -7,7 +7,7 @@ from teafacto.blocks.basic import VectorEmbed
 from teafacto.blocks.lang.wordvec import Glove
 from teafacto.blocks.lang.sentenc import WordCharSentEnc, TwoLevelEncoder
 from teafacto.blocks.seq.enc import SimpleSeq2Vec
-from teafacto.blocks.seq.rnn import RNNSeqEncoder
+from teafacto.blocks.seq.rnn import RNNSeqEncoder, MaskMode
 from teafacto.blocks.match import CosineDistance, MatchScore
 from teafacto.blocks.memory import MemVec
 from teafacto.blocks.cnn import CNNSeqEncoder
@@ -153,7 +153,8 @@ def run(epochs=50,
         if charencmode == "cnn":
             charenc = CNNSeqEncoder(indim=numchars, inpembdim=50, innerdim=embdim,
                                     maskid=maskid)
-            wordenc = RNNSeqEncoder(inpemb=False, innerdim=encdim, bidir=bidir)
+            wordenc = RNNSeqEncoder(inpemb=False, inpembdim=wordemb.outdim+embdim,
+                                    innerdim=encdim, bidir=bidir).maskoptions(MaskMode.NONE)
             question_enc = TwoLevelEncoder(l1enc=charenc, l2emb=wordemb,
                                            l2enc=wordenc, maskid=maskid)
         else:
