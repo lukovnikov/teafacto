@@ -7,7 +7,7 @@ from teafacto.blocks.basic import VectorEmbed
 
 class CNNEnc(Block):
     def __init__(self, indim=100, innerdim=200, window=5,
-                 poolmode="max", activation=Tanh, **kw):
+                 poolmode="max", activation=Tanh, stride=1, **kw):
         super(CNNEnc, self).__init__(**kw)
         self.layers = []
         if not issequence(innerdim):
@@ -18,11 +18,13 @@ class CNNEnc(Block):
             activation = [activation()] * len(innerdim)
         else:
             activation = [act() for act in activation]
+        if not issequence(stride):
+            stride = [stride] * len(innerdim)
         assert(len(window) == len(innerdim))
         innerdim = [indim] + innerdim
         for i in range(1, len(innerdim)):
             layer = Conv1D(indim=innerdim[i-1], outdim=innerdim[i],
-                           window=window[i-1])
+                           window=window[i-1], stride=stride[i-1])
             self.layers.append(layer)
             self.layers.append(activation[i-1])
         self.layers.append(GlobalPool1D(mode=poolmode))
@@ -109,9 +111,10 @@ class GlobalPool1D(Block):
             raise Exception("unknown pooling mode: {:3s}".format(self.mode))
         # ret: (batsize, dim)
         if mask is not None:
-            ret.mask = 1 * (T.sum(mask, axis=-1) > 0)
-            ret = T.switch(T.tensordot(ret.mask, T.ones((x.shape[-1],)), 0),
+            mask = 1 * (T.sum(mask, axis=-1) > 0)
+            ret = T.switch(T.tensordot(mask, T.ones((x.shape[-1],)), 0),
                            ret, T.zeros_like(ret))
+            ret.mask = mask
         return ret
 
 

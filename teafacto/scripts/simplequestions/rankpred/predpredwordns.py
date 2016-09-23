@@ -151,6 +151,7 @@ def run(epochs=50,
         print "wordchar model"
         numchars = 256
         if charencmode == "cnn":
+            print "using CNN char encoder"
             charenc = CNNSeqEncoder(indim=numchars, inpembdim=50, innerdim=embdim,
                                     maskid=maskid)
             wordenc = RNNSeqEncoder(inpemb=False, inpembdim=wordemb.outdim+embdim,

@@ -136,7 +136,7 @@ class VectorEmbed(Embedder):
 
     def _maskfrom(self, ret, x):
         if self.maskid is not None:
-            mask = T.eq(x, self.maskid)
+            mask = T.neq(x, self.maskid)
         else:
             mask = None
         ret.mask = mask

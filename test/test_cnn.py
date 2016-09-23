@@ -12,6 +12,13 @@ class TestConv1D(TestCase):
         self.assertEqual(pred.shape[:2], xval.shape[:2])
         self.assertEqual(pred.shape[2], 40)
 
+    def test_output_shape_strided(self):
+        xval = np.random.random((100, 13, 50)).astype("float32")
+        conv = Conv1D(indim=50, outdim=40, window=5, stride=2, border_mode="valid")
+        pred = conv.predict(xval)
+        print pred.shape
+        self.assertEqual(pred.shape, (100, 5, 40))
+
     def test_output_shape_masked(self):
         xval = np.random.random((100, 20, 50)).astype("float32")
         maskid = np.random.randint(3, 20, (100,))
@@ -66,8 +73,8 @@ class TestPool1D(TestCase):
 
 class TestCNNEnc(TestCase):
     def test_enc(self):
-        xval = np.random.random((100, 20, 50)).astype("float32")
-        enc = CNNEnc(indim=50, innerdim=[30, 40])
+        xval = np.random.randint(0, 200, (100, 20)).astype("int32")
+        enc = CNNEnc(indim=200, inpembdim=50, innerdim=[30, 40])
         pred = enc.predict(xval)
         self.assertEqual(pred.shape, (100, 40))
 
@@ -76,6 +83,20 @@ class TestCNNEnc(TestCase):
         enc = EncLastDim(CNNEnc(indim=200, inpembdim=50, innerdim=[30, 40]))
         pred = enc.predict(xval)
         self.assertEqual(pred.shape, (3, 100, 40))
+
+    def test_enc_mask(self):
+        xval = np.random.randint(1, 200, (100, 20)).astype("int32")
+        maskid = np.random.randint(0, 3, (100,))
+        for i in range(xval.shape[0]):
+            xval[i, maskid[i]:] = 0
+        print xval
+        x = Val(xval)
+        enc = CNNEnc(indim=200, inpembdim=50, innerdim=5, maskid=0)
+        pred = enc(x)
+        print pred.mask.eval()
+        predval = pred.eval()
+        print predval.shape
+        print predval
 
 
 
