@@ -13,7 +13,7 @@ class TestVectorEmbed(TestCase):
         v = Val(np.random.randint(0, 5, (4, 3)))
         xo = x(v)
         self.assertEqual(v.v.shape, xo.mask.v.shape)
-        self.assertTrue(np.all((v.v == 0) == xo.mask.v))
+        self.assertTrue(np.all((v.v != 0) == xo.mask.v))
 
 
 class TestGlove(TestCase):
@@ -26,7 +26,7 @@ class TestGlove(TestCase):
 
     def test_glove_embed_masker(self):
         v = Val(np.random.randint(-1, 5, (4, 3)))
-        self.assertTrue(np.all((v.v == -1) == self.glove(v).mask.v))
+        self.assertTrue(np.all((v.v != -1) == self.glove(v).mask.v))
 
     def test_glove(self):
         self.assertEqual(self.glove.w.shape, self.expshape)
@@ -49,7 +49,7 @@ class TestAdaptedGlove(TestCase):
 
     def test_embed_masker(self):
         v = Val(np.random.randint(-1, 5, (4, 3)))
-        self.assertTrue(np.all((v.v == -1) == self.glove(v).mask.v))
+        self.assertTrue(np.all((v.v != -1) == self.glove(v).mask.v))
 
 
     def test_map(self):
@@ -81,7 +81,7 @@ class TestGloveOverriding(TestCase):
     def test_embed_masker(self):
         v = Val(np.random.randint(-1, 5, (4, 3)))
         m = self.emb(v).mask
-        self.assertTrue(np.all((v.v == -1) == m.v))
+        self.assertTrue(np.all((v.v != -1) == m.v))
 
     def test_sameasglove(self):
         words = "key the a his"

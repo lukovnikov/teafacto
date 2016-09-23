@@ -86,7 +86,7 @@ class TestCNNEnc(TestCase):
 
     def test_enc_mask(self):
         xval = np.random.randint(1, 200, (100, 20)).astype("int32")
-        maskid = np.random.randint(0, 3, (100,))
+        maskid = np.random.randint(0, 5, (100,))
         for i in range(xval.shape[0]):
             xval[i, maskid[i]:] = 0
         print xval
