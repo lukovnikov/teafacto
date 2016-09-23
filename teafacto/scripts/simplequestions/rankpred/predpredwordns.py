@@ -153,7 +153,7 @@ def run(epochs=50,
         if charencmode == "cnn":
             print "using CNN char encoder"
             charenc = CNNSeqEncoder(indim=numchars, inpembdim=50, innerdim=[embdim]*2,
-                                    maskid=maskid, stride=3)
+                                    maskid=maskid, stride=1)
             wordenc = RNNSeqEncoder(inpemb=False, inpembdim=wordemb.outdim+embdim,
                                     innerdim=encdim, bidir=bidir).maskoptions(MaskMode.NONE)
             question_enc = TwoLevelEncoder(l1enc=charenc, l2emb=wordemb,
