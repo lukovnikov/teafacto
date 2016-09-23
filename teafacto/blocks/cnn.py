@@ -1,4 +1,4 @@
-from teafacto.core.base import Block, param, tensorops as T
+from teafacto.core.base import Block, param, tensorops as T, Val
 import numpy as np
 from teafacto.util import issequence
 from teafacto.blocks.activations import Tanh, ReLU
@@ -70,12 +70,14 @@ class Conv1D(Block):
         self.filter_flip = filter_flip
         self.filter_shape = (outdim, indim, window, 1)
         self.filter = param(self.filter_shape, name="conv_w").glorotuniform()
+        self.maskfilter_shape = (1, 1, window, 1)
+        self.maskfilter = Val(np.ones(self.maskfilter_shape, dtype="float32"))
 
     def apply(self, x, mask=None):     # (batsize, seqlen, dim)
         mask = x.mask if mask is None else mask
         if mask is not None:
             assert(mask.ndim == x.ndim - 1) # mask must be (batsize, seqlen)
-            realm = T.tensordot(mask, T.ones((x.shape[-1],)), 0)
+            realm = T.cast(T.tensordot(mask, T.ones((x.shape[-1],), dtype="int32"), 0), "float32")
             x = x * realm
         input = x.dimshuffle(0, 2, 1, 'x')
         input_shape = None #input.shape
@@ -83,6 +85,14 @@ class Conv1D(Block):
                             border_mode=self.border_mode, subsample=(self.stride, 1),
                             filter_flip=self.filter_flip)
         ret = convout[:, :, :, 0].dimshuffle(0, 2, 1)
+        if mask is not None:    # compute new mask
+            print "conving the mask"
+            mask_shape = None
+            maskout = T.nnet.conv2d(T.cast(mask.dimshuffle(0, "x", 1, "x"), "float32"),
+                                    self.maskfilter, mask_shape, self.maskfilter_shape,
+                                    border_mode=self.border_mode, subsample=(self.stride, 1),
+                                    filter_flip=self.filter_flip)
+            mask = T.cast(maskout[:, 0, :, 0] > 0, "int32")
         ret.mask = mask
         return ret
 
