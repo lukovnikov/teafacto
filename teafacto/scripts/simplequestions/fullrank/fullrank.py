@@ -2,6 +2,7 @@ from teafacto.util import ticktock, argprun
 import os, pickle
 from teafacto.procutil import *
 from IPython import embed
+from scipy import sparse
 
 
 def readdata(p="../../../../data/simplequestions/clean/datamat.word.fb2m.pkl",
@@ -110,6 +111,40 @@ def loadsubjinfo(entinfp, entdic, cachep=None):#"subjinfo.cache.pkl"):
     else:       # just make
         subjinfo = make()
     return subjinfo
+
+
+def buildrelsamplespace(entmat, wd, maskid=-1):
+    tt = ticktock("samplespace")
+    tt.tick("making sample space")
+    #rwd = {v: k for k, v in wd.items()}
+    entmatm = sparse.dok_matrix((entmat.shape[0], np.max(entmat) + 1))
+    posblacklist = {0: {wd["base"], wd["user"]}}
+    blacklist = set([wd[x] for x in "default domain of by the in at s this for with type".split()])
+    #revin = {k: set() for k in np.unique(entmat)}
+    #revinm = sparse.dok_matrix((np.max(entmat), entmat.shape[0]))
+    samdic = {k: set() for k in range(entmat.shape[0])}     # from ent ids to sets of ent ids
+    #samdic = np.zeros((entmat.shape[0], entmat.shape[0]))
+    for i in range(entmat.shape[0]):
+        for j in range(entmat.shape[1]):
+            w = entmat[i, j]
+            if w == -1:     # beginning of padding
+                break
+            if j in posblacklist:
+                if w in posblacklist[j]:
+                    continue
+            if w in blacklist:
+                continue
+            entmatm[i, w] = 1
+            #for oe in revin[w]:     # other entities already in revind
+            #    samdic[oe].add(i)
+            #    samdic[i].add(oe)
+            #revin[w].add(i)
+            #revinm[w, i] = 1
+    samdicm = entmatm.dot(entmatm.T)
+    for i in range(samdicm.shape[0]):
+        samdic[i] = list(np.argwhere(samdicm[i, :])[:, 1])
+    tt.tock("made sample space")
+    return samdic, entmatm.T
 
 
 if __name__ == "__main__":
