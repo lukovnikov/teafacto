@@ -21,7 +21,7 @@ def wordmatfromdic(worddic, maxwordlen=30):
     return wordmat, chardic
 
 
-def wordmat2wordchartensor(wordmat, worddic=None, rwd=rwd, maxchars=30, maskid=-1):
+def wordmat2wordchartensor(wordmat, worddic=None, rwd=None, maxchars=30, maskid=-1):
     chartensor = wordmat2chartensor(wordmat, worddic=worddic, rwd=rwd, maxchars=maxchars, maskid=maskid)
     out = np.concatenate([wordmat[:, :, np.newaxis], chartensor], axis=2)
     #embed()
