@@ -42,7 +42,7 @@ def readdata(p="../../../../data/simplequestions/clean/datamat.word.fb2m.pkl",
         validdata = wordmat2wordchartensor(validdata, rwd=rwd, maskid=maskid)
         testdata = wordmat2wordchartensor(testdata, rwd=rwd, maskid=maskid)
 
-        subjmat = wordmat2charmat(subjmat, rwd=rwd, maskid=maskid)
+        subjmat = wordmat2charmat(subjmat, rwd=rwd, maskid=maskid, maxlen=75)
 
         ret = ((traindata, traingold), (validdata, validgold),
                (testdata, testgold), (subjmat, relmat), (subjdic, reldic),
@@ -147,9 +147,25 @@ def buildrelsamplespace(entmat, wd, maskid=-1):
     return samdic, entmatm.T
 
 
-if __name__ == "__main__":
+def run(closenegsam=False,
+        checkdata=False):
+    tt = ticktock("script")
+    tt.tick("loading data")
     (traindata, traingold), (validdata, validgold), (testdata, testgold), \
     (subjmat, relmat), (subjdic, reldic), worddic, \
     subjinfo, (testsubjcans, testrelcans) = readdata()
 
-    embed()
+    if closenegsam:
+        revsamplespace, revind = buildrelsamplespace(relmat, worddic)
+    tt.tock("data loaded")
+
+    if checkdata:
+        embed()
+
+    numwords = max(worddic.values()) + 1
+    numsubjs = max(subjdic.values()) + 1
+    numrels = max(reldic.values()) + 1
+
+
+if __name__ == "__main__":
+    argprun(run)

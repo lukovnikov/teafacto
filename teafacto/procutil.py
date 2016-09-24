@@ -96,7 +96,7 @@ def wordcharmat2string(inp, rcd=None, maskid=-1):
     x = tochar(inp)
     acc = []
     for i in range(x.shape[0]):
-        w = "".join(x[i])
+        w = "".join(list(x[i]))
         acc.append(w)
     ret = " ".join([w for w in acc if len(w) > 0])
     return ret
