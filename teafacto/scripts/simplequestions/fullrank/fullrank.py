@@ -156,7 +156,7 @@ def run(closenegsam=False,
     subjinfo, (testsubjcans, testrelcans) = readdata()
 
     if closenegsam:
-        revsamplespace, revind = buildrelsamplespace(relmat, worddic)
+        relsamplespace, revind = buildrelsamplespace(relmat, worddic)
     tt.tock("data loaded")
 
     if checkdata:

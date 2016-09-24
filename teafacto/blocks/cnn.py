@@ -35,7 +35,7 @@ class CNNEnc(Block):
         acc.mask = mask
         for layer in self.layers:
             acc = layer(acc)
-        return acc
+        return T.cast(acc, "float32")
 
 
 class CNNSeqEncoder(CNNEnc):
