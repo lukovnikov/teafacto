@@ -11,7 +11,7 @@ def readdata(p="../../../../data/simplequestions/clean/datamat.word.fb2m.pkl",
              maskid=-1,
              ):
     tt = ticktock("dataloader")
-    if os.path.isfile(cachep):      # load
+    if cachep is not None and os.path.isfile(cachep):      # load
         tt.tick("loading from cache")
         ret = pickle.load(open(cachep))
         tt.tock("loaded from cache")
