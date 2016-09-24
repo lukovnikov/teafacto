@@ -1,7 +1,7 @@
 import numpy as np
 
 
-def buildwordmat(worddic, maxwordlen=30):
+def wordmatfromdic(worddic, maxwordlen=30):
     maskid = -1
     rwd = sorted(worddic.items(), key=lambda (x, y): y)
     realmaxlen = 0
@@ -30,10 +30,57 @@ def wordmat2wordchartensor(wordmat, worddic=None, maxchars=30, maskid=-1):
 def wordmat2chartensor(wordmat, worddic=None, maxchars=30, maskid=-1):
     rwd = {v: k for k, v in worddic.items()}
     wordcharmat = maskid * np.ones((max(rwd.keys())+1, maxchars), dtype="int32")
+    realmaxlen = 0
     for i in rwd.keys():
         word = rwd[i]
         word = word[:min(maxchars, len(word))]
+        realmaxlen = max(realmaxlen, len(word))
         wordcharmat[i, :len(word)] = [ord(ch) for ch in word]
     chartensor = wordcharmat[wordmat, :]
     chartensor[wordmat == -1] = -1
+    if realmaxlen < maxchars:
+        chartensor = chartensor[:, :, :realmaxlen]
     return chartensor
+
+
+def wordmat2charmat(wordmat, worddic=None, maxlen=100, maskid=-1):
+    charmat = maskid * np.ones((wordmat.shape[0], maxlen), dtype="int32")
+    rwd = {v: k for k, v in worddic.items()}
+    realmaxlen = 0
+    for i in range(wordmat.shape[0]):
+        s = wordids2string(wordmat[i], rwd, maskid=maskid)
+        s = s[:min(len(s), maxlen)]
+        realmaxlen = max(len(s), realmaxlen)
+        charmat[i, :len(s)] = [ord(ch) for ch in s]
+    if realmaxlen < maxlen:
+        charmat = charmat[:, :realmaxlen]
+    return charmat
+
+
+def wordids2string(inp, rwd, maskid=-1):
+    ret = " ".join([rwd[x] if x in rwd else "<???>"
+                    for x in inp if x != maskid])
+    return ret
+
+
+def charids2string(inp, rcd=None, maskid=-1):
+    if rcd is not None:
+        ret = "".join([rcd[ch] if ch in rcd else "<???>"
+                       for ch in inp if ch != maskid])
+    else:
+        ret = "".join([chr(ch) if ch != maskid else "" for ch in inp])
+    return ret
+
+
+def wordcharmat2string(inp, rcd=None, maskid=-1):
+    if rcd is not None:
+        tochar = np.vectorize(lambda x: rcd[x] if x != maskid else "" if x in rcd else "<???>")
+    else:
+        tochar = np.vectorize(lambda x: chr(x) if x != maskid else "")
+    x = tochar(inp)
+    acc = []
+    for i in range(x.shape[0]):
+        w = "".join(x[i])
+        acc.append(w)
+    ret = " ".join([w for w in acc if len(w) > 0])
+    return ret

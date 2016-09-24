@@ -10,6 +10,7 @@ from teafacto.blocks.seq.trans import SimpleSeqTrans
 from teafacto.blocks.basic import Softmax
 from teafacto.core.base import Block, param, tensorops as T
 from teafacto.util import argprun
+from teafacto.procutil import *
 
 
 def getdatamatrix(lot, maxlen, k, offset=1):

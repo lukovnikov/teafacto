@@ -1,5 +1,5 @@
 from teafacto.util import argprun, ticktock
-from teafacto.procutil import buildwordmat
+from teafacto.procutil import wordmatfromdic
 import numpy as np, os, sys, math, pickle
 from IPython import embed
 from teafacto.core.base import Val, Block, tensorops as T
@@ -87,7 +87,7 @@ def run(epochs=50,
     worddic, entdic, entmat, testsubjsrels = readdata()
 
     if wordchar:
-        wordmat, chardic = buildwordmat(worddic)
+        wordmat, chardic = wordmatfromdic(worddic)
         numchars = max(chardic.values()) + 1
 
     tt.tock("data loaded")
