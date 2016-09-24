@@ -8,6 +8,7 @@ from teafacto.blocks.basic import VectorEmbed
 from teafacto.blocks.seq.rnu import GRU
 from teafacto.blocks.lang.sentenc import WordCharSentEnc
 from teafacto.blocks.lang.wordvec import Glove
+from teafacto.procutil import wordmat2charmat
 
 
 def readdata(mode="char",
@@ -37,10 +38,10 @@ def readdata(mode="char",
         if mode == "char":
             tt.tick("transforming to chars")
             rwd = {v: k for k, v in worddic.items()}
-            traindata = wordmat2charmat(traindata, rwd, maxmaxlen=110)
-            validdata = wordmat2charmat(validdata, rwd, maxmaxlen=110)
-            testdata = wordmat2charmat(testdata, rwd, maxmaxlen=110)
-            entmat = wordmat2charmat(entmat, rwd, maxmaxlen=75)
+            traindata = wordmat2charmat(traindata, rwd=rwd, maxlen=110)
+            validdata = wordmat2charmat(validdata, rwd=rwd, maxlen=110)
+            testdata = wordmat2charmat(testdata, rwd=rwd, maxlen=110)
+            entmat = wordmat2charmat(entmat, rwd=rwd, maxlen=75)
             tt.tick()
             allchars = set(list(np.unique(traindata)))\
                 .union(set(list(np.unique(validdata))))\
@@ -74,27 +75,6 @@ def readdata(mode="char",
             print "".join([rcd[xe] if xe in rcd else "" for xe in x])
         embed()
     return ret + (subjinfo, testcans)
-
-
-def wordmat2charmat(wm, rwd, maxmaxlen=120, maskid=-1):       # wm: (numsam, len)
-    tt = ticktock("chartransformer")
-    tt.tick("transforming word mat to char mat")
-    maxlen = 0
-    toolong = 0
-    cm = maskid * np.ones((wm.shape[0], maxmaxlen), dtype="int32")
-    for i in range(wm.shape[0]):
-        string = " ".join([rwd[x] for x in wm[i] if x != maskid])
-        maxlen = max(maxlen, len(string))
-        if len(string) > maxmaxlen:
-            toolong += 1
-            string = string[:maxmaxlen]
-        cm[i, :len(string)] = [ord(ch) for ch in string]
-        tt.progress(i, wm.shape[0], live=True)
-    if maxlen < maxmaxlen:
-        cm = cm[:, :maxlen]
-    print "{} too long".format(toolong)
-    tt.tock("transformed")
-    return cm
 
 
 def loadtestcans(p="../../../../data/simplequestions/clean/testcans.pkl"):

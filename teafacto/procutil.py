@@ -1,4 +1,5 @@
 import numpy as np
+from teafacto.util import ticktock
 
 
 def wordmatfromdic(worddic, maxwordlen=30):
@@ -20,15 +21,18 @@ def wordmatfromdic(worddic, maxwordlen=30):
     return wordmat, chardic
 
 
-def wordmat2wordchartensor(wordmat, worddic=None, maxchars=30, maskid=-1):
-    chartensor = wordmat2chartensor(wordmat, worddic=worddic, maxchars=maxchars, maskid=maskid)
+def wordmat2wordchartensor(wordmat, worddic=None, rwd=rwd, maxchars=30, maskid=-1):
+    chartensor = wordmat2chartensor(wordmat, worddic=worddic, rwd=rwd, maxchars=maxchars, maskid=maskid)
     out = np.concatenate([wordmat[:, :, np.newaxis], chartensor], axis=2)
     #embed()
     return out
 
 
-def wordmat2chartensor(wordmat, worddic=None, maxchars=30, maskid=-1):
-    rwd = {v: k for k, v in worddic.items()}
+def wordmat2chartensor(wordmat, worddic=None, rwd=None, maxchars=30, maskid=-1):
+    assert(worddic is not None or rwd is not None)
+    assert(not(worddic is not None and rwd is not None))
+    if rwd is None:
+        rwd = {v: k for k, v in worddic.items()}
     wordcharmat = maskid * np.ones((max(rwd.keys())+1, maxchars), dtype="int32")
     realmaxlen = 0
     for i in rwd.keys():
@@ -43,17 +47,29 @@ def wordmat2chartensor(wordmat, worddic=None, maxchars=30, maskid=-1):
     return chartensor
 
 
-def wordmat2charmat(wordmat, worddic=None, maxlen=100, maskid=-1):
+def wordmat2charmat(wordmat, worddic=None, rwd=None, maxlen=100, maskid=-1):
+    assert(worddic is not None or rwd is not None)
+    assert(not(worddic is not None and rwd is not None))
+    tt = ticktock("wordmat2charmat")
+    tt.tick("transforming word mat to char mat")
+    toolong = 0
     charmat = maskid * np.ones((wordmat.shape[0], maxlen), dtype="int32")
-    rwd = {v: k for k, v in worddic.items()}
+    if rwd is None:
+        rwd = {v: k for k, v in worddic.items()}
     realmaxlen = 0
     for i in range(wordmat.shape[0]):
         s = wordids2string(wordmat[i], rwd, maskid=maskid)
         s = s[:min(len(s), maxlen)]
         realmaxlen = max(len(s), realmaxlen)
+        if len(s) > maxlen:
+            toolong += 1
         charmat[i, :len(s)] = [ord(ch) for ch in s]
+        tt.progress(i, wordmat.shape[0], live=True)
     if realmaxlen < maxlen:
         charmat = charmat[:, :realmaxlen]
+    if toolong > 0:
+        print "{} too long".format(toolong)
+    tt.tock("transformed")
     return charmat
 
 
