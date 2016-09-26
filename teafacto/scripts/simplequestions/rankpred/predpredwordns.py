@@ -116,6 +116,7 @@ def run(epochs=50,
         atleastcan=0,
         wordchar=False,
         charencmode="rnn",  # rnn or cnn
+        totalrandomtest=True,
         ):
     maskid = -1
     tt = ticktock("predpred")
@@ -265,16 +266,21 @@ def run(epochs=50,
     tt.tick("evaluating")
     qenc_pred = question_enc.predict(testdata)
     scores = []
+    dontembed = False
     if atleastcan > 0:
         print "ensuring at least {} cans".format(atleastcan)
     for i in range(qenc_pred.shape[0]):
-        cans = testsubjsrels[i][0] #+ testsubjsrels[i][1]
+        if totalrandomtest:
+            cans = [testgold[i][0]]
+        else:
+            cans = testsubjsrels[i][0] #+ testsubjsrels[i][1]
         if len(cans) < atleastcan:
-            extracans = list(np.random.randint(0, numents, (atleastcan-len(cans),)))
+            extracans = list(np.random.randint(0, numents, (atleastcan+50,)))
             extracans = list(set(extracans).difference(set(cans)))
             cans = cans + extracans[:max(0, min(len(extracans), atleastcan - len(cans)))]
             #print len(cans), cans
-
+        if not dontembed:
+            embed()
         #cans = set(cans)
         #if atleastcan > 0:
         #    while len(cans) < atleastcan:

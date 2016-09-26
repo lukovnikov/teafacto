@@ -35,7 +35,7 @@ class CNNEnc(Block):
         acc.mask = mask
         for layer in self.layers:
             acc = layer(acc)
-        return T.cast(acc, "float32")
+        return T.cast(acc, "float32")        # TODO: why is "float64" returned?
 
 
 class CNNSeqEncoder(CNNEnc):
@@ -54,7 +54,6 @@ class CNNSeqEncoder(CNNEnc):
         acc = self.embedder(x)
         ret = super(CNNSeqEncoder, self).apply(acc, mask=mask)
         return ret
-
 
 
 class Conv1D(Block):
