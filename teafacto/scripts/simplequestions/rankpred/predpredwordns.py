@@ -271,7 +271,7 @@ def run(epochs=50,
         print "ensuring at least {} cans".format(atleastcan)
     for i in range(qenc_pred.shape[0]):
         if totalrandomtest:
-            cans = [testgold[i][0]]
+            cans = [testgold[i]]
         else:
             cans = testsubjsrels[i][0] #+ testsubjsrels[i][1]
         if len(cans) < atleastcan:

@@ -193,6 +193,7 @@ def run(closenegsam=False,
         decdim=200,
         bidir=False,
         charenc="cnn",  # "cnn" or TODO
+        margin=0.5,
         ):
     tt = ticktock("script")
     tt.tick("loading data")
@@ -250,7 +251,9 @@ def run(closenegsam=False,
     lb = LeftBlock(question_encoder)
     rb = RightBlock(subjemb, predemb)
 
-    scorer = SeqMatchScore(lb, rb, scorer=CosineDistance())
+    scorer = SeqMatchScore(lb, rb, scorer=CosineDistance(), aggregator=lambda x: x)
+
+    obj = lambda p, n: T.sum((n - p + margin).clip(0, np.infty), axis=1)
 
 
 if __name__ == "__main__":
