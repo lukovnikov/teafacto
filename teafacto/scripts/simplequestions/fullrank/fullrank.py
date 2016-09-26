@@ -4,6 +4,17 @@ from teafacto.procutil import *
 from IPython import embed
 from scipy import sparse
 
+from teafacto.blocks.lang.wordvec import Glove, WordEmb
+from teafacto.blocks.lang.sentenc import TwoLevelEncoder
+from teafacto.blocks.seq.rnn import RNNSeqEncoder
+from teafacto.blocks.seq.enc import SimpleSeq2Vec
+from teafacto.blocks.cnn import CNNSeqEncoder
+from teafacto.blocks.basic import VectorEmbed
+from teafacto.blocks.memory import MemVec
+from teafacto.blocks.match import SeqMatchScore, CosineDistance
+
+from teafacto.core.base import Block, tensorops as T
+
 
 def readdata(p="../../../../data/simplequestions/clean/datamat.word.fb2m.pkl",
              entinfp="../../../../data/simplequestions/clean/subjs-counts-labels-types.fb2m.tsv",
@@ -147,8 +158,42 @@ def buildrelsamplespace(entmat, wd, maskid=-1):
     return samdic, entmatm.T
 
 
+class LeftBlock(Block):
+    def __init__(self, inner, **kw):
+        super(LeftBlock, self).__init__(**kw)
+        self.inner = inner
+
+    def apply(self, x):
+        # idxs^(batsize, seqlen, ...) --> (batsize, seqlen, 2, encdim)
+        res = self.inner(x).dimshuffle(0, 1, 'x', 2)
+        ret = T.concatenate([res, res], axis=2)
+        return ret
+
+
+class RightBlock(Block):
+    def __init__(self, a, b, **kw):
+        super(RightBlock, self).__init__(**kw)
+        self.subjenc = a
+        self.predenc = b
+
+    def apply(self, x):  # idxs^(batsize, 2)
+        aret = self.subjenc(x[:, 0]).dimshuffle(0, 1, 'x', 2)
+        bret = self.predenc(x[:, 1]).dimshuffle(0, 1, 'x', 2)
+        ret = T.concatenate([aret, bret], axis=2)
+        return ret
+
+
 def run(closenegsam=False,
-        checkdata=False):
+        checkdata=False,
+        glove=False,
+        embdim=100,
+        charencdim=100,
+        charembdim=50,
+        encdim=200,
+        decdim=200,
+        bidir=False,
+        charenc="cnn",  # "cnn" or TODO
+        ):
     tt = ticktock("script")
     tt.tick("loading data")
     (traindata, traingold), (validdata, validgold), (testdata, testgold), \
@@ -165,6 +210,47 @@ def run(closenegsam=False,
     numwords = max(worddic.values()) + 1
     numsubjs = max(subjdic.values()) + 1
     numrels = max(reldic.values()) + 1
+    maskid = -1
+    numchars = 256
+
+    # defining model
+    if glove:
+        wordemb = Glove(embdim).adapt(worddic)
+    else:
+        wordemb = WordEmb(dim=embdim, indim=numwords)
+    if charenc == "cnn":
+        print "using CNN char encoder"
+        charemb = VectorEmbed(indim=numchars, dim=charembdim)
+        charenc = CNNSeqEncoder(inpemb=charemb,
+                                innerdim=[charencdim]*2, maskid=maskid,
+                                stride=1)
+        wordenc = RNNSeqEncoder(inpemb=False, inpembdim=wordemb.outdim + charencdim,
+                                innerdim=encdim, bidir=bidir).maskoptions(MaskMode.NONE)
+        question_encoder = TwoLevelEncoder(l1enc=charenc, l2emb=wordemb,
+                                           l2enc=wordenc, maskid=maskid)
+    elif charenc == "rnn":
+        raise NotImplementedError("rnn not implemented yet")
+    else:
+        raise Exception("no other modes available")
+
+    predemb = MemVec(SimpleSeq2Vec(inpemb=wordemb,
+                                   innerdim=decdim,
+                                   maskid=maskid,
+                                   bidir=bidir,
+                                   layers=1))
+    predemb.load(relmat)
+
+    subjemb = MemVec(SimpleSeq2Vec(inpemb=charemb,
+                                   innerdim=decdim,
+                                   maskid=maskid,
+                                   bidir=bidir,
+                                   layers=2))
+    subjemb.load(subjmat)
+
+    lb = LeftBlock(question_encoder)
+    rb = RightBlock(subjemb, predemb)
+
+    scorer = SeqMatchScore(lb, rb, scorer=CosineDistance())
 
 
 if __name__ == "__main__":

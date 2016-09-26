@@ -116,7 +116,7 @@ def run(epochs=50,
         atleastcan=0,
         wordchar=False,
         charencmode="rnn",  # rnn or cnn
-        totalrandomtest=True,
+        totalrandomtest=False,
         ):
     maskid = -1
     tt = ticktock("predpred")
@@ -266,7 +266,7 @@ def run(epochs=50,
     tt.tick("evaluating")
     qenc_pred = question_enc.predict(testdata)
     scores = []
-    dontembed = False
+    dontembed = True
     if atleastcan > 0:
         print "ensuring at least {} cans".format(atleastcan)
     for i in range(qenc_pred.shape[0]):
