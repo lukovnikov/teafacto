@@ -269,6 +269,8 @@ def run(epochs=50,
     dontembed = True
     if atleastcan > 0:
         print "ensuring at least {} cans".format(atleastcan)
+    if totalrandomtest:
+        print "total randomness"
     for i in range(qenc_pred.shape[0]):
         if totalrandomtest:
             cans = [testgold[i]]
