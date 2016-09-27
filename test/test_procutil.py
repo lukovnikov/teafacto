@@ -31,3 +31,15 @@ class TestProcUtil(TestCase):
         rwd = {v: k for k, v in wdic.items()}
         s = wordids2string([wdic[xe] for xe in x.split()], rwd)
         self.assertEqual(x, s)
+
+    def test_idcounts(self):
+        x = np.random.randint(-1, 5, (100, 70))
+        vc = getmatrixvaluecounts(x)
+        evc = {}
+        for i in range(x.shape[0]):
+            for j in range(x.shape[1]):
+                elem = x[i, j]
+                if elem not in evc:
+                    evc[elem] = 0
+                evc[elem] += 1
+        self.assertEqual(evc, vc)

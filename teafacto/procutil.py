@@ -100,3 +100,10 @@ def wordcharmat2string(inp, rcd=None, maskid=-1):
         acc.append(w)
     ret = " ".join([w for w in acc if len(w) > 0])
     return ret
+
+
+def getmatrixvaluecounts(x):
+    from pandas import Series
+    pdx = Series(x.flatten())
+    ret = pdx.value_counts()
+    return dict(zip(ret.index, ret.values))

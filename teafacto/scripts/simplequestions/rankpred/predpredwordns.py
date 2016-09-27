@@ -4,14 +4,14 @@ import scipy.sparse as sparse
 from IPython import embed
 from teafacto.core.base import Val
 from teafacto.blocks.basic import VectorEmbed
-from teafacto.blocks.lang.wordvec import Glove
+from teafacto.blocks.lang.wordvec import Glove, WordEmb
 from teafacto.blocks.lang.sentenc import WordCharSentEnc, TwoLevelEncoder
 from teafacto.blocks.seq.enc import SimpleSeq2Vec
 from teafacto.blocks.seq.rnn import RNNSeqEncoder, MaskMode
 from teafacto.blocks.match import CosineDistance, MatchScore
 from teafacto.blocks.memory import MemVec
 from teafacto.blocks.cnn import CNNSeqEncoder
-from teafacto.procutil import wordmat2wordchartensor
+from teafacto.procutil import wordmat2wordchartensor, getmatrixvaluecounts
 
 
 def readdata(p="../../../../data/simplequestions/clean/datamat.word.fb2m.pkl",
@@ -117,6 +117,7 @@ def run(epochs=50,
         wordchar=False,
         charencmode="rnn",  # rnn or cnn
         totalrandomtest=False,
+        rarewords=0,
         ):
     maskid = -1
     tt = ticktock("predpred")
@@ -138,6 +139,14 @@ def run(epochs=50,
     numwords = max(worddic.values()) + 1
     numents = max(entdic.values()) + 1
 
+    if rarewords > 0:
+        rwd = {v: k for k, v in worddic.items()}
+        print "doing rare words"
+        trainwordcounts = getmatrixvaluecounts(traindata)
+        stwc = sorted(trainwordcounts.items(), key=lambda (x, y): y, reverse=True)
+        fstwc = filter(lambda (x, y): y > rarewords, stwc)
+        redwdic = dict(zip([rwd[k] for k, v in fstwc if k != maskid and k in rwd], range(len(fstwc))))
+        #embed()
     if bidir:
         encdim = [encdim / 2] * layers
     else:
@@ -145,9 +154,15 @@ def run(epochs=50,
 
     # question-side model
     if glove:
+        if rarewords > 0:
+            raise Exception("glove with rare words currently not supported")
         wordemb = Glove(embdim).adapt(worddic)
     else:
-        wordemb = VectorEmbed(numwords, embdim)
+        if rarewords > 0:
+            wordemb = WordEmb(dim=embdim, worddic=redwdic).adapt(worddic)
+            embed()
+        else:
+            wordemb = WordEmb(dim=embdim, worddic=worddic)
     if wordchar:
         print "wordchar model"
         numchars = 256
