@@ -160,7 +160,7 @@ def run(epochs=50,
     else:
         if rarewords > 0:
             wordemb = WordEmb(dim=embdim, worddic=redwdic).adapt(worddic)
-            embed()
+            #embed()
         else:
             wordemb = WordEmb(dim=embdim, worddic=worddic)
     if wordchar:
