@@ -102,8 +102,9 @@ def wordcharmat2string(inp, rcd=None, maskid=-1):
     return ret
 
 
-def getmatrixvaluecounts(x):
+def getmatrixvaluecounts(*x):
+    x = np.concatenate([xe.flatten() for xe in x], axis=0)
     from pandas import Series
-    pdx = Series(x.flatten())
+    pdx = Series(x)
     ret = pdx.value_counts()
     return dict(zip(ret.index, ret.values))

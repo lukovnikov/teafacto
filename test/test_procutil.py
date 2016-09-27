@@ -34,11 +34,18 @@ class TestProcUtil(TestCase):
 
     def test_idcounts(self):
         x = np.random.randint(-1, 5, (100, 70))
-        vc = getmatrixvaluecounts(x)
+        y = np.random.randint(-1, 5, (20, 7))
+        vc = getmatrixvaluecounts(x, y)
         evc = {}
         for i in range(x.shape[0]):
             for j in range(x.shape[1]):
                 elem = x[i, j]
+                if elem not in evc:
+                    evc[elem] = 0
+                evc[elem] += 1
+        for i in range(y.shape[0]):
+            for j in range(y.shape[1]):
+                elem = y[i, j]
                 if elem not in evc:
                     evc[elem] = 0
                 evc[elem] += 1

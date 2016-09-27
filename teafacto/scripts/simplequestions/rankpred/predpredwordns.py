@@ -142,7 +142,7 @@ def run(epochs=50,
     if rarewords > 0:
         rwd = {v: k for k, v in worddic.items()}
         print "doing rare words"
-        trainwordcounts = getmatrixvaluecounts(traindata)
+        trainwordcounts = getmatrixvaluecounts(traindata, entmat)
         stwc = sorted(trainwordcounts.items(), key=lambda (x, y): y, reverse=True)
         fstwc = filter(lambda (x, y): y > rarewords, stwc)
         redwdic = dict(zip([rwd[k] for k, v in fstwc if k != maskid and k in rwd], range(len(fstwc))))
