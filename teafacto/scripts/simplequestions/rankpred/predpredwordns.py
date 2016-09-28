@@ -145,7 +145,9 @@ def run(epochs=50,
         trainwordcounts = getmatrixvaluecounts(traindata, entmat)
         stwc = sorted(trainwordcounts.items(), key=lambda (x, y): y, reverse=True)
         fstwc = filter(lambda (x, y): y > rarewords, stwc)
-        redwdic = dict(zip([rwd[k] for k, v in fstwc if k != maskid and k in rwd], range(len(fstwc))))
+        redwdic = dict(zip([rwd[k] for k, v in fstwc if k != maskid and k in rwd],
+                           range(1, len(fstwc)+1)))
+        redwdic["<RARE>"] = 0
         #embed()
     if bidir:
         encdim = [encdim / 2] * layers
@@ -160,7 +162,7 @@ def run(epochs=50,
     else:
         if rarewords > 0:
             wordemb = WordEmb(dim=embdim, worddic=redwdic).adapt(worddic)
-            #embed()
+            embed()
         else:
             wordemb = WordEmb(dim=embdim, worddic=worddic)
     if wordchar:

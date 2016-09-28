@@ -125,7 +125,9 @@ class AdaptedWordEmb(WordEmb):
                 dim=wordemb.outdim, normalize=wordemb.normalize,
                 trainfrac=wordemb.trainfrac, **kw)
         self.inner = wordemb
-        self.ad = {v: D[k] if k in D else 0 for k, v in wdic.items()}
+        missingid = 0
+        self.ad = {v: D[k] if k in D else missingid
+                   for k, v in wdic.items()}
 
         valval = np.zeros((max(self.ad.keys()) + 1,), dtype="int32")
         for i in range(valval.shape[0]):
