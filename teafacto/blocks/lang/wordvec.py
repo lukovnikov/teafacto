@@ -136,6 +136,10 @@ class AdaptedWordEmb(WordEmb):
     def w(self):
         return self.inner.W.d.get_value()[self.adb.d.get_value()]
 
+    @property
+    def W(self):
+        return self.inner.W
+
     def apply(self, inp):
         x = self.adb[inp]
         ret = self.inner(x)

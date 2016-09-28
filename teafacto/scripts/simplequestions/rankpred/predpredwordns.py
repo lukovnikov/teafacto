@@ -269,7 +269,7 @@ def run(epochs=50,
 
     checkembschange = True
     if checkembschange:
-        embed()
+        #embed()
         embvals = wordemb.W.d.get_value()
     tt.tick("training")
     nscorer = scorer.nstrain([traindata, traingold]) \
