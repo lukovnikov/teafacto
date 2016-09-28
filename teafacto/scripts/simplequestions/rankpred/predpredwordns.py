@@ -270,7 +270,13 @@ def run(epochs=50,
     checkembschange = True
     if checkembschange:
         #embed()
-        embvals = wordemb.W.d.get_value()
+        embvar = wordemb.W
+        if embvar is None:
+            if hasattr(embvar, "inner"):
+                embvar = wordemb.inner.W
+            else:
+                raise Exception("no clue where to find embedding values")
+        embvals = embvar.d.get_value()
     tt.tick("training")
     nscorer = scorer.nstrain([traindata, traingold]) \
                 .negsamplegen(negidxgen) \
@@ -281,7 +287,13 @@ def run(epochs=50,
         .train(numbats=numbats, epochs=epochs)
     tt.tock("trained")
     if checkembschange:
-        newembvals = wordemb.W.d.get_value()
+        embvar = wordemb.W
+        if embvar is None:
+            if hasattr(embvar, "inner"):
+                embvar = wordemb.inner.W
+            else:
+                raise Exception("no clue where to find embedding values")
+        newembvals = embvar.d.get_value()
         embschanged = not np.allclose(embvals, newembvals)
         sumsqdiff = np.sum((newembvals - embvals)**2)
         print "Embeddings {}: {} sum of square diffs"\
