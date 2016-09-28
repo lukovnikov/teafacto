@@ -11,9 +11,10 @@ from teafacto.blocks.seq.enc import SimpleSeqStar2Vec
 
 
 class WordEmbBase(object):
-    def __init__(self, worddic, **kw):
+    def __init__(self, worddic, raretoken="<RARE>", **kw):
         super(WordEmbBase, self).__init__(**kw)
         self.D = OrderedDict() if worddic is None else worddic
+        self._raretoken = raretoken
 
     # region NON-BLOCK API :::::::::::::::::::::::::::::::::::::
     def getindex(self, word):
@@ -70,11 +71,16 @@ class WordEmbBase(object):
     def block(self):
         return self
 
+    @property
+    def raretoken(self):
+        return self._raretoken
+
 
 class WordEmb(WordEmbBase, VectorEmbed): # unknown words are mapped to index 0, their embedding is a zero vector
     """ is a VectorEmbed with a dictionary to map words to ids """
     def __init__(self, dim=50, indim=None, value=None, worddic=None,
-                 normalize=False, trainfrac=1.0, init=None, **kw):
+                 normalize=False, trainfrac=1.0, init=None, raretoken="<RARE>",
+                 **kw):
         if isstring(value):     # path
             assert(init is None and worddic is None)
             value, worddic = self.loadvalue(value, dim, indim=indim)
@@ -82,13 +88,21 @@ class WordEmb(WordEmbBase, VectorEmbed): # unknown words are mapped to index 0, 
         if worddic is not None:
             wdvals = worddic.values()
             #embed()
+            if raretoken is not None:
+                if raretoken not in worddic:
+                    assert(0 not in wdvals)     # make sure index zero is free
+                    worddic[raretoken] = 0
+                assert(raretoken in worddic)        # raretoken must be in dic
+            else:
+                pass        # no rare tokens
             assert(min(wdvals) >= 0)     # word ids must be positive non-zero
             assert(indim == max(wdvals)+1 or indim is None)
             if indim is None:
-                indim = max(wdvals)+1        # to init from worddic
+                indim = max(worddic.values())+1        # to init from worddic
         super(WordEmb, self).__init__(indim=indim, dim=dim, value=value,
                                       normalize=normalize, worddic=worddic,
-                                      trainfrac=trainfrac, init=init, **kw)
+                                      trainfrac=trainfrac, init=init, raretoken=raretoken,
+                                      **kw)
 
     def adapt(self, wdic):
         return AdaptedWordEmb(self, wdic, maskid=self.maskid)
@@ -121,12 +135,13 @@ class WordEmb(WordEmbBase, VectorEmbed): # unknown words are mapped to index 0, 
 class AdaptedWordEmb(WordEmb):
     def __init__(self, wordemb, wdic, **kw):
         D = wordemb.D
+        nativeraretoken = wordemb.raretoken
         super(AdaptedWordEmb, self).__init__(worddic=wdic, value=False,
                 dim=wordemb.outdim, normalize=wordemb.normalize,
-                trainfrac=wordemb.trainfrac, **kw)
+                trainfrac=wordemb.trainfrac, raretoken=nativeraretoken, **kw)
         self.inner = wordemb
-        missingid = 0
-        self.ad = {v: D[k] if k in D else missingid
+
+        self.ad = {v: D[k] if k in D else D[nativeraretoken]
                    for k, v in wdic.items()}
 
         valval = np.zeros((max(self.ad.keys()) + 1,), dtype="int32")
@@ -145,7 +160,7 @@ class AdaptedWordEmb(WordEmb):
         return ret
 
 
-class OverriddenWordEmb(WordEmb):
+class OverriddenWordEmb(WordEmb): # TODO: RARE TOKEN MGMT
     def __init__(self, base, override, **kw):
         assert(base.outdim == override.outdim)
         super(OverriddenWordEmb, self).__init__(worddic=base.D, value=False,
@@ -173,7 +188,7 @@ class OverriddenWordEmb(WordEmb):
         return None         # TODO
 
 
-class AugmentedWordEmb(WordEmb):
+class AugmentedWordEmb(WordEmb):    # TODO: RARE TOKEN MGMT
     def __init__(self, base, augment, **kw):
         assert(base.outdim == augment.outdim)
         super(AugmentedWordEmb, self).__init__(worddic=base.D, value=False,
