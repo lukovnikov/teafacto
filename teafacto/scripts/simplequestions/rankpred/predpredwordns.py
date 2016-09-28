@@ -267,6 +267,9 @@ def run(epochs=50,
     else:
         negidxgen = NegIdxGen(numents)
 
+    checkembschange = True
+    if checkembschange:
+        embvals = wordemb.W.d.get_value()
     tt.tick("training")
     nscorer = scorer.nstrain([traindata, traingold]) \
                 .negsamplegen(negidxgen) \
@@ -276,6 +279,12 @@ def run(epochs=50,
                 .validate_on([validdata, validgold])\
         .train(numbats=numbats, epochs=epochs)
     tt.tock("trained")
+    if checkembschange:
+        newembvals = wordemb.W.d.get_value()
+        embschanged = not np.allclose(embvals, newembvals)
+        sumsqdiff = np.sum((newembvals - embvals)**2)
+        print "Embeddings {}: {} sum of square diffs"\
+            .format("changed" if embschanged else "did not change", sumsqdiff)
 
     # evaluation
     tt.tick("evaluating")
