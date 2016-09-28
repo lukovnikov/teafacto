@@ -272,7 +272,7 @@ def run(epochs=50,
         #embed()
         embvar = wordemb.W
         if embvar is None:
-            if hasattr(embvar, "inner"):
+            if hasattr(wordemb, "inner"):
                 embvar = wordemb.inner.W
             else:
                 raise Exception("no clue where to find embedding values")
@@ -289,7 +289,7 @@ def run(epochs=50,
     if checkembschange:
         embvar = wordemb.W
         if embvar is None:
-            if hasattr(embvar, "inner"):
+            if hasattr(wordemb, "inner"):
                 embvar = wordemb.inner.W
             else:
                 raise Exception("no clue where to find embedding values")
