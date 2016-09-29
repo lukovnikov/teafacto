@@ -6,7 +6,7 @@ from scipy import sparse
 
 from teafacto.blocks.lang.wordvec import Glove, WordEmb
 from teafacto.blocks.lang.sentenc import TwoLevelEncoder
-from teafacto.blocks.seq.rnn import RNNSeqEncoder
+from teafacto.blocks.seq.rnn import RNNSeqEncoder, MaskMode
 from teafacto.blocks.seq.enc import SimpleSeq2Vec
 from teafacto.blocks.cnn import CNNSeqEncoder
 from teafacto.blocks.basic import VectorEmbed
