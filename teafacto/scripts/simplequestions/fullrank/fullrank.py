@@ -166,7 +166,7 @@ class LeftBlock(Block):
     def apply(self, x):
         # idxs^(batsize, seqlen, ...) --> (batsize, seqlen, 2, encdim)
         res = self.inner(x).dimshuffle(0, "x", 1)
-        ret = T.concatenate([res, res], axis=2)
+        ret = T.concatenate([res, res], axis=1)
         return ret
 
 
@@ -260,8 +260,7 @@ def run(closenegsam=False,
 
     # score
     scorer = SeqMatchScore(lb, rb, scorer=CosineDistance(),
-                           aggregator=lambda x: x,
-                           argproc=lambda x, y, z: ((x,), (y, z)))
+                           aggregator=lambda x: x)#,argproc=lambda x, y, z: ((x,), (y, z)))
 
     obj = lambda p, n: T.sum((n - p + margin).clip(0, np.infty), axis=1)
 
@@ -323,7 +322,7 @@ def run(closenegsam=False,
     tt.tock("trained").tick()
 
     # saving
-    saveid = np.random.randint(0, 1000)
+    saveid = "".join([str(np.random.randint(0, 10)) for i in range(4)])
     scorer.save("fullrank{}.model".format(saveid))
     tt.tock("saved: {}".format(saveid))
 
