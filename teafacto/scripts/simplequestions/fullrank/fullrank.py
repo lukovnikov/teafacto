@@ -171,13 +171,14 @@ class SeqLeftBlock(Block):
 
 
 class ConcatLeftBlock(Block):
-    def __init__(self, inner, **kw):
+    def __init__(self, inner, mid, **kw):
         super(ConcatLeftBlock, self).__init__(**kw)
         self.inner = inner
+        self.mid = mid
 
     def apply(self, x):
-        res = self.inner(x).dimshuffle(0, "x", 1) # (batsize, q_enc_dim)
-        mid = res.shape[2]/2
+        res = self.inner(x).dimshuffle(0, "x", 1) # (batsize, 1, q_enc_dim)
+        mid = self.mid #res.shape[2]/2
         ret = T.concatenate([res[:, :, :mid], res[:, :, mid:]], axis=1)
         return ret
 
@@ -283,7 +284,7 @@ def run(closenegsam=False,
         lb = SeqLeftBlock(question_encoder)
         rb = RightBlock(subjemb, predemb)
     elif mode == "concat":
-        lb = ConcatLeftBlock(question_encoder)
+        lb = ConcatLeftBlock(question_encoder, decdim)
         rb = RightBlock(subjemb, predemb)
     else:
         raise Exception("unrecognized mode")
