@@ -272,7 +272,7 @@ def run(closenegsam=False,
 
         def __call__(self, datas, gold):
             entrand = np.random.randint(0, self.maxentid+1, (gold.shape[0], 1))
-            relrand = self.samplerels(gold[:, 1:1])
+            relrand = self.samplerels(gold[:, 1:2])
             ret = np.concatenate([entrand, relrand], axis=1)
             return datas, ret.astype("int32")
 
