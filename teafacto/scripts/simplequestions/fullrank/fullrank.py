@@ -291,6 +291,7 @@ def run(closenegsam=False,
                         ret[i] = np.random.randint(0, self.maxrelid+1)
                 return ret.astype("int32")
 
+    embed()
     tt.tick("training")
     nscorer = scorer.nstrain([traindata, traingold])\
         .negsamplegen(NegIdxGen(numsubjs-1, numrels-1, relclose=revsamplespace)) \
