@@ -232,8 +232,10 @@ def run(closenegsam=False,
 
     if mode == "seq":
         decdim = encdim
+        print "seq mode: {} decdim".format(decdim)
     elif mode == "concat":
         decdim = encdim / 2
+        print "concat mode: {} decdim".format(decdim)
     else:
         raise Exception("unrecognized mode")
 
