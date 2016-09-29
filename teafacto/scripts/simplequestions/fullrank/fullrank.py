@@ -195,6 +195,8 @@ def run(closenegsam=False,
         charenc="cnn",  # "cnn" or TODO
         margin=0.5,
         lr=0.1,
+        numbats=700,
+        epochs=15,
         ):
     tt = ticktock("script")
     tt.tick("loading data")
@@ -292,7 +294,8 @@ def run(closenegsam=False,
     nscorer = scorer.nstrain([traindata, traingold])\
         .negsamplegen(NegIdxGen(numsubjs-1, numrels-1, relclose=revsamplespace)) \
         .objective(obj).adagrad(lr=lr).grad_total_norm(1.0)\
-        .validate_on([validdata, validgold])
+        .validate_on([validdata, validgold])\
+        .train(numbats=numbats, epochs=epochs)
     tt.tock("trained")
 
     scorer.save("fullrank{}.model".format(np.random.randint(0, 1000)))
