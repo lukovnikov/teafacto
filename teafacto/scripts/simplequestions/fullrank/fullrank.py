@@ -1,5 +1,5 @@
 from teafacto.util import ticktock, argprun
-import os, pickle
+import os, pickle, random
 from teafacto.procutil import *
 from IPython import embed
 from scipy import sparse
@@ -185,7 +185,7 @@ class RightBlock(Block):
 
 def run(closenegsam=False,
         checkdata=False,
-        glove=False,
+        glove=True,
         embdim=100,
         charencdim=100,
         charembdim=50,
@@ -194,6 +194,7 @@ def run(closenegsam=False,
         bidir=False,
         charenc="cnn",  # "cnn" or TODO
         margin=0.5,
+        lr=0.1,
         ):
     tt = ticktock("script")
     tt.tick("loading data")
@@ -201,6 +202,7 @@ def run(closenegsam=False,
     (subjmat, relmat), (subjdic, reldic), worddic, \
     subjinfo, (testsubjcans, testrelcans) = readdata()
 
+    revsamplespace = None
     if closenegsam:
         relsamplespace, revind = buildrelsamplespace(relmat, worddic)
     tt.tock("data loaded")
@@ -234,6 +236,7 @@ def run(closenegsam=False,
     else:
         raise Exception("no other modes available")
 
+    # encode predicate on word level
     predemb = MemVec(SimpleSeq2Vec(inpemb=wordemb,
                                    innerdim=decdim,
                                    maskid=maskid,
@@ -241,6 +244,7 @@ def run(closenegsam=False,
                                    layers=1))
     predemb.load(relmat)
 
+    # encode subject on character level
     subjemb = MemVec(SimpleSeq2Vec(inpemb=charemb,
                                    innerdim=decdim,
                                    maskid=maskid,
@@ -248,12 +252,56 @@ def run(closenegsam=False,
                                    layers=2))
     subjemb.load(subjmat)
 
+    # package
     lb = LeftBlock(question_encoder)
     rb = RightBlock(subjemb, predemb)
 
+    # score
     scorer = SeqMatchScore(lb, rb, scorer=CosineDistance(), aggregator=lambda x: x)
 
     obj = lambda p, n: T.sum((n - p + margin).clip(0, np.infty), axis=1)
+
+    # negative sampling
+    class NegIdxGen(object):
+        def __init__(self, maxentid, maxrelid, relclose=None):
+            self.maxentid = maxentid
+            self.maxrelid = maxrelid
+            self.relclose = relclose
+
+        def __call__(self, datas, gold):
+            entrand = np.random.randint(0, self.maxentid+1, (gold.shape[0], 1))
+            relrand = self.samplerels(gold[:, 1:1])
+            ret = np.concatenate([entrand, relrand], axis=1)
+            return datas, ret.astype("int32")
+
+        def samplerels(self, gold):
+            assert(gold.ndim == 2 and gold.shape[1] == 1)
+            if self.relclose is None:
+                return np.random.randint(0, self.maxrelid+1, (gold.shape[0], 1))
+            else:
+                ret = np.zeros_like(gold)
+                for i in range(gold.shape[0]):
+                    sampleset = self.relclose[gold[i]]
+                    if len(sampleset) > 5:
+                        ret[i] = random.sample(sampleset, 1)[0]
+                    else:
+                        ret[i] = np.random.randint(0, self.maxrelid+1)
+                return ret.astype("int32")
+
+    tt.tick("training")
+    nscorer = scorer.nstrain([traindata, traingold])\
+        .negsamplegen(NegIdxGen(numsubjs-1, numrels-1, relclose=revsamplespace)) \
+        .objective(obj).adagrad(lr=lr).grad_total_norm(1.0)\
+        .validate_on([validdata, validgold])
+    tt.tock("trained")
+
+    scorer.save("fullrank{}.model".format(np.random.randint(0, 1000)))
+    tt.tock("saved")
+
+    # evaluation
+    # TODO
+
+
 
 
 if __name__ == "__main__":
