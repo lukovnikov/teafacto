@@ -274,7 +274,7 @@ def run(closenegsam=False,
                            innerdim=decdim,
                            maskid=maskid,
                            bidir=bidir,
-                           layers=2)
+                           layers=1)
     #subjemb.load(subjmat)
 
     # package
