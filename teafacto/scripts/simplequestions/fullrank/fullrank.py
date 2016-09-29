@@ -189,8 +189,8 @@ def run(closenegsam=False,
         embdim=100,
         charencdim=100,
         charembdim=50,
-        encdim=200,
-        decdim=200,
+        encdim=400,
+        decdim=400,
         bidir=False,
         charenc="cnn",  # "cnn" or TODO
         margin=0.5,
@@ -275,7 +275,7 @@ def run(closenegsam=False,
             entrand = np.random.randint(0, self.maxentid+1, (gold.shape[0], 1))
             relrand = self.samplerels(gold[:, 1:2])
             ret = np.concatenate([entrand, relrand], axis=1)
-            embed()
+            #embed()
             return datas, ret.astype("int32")
 
         def samplerels(self, gold):
@@ -312,7 +312,7 @@ def run(closenegsam=False,
 
     transf = PreProc(subjmat, relmat)
 
-    embed()
+    #embed()
     tt.tick("training")
     nscorer = scorer.nstrain([traindata, traingold]).transform(transf)\
         .negsamplegen(NegIdxGen(numsubjs-1, numrels-1, relclose=revsamplespace)) \
