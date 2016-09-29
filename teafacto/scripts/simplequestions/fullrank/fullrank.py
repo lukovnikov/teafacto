@@ -13,7 +13,7 @@ from teafacto.blocks.basic import VectorEmbed
 from teafacto.blocks.memory import MemVec
 from teafacto.blocks.match import SeqMatchScore, CosineDistance
 
-from teafacto.core.base import Block, tensorops as T
+from teafacto.core.base import Block, tensorops as T, Val
 
 
 def readdata(p="../../../../data/simplequestions/clean/datamat.word.fb2m.pkl",
@@ -239,20 +239,20 @@ def run(closenegsam=False,
         raise Exception("no other modes available")
 
     # encode predicate on word level
-    predemb = MemVec(SimpleSeq2Vec(inpemb=wordemb,
-                                   innerdim=decdim,
-                                   maskid=maskid,
-                                   bidir=bidir,
-                                   layers=1))
-    predemb.load(relmat)
+    predemb = SimpleSeq2Vec(inpemb=wordemb,
+                           innerdim=decdim,
+                           maskid=maskid,
+                           bidir=bidir,
+                           layers=1)
+    #predemb.load(relmat)
 
     # encode subject on character level
-    subjemb = MemVec(SimpleSeq2Vec(inpemb=charemb,
-                                   innerdim=decdim,
-                                   maskid=maskid,
-                                   bidir=bidir,
-                                   layers=2))
-    subjemb.load(subjmat)
+    subjemb = SimpleSeq2Vec(inpemb=charemb,
+                           innerdim=decdim,
+                           maskid=maskid,
+                           bidir=bidir,
+                           layers=2)
+    #subjemb.load(subjmat)
 
     # package
     lb = LeftBlock(question_encoder)
@@ -291,6 +291,24 @@ def run(closenegsam=False,
                         ret[i] = np.random.randint(0, self.maxrelid+1)
                 return ret.astype("int32")
 
+    class PreProc(object):
+        def __init__(self, subjmat, relmat):
+            self.f = PreProcE(subjmat, relmat)
+
+        def __call__(self, data, gold):     # gold: idxs-(batsize, 2)
+            ret = self.f(gold)[0]
+            return (data,) + ret, {}
+
+    class PreProcE(object):
+        def __init__(self, subjmat, relmat):
+            self.subjmat = Val(subjmat)
+            self.relmat = Val(relmat)
+
+        def __call__(self, x):
+            subjslice = self.subjmat[x[:, 0]]
+            relslice = self.relmat[x[:, 1]]
+            return (subjslice, relslice), {}
+
     embed()
     tt.tick("training")
     nscorer = scorer.nstrain([traindata, traingold])\
@@ -298,10 +316,12 @@ def run(closenegsam=False,
         .objective(obj).adagrad(lr=lr).grad_total_norm(1.0)\
         .validate_on([validdata, validgold])\
         .train(numbats=numbats, epochs=epochs)
-    tt.tock("trained")
+    tt.tock("trained").tick()
 
-    scorer.save("fullrank{}.model".format(np.random.randint(0, 1000)))
-    tt.tock("saved")
+    # saving
+    saveid = np.random.randint(0, 1000)
+    scorer.save("fullrank{}.model".format(saveid))
+    tt.tock("saved: {}".format(saveid))
 
     # evaluation
     # TODO
