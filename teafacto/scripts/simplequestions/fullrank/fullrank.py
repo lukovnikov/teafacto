@@ -192,7 +192,8 @@ def run(closenegsam=False,
         encdim=400,
         decdim=400,
         bidir=False,
-        charenc="cnn",  # "cnn" or TODO
+        charenc="cnn",  # "cnn" or "rnn"
+        mode="seq",      # "seq" or "concat"
         margin=0.5,
         lr=0.1,
         numbats=700,
@@ -223,20 +224,22 @@ def run(closenegsam=False,
         wordemb = Glove(embdim).adapt(worddic)
     else:
         wordemb = WordEmb(dim=embdim, indim=numwords)
+    charemb = VectorEmbed(indim=numchars, dim=charembdim)
     if charenc == "cnn":
         print "using CNN char encoder"
-        charemb = VectorEmbed(indim=numchars, dim=charembdim)
         charenc = CNNSeqEncoder(inpemb=charemb,
                                 innerdim=[charencdim]*2, maskid=maskid,
                                 stride=1)
-        wordenc = RNNSeqEncoder(inpemb=False, inpembdim=wordemb.outdim + charencdim,
-                                innerdim=encdim, bidir=bidir).maskoptions(MaskMode.NONE)
-        question_encoder = TwoLevelEncoder(l1enc=charenc, l2emb=wordemb,
-                                           l2enc=wordenc, maskid=maskid)
     elif charenc == "rnn":
-        raise NotImplementedError("rnn not implemented yet")
+        print "using RNN char encoder"
+        charenc = RNNSeqEncoder(inpemb=charemb, innerdim=charencdim)\
+            .maskoptions(maskid, MaskMode.AUTO)
     else:
         raise Exception("no other modes available")
+    wordenc = RNNSeqEncoder(inpemb=False, inpembdim=wordemb.outdim + charencdim,
+                            innerdim=encdim, bidir=bidir).maskoptions(MaskMode.NONE)
+    question_encoder = TwoLevelEncoder(l1enc=charenc, l2emb=wordemb,
+                                       l2enc=wordenc, maskid=maskid)
 
     # encode predicate on word level
     predemb = SimpleSeq2Vec(inpemb=wordemb,
