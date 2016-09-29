@@ -11,7 +11,7 @@ from teafacto.blocks.seq.enc import SimpleSeq2Vec
 from teafacto.blocks.cnn import CNNSeqEncoder
 from teafacto.blocks.basic import VectorEmbed
 from teafacto.blocks.memory import MemVec
-from teafacto.blocks.match import SeqMatchScore, CosineDistance
+from teafacto.blocks.match import SeqMatchScore, CosineDistance, MatchScore
 
 from teafacto.core.base import Block, tensorops as T, Val
 
@@ -158,15 +158,27 @@ def buildrelsamplespace(entmat, wd, maskid=-1):
     return samdic, entmatm.T
 
 
-class LeftBlock(Block):
+class SeqLeftBlock(Block):
     def __init__(self, inner, **kw):
-        super(LeftBlock, self).__init__(**kw)
+        super(SeqLeftBlock, self).__init__(**kw)
         self.inner = inner
 
     def apply(self, x):
         # idxs^(batsize, seqlen, ...) --> (batsize, seqlen, 2, encdim)
         res = self.inner(x).dimshuffle(0, "x", 1)
         ret = T.concatenate([res, res], axis=1)
+        return ret
+
+
+class ConcatLeftBlock(Block):
+    def __init__(self, inner, **kw):
+        super(ConcatLeftBlock, self).__init__(**kw)
+        self.inner = inner
+
+    def apply(self, x):
+        res = self.inner(x).dimshuffle(0, "x", 1) # (batsize, q_enc_dim)
+        mid = res.shape[2]/2
+        ret = T.concatenate([res[:, :, mid], res[:, :, mid:]], axis=1)
         return ret
 
 
@@ -190,7 +202,6 @@ def run(closenegsam=False,
         charencdim=100,
         charembdim=50,
         encdim=400,
-        decdim=400,
         bidir=False,
         charenc="cnn",  # "cnn" or "rnn"
         mode="seq",      # "seq" or "concat"
@@ -218,6 +229,13 @@ def run(closenegsam=False,
     numrels = max(reldic.values()) + 1
     maskid = -1
     numchars = 256
+
+    if mode == "seq":
+        decdim = encdim
+    elif mode == "concat":
+        decdim = encdim / 2
+    else:
+        raise Exception("unrecognized mode")
 
     # defining model
     if glove:
@@ -258,10 +276,14 @@ def run(closenegsam=False,
     #subjemb.load(subjmat)
 
     # package
-    lb = LeftBlock(question_encoder)
-    rb = RightBlock(subjemb, predemb)
-
-    # score
+    if mode == "seq":
+        lb = SeqLeftBlock(question_encoder)
+        rb = RightBlock(subjemb, predemb)
+    elif mode == "concat":
+        lb = ConcatLeftBlock(question_encoder)
+        rb = RightBlock(subjemb, predemb)
+    else:
+        raise Exception("unrecognized mode")
     scorer = SeqMatchScore(lb, rb, scorer=CosineDistance(),
                            aggregator=lambda x: x, argproc=lambda x, y, z: ((x,), (y, z)))
 
