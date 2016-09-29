@@ -165,7 +165,7 @@ class LeftBlock(Block):
 
     def apply(self, x):
         # idxs^(batsize, seqlen, ...) --> (batsize, seqlen, 2, encdim)
-        res = self.inner(x).dimshuffle(0, 1, 'x', 2)
+        res = self.inner(x).dimshuffle(0, 1, 'x')
         ret = T.concatenate([res, res], axis=2)
         return ret
 
@@ -177,8 +177,8 @@ class RightBlock(Block):
         self.predenc = b
 
     def apply(self, x):  # idxs^(batsize, 2)
-        aret = self.subjenc(x[:, 0]).dimshuffle(0, 1, 'x', 2)
-        bret = self.predenc(x[:, 1]).dimshuffle(0, 1, 'x', 2)
+        aret = self.subjenc(x[:, 0]).dimshuffle(0, 1, 'x')
+        bret = self.predenc(x[:, 1]).dimshuffle(0, 1, 'x')
         ret = T.concatenate([aret, bret], axis=2)
         return ret
 
