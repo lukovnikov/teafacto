@@ -165,7 +165,7 @@ class LeftBlock(Block):
 
     def apply(self, x):
         # idxs^(batsize, seqlen, ...) --> (batsize, seqlen, 2, encdim)
-        res = self.inner(x).dimshuffle(0, 1, 'x')
+        res = self.inner(x).dimshuffle(0, "x", 1)
         ret = T.concatenate([res, res], axis=2)
         return ret
 
@@ -259,7 +259,9 @@ def run(closenegsam=False,
     rb = RightBlock(subjemb, predemb)
 
     # score
-    scorer = SeqMatchScore(lb, rb, scorer=CosineDistance(), aggregator=lambda x: x)
+    scorer = SeqMatchScore(lb, rb, scorer=CosineDistance(),
+                           aggregator=lambda x: x,
+                           argproc=lambda x, y, z: ((x,), (y, z)))
 
     obj = lambda p, n: T.sum((n - p + margin).clip(0, np.infty), axis=1)
 
