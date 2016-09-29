@@ -176,10 +176,10 @@ class RightBlock(Block):
         self.subjenc = a
         self.predenc = b
 
-    def apply(self, x):  # idxs^(batsize, 2)
-        aret = self.subjenc(x[:, 0]).dimshuffle(0, 1, 'x')
-        bret = self.predenc(x[:, 1]).dimshuffle(0, 1, 'x')
-        ret = T.concatenate([aret, bret], axis=2)
+    def apply(self, subjslice, relslice):  # idxs^(batsize, len)
+        aret = self.subjenc(subjslice).dimshuffle(0, "x", 1)
+        bret = self.predenc(relslice).dimshuffle(0, "x", 1)
+        ret = T.concatenate([aret, bret], axis=1)
         return ret
 
 
@@ -309,9 +309,11 @@ def run(closenegsam=False,
             relslice = self.relmat[x[:, 1]]
             return (subjslice, relslice), {}
 
+    transf = PreProc(subjmat, relmat)
+
     embed()
     tt.tick("training")
-    nscorer = scorer.nstrain([traindata, traingold])\
+    nscorer = scorer.nstrain([traindata, traingold]).transform(transf)\
         .negsamplegen(NegIdxGen(numsubjs-1, numrels-1, relclose=revsamplespace)) \
         .objective(obj).adagrad(lr=lr).grad_total_norm(1.0)\
         .validate_on([validdata, validgold])\
