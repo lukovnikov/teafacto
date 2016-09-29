@@ -178,7 +178,7 @@ class ConcatLeftBlock(Block):
     def apply(self, x):
         res = self.inner(x).dimshuffle(0, "x", 1) # (batsize, q_enc_dim)
         mid = res.shape[2]/2
-        ret = T.concatenate([res[:, :, mid], res[:, :, mid:]], axis=1)
+        ret = T.concatenate([res[:, :, :mid], res[:, :, mid:]], axis=1)
         return ret
 
 
@@ -209,6 +209,7 @@ def run(closenegsam=False,
         lr=0.1,
         numbats=700,
         epochs=15,
+        debug=False,
         ):
     tt = ticktock("script")
     tt.tick("loading data")
@@ -339,7 +340,8 @@ def run(closenegsam=False,
 
     transf = PreProc(subjmat, relmat)
 
-    #embed()
+    if debug:
+        embed()
     tt.tick("training")
     nscorer = scorer.nstrain([traindata, traingold]).transform(transf)\
         .negsamplegen(NegIdxGen(numsubjs-1, numrels-1, relclose=revsamplespace)) \
