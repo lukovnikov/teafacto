@@ -277,7 +277,6 @@ def run(closenegsam=False,
             return datas, ret.astype("int32")
 
         def samplerels(self, gold):
-            embed()
             assert(gold.ndim == 2 and gold.shape[1] == 1)
             if self.relclose is None:
                 return np.random.randint(0, self.maxrelid+1, (gold.shape[0], 1))
@@ -289,6 +288,7 @@ def run(closenegsam=False,
                         ret[i] = random.sample(sampleset, 1)[0]
                     else:
                         ret[i] = np.random.randint(0, self.maxrelid+1)
+                embed()
                 return ret.astype("int32")
 
     tt.tick("training")
