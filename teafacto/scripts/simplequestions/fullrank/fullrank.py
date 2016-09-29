@@ -260,7 +260,7 @@ def run(closenegsam=False,
 
     # score
     scorer = SeqMatchScore(lb, rb, scorer=CosineDistance(),
-                           aggregator=lambda x: x)#,argproc=lambda x, y, z: ((x,), (y, z)))
+                           aggregator=lambda x: x, argproc=lambda x, y, z: ((x,), (y, z)))
 
     obj = lambda p, n: T.sum((n - p + margin).clip(0, np.infty), axis=1)
 
