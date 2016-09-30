@@ -372,7 +372,8 @@ class ModelTrainer(object):
             inputs=[x.d for x in inputs]+[self.goldvar],
             outputs=[cost],
             updates=updates,
-            mode=NanGuardMode(nan_is_error=True, inf_is_error=True, big_is_error=True))
+            mode=NanGuardMode(nan_is_error=True, inf_is_error=False, big_is_error=False)
+        )
         # TODO: add givens for transferring dataset to GPU --> must reimplement parts of trainer (batch generation, givens, ...)
         self.tt.tock("training function compiled")
         return trainf
@@ -388,7 +389,8 @@ class ModelTrainer(object):
         if len(metrics) > 0:
             ret = theano.function(inputs=[x.d for x in inputs] + [self.goldvar],
                                   outputs=metrics,
-                                  mode=NanGuardMode(nan_is_error=True, inf_is_error=True, big_is_error=True))
+                                  mode=NanGuardMode(nan_is_error=True, inf_is_error=False, big_is_error=False)
+                                  )
         else:
             self.tt.msg("NO VALIDATION METRICS DEFINED, RETURNS NONE")
         self.tt.tock("validation function compiled")
