@@ -308,7 +308,8 @@ def run(closenegsam=False,
             if np.sum(entrand == 645994) > 0:
                 print "sampled the empty subject label"
             entrand = np.vectorize(lambda x: 645995 if x == 645994 else x)(entrand) # avoid sampling the empty label
-            entrand = np.asarray([[645994]]*gold.shape[0])
+            #entrand = np.asarray([[645994]]*gold.shape[0])
+            entrand[0, 0] = 645994
 
             relrand = self.samplerels(gold[:, 1:2])
             ret = np.concatenate([entrand, relrand], axis=1)
