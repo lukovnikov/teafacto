@@ -211,6 +211,8 @@ def run(closenegsam=False,
         numbats=700,
         epochs=15,
         debug=False,
+        gradnorm=1.0,
+        wreg=0.0001,
         ):
     tt = ticktock("script")
     tt.tick("loading data")
@@ -346,7 +348,7 @@ def run(closenegsam=False,
     tt.tick("training")
     nscorer = scorer.nstrain([traindata, traingold]).transform(transf)\
         .negsamplegen(NegIdxGen(numsubjs-1, numrels-1, relclose=revsamplespace)) \
-        .objective(obj).adagrad(lr=lr).grad_total_norm(1.0)\
+        .objective(obj).adagrad(lr=lr).l2(wreg).grad_total_norm(gradnorm)\
         .validate_on([validdata, validgold])\
         .train(numbats=numbats, epochs=epochs)
     tt.tock("trained").tick()

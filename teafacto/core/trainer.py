@@ -9,6 +9,7 @@ from lasagne.objectives import *
 from lasagne.regularization import l1, l2
 from lasagne.updates import *
 from theano import tensor as tensor
+from theano.compile.nanguardmode import NanGuardMode
 
 #from core import Input
 from teafacto.core.datafeed import DataFeeder, SplitIdxIterator
@@ -370,7 +371,8 @@ class ModelTrainer(object):
         trainf = theano.function(
             inputs=[x.d for x in inputs]+[self.goldvar],
             outputs=[cost],
-            updates=updates)
+            updates=updates,
+            mode=NanGuardMode(nan_is_error=True, inf_is_error=True, big_is_error=True))
         # TODO: add givens for transferring dataset to GPU --> must reimplement parts of trainer (batch generation, givens, ...)
         self.tt.tock("training function compiled")
         return trainf
@@ -384,7 +386,9 @@ class ModelTrainer(object):
         inputs = newinp if newinp is not None else model.inputs
         ret = None
         if len(metrics) > 0:
-            ret = theano.function(inputs=[x.d for x in inputs] + [self.goldvar], outputs=metrics)
+            ret = theano.function(inputs=[x.d for x in inputs] + [self.goldvar],
+                                  outputs=metrics,
+                                  mode=NanGuardMode(nan_is_error=True, inf_is_error=True, big_is_error=True))
         else:
             self.tt.msg("NO VALIDATION METRICS DEFINED, RETURNS NONE")
         self.tt.tock("validation function compiled")
