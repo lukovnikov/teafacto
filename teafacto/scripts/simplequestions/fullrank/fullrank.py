@@ -72,7 +72,7 @@ def readdata(p="../../../../data/simplequestions/clean/datamat.word.fb2m.pkl",
 
     subjinfo = loadsubjinfo(entinfp, subjdic)
     testsubjcans = loadsubjtestcans()
-    testrelcans, relspersubj = loadreltestcans(testgold,subjdic, reldic)
+    testrelcans, relspersubj = loadreltestcans(testgold, subjdic, reldic)
     if debug:
         embed()
     return ret + (subjinfo, (testsubjcans, relspersubj))
@@ -81,19 +81,24 @@ def readdata(p="../../../../data/simplequestions/clean/datamat.word.fb2m.pkl",
 def loadreltestcans(testgold, subjdic, reldic, relsperentp="../../../../data/simplequestions/allrelsperent.dmp"):
     tt = ticktock("test rel can loader")
     testsubjs = testgold[:, 0]
-    relsoftestsubjs = {k: ([], []) for k in set(list(testsubjs))}
+    relsperent = {} #{k: ([], []) for k in set(list(testsubjs))}
     tt.tick("loading rel test cans")
     for line in open(relsperentp):
         subj, relsout, relsin = line[:-1].split("\t")
-        if subj in subjdic and subjdic[subj] in relsoftestsubjs:
-            relsoftestsubjs[subjdic[subj]] = (
-                [reldic[x] for x in relsout.split(" ")] if relsout != "" else [],
-                [reldic[x] for x in relsin.split(" ")] if relsin != "" else []
+        if subj in subjdic:
+            relsperent[subjdic[subj]] = (
+                    [reldic[x] for x in relsout.split(" ")] if relsout != "" else [],
+                    [reldic[x] for x in relsin.split(" ")] if relsin != "" else []
             )
+        #if subj in subjdic and subjdic[subj] in relsoftestsubjs:
+        #    relsoftestsubjs[subjdic[subj]] = (
+        #        [reldic[x] for x in relsout.split(" ")] if relsout != "" else [],
+        #        [reldic[x] for x in relsin.split(" ")] if relsin != "" else []
+        #    )
     tt.tock("test cans loaded")
-    relsoftestexamples = [(relsoftestsubjs[x][0], relsoftestsubjs[x][1])
+    relsoftestexamples = [(relsperent[x][0], relsperent[x][1])
                           for x in testsubjs]
-    return relsoftestexamples, relsoftestsubjs
+    return relsoftestexamples, relsperent
 
 
 def loadsubjtestcans(p="../../../../data/simplequestions/clean/testcans.pkl"):
