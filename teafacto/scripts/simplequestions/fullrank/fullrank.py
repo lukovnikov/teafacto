@@ -226,7 +226,9 @@ class CustomPredictor(object):
 
     def predict(self, data, entcans, relsperent):
         tt = ticktock("predictor")
+        tt.tick("computing question encodings")
         qencodings = self.qenc.predict(data)    # (numsam, encdim)
+        tt.tock("computed question encodings")
         ret = np.zeros((data.shape[0], 2), dtype="int32")
         if self.mode == "concat":
             mid = qencodings.shape[1] / 2
