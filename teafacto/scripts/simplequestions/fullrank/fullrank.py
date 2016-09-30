@@ -20,6 +20,7 @@ def readdata(p="../../../../data/simplequestions/clean/datamat.word.fb2m.pkl",
              entinfp="../../../../data/simplequestions/clean/subjs-counts-labels-types.fb2m.tsv",
              cachep=None, #"subjpredcharns.readdata.cache.pkl",
              maskid=-1,
+             debug=False,
              ):
     tt = ticktock("dataloader")
     if cachep is not None and os.path.isfile(cachep):      # load
@@ -54,7 +55,6 @@ def readdata(p="../../../../data/simplequestions/clean/datamat.word.fb2m.pkl",
         testdata = wordmat2wordchartensor(testdata, rwd=rwd, maskid=maskid)
 
         subjmat = wordmat2charmat(subjmat, rwd=rwd, maskid=maskid, maxlen=75)
-
         ret = ((traindata, traingold), (validdata, validgold),
                (testdata, testgold), (subjmat, relmat), (subjdic, reldic),
                worddic)
@@ -66,6 +66,8 @@ def readdata(p="../../../../data/simplequestions/clean/datamat.word.fb2m.pkl",
     subjinfo = loadsubjinfo(entinfp, subjdic)
     testsubjcans = loadsubjtestcans()
     testrelcans = loadreltestcans(testgold,subjdic, reldic)
+    if debug:
+        embed()
     return ret + (subjinfo, (testsubjcans, testrelcans))
 
 
@@ -218,7 +220,7 @@ def run(closenegsam=False,
     tt.tick("loading data")
     (traindata, traingold), (validdata, validgold), (testdata, testgold), \
     (subjmat, relmat), (subjdic, reldic), worddic, \
-    subjinfo, (testsubjcans, testrelcans) = readdata()
+    subjinfo, (testsubjcans, testrelcans) = readdata(debug=debug)
 
     revsamplespace = None
     if closenegsam:
