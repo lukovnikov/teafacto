@@ -246,7 +246,7 @@ class CustomPredictor(object):
                     embed()
             ret[i, 0] = bestsubj
             # predict relation
-            relcans = relsperent[ret[i, 0]] if ret[i, 0] in relsperent else []
+            relcans = relsperent[ret[i, 0]][0] if ret[i, 0] in relsperent else []
             if len(relcans) == 0:
                 bestrel = -1
             elif len(relcans) == 1:
