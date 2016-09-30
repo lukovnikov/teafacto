@@ -225,6 +225,7 @@ class CustomPredictor(object):
         self.subjinfo = subjinfo
 
     def predict(self, data, entcans, relsperent):
+        tt = ticktock("predictor")
         qencodings = self.qenc.predict(data)    # (numsam, encdim)
         ret = np.zeros((data.shape[0], 2), dtype="int32")
         if self.mode == "concat":
@@ -266,6 +267,7 @@ class CustomPredictor(object):
             ret[i, 1] = bestrel
             if self.debug:
                 embed()
+            tt.progress(i, qencodings.shape[0], live=True)
         return ret
 
 
