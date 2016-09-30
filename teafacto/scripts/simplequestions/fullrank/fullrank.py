@@ -49,6 +49,8 @@ def readdata(p="../../../../data/simplequestions/clean/datamat.word.fb2m.pkl",
 
         subjmat = entmat[:numents]
         relmat = entmat[numents:]
+        if debug:
+            embed()
 
         traindata = wordmat2wordchartensor(traindata, rwd=rwd, maskid=maskid)
         validdata = wordmat2wordchartensor(validdata, rwd=rwd, maskid=maskid)
