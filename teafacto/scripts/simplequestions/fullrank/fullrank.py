@@ -208,7 +208,8 @@ class RightBlock(Block):
 class CustomPredictor(object):
     def __init__(self, questionencoder=None, entityencoder=None,
                  relationencoder=None, mode=None,
-                 enttrans=None, reltrans=None, debug=False):
+                 enttrans=None, reltrans=None, debug=False,
+                 subjinfo=None):
         self.qenc = questionencoder
         self.eenc = entityencoder
         self.renc = relationencoder
@@ -216,10 +217,11 @@ class CustomPredictor(object):
         self.enttrans = enttrans
         self.reltrans = reltrans
         self.debug = debug
+        self.subjinfo = subjinfo
 
     def predict(self, data, entcans, relsperent):
         qencodings = self.qenc.predict(data)    # (numsam, encdim)
-        ret = np.zeros((data.shape[0], 2))
+        ret = np.zeros((data.shape[0], 2), dtype="int32")
         if self.mode == "concat":
             mid = qencodings.shape[1] / 2
             qencforent = qencodings[:, :mid]
@@ -239,7 +241,7 @@ class CustomPredictor(object):
                 entembs = self.eenc.predict.transform(self.enttrans)(entcans[i])
                 entscoresi = np.tensordot(qencforent[i], entembs, axes=(0, 1))
                 scoredentcans = sorted(zip(entcans[i], entscoresi), key=lambda (x, y): y, reverse=True)
-                bestsubj = int(scoredentcans[0][0])
+                bestsubj = scoredentcans[0][0]
                 if self.debug:
                     embed()
             ret[i, 0] = bestsubj
@@ -253,7 +255,7 @@ class CustomPredictor(object):
                 relembs = self.renc.predict.transform(self.reltrans)(relcans)
                 relscoresi = np.tensordot(qencforrel[i], relembs, axes=(0, 1))
                 scoredrelcans = sorted(zip(relcans, relscoresi), key=lambda (x, y): y, reverse=True)
-                bestrel = int(scoredrelcans[0][0])
+                bestrel = scoredrelcans[0][0]
             ret[i, 1] = bestrel
             if self.debug:
                 embed()
@@ -455,7 +457,8 @@ def run(closenegsam=False,
                                 mode=mode,
                                 enttrans=transf.ef,
                                 reltrans=transf.rf,
-                                debug=debugtest)
+                                debug=debugtest,
+                                subjinfo=subjinfo)
 
     tt.tick("predicting")
     prediction = predictor.predict(testdata, testsubjcans, relsperent)
