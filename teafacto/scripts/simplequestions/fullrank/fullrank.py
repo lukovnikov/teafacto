@@ -239,7 +239,9 @@ class CustomPredictor(object):
                 entembs = self.eenc.predict.transform(self.enttrans)(entcans[i])
                 entscoresi = np.tensordot(qencforent[i], entembs, axes=(0, 1))
                 scoredentcans = sorted(zip(entcans[i], entscoresi), key=lambda (x, y): y, reverse=True)
-                bestsubj = scoredentcans[0][0]
+                bestsubj = int(scoredentcans[0][0])
+                if debug:
+                    embed()
             ret[i, 0] = bestsubj
             # predict relation
             relcans = relsperent[ret[i, 0]]
@@ -251,7 +253,7 @@ class CustomPredictor(object):
                 relembs = self.renc.predict.transform(self.reltrans)(relcans)
                 relscoresi = np.tensordot(qencforrel[i], relembs, axes=(0, 1))
                 scoredrelcans = sorted(zip(relcans, relscoresi), key=lambda (x, y): y, reverse=True)
-                bestrel = scoredrelcans[0][0]
+                bestrel = int(scoredrelcans[0][0])
             ret[i, 1] = bestrel
             if self.debug:
                 embed()
