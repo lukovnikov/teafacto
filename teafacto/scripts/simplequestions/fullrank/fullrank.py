@@ -252,6 +252,8 @@ class CustomPredictor(object):
             elif len(relcans) == 1:
                 bestrel = relcans[0]
             else:
+                if self.debug:
+                    embed()
                 relembs = self.renc.predict.transform(self.reltrans)(relcans)
                 relscoresi = np.tensordot(qencforrel[i], relembs, axes=(0, 1))
                 scoredrelcans = sorted(zip(relcans, relscoresi), key=lambda (x, y): y, reverse=True)
