@@ -48,6 +48,11 @@ def readdata(p="../../../../data/simplequestions/clean/datamat.word.fb2m.pkl",
         reldic = {k: v - numents for k, v in entdic.items() if v >= numents}
 
         subjmat = entmat[:numents]
+        ssubjmat = np.sum(subjmat != maskid, axis=1)
+        if np.any(ssubjmat == 0):
+            for i in list(np.argwhere(ssubjmat == 0)[:, 0]):
+                subjmat[i, 0] = worddic["<RARE>"]
+
         relmat = entmat[numents:]
         if debug:
             embed()
@@ -56,7 +61,7 @@ def readdata(p="../../../../data/simplequestions/clean/datamat.word.fb2m.pkl",
         validdata = wordmat2wordchartensor(validdata, rwd=rwd, maskid=maskid)
         testdata = wordmat2wordchartensor(testdata, rwd=rwd, maskid=maskid)
 
-        subjmat = wordmat2charmat(subjmat, rwd=rwd, maskid=maskid, maxlen=75)
+        subjmat = wordmat2charmat(subjmat, rwd=rwd, maskid=maskid, raretoken="<RARE>", maxlen=75)
         ret = ((traindata, traingold), (validdata, validgold),
                (testdata, testgold), (subjmat, relmat), (subjdic, reldic),
                worddic)

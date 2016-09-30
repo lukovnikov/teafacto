@@ -47,7 +47,7 @@ def wordmat2chartensor(wordmat, worddic=None, rwd=None, maxchars=30, maskid=-1):
     return chartensor
 
 
-def wordmat2charmat(wordmat, worddic=None, rwd=None, maxlen=100, maskid=-1):
+def wordmat2charmat(wordmat, worddic=None, rwd=None, maxlen=100, raretoken="<RARE>", maskid=-1):
     assert(worddic is not None or rwd is not None)
     assert(not(worddic is not None and rwd is not None))
     tt = ticktock("wordmat2charmat")
@@ -55,7 +55,8 @@ def wordmat2charmat(wordmat, worddic=None, rwd=None, maxlen=100, maskid=-1):
     toolong = 0
     charmat = maskid * np.ones((wordmat.shape[0], maxlen), dtype="int32")
     if rwd is None:
-        rwd = {v: k for k, v in worddic.items()}
+        rwd = {v: k if k != raretoken else " "
+               for k, v in worddic.items()}
     realmaxlen = 0
     for i in range(wordmat.shape[0]):
         s = wordids2string(wordmat[i], rwd, maskid=maskid)
