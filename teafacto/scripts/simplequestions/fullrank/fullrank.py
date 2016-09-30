@@ -72,10 +72,10 @@ def readdata(p="../../../../data/simplequestions/clean/datamat.word.fb2m.pkl",
 
     subjinfo = loadsubjinfo(entinfp, subjdic)
     testsubjcans = loadsubjtestcans()
-    testrelcans = loadreltestcans(testgold,subjdic, reldic)
+    testrelcans, relspersubj = loadreltestcans(testgold,subjdic, reldic)
     if debug:
         embed()
-    return ret + (subjinfo, (testsubjcans, testrelcans))
+    return ret + (subjinfo, (testsubjcans, relspersubj))
 
 
 def loadreltestcans(testgold, subjdic, reldic, relsperentp="../../../../data/simplequestions/allrelsperent.dmp"):
@@ -93,7 +93,7 @@ def loadreltestcans(testgold, subjdic, reldic, relsperentp="../../../../data/sim
     tt.tock("test cans loaded")
     relsoftestexamples = [(relsoftestsubjs[x][0], relsoftestsubjs[x][1])
                           for x in testsubjs]
-    return relsoftestexamples
+    return relsoftestexamples, relsoftestsubjs
 
 
 def loadsubjtestcans(p="../../../../data/simplequestions/clean/testcans.pkl"):
@@ -205,6 +205,48 @@ class RightBlock(Block):
         return ret
 
 
+class CustomPredictor(object):
+    def __init__(self, questionencoder=None, entityencoder=None,
+                 relationencoder=None, mode=None,
+                 enttrans=None, reltrans=None, debug=False):
+        self.qenc = questionencoder
+        self.eenc = entityencoder
+        self.renc = relationencoder
+        self.mode = mode
+        self.enttrans = enttrans
+        self.reltrans = reltrans
+        self.debug = debug
+
+    def predict(self, data, entcans, relsperent):
+        qencodings = self.qenc.predict(data)    # (numsam, encdim)
+        ret = np.zeros((data.shape[0], 2))
+        if self.mode == "concat":
+            mid = qencodings.shape[1] / 2
+            qencforent = qencodings[:, :mid]
+            qencforrel = qencodings[:, mid:]
+        elif self.mode == "seq":
+            qencforent = qencodings[:, :]
+            qencforrel = qencodings[:, :]
+        else:
+            raise Exception("unrecognized mode")
+        for i in range(qencodings.shape[0]):
+            # predict subject
+            entembs = self.eenc.predict.transform(self.enttrans)(entcans[i])
+            scoresi = np.tensordot(qencforent[i], entembs, axes=(0, 1))
+            scoredcans = sorted(zip(entcans[i], scoresi), key=lambda (x, y): y, reverse=True)
+            ret[i, 0] = scoredcans[0][0]
+            # predict relation
+            relcans = relsperent[ret[i, 0]]
+            relembs = self.renc.predict.transform(self.reltrans)(relcans[i])
+            scoresi = np.tensordot(qencforrel[i], relembs, axes=(0, 1))
+            scoredcans = sorted(zip(relcans[i], scoresi), key=lambda (x, y): y, reverse=True)
+            ret[i, 1] = scoredcans[0][0]
+            if self.debug:
+                embed()
+        return ret
+
+
+
 def run(closenegsam=False,
         checkdata=False,
         glove=True,
@@ -222,12 +264,14 @@ def run(closenegsam=False,
         debug=False,
         gradnorm=1.0,
         wreg=0.0001,
+        loadmodel=-1,
+        debugtest=False,
         ):
     tt = ticktock("script")
     tt.tick("loading data")
     (traindata, traingold), (validdata, validgold), (testdata, testgold), \
     (subjmat, relmat), (subjdic, reldic), worddic, \
-    subjinfo, (testsubjcans, testrelcans) = readdata(debug=debug)
+    subjinfo, (testsubjcans, relsperent) = readdata(debug=debug)
 
     revsamplespace = None
     if closenegsam:
@@ -341,41 +385,75 @@ def run(closenegsam=False,
 
     class PreProc(object):
         def __init__(self, subjmat, relmat):
-            self.f = PreProcE(subjmat, relmat)
+            self.ef = PreProcEnt(subjmat)
+            self.rf = PreProcEnt(relmat)
 
         def __call__(self, data, gold):     # gold: idxs-(batsize, 2)
-            ret = self.f(gold)[0]
-            return (data,) + ret, {}
+            st = self.ef(gold[:, 0])[0][0]
+            rt = self.rf(gold[:, 1])[0][0]
+            return (data, st, rt), {}
 
     class PreProcE(object):
         def __init__(self, subjmat, relmat):
-            self.subjmat = Val(subjmat)
-            self.relmat = Val(relmat)
+            self.ef = PreProcEnt(subjmat)
+            self.rf = PreProcEnt(relmat)
 
         def __call__(self, x):
-            subjslice = self.subjmat[x[:, 0]]
-            relslice = self.relmat[x[:, 1]]
+            subjslice = self.ef(x[:, 0])[0][0]
+            relslice = self.rf(x[:, 1])[0][0]
             return (subjslice, relslice), {}
+
+    class PreProcEnt(object):
+        def __init__(self, mat):
+            self.entmat = Val(mat)
+
+        def __call__(self, x):
+            return (self.entmat[x],), {}
 
     transf = PreProc(subjmat, relmat)
 
     if debug:
         embed()
-    tt.tick("training")
-    nscorer = scorer.nstrain([traindata, traingold]).transform(transf)\
-        .negsamplegen(NegIdxGen(numsubjs-1, numrels-1, relclose=revsamplespace)) \
-        .objective(obj).adagrad(lr=lr).l2(wreg).grad_total_norm(gradnorm)\
-        .validate_on([validdata, validgold])\
-        .train(numbats=numbats, epochs=epochs)
-    tt.tock("trained").tick()
 
-    # saving
-    saveid = "".join([str(np.random.randint(0, 10)) for i in range(4)])
-    scorer.save("fullrank{}.model".format(saveid))
-    tt.tock("saved: {}".format(saveid))
+    if epochs > 0 or loadmodel > -1:
+        tt.tick("training")
+        nscorer = scorer.nstrain([traindata, traingold]).transform(transf)\
+            .negsamplegen(NegIdxGen(numsubjs-1, numrels-1, relclose=revsamplespace)) \
+            .objective(obj).adagrad(lr=lr).l2(wreg).grad_total_norm(gradnorm)\
+            .validate_on([validdata, validgold])\
+            .train(numbats=numbats, epochs=epochs)
+        tt.tock("trained").tick()
+
+        # saving
+        saveid = "".join([str(np.random.randint(0, 10)) for i in range(4)])
+        scorer.save("fullrank{}.model".format(saveid))
+        tt.tock("saved: {}".format(saveid))
+
+    if loadmodel > -1:
+        tt.tick("loading model")
+        SeqMatchScore.load("fullrank{}.model".format(loadmodel))
+        tt.tock("loaded model")
 
     # evaluation
-    # TODO
+    predictor = CustomPredictor(questionencoder=question_encoder,
+                                entityencoder=subjemb,
+                                relationencoder=predemb,
+                                mode=mode,
+                                enttrans=transf.ef,
+                                reltrans=transf.rf,
+                                debug=debugtest)
+
+    prediction = predictor.predict(testdata, testsubjcans, relsperent)
+
+    evalmat = prediction == testgold
+    subjacc = np.sum(evalmat[:, 0]) * 1. / evalmat.shape[0]
+    predacc = np.sum(evalmat[:, 1]) * 1. / evalmat.shape[0]
+    totalacc = np.sum(np.sum(evalmat, axis=1) == 2) * 1. / evalmat.shape[0]
+    print "Test results ::::::::::::::::"
+    print "Total Acc: \t {}".format(totalacc)
+    print "Subj Acc: \t {}".format(subjacc)
+    print "Pred Acc: \t {}".format(predacc)
+    embed()
 
 
 
