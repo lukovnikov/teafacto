@@ -314,11 +314,11 @@ def run(closenegsam=False,
         def __call__(self, datas, gold):
             entrand = np.random.randint(0, self.maxentid+1, (gold.shape[0], 1))
 
-            if np.sum(entrand == 645994) > 0:
-                print "sampled the empty subject label"
-            entrand = np.vectorize(lambda x: 645995 if x == 645994 else x)(entrand) # avoid sampling the empty label
+            #if np.sum(entrand == 645994) > 0:
+            #    print "sampled the empty subject label"
+            #entrand = np.vectorize(lambda x: 645995 if x == 645994 else x)(entrand) # avoid sampling the empty label
             #entrand = np.asarray([[645994]]*gold.shape[0])
-            entrand[0, 0] = 645994
+            #entrand[0, 0] = 645994
 
             relrand = self.samplerels(gold[:, 1:2])
             ret = np.concatenate([entrand, relrand], axis=1)

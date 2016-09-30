@@ -55,8 +55,11 @@ def wordmat2charmat(wordmat, worddic=None, rwd=None, maxlen=100, raretoken="<RAR
     toolong = 0
     charmat = maskid * np.ones((wordmat.shape[0], maxlen), dtype="int32")
     if rwd is None:
-        rwd = {v: k if k != raretoken else " "
+        rwd = {v: (k if k != raretoken else " ")
                for k, v in worddic.items()}
+    else:
+        rwd = dict([(k, (v if v != raretoken else " "))
+                   for k, v in rwd.items()])
     realmaxlen = 0
     for i in range(wordmat.shape[0]):
         s = wordids2string(wordmat[i], rwd, maskid=maskid)
