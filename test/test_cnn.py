@@ -108,7 +108,7 @@ class TestCNNEnc(TestCase):
         x = Val(xval)
         enc = CNNSeqEncoder(indim=200, inpembdim=50, innerdim=5, maskid=0)
         pred = enc(x)
-        print pred.mask.eval().shape
+        #print pred.mask.eval().shape
         predval = pred.eval()
         print predval.shape
 
