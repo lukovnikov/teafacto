@@ -231,16 +231,28 @@ class CustomPredictor(object):
             raise Exception("unrecognized mode")
         for i in range(qencodings.shape[0]):
             # predict subject
-            entembs = self.eenc.predict.transform(self.enttrans)(entcans[i])
-            scoresi = np.tensordot(qencforent[i], entembs, axes=(0, 1))
-            scoredcans = sorted(zip(entcans[i], scoresi), key=lambda (x, y): y, reverse=True)
-            ret[i, 0] = scoredcans[0][0]
+            if len(entcans[i]) == 0:
+                bestsubj = -1
+            elif len(entcans[i]) == 1:
+                bestsubj = entcans[i][0]
+            else:
+                entembs = self.eenc.predict.transform(self.enttrans)(entcans[i])
+                entscoresi = np.tensordot(qencforent[i], entembs, axes=(0, 1))
+                scoredentcans = sorted(zip(entcans[i], entscoresi), key=lambda (x, y): y, reverse=True)
+                bestsubj = scoredentcans[0][0]
+            ret[i, 0] = bestsubj
             # predict relation
             relcans = relsperent[ret[i, 0]]
-            relembs = self.renc.predict.transform(self.reltrans)(relcans[i])
-            scoresi = np.tensordot(qencforrel[i], relembs, axes=(0, 1))
-            scoredcans = sorted(zip(relcans[i], scoresi), key=lambda (x, y): y, reverse=True)
-            ret[i, 1] = scoredcans[0][0]
+            if len(relcans) == 0:
+                bestrel = -1
+            elif len(relcans) == 1:
+                bestrel = relcans[0]
+            else:
+                relembs = self.renc.predict.transform(self.reltrans)(relcans)
+                relscoresi = np.tensordot(qencforrel[i], relembs, axes=(0, 1))
+                scoredrelcans = sorted(zip(relcans, relscoresi), key=lambda (x, y): y, reverse=True)
+                bestrel = scoredrelcans[0][0]
+            ret[i, 1] = bestrel
             if self.debug:
                 embed()
         return ret
@@ -443,8 +455,10 @@ def run(closenegsam=False,
                                 reltrans=transf.rf,
                                 debug=debugtest)
 
+    tt.tick("predicting")
     prediction = predictor.predict(testdata, testsubjcans, relsperent)
-
+    tt.tock("predicted")
+    tt.tick("evaluating")
     evalmat = prediction == testgold
     subjacc = np.sum(evalmat[:, 0]) * 1. / evalmat.shape[0]
     predacc = np.sum(evalmat[:, 1]) * 1. / evalmat.shape[0]
@@ -453,6 +467,7 @@ def run(closenegsam=False,
     print "Total Acc: \t {}".format(totalacc)
     print "Subj Acc: \t {}".format(subjacc)
     print "Pred Acc: \t {}".format(predacc)
+    tt.tock("evaluated")
     embed()
 
 
