@@ -240,7 +240,7 @@ class CustomPredictor(object):
                 entscoresi = np.tensordot(qencforent[i], entembs, axes=(0, 1))
                 scoredentcans = sorted(zip(entcans[i], entscoresi), key=lambda (x, y): y, reverse=True)
                 bestsubj = int(scoredentcans[0][0])
-                if debug:
+                if self.debug:
                     embed()
             ret[i, 0] = bestsubj
             # predict relation
