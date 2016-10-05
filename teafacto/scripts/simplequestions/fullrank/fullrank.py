@@ -223,12 +223,87 @@ class CustomPredictor(object):
         self.reltrans = reltrans
         self.debug = debug
         self.subjinfo = subjinfo
+        self.qencodings = None
+        self.tt = ticktock("predictor")
+
+    # stateful API
+    def encodequestions(self, data):
+        self.tt.tick("encoding questions")
+        self.qencodings = self.qenc.predict(data)
+        self.tt.tock("encoded questions")
+
+    def ranksubjects(self, entcans):
+        assert(self.qencodings is not None)
+        if self.mode == "concat":
+            mid = self.qencodings.shape[1] / 2
+        elif self.mode == "seq":
+            mid = self.qencodings.shape[1]
+        else:
+            raise Exception("unrecognized mode in prediction")
+        qencforent = self.qencodings[:, :mid]
+        self.tt.tick("rank subjects")
+        ret = []    # list of lists of (subj, score) tuples, sorted
+        for i in range(self.qencodings.shape[0]):       # for every question
+            if len(entcans[i]) == 0:
+                scoredentcans = [(-1, 0)]
+            elif len(entcans[i]) == 1:
+                scoredentcans = [(entcans[i][0], 1)]
+            else:
+                entembs = self.eenc.predict.transform(self.enttrans)(entcans[i])
+                entscoresi = np.tensordot(qencforent[i], entembs, axes=(0, 1))
+                scoredentcans = sorted(zip(entcans[i], entscoresi), key=lambda (x, y): y, reverse=True)
+            ret.append(scoredentcans)
+        self.tt.tock("ranked subjects")
+        self.subjranks = ret
+        return ret
+
+    def rankrelations(self, relcans):
+        assert(self.qencodings is not None)
+        if self.mode == "concat":
+            mid = self.qencodings.shape[1] / 2
+        elif self.mode == "seq":
+            mid = 0
+        else:
+            raise Exception("unrecognized mode in prediction")
+        qencforrel = self.qencodings[:, mid:]
+        self.tt.tick("rank relations")
+        ret = []
+        for i in range(self.qencodings.shape[0]):
+            if len(relcans[i]) == 0:
+                scoredrelcans = [(-1, 0)]
+            elif len(relcans[i]) == 1:
+                scoredrelcans = [(relcans[i], 1)]
+            else:
+                relembs = self.renc.predict.transform(self.reltrans)(relcans[i])
+                relscoresi = np.tensordot(qencforrel[i], relembs, axes=(0, 1))
+                scoredrelcans = sorted(zip(relcans[i], relscoresi), key=lambda (x, y): y, reverse=True)
+            ret.append(scoredrelcans)
+        self.tt.tock("ranked relations")
+        self.relranks = ret
+        return ret
+
+    def rankrelationsfroments(self, bestsubjs, relsperent):
+        relcans = [relsperent[bestsubj][0] if bestsubj in relsperent else [] for bestsubj in bestsubjs]
+        return self.rankrelations(relcans)
 
     def predict(self, data, entcans, relsperent):
+        self.encodequestions(data)
+        rankedsubjs = self.ranksubjects(entcans)
+        bestsubjs = [x[0][0] for x in rankedsubjs]
+        rankedrels = self.rankrelationsfroments(bestsubjs, relsperent)
+        bestrels = [x[0][0] for x in rankedrels]
+        ret = np.concatenate([
+            np.expand_dims(np.asarray(bestsubjs, dtype="int32"), axis=1),
+            np.expand_dims(np.asarray(bestrels, dtype="int32"), axis=1)
+        ], axis=0)
+        return ret
+
+    def oldpredict(self, data, entcans, relsperent):
         tt = ticktock("predictor")
         tt.tick("computing question encodings")
         qencodings = self.qenc.predict(data)    # (numsam, encdim)
         tt.tock("computed question encodings")
+        tt.tick("predicting")
         ret = np.zeros((data.shape[0], 2), dtype="int32")
         if self.mode == "concat":
             mid = qencodings.shape[1] / 2
@@ -270,6 +345,7 @@ class CustomPredictor(object):
             if self.debug:
                 embed()
             tt.progress(i, qencodings.shape[0], live=True)
+        tt.tock("predicted")
         return ret
 
 
