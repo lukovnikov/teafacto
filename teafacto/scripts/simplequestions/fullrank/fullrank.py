@@ -518,7 +518,7 @@ def run(closenegsam=False,
     if debug:
         embed()
 
-    if epochs > 0 and loadmodel != -1:
+    if epochs > 0 and loadmodel < 0:
         tt.tick("training")
         nscorer = scorer.nstrain([traindata, traingold]).transform(transf)\
             .negsamplegen(NegIdxGen(numsubjs-1, numrels-1, relclose=revsamplespace)) \
