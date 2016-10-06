@@ -555,7 +555,6 @@ def run(closenegsam=False,
     tt.tock("predicted")
     tt.tick("evaluating")
     evalmat = prediction == testgold
-    embed()
     subjacc = np.sum(evalmat[:, 0]) * 1. / evalmat.shape[0]
     predacc = np.sum(evalmat[:, 1]) * 1. / evalmat.shape[0]
     totalacc = np.sum(np.sum(evalmat, axis=1) == 2) * 1. / evalmat.shape[0]
