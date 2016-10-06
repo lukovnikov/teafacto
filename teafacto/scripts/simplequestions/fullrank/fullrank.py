@@ -253,6 +253,7 @@ class CustomPredictor(object):
                 entscoresi = np.tensordot(qencforent[i], entembs, axes=(0, 1))
                 scoredentcans = sorted(zip(entcans[i], entscoresi), key=lambda (x, y): y, reverse=True)
             ret.append(scoredentcans)
+            self.tt.progress(i, self.qencodings.shape[0], live=True)
         self.tt.tock("ranked subjects")
         self.subjranks = ret
         return ret
@@ -272,12 +273,13 @@ class CustomPredictor(object):
             if len(relcans[i]) == 0:
                 scoredrelcans = [(-1, 0)]
             elif len(relcans[i]) == 1:
-                scoredrelcans = [(relcans[i], 1)]
+                scoredrelcans = [(relcans[i][0], 1)]
             else:
                 relembs = self.renc.predict.transform(self.reltrans)(relcans[i])
                 relscoresi = np.tensordot(qencforrel[i], relembs, axes=(0, 1))
                 scoredrelcans = sorted(zip(relcans[i], relscoresi), key=lambda (x, y): y, reverse=True)
             ret.append(scoredrelcans)
+            self.tt.progress(i, self.qencodings.shape[0], live=True)
         self.tt.tock("ranked relations")
         self.relranks = ret
         return ret
