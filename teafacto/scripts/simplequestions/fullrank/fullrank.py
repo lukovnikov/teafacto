@@ -577,8 +577,9 @@ def run(closenegsam=False,
         return ret
 
     def inspectsubjs():
+        rwd = {v: k for k, v in worddic.items()}
         for i in range(len(predictor.subjranks)):
-            print "test question {}: {}".format(i, wordids2string(testdata[i], worddic))
+            print "test question {}: {}".format(i, wordids2string(testdata[i, :, 0], rwd))
             subjrank = predictor.subjranks[i]
             gold = testgold[i, 0]
             inspres = subjinspect(subjrank, gold)
