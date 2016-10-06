@@ -298,7 +298,7 @@ class CustomPredictor(object):
         ret = np.concatenate([
             np.expand_dims(np.asarray(bestsubjs, dtype="int32"), axis=1),
             np.expand_dims(np.asarray(bestrels, dtype="int32"), axis=1)
-        ], axis=0)
+        ], axis=1)
         return ret
 
     def oldpredict(self, data, entcans, relsperent):
