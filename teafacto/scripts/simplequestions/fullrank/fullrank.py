@@ -251,6 +251,8 @@ class CustomPredictor(object):
             else:
                 entembs = self.eenc.predict.transform(self.enttrans)(entcans[i])
                 entscoresi = np.tensordot(qencforent[i], entembs, axes=(0, 1))
+                entscoresi /= np.linalg.norm(qencforent[i])
+                entscoresi /= np.linalg.norm(entembs, axis=1)
                 scoredentcans = sorted(zip(entcans[i], entscoresi), key=lambda (x, y): y, reverse=True)
             ret.append(scoredentcans)
             self.tt.progress(i, self.qencodings.shape[0], live=True)
@@ -277,6 +279,8 @@ class CustomPredictor(object):
             else:
                 relembs = self.renc.predict.transform(self.reltrans)(relcans[i])
                 relscoresi = np.tensordot(qencforrel[i], relembs, axes=(0, 1))
+                relscoresi /= np.linalg.norm(qencforrel[i])
+                relscoresi /= np.linalg.norm(relembs, axis=1)
                 scoredrelcans = sorted(zip(relcans[i], relscoresi), key=lambda (x, y): y, reverse=True)
             ret.append(scoredrelcans)
             self.tt.progress(i, self.qencodings.shape[0], live=True)
