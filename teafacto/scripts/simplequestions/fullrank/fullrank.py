@@ -537,7 +537,11 @@ def run(closenegsam=False,
 
     if loadmodel > -1:
         tt.tick("loading model")
-        SeqMatchScore.load("fullrank{}.model".format(loadmodel))
+        m = SeqMatchScore.load("fullrank{}.model".format(loadmodel))
+        embed()
+        question_encoder = m.l.inner
+        subjemb = m.r.subjenc
+        predemb = m.r.predenc
         tt.tock("loaded model")
 
     # evaluation
