@@ -294,7 +294,7 @@ class CustomPredictor(object):
         bestsubjs = [x[0][0] for x in rankedsubjs]
         rankedrels = self.rankrelationsfroments(bestsubjs, relsperent)
         bestrels = [x[0][0] for x in rankedrels]
-        embed()
+
         ret = np.concatenate([
             np.expand_dims(np.asarray(bestsubjs, dtype="int32"), axis=1),
             np.expand_dims(np.asarray(bestrels, dtype="int32"), axis=1)
@@ -555,6 +555,7 @@ def run(closenegsam=False,
     tt.tock("predicted")
     tt.tick("evaluating")
     evalmat = prediction == testgold
+    embed()
     subjacc = np.sum(evalmat[:, 0]) * 1. / evalmat.shape[0]
     predacc = np.sum(evalmat[:, 1]) * 1. / evalmat.shape[0]
     totalacc = np.sum(np.sum(evalmat, axis=1) == 2) * 1. / evalmat.shape[0]
