@@ -414,8 +414,10 @@ def run(closenegsam=False,
     subjinfo, (testsubjcans, relsperent) = readdata(debug=debug)
 
     if usetypes:
+        print "building type matrix"
         typmat = buildtypmat(subjmat, subjinfo, worddic)
-        subjmat = np.concatenate([subjmat, typmat], axis=1)
+        subjmat = np.concatenate([typmat, subjmat], axis=1)
+        typlen = typmat.shape[1]
 
     revsamplespace = None
     if closenegsam:
@@ -483,7 +485,7 @@ def run(closenegsam=False,
                                maskid=maskid,
                                bidir=bidir,
                                layers=1)
-        subjemb = TypedSubjBlock(6, subjemb, subjtypemb)
+        subjemb = TypedSubjBlock(typlen, subjemb, subjtypemb)
     else:
         # encode subject on character level
         subjemb = SimpleSeq2Vec(inpemb=charemb,
