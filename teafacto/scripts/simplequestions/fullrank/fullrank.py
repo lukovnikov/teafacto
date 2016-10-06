@@ -569,7 +569,7 @@ def run(closenegsam=False,
     tt.tock("evaluated")
 
     def subjinspect(subjrank, gold):
-        ret = [(("GOLD* " if gold == x else "") +
+        ret = [(("GOLD - " if gold == x else "       ") +
                 subjinfo[x][0] + " (" + " ".join(subjinfo[x][1]) + ")" +
                 str(subjinfo[x][3]) + " rels",
                 y)
