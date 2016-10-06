@@ -195,6 +195,10 @@ def argprun(f, **kwargs):   # command line overrides kwargs
         print("Interrupted by Keyboard")
 
 
+def inp():
+    return raw_input("Press ENTER to continue:\n>>> ")
+
+
 def issequence(x):
     return isinstance(x, collections.Sequence) and not isinstance(x, basestring)
 

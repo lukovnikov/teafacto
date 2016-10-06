@@ -1,4 +1,4 @@
-from teafacto.util import ticktock, argprun
+from teafacto.util import ticktock, argprun, inp
 import os, pickle, random
 from teafacto.procutil import *
 from IPython import embed
@@ -570,10 +570,22 @@ def run(closenegsam=False,
 
     def subjinspect(subjrank, gold):
         ret = [(("GOLD" if gold == x else "") +
-                subjinfo[x][0] + " (" + " ".join(subjinfo[x][1]) + ")",
+                subjinfo[x][0] + " (" + " ".join(subjinfo[x][1]) + ")" +
+                str(subjinfo[x][3]) + " rels",
                 y)
                for x, y in subjrank]
         return ret
+
+    def inspectsubjs():
+        for i in range(len(predictor.subjranks)):
+            print "test question {}:".format(i)
+            subjrank = predictor.subjranks[i]
+            gold = testgold[i, 0]
+            inspres = subjinspect(subjrank, gold)
+            for inspre in inspres:
+                print inspre
+            inp()
+
     embed()
 
 
