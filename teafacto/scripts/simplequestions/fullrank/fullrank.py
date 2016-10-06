@@ -581,7 +581,11 @@ def run(closenegsam=False,
         for i in range(len(predictor.subjranks)):
             print "test question {}: {} \t GOLD: {}".format(i,
                                                 wordids2string(testdata[i, :, 0], rwd),
-                                                "{}".format(subjinfo[testgold[i][0]][0]))
+                                                "{} ({}) - {} rels".format(
+                                                    subjinfo[testgold[i][0]][0],
+                                                    subjinfo[testgold[i][0]][1],
+                                                    subjinfo[testgold[i][0]][3],
+                                                ))
             subjrank = predictor.subjranks[i]
             gold = testgold[i, 0]
             inspres = subjinspect(subjrank, gold)
