@@ -538,7 +538,7 @@ def run(closenegsam=False,
     if loadmodel > -1:
         tt.tick("loading model")
         m = SeqMatchScore.load("fullrank{}.model".format(loadmodel))
-        embed()
+        #embed()
         question_encoder = m.l.inner
         subjemb = m.r.subjenc
         predemb = m.r.predenc
@@ -567,6 +567,13 @@ def run(closenegsam=False,
     print "Subj Acc: \t {}".format(subjacc)
     print "Pred Acc: \t {}".format(predacc)
     tt.tock("evaluated")
+
+    def subjinspect(subjrank, gold):
+        ret = [(("GOLD" if gold == x else "") +
+                subjinfo[x][0] + " (" + " ".join(subjinfo[x][1]) + ")",
+                y)
+               for x, y in subjrank]
+        return ret
     embed()
 
 
