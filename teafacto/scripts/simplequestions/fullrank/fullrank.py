@@ -419,7 +419,7 @@ def run(closenegsam=False,
         subjmat = np.concatenate([typmat, subjmat], axis=1)
         typlen = typmat.shape[1]
 
-    revsamplespace = None
+    relsamplespace = None
     if closenegsam:
         relsamplespace, revind = buildrelsamplespace(relmat, worddic)
     tt.tock("data loaded")
@@ -579,7 +579,7 @@ def run(closenegsam=False,
     if epochs > 0 and loadmodel < 0:
         tt.tick("training")
         nscorer = scorer.nstrain([traindata, traingold]).transform(transf)\
-            .negsamplegen(NegIdxGen(numsubjs-1, numrels-1, relclose=revsamplespace)) \
+            .negsamplegen(NegIdxGen(numsubjs-1, numrels-1, relclose=relsamplespace)) \
             .objective(obj).adagrad(lr=lr).l2(wreg).grad_total_norm(gradnorm)\
             .validate_on([validdata, validgold])\
             .train(numbats=numbats, epochs=epochs)
