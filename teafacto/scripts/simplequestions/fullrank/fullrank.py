@@ -569,7 +569,7 @@ def run(closenegsam=False,
     tt.tock("evaluated")
 
     def subjinspect(subjrank, gold):
-        ret = [(("GOLD" if gold == x else "") +
+        ret = [(("GOLD* " if gold == x else "") +
                 subjinfo[x][0] + " (" + " ".join(subjinfo[x][1]) + ")" +
                 str(subjinfo[x][3]) + " rels",
                 y)
@@ -578,7 +578,7 @@ def run(closenegsam=False,
 
     def inspectsubjs():
         for i in range(len(predictor.subjranks)):
-            print "test question {}:".format(i)
+            print "test question {}: {}".format(i, wordids2string(testdata[i], worddic))
             subjrank = predictor.subjranks[i]
             gold = testgold[i, 0]
             inspres = subjinspect(subjrank, gold)
