@@ -376,6 +376,7 @@ def run(closenegsam=False,
         wreg=0.0001,
         loadmodel=-1,
         debugtest=False,
+        forcesubjincl=False,
         ):
     tt = ticktock("script")
     tt.tick("loading data")
@@ -559,6 +560,11 @@ def run(closenegsam=False,
                                 subjinfo=subjinfo)
 
     tt.tick("predicting")
+    if forcesubjincl:       # forces the intended subject entity to be among candidates
+        for i in range(len(testsubjcans)):
+            if testgold[i, 0] not in testsubjcans[i]:
+                testsubjcans[i].append(testgold[i, 0])
+
     prediction = predictor.predict(testdata, testsubjcans, relsperent)
     tt.tock("predicted")
     tt.tick("evaluating")
