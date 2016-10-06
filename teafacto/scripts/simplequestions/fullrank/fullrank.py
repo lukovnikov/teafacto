@@ -172,6 +172,19 @@ def buildrelsamplespace(entmat, wd, maskid=-1):
     return samdic, entmatm.T
 
 
+def buildtypmat(subjmat, subjinfo, worddic, maxlen=6, maskid=-1):
+    ret = maskid * np.ones((subjmat.shape[0], maxlen), dtype="int32")
+    import re
+    splitterregex = re.compile("[\s/]")
+    for i in range(ret.shape[0]):
+        typstring = " ".join(subjinfo[i][1] if i in subjinfo else "<unk>")
+        typwords = splitterregex.split(typstring)
+        typwordids = [worddic[typword] if typword in worddic else 0 for typword in typwords]
+        typwordids = typwordids[:min(len(typwords), maxlen)]
+        ret[i, :len(typwordids)] = typwordids
+    return ret
+
+
 class SeqLeftBlock(Block):
     def __init__(self, inner, **kw):
         super(SeqLeftBlock, self).__init__(**kw)
@@ -207,6 +220,22 @@ class RightBlock(Block):
         aret = self.subjenc(subjslice).dimshuffle(0, "x", 1)
         bret = self.predenc(relslice).dimshuffle(0, "x", 1)
         ret = T.concatenate([aret, bret], axis=1)
+        return ret
+
+
+class TypedSubjBlock(Block):
+    def __init__(self, typelen, subjenc, typenc, **kw):
+        super(TypedSubjBlock, self).__init__(**kw)
+        self.typelen = typelen
+        self.typenc = typenc
+        self.subjenc = subjenc
+
+    def appl(self, x):
+        typewords = x[:, :self.typelen]
+        subjchars = x[:, self.typelen:]
+        typemb = self.typenc(typewords)
+        subemb = self.subjenc(subjchars)
+        ret = T.concatenate([subemb, typemb], axis=1)
         return ret
 
 
@@ -356,7 +385,6 @@ class CustomPredictor(object):
         return ret
 
 
-
 def run(closenegsam=False,
         checkdata=False,
         glove=True,
@@ -377,12 +405,17 @@ def run(closenegsam=False,
         loadmodel=-1,
         debugtest=False,
         forcesubjincl=False,
+        usetypes=False,
         ):
     tt = ticktock("script")
     tt.tick("loading data")
     (traindata, traingold), (validdata, validgold), (testdata, testgold), \
     (subjmat, relmat), (subjdic, reldic), worddic, \
     subjinfo, (testsubjcans, relsperent) = readdata(debug=debug)
+
+    if usetypes:
+        typmat = buildtypmat(subjmat, subjinfo, worddic)
+        subjmat = np.concatenate([subjmat, typmat], axis=1)
 
     revsamplespace = None
     if closenegsam:
@@ -437,12 +470,27 @@ def run(closenegsam=False,
                            layers=1)
     #predemb.load(relmat)
 
-    # encode subject on character level
-    subjemb = SimpleSeq2Vec(inpemb=charemb,
-                           innerdim=decdim,
-                           maskid=maskid,
-                           bidir=bidir,
-                           layers=1)
+    if usetypes:
+        # encode subj type on word level
+        subjtypemb = SimpleSeq2Vec(inpemb=wordemb,
+                                   innerdim=int(np.ceil(decdim*1./3)),
+                                   maskid=maskid,
+                                   bidir=bidir,
+                                   layers=1)
+        # encode subject on character level
+        subjemb = SimpleSeq2Vec(inpemb=charemb,
+                               innerdim=int(np.ceil(decdim*2./3)),
+                               maskid=maskid,
+                               bidir=bidir,
+                               layers=1)
+        subjemb = TypedSubjBlock(6, subjemb, subjtypemb)
+    else:
+        # encode subject on character level
+        subjemb = SimpleSeq2Vec(inpemb=charemb,
+                               innerdim=decdim,
+                               maskid=maskid,
+                               bidir=bidir,
+                               layers=1)
     #subjemb.load(subjmat)
 
     # package
