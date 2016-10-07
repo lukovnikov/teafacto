@@ -321,11 +321,17 @@ class CustomPredictor(object):
         relcans = [relsperent[bestsubj][0] if bestsubj in relsperent else [] for bestsubj in bestsubjs]
         return self.rankrelations(relcans)
 
-    def predict(self, data, entcans, relsperent):
+    def predict(self, data, entcans=None, relsperent=None, relcans=None):
+        assert(relsperent is None or relcans is None)
+        assert(relsperent is not None or relcans is not None)
+        assert(entcans is not None)
         self.encodequestions(data)
         rankedsubjs = self.ranksubjects(entcans)
         bestsubjs = [x[0][0] for x in rankedsubjs]
-        rankedrels = self.rankrelationsfroments(bestsubjs, relsperent)
+        if relcans is not None:
+            rankedrels = self.rankrelations(relcans)
+        else:
+            rankedrels = self.rankrelationsfroments(bestsubjs, relsperent)
         bestrels = [x[0][0] for x in rankedrels]
 
         ret = np.concatenate([
@@ -406,6 +412,7 @@ def run(closenegsam=False,
         debugtest=False,
         forcesubjincl=False,
         usetypes=False,
+        randsameval=False,
         ):
     tt = ticktock("script")
     tt.tick("loading data")
@@ -525,8 +532,8 @@ def run(closenegsam=False,
             #entrand = np.asarray([[645994]]*gold.shape[0])
             #entrand[0, 0] = 645994
 
-            relrand = self.samplerels(gold[:, 1:2])
-            ret = np.concatenate([entrand, relrand], axis=1)
+            relrand = self.samplerels(gold[:, 1])
+            ret = np.concatenate([entrand, np.expand_dims(relrand, axis=1)], axis=1)
             #embed()
             return datas, ret.astype("int32")
 
@@ -615,7 +622,12 @@ def run(closenegsam=False,
             if testgold[i, 0] not in testsubjcans[i]:
                 testsubjcans[i].append(testgold[i, 0])
 
-    prediction = predictor.predict(testdata, testsubjcans, relsperent)
+    if randsameval:     # generate random sampling eval data
+        testsubjcans = None
+        testrelcans = None
+        prediction = predictor.predict(testdata, entcans=testsubjcans, relcans=testrelcans)
+    else:
+        prediction = predictor.predict(testdata, entcans=testsubjcans, relsperent=relsperent)
     tt.tock("predicted")
     tt.tick("evaluating")
     evalmat = prediction == testgold
