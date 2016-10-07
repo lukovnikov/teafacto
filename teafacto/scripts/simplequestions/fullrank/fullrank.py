@@ -279,6 +279,7 @@ class CustomPredictor(object):
                 scoredentcans = [(entcans[i][0], 1)]
             else:
                 entembs = self.eenc.predict.transform(self.enttrans)(entcans[i])
+                embed()
                 entscoresi = np.tensordot(qencforent[i], entembs, axes=(0, 1))
                 entscoresi /= np.linalg.norm(qencforent[i])
                 entscoresi /= np.linalg.norm(entembs, axis=1)
