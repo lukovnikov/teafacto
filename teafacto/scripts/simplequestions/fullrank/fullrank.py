@@ -649,7 +649,7 @@ def run(closenegsam=False,
         ret = [(("GOLD - " if gold == x else "       ") +
                 subjinfo[x][0] + " (" + " ".join(subjinfo[x][1]) + ")" +
                 str(subjinfo[x][3]) + " rels",
-                y)
+                y) if x in subjinfo else (x, y)
                for x, y in subjrank]
         return ret
 
