@@ -412,7 +412,7 @@ def run(closenegsam=False,
         debugtest=False,
         forcesubjincl=False,
         usetypes=False,
-        randsameval=False,
+        randsameval=0,
         ):
     tt = ticktock("script")
     tt.tick("loading data")
@@ -622,9 +622,13 @@ def run(closenegsam=False,
             if testgold[i, 0] not in testsubjcans[i]:
                 testsubjcans[i].append(testgold[i, 0])
 
-    if randsameval:     # generate random sampling eval data
-        testsubjcans = None
-        testrelcans = None
+    if randsameval > 0:     # generate random sampling eval data
+        testsubjcans = np.random.randint(0, numsubjs, (testgold.shape[0], randsameval))
+        testrelcans = np.random.randint(0, numrels, (testgold.shape[0], randsameval))
+        testsubjcans = np.concatenate([testgold[:, 0:1], testsubjcans], axis=1)
+        testrelcans = np.concatenate([testgold[:, 1:2], testrelcans], axis=1)
+        testsubjcans = testsubjcans.tolist()
+        testrelcans = testrelcans.tolist()
         prediction = predictor.predict(testdata, entcans=testsubjcans, relcans=testrelcans)
     else:
         prediction = predictor.predict(testdata, entcans=testsubjcans, relsperent=relsperent)
