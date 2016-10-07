@@ -230,7 +230,7 @@ class TypedSubjBlock(Block):
         self.typenc = typenc
         self.subjenc = subjenc
 
-    def appl(self, x):
+    def apply(self, x):
         typewords = x[:, :self.typelen]
         subjchars = x[:, self.typelen:]
         typemb = self.typenc(typewords)
