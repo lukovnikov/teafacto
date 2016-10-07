@@ -488,7 +488,7 @@ def run(closenegsam=False,
                                    layers=1)
         # encode subject on character level
         subjemb = SimpleSeq2Vec(inpemb=charemb,
-                               innerdim=int(np.ceil(decdim*2./3)),
+                               innerdim=int(np.floor(decdim*2./3)),
                                maskid=maskid,
                                bidir=bidir,
                                layers=1)
