@@ -49,8 +49,8 @@ class Linear(Block):
         super(Linear, self).__init__(**kw)
         self.indim = indim
         self.dim = dim
-        self.W = param((self.indim, self.dim)).init(w_init)
-        self.b = param((self.dim,)).init(b_init)
+        self.W = param((self.indim, self.dim), name="linear_W").init(w_init)
+        self.b = param((self.dim,), name="linear_b").init(b_init)
 
     def apply(self, inp):
         return T.dot(inp, self.W) + self.b

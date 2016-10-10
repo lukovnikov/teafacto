@@ -167,7 +167,7 @@ class ModelTrainer(object):
 
     def multiclass_hinge_loss(self, margin=1.):
         def inner(preds, gold):     # preds: (batsize, numclasses) scores, gold: int:(batsize)
-            pass
+            pass    # TODO
         self._set_objective(inner)
         return self
 
