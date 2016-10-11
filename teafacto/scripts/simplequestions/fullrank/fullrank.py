@@ -21,6 +21,7 @@ def readdata(p="../../../../data/simplequestions/clean/datamat.word.fb2m.pkl",
              cachep=None, #"subjpredcharns.readdata.cache.pkl",
              maskid=-1,
              debug=False,
+             numtestcans=None,
              ):
     tt = ticktock("dataloader")
     if cachep is not None and os.path.isfile(cachep):      # load
@@ -71,7 +72,7 @@ def readdata(p="../../../../data/simplequestions/clean/datamat.word.fb2m.pkl",
             tt.tock("dumped to cache")
 
     subjinfo = loadsubjinfo(entinfp, subjdic)
-    testsubjcans = loadsubjtestcans()
+    testsubjcans = loadsubjtestcans(numcans=numtestcans)
     testrelcans, relspersubj = loadreltestcans(testgold, subjdic, reldic)
     if debug:
         embed()
@@ -101,9 +102,10 @@ def loadreltestcans(testgold, subjdic, reldic, relsperentp="../../../../data/sim
     return relsoftestexamples, relsperent
 
 
-def loadsubjtestcans(p="../../../../data/simplequestions/clean/testcans10c.pkl"):
+def loadsubjtestcans(p="../../../../data/simplequestions/clean/testcans{}.pkl", numcans=None):
     tt = ticktock("test subjects candidate loader")
     tt.tick("loading candidates")
+    p = p.format("{}c".format(numcans)) if numcans is not None else p.format("")
     ret = pickle.load(open(p))
     tt.tock("canddiates loaded")
     return ret
@@ -414,12 +416,14 @@ def run(closenegsam=False,
         forcesubjincl=False,
         usetypes=False,
         randsameval=0,
+        numtestcans=0,
         ):
     tt = ticktock("script")
     tt.tick("loading data")
     (traindata, traingold), (validdata, validgold), (testdata, testgold), \
     (subjmat, relmat), (subjdic, reldic), worddic, \
-    subjinfo, (testsubjcans, relsperent) = readdata(debug=debug)
+    subjinfo, (testsubjcans, relsperent) = readdata(debug=debug,
+                                                    numtestcans=numtestcans if numtestcans > 0 else None)
 
     if usetypes:
         print "building type matrix"
@@ -656,12 +660,16 @@ def run(closenegsam=False,
     def inspectsubjs():
         rwd = {v: k for k, v in worddic.items()}
         for i in range(len(predictor.subjranks)):
+            subjx = testgold[i, 0]
+
             print "test question {}: {} \t GOLD: {}".format(i,
                                                 wordids2string(testdata[i, :, 0], rwd),
                                                 "{} ({}) - {} rels".format(
-                                                    subjinfo[testgold[i][0]][0],
-                                                    subjinfo[testgold[i][0]][1],
-                                                    subjinfo[testgold[i][0]][3],
+                                                    *([subjinfo[subjx][0],
+                                                    subjinfo[subjx][1],
+                                                    subjinfo[subjx][3]]
+                                                    if subjx in subjinfo
+                                                    else ["<UNK>", "<UNK>", "<UNK>"])
                                                 ))
             subjrank = predictor.subjranks[i]
             gold = testgold[i, 0]
