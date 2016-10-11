@@ -539,7 +539,7 @@ def run(closenegsam=False,
             subjrand = self.sample(gold[:, 0], self.subjclose, self.maxentid)
             relrand = self.sample(gold[:, 1], self.relclose, self.maxrelid)
             ret = np.concatenate([subjrand, relrand], axis=1)
-            embed()
+            #embed()
             return datas, ret.astype("int32")
 
         def sample(self, gold, closeset, maxid):
