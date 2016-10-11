@@ -549,7 +549,7 @@ def run(closenegsam=False,
             else:
                 ret = np.zeros_like(gold)
                 for i in range(gold.shape[0]):
-                    sampleset = closeset[gold[i]]
+                    sampleset = closeset[gold[i]] if gold[i] in closeset else []
                     if len(sampleset) > 4:
                         ret[i] = random.sample(sampleset, 1)[0]
                     else:
