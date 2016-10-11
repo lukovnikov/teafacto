@@ -101,7 +101,7 @@ def loadreltestcans(testgold, subjdic, reldic, relsperentp="../../../../data/sim
     return relsoftestexamples, relsperent
 
 
-def loadsubjtestcans(p="../../../../data/simplequestions/clean/testcans.pkl"):
+def loadsubjtestcans(p="../../../../data/simplequestions/clean/testcans10c.pkl"):
     tt = ticktock("test subjects candidate loader")
     tt.tick("loading candidates")
     ret = pickle.load(open(p))
