@@ -175,7 +175,8 @@ def buildrelsamplespace(entmat, wd, maskid=-1):
 
 
 def loadsubjsamplespace(p="../../../../data/simplequestions/clean/subjclose.dic.pkl"):
-    pass
+    d = pickle.load(open(p))
+    return d
 
 def buildtypmat(subjmat, subjinfo, worddic, maxlen=6, maskid=-1):
     ret = maskid * np.ones((subjmat.shape[0], maxlen), dtype="int32")
@@ -435,6 +436,7 @@ def run(closenegsam=False,
         typlen = typmat.shape[1]
 
     relsamplespace = None
+    subjsamplespace = None
     if closenegsam:
         relsamplespace, revind = buildrelsamplespace(relmat, worddic)
         subjsamplespace = loadsubjsamplespace()
@@ -590,7 +592,9 @@ def run(closenegsam=False,
     if epochs > 0 and loadmodel < 0:
         tt.tick("training")
         nscorer = scorer.nstrain([traindata, traingold]).transform(transf)\
-            .negsamplegen(NegIdxGen(numsubjs-1, numrels-1, relclose=relsamplespace)) \
+            .negsamplegen(NegIdxGen(numsubjs-1, numrels-1,
+                                    relclose=relsamplespace,
+                                    subjclose=subjsamplespace)) \
             .objective(obj).adagrad(lr=lr).l2(wreg).grad_total_norm(gradnorm)\
             .validate_on([validdata, validgold])\
             .train(numbats=numbats, epochs=epochs)
