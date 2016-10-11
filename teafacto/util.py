@@ -1,6 +1,7 @@
 import collections, inspect, argparse, dill as pkl, os, numpy as np, pandas as pd, sys
 from datetime import datetime as dt
 import re, unidecode, nltk
+from nltk.corpus import stopwords
 
 
 def loadlexidtsv(path, numwords=10, numchars=30):
@@ -299,3 +300,5 @@ def tokenize(s):
     tokens = nltk.word_tokenize(s)
     s = re.sub("`", "'", s)
     return tokens
+
+
