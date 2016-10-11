@@ -174,6 +174,9 @@ def buildrelsamplespace(entmat, wd, maskid=-1):
     return samdic, entmatm.T
 
 
+def loadsubjsamplespace(p="../../../../data/simplequestions/clean/subjclose.dic.pkl"):
+    pass
+
 def buildtypmat(subjmat, subjinfo, worddic, maxlen=6, maskid=-1):
     ret = maskid * np.ones((subjmat.shape[0], maxlen), dtype="int32")
     import re
@@ -416,7 +419,7 @@ def run(closenegsam=False,
         forcesubjincl=False,
         usetypes=False,
         randsameval=0,
-        numtestcans=0,
+        numtestcans=5,
         ):
     tt = ticktock("script")
     tt.tick("loading data")
@@ -434,6 +437,7 @@ def run(closenegsam=False,
     relsamplespace = None
     if closenegsam:
         relsamplespace, revind = buildrelsamplespace(relmat, worddic)
+        subjsamplespace = loadsubjsamplespace()
     tt.tock("data loaded")
 
     if checkdata:
@@ -523,37 +527,32 @@ def run(closenegsam=False,
 
     # negative sampling
     class NegIdxGen(object):
-        def __init__(self, maxentid, maxrelid, relclose=None):
+        def __init__(self, maxentid, maxrelid, relclose=None, subjclose=None):
             self.maxentid = maxentid
             self.maxrelid = maxrelid
             self.relclose = relclose
+            self.subjclose = subjclose
 
         def __call__(self, datas, gold):
-            entrand = np.random.randint(0, self.maxentid+1, (gold.shape[0], 1))
-
-            #if np.sum(entrand == 645994) > 0:
-            #    print "sampled the empty subject label"
-            #entrand = np.vectorize(lambda x: 645995 if x == 645994 else x)(entrand) # avoid sampling the empty label
-            #entrand = np.asarray([[645994]]*gold.shape[0])
-            #entrand[0, 0] = 645994
-
-            relrand = self.samplerels(gold[:, 1])
-            ret = np.concatenate([entrand, np.expand_dims(relrand, axis=1)], axis=1)
-            #embed()
+            subjrand = self.sample(gold[:, 0], self.subjclose, self.maxentid)
+            relrand = self.sample(gold[:, 1], self.relclose, self.maxrelid)
+            ret = np.concatenate([subjrand, relrand], axis=1)
+            embed()
             return datas, ret.astype("int32")
 
-        def samplerels(self, gold):
+        def sample(self, gold, closeset, maxid):
             #assert(gold.ndim == 2 and gold.shape[1] == 1)
-            if self.relclose is None:
-                return np.random.randint(0, self.maxrelid+1, (gold.shape[0], 1))
+            if closeset is None:
+                return np.random.randint(0, maxid + 1, (gold.shape[0], 1))
             else:
                 ret = np.zeros_like(gold)
                 for i in range(gold.shape[0]):
-                    sampleset = self.relclose[gold[i]]
-                    if len(sampleset) > 5:
+                    sampleset = closeset[gold[i]]
+                    if len(sampleset) > 4:
                         ret[i] = random.sample(sampleset, 1)[0]
                     else:
-                        ret[i] = np.random.randint(0, self.maxrelid+1)
+                        ret[i] = np.random.randint(0, maxid+1)
+                ret = np.expand_dims(ret, axis=1)
                 return ret.astype("int32")
 
     class PreProc(object):

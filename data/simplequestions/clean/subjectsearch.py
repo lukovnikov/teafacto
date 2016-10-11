@@ -1,4 +1,4 @@
-import re
+import re, pickle
 from teafacto.util import tokenize, ticktock, isstring
 from nltk.corpus import stopwords
 from teafacto.procutil import wordids2string
@@ -81,19 +81,44 @@ class SubjectSearch(object):
     def _search(self, ss, top=5):
         res = self.indexdict[ss] if ss in self.indexdict else []
         sres = sorted(res, key=lambda x: x["triplecount"], reverse=True)
-        return sres[:min(top, len(sres))]
+        ret = sres[:min(top, len(sres))]
+        for x in ret:
+            x.update({"name": ss})
+        return ret
 
     def searchsentence(self, sentence, top=5):
         words = tokenize(sentence)
-        res = self._recurngramsearch(words, top=top)
+        if self.ignoresubgrams:
+            res = self._searchngrams(words, top=top)
+        else:
+            res = self._recurngramsearch(words, top=top)
         return res
+
+    def _searchngrams(self, words, top=5):
+        ngramsize = len(words)
+        bannedpos = set()
+        ret = []
+        while ngramsize > 0:
+            for i in range(0, len(words) - ngramsize + 1):
+                coveredpos = set(range(i, i + ngramsize))
+                if len(coveredpos.difference(bannedpos)) == 0 and self.ignoresubgrams:
+                    pass
+                else:
+                    ss = words[i: i + ngramsize]
+                    if len(ss) == 1 and (ss[0] in self.stops):
+                        res = []
+                    else:
+                        res = self._search(" ".join(ss), top=top)
+                    if len(res) > 0 and self.ignoresubgrams:
+                        bannedpos.update(coveredpos)
+                    ret += res
+            ngramsize -= 1
+        return ret
 
     def _recurngramsearch(self, seq, top=5, right=False):
         searchterm = " ".join(seq)
         res = self._search(searchterm, top=top)
-        if len(res) > 0 and self.ignoresubgrams:
-            return res
-        elif len(seq) == 1:
+        if len(seq) == 1:
             return res if seq[0] not in self.stops else []
         else:
             lres = self._recurngramsearch(seq[:-1], top=top, right=False) if not right else []
@@ -111,21 +136,54 @@ class SubjectSearch(object):
         return cans
 
 
+def gensubjclose(cansp="traincans10c.pkl"):
+    traincans = pickle.load(open(cansp))
+    allcans = set()
+    for traincane in traincans:
+        allcans.update(traincane)
+    print len(allcans)
+    qsofcans = {k: set() for k in allcans}
+    for i in range(len(traincans)):
+        traincane = traincans[i]
+        for traincan in traincane:
+            qsofcans[traincan].add(i)
+    cansofcans = {k: set() for k in allcans}
+    for k, v in qsofcans.items():
+        for ve in v:
+            cansofcans[k].update(traincans[ve])
+    for k in cansofcans:
+        cansofcans[k].remove(k)
+        cansofcans[k] = set(list(cansofcans[k])[:500]) if len(cansofcans[k]) > 500 else cansofcans[k]
+    return cansofcans
+
+
 if __name__ == "__main__":
     #s = SubjectSearch(); s.save("subjinfo.idxdic")
     #embed()
-    s = SubjectSearch.load("subjinfo.idxdic")
+    if False:
+        s = SubjectSearch.load("subjinfo.idxdic")
     #s.searchsentence("what is the book e about")
-    import pickle
-    print "loading datamat"
-    x = pickle.load(open("datamat.word.fb2m.pkl"))
-    print "datamat loaded"
-    testdata = x["test"][0]
-    testgold = x["test"][1]
-    wd = x["worddic"]
-    ed = x["entdic"]
-    ne = x["numents"]
-    del x
-    print "generating cans"
-    testcans = s.searchwordmat(testdata, wd, top=10)
+    if False:
+        import pickle
+        print "loading datamat"
+        x = pickle.load(open("datamat.word.fb2m.pkl"))
+        print "datamat loaded"
+        testdata = x["train"][0]
+        testgold = x["train"][1]
+        wd = x["worddic"]
+        ed = x["entdic"]
+        ne = x["numents"]
+        del x
+        print "generating cans"
+        testcans = s.searchwordmat(testdata, wd, top=10)
+        testcanids = [[ed[x] for x in testcan] for testcan in testcans]
+        acc = 0
+        for i in range(testgold.shape[0]):
+            if testgold[i, 0] in testcanids[i]:
+                acc += 1
+        print acc * 1. / testgold.shape[0]
+    if False:
+        print s.searchsentence("2 meter sessies")
+    if True:
+        subjclose = gensubjclose("traincans10c.pkl")
     embed()
