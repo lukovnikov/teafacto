@@ -660,12 +660,18 @@ def run(closenegsam=False,
                for x, y in subjrank]
         return ret
 
+
+    hidecorrect = True
+    hidenotincan = True
+
     def inspectsubjs():
         rwd = {v: k for k, v in worddic.items()}
         for i in range(len(predictor.subjranks)):
             subjx = testgold[i, 0]
             subjrank = predictor.subjranks[i]
-            if subjx == subjrank[0][0]:     # only look for errors
+            if subjx == subjrank[0][0] and hidecorrect:     # only look for errors
+                continue
+            if hidenotincan and subjx not in [k for k, v in subjrank]:
                 continue
             print "test question {}: {} \t GOLD: {}".format(i,
                                                 wordids2string(testdata[i, :, 0], rwd),
