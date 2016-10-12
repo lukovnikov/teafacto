@@ -148,6 +148,7 @@ class SubjectSearch(object):
         rwd = {v: k for k, v in wd.items()}
         for i in range(wordmat.shape[0]):
             sentence = wordids2string(wordmat[i], rwd=rwd)
+            sentence.replace(" '", "")
             res = self.searchsentence(sentence, top=top)
             cans.append([r["fb_id"] for r in res])
         return cans
@@ -178,7 +179,8 @@ def run(numcans=10,
         build=False,
         load=False,
         gencan=False,
-        genclose=False):
+        genclose=False,
+        test=False):
     if False:
         p = Processor()
         o = p.processline("porter ' s stemmer works ' in united states")

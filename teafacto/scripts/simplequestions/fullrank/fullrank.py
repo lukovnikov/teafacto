@@ -421,9 +421,6 @@ def run(closenegsam=False,
         usetypes=False,
         randsameval=0,
         numtestcans=5,
-        hidecorrect=False,
-        hidenotincan=False,
-        shownotincan=False,
         ):
     tt = ticktock("script")
     tt.tick("loading data")
@@ -664,7 +661,7 @@ def run(closenegsam=False,
         return ret
 
 
-    def inspectsubjs():
+    def inspectsubjs(hidecorrect=False, hidenotincan=False, shownotincan=False):
         rwd = {v: k for k, v in worddic.items()}
         for i in range(len(predictor.subjranks)):
             subjx = testgold[i, 0]
