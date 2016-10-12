@@ -676,9 +676,9 @@ def run(closenegsam=False,
                     continue
             if shownotincan and subjx in [k for k, v in subjrank]:
                 continue
-            print "test question {}: {} \t GOLD: {} --- {}".format(i,
+            print "test question {}: {} \t GOLD: {}".format(i,
                                                 wordids2string(testdata[i, :, 0], rwd),
-                                                "{} ({}) - {} rels".format(
+                                                "{} ({}) - {} rels --- {}".format(
                                                     *([subjinfo[subjx][0],
                                                     subjinfo[subjx][1],
                                                     subjinfo[subjx][3],
