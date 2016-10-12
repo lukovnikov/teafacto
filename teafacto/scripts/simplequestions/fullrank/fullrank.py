@@ -664,7 +664,9 @@ def run(closenegsam=False,
         rwd = {v: k for k, v in worddic.items()}
         for i in range(len(predictor.subjranks)):
             subjx = testgold[i, 0]
-
+            subjrank = predictor.subjranks[i]
+            if subjx == subjrank[0][0]:     # only look for errors
+                continue
             print "test question {}: {} \t GOLD: {}".format(i,
                                                 wordids2string(testdata[i, :, 0], rwd),
                                                 "{} ({}) - {} rels".format(
@@ -674,7 +676,7 @@ def run(closenegsam=False,
                                                     if subjx in subjinfo
                                                     else ["<UNK>", "<UNK>", "<UNK>"])
                                                 ))
-            subjrank = predictor.subjranks[i]
+
             gold = testgold[i, 0]
             inspres = subjinspect(subjrank, gold)
             for inspre in inspres:
