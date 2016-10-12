@@ -421,6 +421,9 @@ def run(closenegsam=False,
         usetypes=False,
         randsameval=0,
         numtestcans=5,
+        hidecorrect=True,
+        hidenotincan=False,
+        shownotincan=True,
         ):
     tt = ticktock("script")
     tt.tick("loading data")
@@ -661,9 +664,6 @@ def run(closenegsam=False,
         return ret
 
 
-    hidecorrect = True
-    hidenotincan = False
-
     def inspectsubjs():
         rwd = {v: k for k, v in worddic.items()}
         for i in range(len(predictor.subjranks)):
@@ -674,6 +674,8 @@ def run(closenegsam=False,
             if subjx not in [k for k, v in subjrank]:
                 if hidenotincan:
                     continue
+            if shownotincan and subjx in [k for k, v in subjrank]:
+                continue
             print "test question {}: {} \t GOLD: {} --- {}".format(i,
                                                 wordids2string(testdata[i, :, 0], rwd),
                                                 "{} ({}) - {} rels".format(
