@@ -421,9 +421,9 @@ def run(closenegsam=False,
         usetypes=False,
         randsameval=0,
         numtestcans=5,
-        hidecorrect=True,
+        hidecorrect=False,
         hidenotincan=False,
-        shownotincan=True,
+        shownotincan=False,
         ):
     tt = ticktock("script")
     tt.tick("loading data")
