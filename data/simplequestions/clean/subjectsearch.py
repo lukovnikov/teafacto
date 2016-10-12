@@ -1,5 +1,5 @@
 import re, pickle
-from teafacto.util import tokenize, ticktock, isstring
+from teafacto.util import tokenize, ticktock, isstring, argprun
 from nltk.corpus import stopwords
 from teafacto.procutil import wordids2string
 from IPython import embed
@@ -159,7 +159,7 @@ def gensubjclose(cansp="traincans10c.pkl"):
     return cansofcans
 
 
-if __name__ == "__main__":
+def run(numcans=10):
     #s = SubjectSearch(); s.save("subjinfo.idxdic")
     #embed()
     if True:
@@ -177,7 +177,7 @@ if __name__ == "__main__":
         ne = x["numents"]
         del x
         print "generating cans"
-        testcans = s.searchwordmat(testdata, wd, top=2)
+        testcans = s.searchwordmat(testdata, wd, top=1000)
         testcanids = [[ed[x] for x in testcan] for testcan in testcans]
         acc = 0
         for i in range(testgold.shape[0]):
@@ -189,3 +189,8 @@ if __name__ == "__main__":
     if False:
         subjclose = gensubjclose("traincans10c.pkl")
     embed()
+
+
+
+if __name__ == "__main__":
+    argprun(run)
