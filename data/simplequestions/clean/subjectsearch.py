@@ -87,6 +87,8 @@ class SubjectSearch(object):
         return ret
 
     def searchsentence(self, sentence, top=5):
+        if sentence[-1] == "?":
+            sentence = sentence[:-1]
         words = tokenize(sentence)
         if self.ignoresubgrams:
             res = self._searchngrams(words, top=top)
@@ -160,22 +162,22 @@ def gensubjclose(cansp="traincans10c.pkl"):
 if __name__ == "__main__":
     #s = SubjectSearch(); s.save("subjinfo.idxdic")
     #embed()
-    if False:
+    if True:
         s = SubjectSearch.load("subjinfo.idxdic")
     #s.searchsentence("what is the book e about")
-    if False:
+    if True:
         import pickle
         print "loading datamat"
         x = pickle.load(open("datamat.word.fb2m.pkl"))
         print "datamat loaded"
-        testdata = x["train"][0]
-        testgold = x["train"][1]
+        testdata = x["test"][0]
+        testgold = x["test"][1]
         wd = x["worddic"]
         ed = x["entdic"]
         ne = x["numents"]
         del x
         print "generating cans"
-        testcans = s.searchwordmat(testdata, wd, top=10)
+        testcans = s.searchwordmat(testdata, wd, top=2)
         testcanids = [[ed[x] for x in testcan] for testcan in testcans]
         acc = 0
         for i in range(testgold.shape[0]):
@@ -183,7 +185,7 @@ if __name__ == "__main__":
                 acc += 1
         print acc * 1. / testgold.shape[0]
     if False:
-        print s.searchsentence("2 meter sessies")
-    if True:
+        print s.searchsentence("2 meter sessies?")
+    if False:
         subjclose = gensubjclose("traincans10c.pkl")
     embed()
