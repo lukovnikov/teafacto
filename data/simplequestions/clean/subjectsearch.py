@@ -1,8 +1,22 @@
 import re, pickle
 from teafacto.util import tokenize, ticktock, isstring, argprun
 from nltk.corpus import stopwords
+from nltk.stem import porter
 from teafacto.procutil import wordids2string
 from IPython import embed
+
+class Processor(object):
+    def __init__(self):
+        self.stemmer = porter.PorterStemmer()
+
+    def processline(self, x):
+        x = x.replace("'s", "")
+        x = x.replace("' s", "")
+        x = x.replace("'", "")
+        tokens = tokenize(x)
+        #print tokens
+        stokens = [self.stemmer.stem(token) for token in tokens]
+        return " ".join(stokens)
 
 
 class SubjectSearch(object):
@@ -10,6 +24,7 @@ class SubjectSearch(object):
         self.indexdict = {}
         self.ignoresubgrams = True
         self.stops = set(stopwords.words("english"))
+        self.processor = Processor()
         if isstring(subjinfop):
             self.build(subjinfop)
         elif isinstance(subjinfop, dict):
@@ -25,7 +40,7 @@ class SubjectSearch(object):
             sline = line[:-1].split("\t")
             fb_id = sline[0]
             triplecount = int(sline[1]) + int(sline[2])
-            name = " ".join(tokenize(sline[3]))
+            name = self.processor.processline(sline[3])
             type_id = sline[4]
             type_id = type_id if type_id != "<UNK>" else None
             type_name = " ".join(tokenize(sline[5]))
@@ -75,7 +90,7 @@ class SubjectSearch(object):
         return SubjectSearch(subjinfop=d)
 
     def search(self, s, top=5):
-        ss = " ".join(tokenize(s))
+        ss = self.processor.processline(s)
         return self._search(ss, top=top)
 
     def _search(self, ss, top=5):
@@ -89,7 +104,7 @@ class SubjectSearch(object):
     def searchsentence(self, sentence, top=5):
         if sentence[-1] == "?":
             sentence = sentence[:-1]
-        words = tokenize(sentence)
+        words = self.processor.processline(sentence).split()
         if self.ignoresubgrams:
             res = self._searchngrams(words, top=top)
         else:
@@ -159,13 +174,23 @@ def gensubjclose(cansp="traincans10c.pkl"):
     return cansofcans
 
 
-def run(numcans=10):
-    #s = SubjectSearch(); s.save("subjinfo.idxdic")
-    #embed()
-    if True:
+def run(numcans=10,
+        build=False,
+        load=False,
+        gencan=False,
+        genclose=False):
+    if False:
+        p = Processor()
+        o = p.processline("porter ' s stemmer works ' in united states")
+        print o
+    if build:
+        s = SubjectSearch(); s.save("subjinfo.idxdic")
+        embed()
+    if load:
         s = SubjectSearch.load("subjinfo.idxdic")
+        embed()
     #s.searchsentence("what is the book e about")
-    if True:
+    if gencan:
         import pickle
         print "loading datamat"
         x = pickle.load(open("datamat.word.fb2m.pkl"))
@@ -174,7 +199,6 @@ def run(numcans=10):
         testgold = x["test"][1]
         wd = x["worddic"]
         ed = x["entdic"]
-        ne = x["numents"]
         del x
         print "generating cans"
         testcans = s.searchwordmat(testdata, wd, top=numcans)
@@ -184,11 +208,12 @@ def run(numcans=10):
             if testgold[i, 0] in testcanids[i]:
                 acc += 1
         print acc * 1. / testgold.shape[0]
+        embed()
     if False:
         print s.searchsentence("2 meter sessies?")
-    if False:
+    if genclose:
         subjclose = gensubjclose("traincans10c.pkl")
-    embed()
+        embed()
 
 
 
