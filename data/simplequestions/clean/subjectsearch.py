@@ -177,7 +177,7 @@ def run(numcans=10):
         ne = x["numents"]
         del x
         print "generating cans"
-        testcans = s.searchwordmat(testdata, wd, top=1000)
+        testcans = s.searchwordmat(testdata, wd, top=numcans)
         testcanids = [[ed[x] for x in testcan] for testcan in testcans]
         acc = 0
         for i in range(testgold.shape[0]):
