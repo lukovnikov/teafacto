@@ -344,7 +344,7 @@ class CustomPredictor(object):
                 rankedrels = self.rankrelations(relcans)
                 bestrels = [x[0][0] for x in rankedrels]
             else:
-                topk = 3        # TOP K !!!!!!!!!!!!!!!!!!!!!!!!!!!!
+                topk = 5        # TOP K !!!!!!!!!!!!!!!!!!!!!!!!!!!!
                 # get relcans
                 relcans = []
                 for subjranking in rankedsubjs:
