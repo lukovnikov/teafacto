@@ -367,11 +367,11 @@ class CustomPredictor(object):
                 bestrels = [x[0][0] for x in rankedrels]
                 # build ents per relation
                 entsperrel = {}
-                for rel, ents in relsperent.items():
-                    for ent in ents:
-                        if ent not in entsperrel:
-                            entsperrel[ent] = set()
-                        entsperrel[ent].add(rel)
+                for ent, rels in relsperent.items():
+                    for rel in rels:
+                        if rel not in entsperrel:
+                            entsperrel[rel] = set()
+                        entsperrel[rel].add(ent)
                 # filter rankedsubjs
                 filteredrankedsubjs = []
                 for i in range(len(rankedsubjs)):
