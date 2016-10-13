@@ -329,6 +329,7 @@ class CustomPredictor(object):
         return self.rankrelations(relcans)
 
     def predict(self, data, entcans=None, relsperent=None, relcans=None, multiprune=-1):
+        print multiprune
         assert(relsperent is None or relcans is None)
         assert(relsperent is not None or relcans is not None)
         assert(entcans is not None)
@@ -339,11 +340,12 @@ class CustomPredictor(object):
             rankedrels = self.rankrelations(relcans)
             bestrels = [x[0][0] for x in rankedrels]
         else:
-            if multiprune < 0:
+            if multiprune <= 0:
                 relcans = [relsperent[bestsubj][0] if bestsubj in relsperent else [] for bestsubj in bestsubjs]
                 rankedrels = self.rankrelations(relcans)
                 bestrels = [x[0][0] for x in rankedrels]
             else:
+                print "multipruning !!!!!!!!!!!!!!!!!"
                 topk = multiprune        # TOP K !!!!!!!!!!!!!!!!!!!!!!!!!!!!
                 # get relcans
                 relcans = []
