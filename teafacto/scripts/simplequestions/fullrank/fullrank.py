@@ -348,18 +348,17 @@ class CustomPredictor(object):
                 relcans = []
                 for subjranking in rankedsubjs:
                     toplabel = None
-                    topcans = []
+                    relcanse = []
                     for subj, score in subjranking:
-                        subjlabel = " ".join(tokenize(self.subjinfo[subj][0]))
+                        subjlabel = " ".join(tokenize(self.subjinfo[subj][0]) if subj in self.subjinfo else [])
+                        topcan = None
                         if toplabel is None:
                             toplabel = subjlabel
-                            topcans.append(subj)
+                            topcan = subj
                         elif subjlabel == toplabel:
-                            topcans.append(subj)
+                            topcan = subj
                         else:
                             pass
-                    relcanse = []
-                    for topcan in topcans:
                         toadd = relsperent[topcan][0] if topcan in relsperent else []
                         relcanse.extend(toadd)
                     relcans.append(relcanse)
