@@ -738,11 +738,34 @@ def run(closenegsam=False,
                                                     if subjx in subjinfo
                                                     else ["<UNK>", "<UNK>", "<UNK>", "<UNK>"])
                                                 ))
-
-            gold = testgold[i, 0]
-            inspres = subjinspect(subjrank, gold)
+            inspres = subjinspect(subjrank, subjx)
+            i = 1
             for inspre in inspres:
-                print inspre
+                print "{}:\t{}\t{}".format(i, inspre[1], inspre[0])
+                if i % 50 == 0:
+                    inp()
+                i += 1
+            inp()
+
+    def inspectpreds(hidecorrect=False):
+        rwd = {v: k for k, v in worddic.items()}
+        for i in range(len(predictor.relranks)):
+            relx = testgold[i, 1]
+            subjx = testgold[i, 0]
+            relrank = predictor.relranks[i]
+            if relx == relrank[0][0] and hidecorrect:
+                continue
+            print "test question {}: {} \t GOLD: {}".format(i,
+                                            wordids2string(testdata[i, :, 0], rwd),
+                                            wordids2string(relmat[relx, :], rwd))
+            inspres = [(("GOLD - " if relx == x else "        ") +
+                        wordids2string(relmat[x], rwd), y) for x, y in relrank]
+            i = 1
+            for inspre in inspres:
+                print "{}:\t{}\t{}".format(i, inspre[1], inspre[0])
+                if i % 50 == 0:
+                    inp()
+                i += 1
             inp()
 
     embed()
