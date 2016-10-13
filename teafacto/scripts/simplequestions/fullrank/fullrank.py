@@ -377,8 +377,11 @@ class CustomPredictor(object):
                 for i in range(len(rankedsubjs)):
                     filteredrankedsubjs.append([])
                     for subj, score in rankedsubjs[i]:
-                        if subj in entsperrel[bestrels[i]]:
-                            filteredrankedsubjs[i].append((subj, score))
+                        if bestrels[i] in entsperrel and \
+                                        subj in entsperrel[bestrels[i]]:
+                                filteredrankedsubjs[i].append((subj, score))
+                    if len(filteredrankedsubjs[i]) == 0:
+                        filteredrankedsubjs[i].append((-1, -1.))
                 bestsubjs = [x[0][0] for x in filteredrankedsubjs]
 
 
