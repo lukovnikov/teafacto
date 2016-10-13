@@ -368,7 +368,7 @@ class CustomPredictor(object):
                 # build ents per relation
                 entsperrel = {}
                 for ent, rels in relsperent.items():
-                    for rel in rels:
+                    for rel in rels[0]:
                         if rel not in entsperrel:
                             entsperrel[rel] = set()
                         entsperrel[rel].add(ent)
