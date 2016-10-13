@@ -344,11 +344,13 @@ class CustomPredictor(object):
                 rankedrels = self.rankrelations(relcans)
                 bestrels = [x[0][0] for x in rankedrels]
             else:
+                topk = 3        # TOP K !!!!!!!!!!!!!!!!!!!!!!!!!!!!
                 # get relcans
                 relcans = []
                 for subjranking in rankedsubjs:
                     toplabel = None
                     relcanse = []
+                    i = 0
                     for subj, score in subjranking:
                         subjlabel = " ".join(tokenize(self.subjinfo[subj][0]) if subj in self.subjinfo else [])
                         topcan = None
@@ -357,10 +359,13 @@ class CustomPredictor(object):
                             topcan = subj
                         elif subjlabel == toplabel:
                             topcan = subj
+                        elif i < topk:
+                            topcan = subj
                         else:
                             pass
                         toadd = relsperent[topcan][0] if topcan in relsperent else []
                         relcanse.extend(toadd)
+                        i += 1
                     relcans.append(relcanse)
                 # rank relations
                 rankedrels = self.rankrelations(relcans)
