@@ -9,7 +9,7 @@ class Processor(object):
     def __init__(self):
         self.stemmer = porter.PorterStemmer()
 
-    def processline(self, x):
+    def stemmedprocessline(self, x):
         x = x.replace("'s", "")
         x = x.replace("' s", "")
         x = x.replace("'", "")
@@ -17,6 +17,9 @@ class Processor(object):
         #print tokens
         stokens = [self.stemmer.stem(token) for token in tokens]
         return " ".join(stokens)
+
+    def processline(self, x):
+        return " ".join(tokenize(x))
 
 
 class SubjectSearch(object):
@@ -148,7 +151,7 @@ class SubjectSearch(object):
         rwd = {v: k for k, v in wd.items()}
         for i in range(wordmat.shape[0]):
             sentence = wordids2string(wordmat[i], rwd=rwd)
-            sentence.replace(" '", "")
+            #ssentence.replace(" '", "")
             res = self.searchsentence(sentence, top=top)
             cans.append([r["fb_id"] for r in res])
         return cans

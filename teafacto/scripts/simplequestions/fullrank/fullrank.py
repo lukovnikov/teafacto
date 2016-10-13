@@ -1,4 +1,4 @@
-from teafacto.util import ticktock, argprun, inp
+from teafacto.util import ticktock, argprun, inp, tokenize
 import os, pickle, random
 from teafacto.procutil import *
 from IPython import embed
@@ -328,7 +328,7 @@ class CustomPredictor(object):
         relcans = [relsperent[bestsubj][0] if bestsubj in relsperent else [] for bestsubj in bestsubjs]
         return self.rankrelations(relcans)
 
-    def predict(self, data, entcans=None, relsperent=None, relcans=None):
+    def predict(self, data, entcans=None, relsperent=None, relcans=None, multiprune=False):
         assert(relsperent is None or relcans is None)
         assert(relsperent is not None or relcans is not None)
         assert(entcans is not None)
@@ -337,9 +337,55 @@ class CustomPredictor(object):
         bestsubjs = [x[0][0] for x in rankedsubjs]
         if relcans is not None:
             rankedrels = self.rankrelations(relcans)
+            bestrels = [x[0][0] for x in rankedrels]
         else:
-            rankedrels = self.rankrelationsfroments(bestsubjs, relsperent)
-        bestrels = [x[0][0] for x in rankedrels]
+            if not multiprune:
+                relcans = [relsperent[bestsubj][0] if bestsubj in relsperent else [] for bestsubj in bestsubjs]
+                rankedrels = self.rankrelations(relcans)
+                bestrels = [x[0][0] for x in rankedrels]
+            else:
+                # get relcans
+                relcans = []
+                for subjranking in rankedsubjs:
+                    toplabel = None
+                    topcans = []
+                    for subj, score in subjranking:
+                        subjlabel = " ".join(tokenize(self.subjinfo[subj][0]))
+                        if toplabel is None:
+                            toplabel = subjlabel
+                            topcans.append(subj)
+                        elif subjlabel == toplabel:
+                            topcans.append(subj)
+                        else:
+                            pass
+                    relcanse = []
+                    for topcan in topcans:
+                        toadd = relsperent[topcan][0] if topcan in relsperent else []
+                        relcanse.extend(toadd)
+                    relcans.append(relcanse)
+                # rank relations
+                rankedrels = self.rankrelations(relcans)
+                bestrels = [x[0][0] for x in rankedrels]
+                # build ents per relation
+                entsperrel = {}
+                for rel, ents in relsperent.items():
+                    for ent in ents:
+                        if ent not in entsperrel:
+                            entsperrel[ent] = set()
+                        entsperrel[ent].add(rel)
+                # filter rankedsubjs
+                filteredrankedsubjs = []
+                for i in range(len(rankedsubjs)):
+                    filteredrankedsubjs.append([])
+                    for subj, score in rankedsubjs[i]:
+                        if subj in entsperrel[bestrels[i]]:
+                            filteredrankedsubjs[i].append((subj, score))
+                bestsubjs = [x[0][0] for x in filteredrankedsubjs]
+
+
+
+
+
 
         ret = np.concatenate([
             np.expand_dims(np.asarray(bestsubjs, dtype="int32"), axis=1),
@@ -421,6 +467,7 @@ def run(closenegsam=False,
         usetypes=False,
         randsameval=0,
         numtestcans=5,
+        multiprune=False,
         ):
     tt = ticktock("script")
     tt.tick("loading data")
@@ -639,7 +686,8 @@ def run(closenegsam=False,
         testrelcans = testrelcans.tolist()
         prediction = predictor.predict(testdata, entcans=testsubjcans, relcans=testrelcans)
     else:
-        prediction = predictor.predict(testdata, entcans=testsubjcans, relsperent=relsperent)
+        prediction = predictor.predict(testdata, entcans=testsubjcans,
+                                       relsperent=relsperent, multiprune=multiprune)
     tt.tock("predicted")
     tt.tick("evaluating")
     evalmat = prediction == testgold
