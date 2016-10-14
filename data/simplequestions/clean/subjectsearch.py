@@ -1,4 +1,4 @@
-import re, pickle
+import re, pickle, editdistance
 from teafacto.util import tokenize, ticktock, isstring, argprun
 from nltk.corpus import stopwords
 from nltk.stem import porter
@@ -23,11 +23,16 @@ class Processor(object):
 
 
 class SubjectSearch(object):
-    def __init__(self, subjinfop="subjs-counts-labels-types.fb2m.tsv"):
+    stops = stopwords.words("english")
+    customstops = set("the a an of on is at in by did do not does had has have for what which when where why who whom how".split())
+    smallstops = set("the a an of on at by".split())
+
+    def __init__(self, subjinfop="subjs-counts-labels-types.fb2m.tsv", revind=None):
         self.indexdict = {}
         self.ignoresubgrams = True
-        self.stops = set(stopwords.words("english"))
         self.processor = Processor()
+        self.revind = revind
+        self.maxeditdistance = 1
         if isstring(subjinfop):
             self.build(subjinfop)
         elif isinstance(subjinfop, dict):
@@ -90,18 +95,49 @@ class SubjectSearch(object):
                     l.append(le)
         d[k] = l
         tt.tock("loaded")
-        return SubjectSearch(subjinfop=d)
+        ret = SubjectSearch(subjinfop=d, revind=SubjectSearch.buildrevindex(d))
+        return ret
+
+    @staticmethod
+    def buildrevindex(d):
+        revind = {}
+        for k in d.keys():
+            words = k.split()
+            for word in words:
+                if len(word) < 2:
+                    continue
+                if word not in revind:
+                    revind[word] = []
+                revind[word].append(k)
+        return revind
 
     def search(self, s, top=5):
         ss = self.processor.processline(s)
         return self._search(ss, top=top)
 
-    def _search(self, ss, top=5):
+    def _search(self, ss, top=5, edsearch=True):
         res = self.indexdict[ss] if ss in self.indexdict else []
         sres = sorted(res, key=lambda x: x["triplecount"], reverse=True)
         ret = sres[:min(top, len(sres))]
         for x in ret:
             x.update({"name": ss})
+        if len(ret) == 0 and self.revind is not None and edsearch:   # no exact matches
+            nonexactsearchstrings = set()
+            ssr = ss.replace(" ", "")
+            for word in ss.split():
+                if len(word) < 2 or word in self.customstops:
+                    continue
+                if word not in self.revind:
+                    continue
+                for nonexcan in self.revind[word]:
+                    nonexcanred = nonexcan.replace(" '", "")
+                    #embed()
+                    if editdistance.eval(nonexcanred, ss) <= self.maxeditdistance:
+                        nonexactsearchstrings.add(nonexcan)
+            for nonexactsearchstring in nonexactsearchstrings:
+                edsearchres = self._search(nonexactsearchstring, top=top, edsearch=False)
+                #embed()
+                ret.extend(edsearchres)
         return ret
 
     def searchsentence(self, sentence, top=5):
@@ -123,7 +159,9 @@ class SubjectSearch(object):
                 coveredpos = set(range(i, i + ngramsize))
                 if len(coveredpos.difference(bannedpos)) == 0 \
                         and self.ignoresubgrams:
-                    pass
+                    continue
+                elif i in bannedpos and self.ignoresubgrams:
+                    continue
                 else:
                     ss = words[i: i + ngramsize]
                     if len(ss) == 1 and (ss[0] in self.stops):
@@ -131,8 +169,12 @@ class SubjectSearch(object):
                     else:
                         res = self._search(" ".join(ss), top=top)
                     if len(res) > 0 and self.ignoresubgrams:
-                        if ss[0] in self.stops:
-                            coveredpos = set([i])
+                        if ss[0] in self.smallstops:
+                            if ngramsize > 1:
+                                coveredpos = set(range(i+2, i + ngramsize))
+                                coveredpos.add(i)
+                            else:
+                                coveredpos = set([i])
                         bannedpos.update(coveredpos)
                     ret += res
             ngramsize -= 1

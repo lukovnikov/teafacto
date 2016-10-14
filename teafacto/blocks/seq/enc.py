@@ -73,7 +73,8 @@ class Seq2Vec(Block):
 
 
 class SimpleSeq2Vec(Seq2Vec):
-    def __init__(self, indim=400, inpembdim=50, inpemb=None, innerdim=100, maskid=0, bidir=False, pool=False, **kw):
+    def __init__(self, indim=400, inpembdim=50, inpemb=None,
+                 innerdim=100, maskid=0, bidir=False, pool=False, **kw):
         if inpemb is None:
             if inpembdim is None:
                 inpemb = IdxToOneHot(indim)
@@ -90,6 +91,47 @@ class SimpleSeq2Vec(Seq2Vec):
     @staticmethod
     def makernu(inpembdim, innerdim, bidir=False):
         return MakeRNU.make(inpembdim, innerdim, bidir=bidir)
+
+
+class SimpleSeq2MultiVec(Block):
+    def __init__(self, indim=400, inpembdim=50, inpemb=None,
+                 innerdim=100, numouts=1, maskid=0, bidir=False, **kw):
+        super(SimpleSeq2MultiVec, self).__init__(**kw)
+        if inpemb is None:
+            if inpembdim is None:
+                inpemb = IdxToOneHot(indim)
+                inpembdim = indim
+            else:
+                inpemb = VectorEmbed(indim=indim, dim=inpembdim)
+        else:
+            inpembdim = inpemb.outdim
+        if not issequence(innerdim):
+            innerdim = [innerdim]
+        innerdim[-1] += numouts
+        rnn, lastdim = self.makernu(inpembdim, innerdim, bidir=bidir)
+        self.outdim = lastdim*numouts
+        self.maskid = maskid
+        self.inpemb = inpemb
+        self.numouts = numouts
+        if not issequence(rnn):
+            rnn = [rnn]
+        self.enc = SeqEncoder(inpemb, *rnn).maskoptions(maskid, MaskMode.AUTO)
+        self.enc.all_outputs()
+
+    @staticmethod
+    def makernu(inpembdim, innerdim, bidir=False):
+        return MakeRNU.make(inpembdim, innerdim, bidir=bidir)
+
+    def apply(self, x, mask=None, weights=None):
+        ret = self.enc(x, mask=mask, weights=weights)   # (batsize, seqlen, lastdim)
+        outs = []
+        for i in range(self.numouts):
+            selfweights = Softmax()(ret[:, :, i])   # (batsize, seqlen)
+            weightedstates = T.tensordot(ret[:, :, self.numouts:], selfweights, axes=())
+            out = T.sum(weightedstates, axis=1)     # (batsize, lastdim)
+            outs.append(out)
+        ret = T.concatenate(outs, axis=1)
+        return ret
 
 
 class SeqStar2Vec(Block):
