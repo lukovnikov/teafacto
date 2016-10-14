@@ -477,6 +477,7 @@ def run(closenegsam=False,
         randsameval=0,
         numtestcans=5,
         multiprune=-1,
+        multivec=False,
         ):
     tt = ticktock("script")
     tt.tick("loading data")
@@ -546,7 +547,7 @@ def run(closenegsam=False,
                            layers=1)
 
     if multivec:
-        question_encoder =
+        question_encoder = None
     #predemb.load(relmat)
 
     if usetypes:

@@ -111,9 +111,9 @@ class SubjectSearch(object):
                 revind[word].append(k)
         return revind
 
-    def search(self, s, top=5):
+    def search(self, s, top=5, edsearch=True):
         ss = self.processor.processline(s)
-        return self._search(ss, top=top)
+        return self._search(ss, top=top, edsearch=edsearch)
 
     def _search(self, ss, top=5, edsearch=True):
         res = self.indexdict[ss] if ss in self.indexdict else []
@@ -131,7 +131,7 @@ class SubjectSearch(object):
                     if word not in self.revind:
                         continue
                     for nonexcan in self.revind[word]:
-                        if abs(len(nonexcan) - len(ss)) > 3:
+                        if abs(len(nonexcan) - len(ss)) >= 3:
                             continue
                         nonexcanred = nonexcan.replace(" '", "")
                         #embed()
@@ -148,12 +148,16 @@ class SubjectSearch(object):
             sentence = sentence[:-1]
         words = self.processor.processline(sentence).split()
         if self.ignoresubgrams:
-            res = self._searchngrams(words, top=top)
+            exact_res = self._searchngrams(words, top=top, edsearch=False)
+            edit_res = self._searchngrams(words, top=1, edsearch=True)
+            exact_res_ents = set([x["fb_id"] for x in exact_res])
+            edit_res_plus = [x for x in edit_res if x["fb_id"] not in exact_res_ents]
+            res = exact_res + edit_res_plus
         else:
             res = self._recurngramsearch(words, top=top)
         return res
 
-    def _searchngrams(self, words, top=5):
+    def _searchngrams(self, words, top=5, edsearch=False):
         ngramsize = len(words)
         bannedpos = set()
         ret = []
@@ -170,7 +174,7 @@ class SubjectSearch(object):
                     if len(ss) == 1 and (ss[0] in self.stops):
                         res = []
                     else:
-                        res = self._search(" ".join(ss), top=top)
+                        res = self._search(" ".join(ss), top=top, edsearch=edsearch)
                     if len(res) > 0 and self.ignoresubgrams:
                         if ss[0] in self.smallstops:
                             if False and ngramsize > 1:
