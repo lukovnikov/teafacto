@@ -7,7 +7,7 @@ from scipy import sparse
 from teafacto.blocks.lang.wordvec import Glove, WordEmb
 from teafacto.blocks.lang.sentenc import TwoLevelEncoder
 from teafacto.blocks.seq.rnn import RNNSeqEncoder, MaskMode
-from teafacto.blocks.seq.enc import SimpleSeq2Vec
+from teafacto.blocks.seq.enc import SimpleSeq2Vec, SimpleSeq2MultiVec
 from teafacto.blocks.cnn import CNNSeqEncoder
 from teafacto.blocks.basic import VectorEmbed
 from teafacto.blocks.memory import MemVec
@@ -544,6 +544,9 @@ def run(closenegsam=False,
                            maskid=maskid,
                            bidir=bidir,
                            layers=1)
+
+    if multivec:
+        question_encoder =
     #predemb.load(relmat)
 
     if usetypes:

@@ -2,7 +2,7 @@ from unittest import TestCase
 
 import numpy as np
 
-from teafacto.blocks.seq.enc import SimpleSeq2Vec, SimpleSeq2Sca
+from teafacto.blocks.seq.enc import SimpleSeq2Vec, SimpleSeq2Sca, SimpleSeq2MultiVec
 from teafacto.blocks.match import MatchScore
 
 
@@ -41,5 +41,14 @@ class TestSimpleSeq2Sca(TestCase):
         prd, mask = enc.predict(x)
         self.assertEqual(prd.shape, (33, 5))
         self.assertEqual(mask.shape, (33, 5))
+
+
+class TestSimpleSeq2MultiVec(TestCase):
+    def test_shape(self):
+        enc = SimpleSeq2MultiVec(indim=100, inpembdim=10,
+                                 innerdim=20, numouts=2, mode="seq")
+        x = np.random.randint(0, 100, (33, 5))
+        prd = enc.predict(x)
+        self.assertEqual(prd.shape, (33, 2, 20))
 
 

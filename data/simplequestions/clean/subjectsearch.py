@@ -163,8 +163,8 @@ class SubjectSearch(object):
                 if len(coveredpos.difference(bannedpos)) == 0 \
                         and self.ignoresubgrams:
                     continue
-                elif i in bannedpos and self.ignoresubgrams:
-                    continue
+                #elif i in bannedpos and self.ignoresubgrams:
+                #    continue
                 else:
                     ss = words[i: i + ngramsize]
                     if len(ss) == 1 and (ss[0] in self.stops):
@@ -173,7 +173,7 @@ class SubjectSearch(object):
                         res = self._search(" ".join(ss), top=top)
                     if len(res) > 0 and self.ignoresubgrams:
                         if ss[0] in self.smallstops:
-                            if ngramsize > 1:
+                            if False and ngramsize > 1:
                                 coveredpos = set(range(i+2, i + ngramsize))
                                 coveredpos.add(i)
                             else:
