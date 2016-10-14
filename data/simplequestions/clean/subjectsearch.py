@@ -121,7 +121,7 @@ class SubjectSearch(object):
         ret = sres[:min(top, len(sres))]
         for x in ret:
             x.update({"name": ss})
-        if len(ret) == 0 and self.revind is not None and edsearch:   # no exact matches
+        if len(ret) == 0 and self.revind is not None and edsearch and self.maxeditdistance > 0:   # no exact matches
             nonexactsearchstrings = set()
             ssr = ss.replace(" ", "")
             for word in ss.split():
@@ -228,7 +228,8 @@ def run(numcans=10,
         load=False,
         gencan=False,
         genclose=False,
-        test=False):
+        test=False,
+        editdistance=False):
     if False:
         p = Processor()
         o = p.processline("porter ' s stemmer works ' in united states")
@@ -238,6 +239,10 @@ def run(numcans=10,
         embed()
     if load:
         s = SubjectSearch.load("subjinfo.idxdic")
+        if editdistance:
+            s.maxeditdistance = 1
+        else:
+            s.maxeditdistance = 0
         embed()
     #s.searchsentence("what is the book e about")
     if gencan:
