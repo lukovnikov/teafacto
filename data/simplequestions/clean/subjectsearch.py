@@ -194,11 +194,15 @@ class SubjectSearch(object):
     def searchwordmat(self, wordmat, wd, top=5):
         cans = []
         rwd = {v: k for k, v in wd.items()}
+        tt = ticktock("wordmatsearcher")
+        tt.tick("started searching")
         for i in range(wordmat.shape[0]):
             sentence = wordids2string(wordmat[i], rwd=rwd)
             #ssentence.replace(" '", "")
             res = self.searchsentence(sentence, top=top)
             cans.append([r["fb_id"] for r in res])
+            tt.progress(i, wordmat.shape[0], live=True)
+        tt.tock("done searching")
         return cans
 
 
