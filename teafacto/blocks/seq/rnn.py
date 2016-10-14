@@ -275,6 +275,7 @@ class SeqEncoder(AttentionConsumer, Block):
             if self._maskconfig.maskset == MaskSetMode.ZERO and mask is not None:
                 fmask = T.tensordot(mask, T.ones((outputs.shape[2],)), 0)
                 rete = rete * fmask
+            rete.mask = mask
             ret.append(rete)
         if "states" in self._returnings:    # final states (over all layers)???
             pass # TODO: do we need to support this?

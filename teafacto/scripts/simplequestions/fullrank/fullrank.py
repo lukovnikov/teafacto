@@ -534,6 +534,8 @@ def run(closenegsam=False,
             .maskoptions(maskid, MaskMode.AUTO)
     else:
         raise Exception("no other modes available")
+    if multivec:
+        encdim += 2     # support multivec
     wordenc = RNNSeqEncoder(inpemb=False, inpembdim=wordemb.outdim + charencdim,
                             innerdim=encdim, bidir=bidir).maskoptions(MaskMode.NONE)
     question_encoder = TwoLevelEncoder(l1enc=charenc, l2emb=wordemb,

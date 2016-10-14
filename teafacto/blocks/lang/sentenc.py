@@ -20,6 +20,10 @@ class TwoLevelEncoder(Block):
         self.l2enc = l2enc
         self.maskid = maskid
 
+    def all_outputs(self):
+        self.l2enc = self.l2enc.all_outputs()
+        return self
+
     def apply(self, x):
         if self.l2emb is not None:
             l1tensor = x[:, :, 1:]

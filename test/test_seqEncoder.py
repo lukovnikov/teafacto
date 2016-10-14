@@ -4,7 +4,7 @@ import numpy as np
 
 from teafacto.blocks.seq.rnn import SeqEncoder, MaskSetMode
 from teafacto.blocks.seq.rnu import GRU
-from teafacto.blocks.basic import IdxToOneHot
+from teafacto.blocks.basic import IdxToOneHot, VectorEmbed
 
 
 class TestSeqEncoder(TestCase):
@@ -84,3 +84,10 @@ class TestSeqEncoder(TestCase):
             else:
                 for j in range(pred.shape[0]):
                     self.assertTrue(np.linalg.norm(pred[j, i, :]) == 0.0)
+
+    def test_mask_propagation_all_states(self):
+        m = SeqEncoder(VectorEmbed(maskid=0, indim=100, dim=20),
+                       GRU(dim=20, innerdim=30)).all_outputs().maskoptions(MaskSetMode.ZERO)
+        data = np.random.randint(1, 100, (35, 5), dtype="int32")
+        ndata = np.zeros_like(data)
+        data = np.concatenate([data, ndata], axis=1)

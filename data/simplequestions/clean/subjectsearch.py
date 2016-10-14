@@ -131,7 +131,7 @@ class SubjectSearch(object):
                     if word not in self.revind:
                         continue
                     for nonexcan in self.revind[word]:
-                        if abs(len(nonexcan) - len(ss)) >= 3:
+                        if abs(len(nonexcan) - len(ss)) >= 4:
                             continue
                         nonexcanred = nonexcan.replace(" '", "")
                         #embed()
@@ -165,25 +165,25 @@ class SubjectSearch(object):
             for i in range(0, len(words) - ngramsize + 1):
                 coveredpos = set(range(i, i + ngramsize))
                 if len(coveredpos.difference(bannedpos)) == 0 \
+                        and self.ignoresubgrams and not edsearch:
+                    continue
+                if edsearch and len(coveredpos.intersection(bannedpos)) > 0 \
                         and self.ignoresubgrams:
                     continue
-                #elif i in bannedpos and self.ignoresubgrams:
-                #    continue
+                ss = words[i: i + ngramsize]
+                if len(ss) == 1 and (ss[0] in self.stops):
+                    res = []
                 else:
-                    ss = words[i: i + ngramsize]
-                    if len(ss) == 1 and (ss[0] in self.stops):
-                        res = []
-                    else:
-                        res = self._search(" ".join(ss), top=top, edsearch=edsearch)
-                    if len(res) > 0 and self.ignoresubgrams:
-                        if ss[0] in self.smallstops:
-                            if False and ngramsize > 1:
-                                coveredpos = set(range(i+2, i + ngramsize))
-                                coveredpos.add(i)
-                            else:
-                                coveredpos = set([i])
-                        bannedpos.update(coveredpos)
-                    ret += res
+                    res = self._search(" ".join(ss), top=top, edsearch=edsearch)
+                if len(res) > 0 and self.ignoresubgrams:
+                    if not edsearch and ss[0] in self.smallstops:
+                        #if False and ngramsize > 1:
+                        #    coveredpos = set(range(i+2, i + ngramsize))
+                        #    coveredpos.add(i)
+                        #else:
+                        coveredpos = set([i])
+                    bannedpos.update(coveredpos)
+                ret += res
             ngramsize -= 1
         return ret
 
