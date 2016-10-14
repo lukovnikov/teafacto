@@ -131,6 +131,8 @@ class SubjectSearch(object):
                     if word not in self.revind:
                         continue
                     for nonexcan in self.revind[word]:
+                        if abs(len(nonexcan) - len(ss)) > 3:
+                            continue
                         nonexcanred = nonexcan.replace(" '", "")
                         #embed()
                         if editdistance.eval(nonexcanred, ss) <= self.maxeditdistance:
