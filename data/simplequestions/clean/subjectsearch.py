@@ -123,21 +123,22 @@ class SubjectSearch(object):
             x.update({"name": ss})
         if len(ret) == 0 and self.revind is not None and edsearch and self.maxeditdistance > 0:   # no exact matches
             nonexactsearchstrings = set()
-            ssr = ss.replace(" ", "")
-            for word in ss.split():
-                if len(word) < 2 or word in self.customstops:
-                    continue
-                if word not in self.revind:
-                    continue
-                for nonexcan in self.revind[word]:
-                    nonexcanred = nonexcan.replace(" '", "")
+            words = ss.split()
+            if len(words) >= 2:
+                for word in words:
+                    if len(word) < 2 or word in self.customstops:
+                        continue
+                    if word not in self.revind:
+                        continue
+                    for nonexcan in self.revind[word]:
+                        nonexcanred = nonexcan.replace(" '", "")
+                        #embed()
+                        if editdistance.eval(nonexcanred, ss) <= self.maxeditdistance:
+                            nonexactsearchstrings.add(nonexcan)
+                for nonexactsearchstring in nonexactsearchstrings:
+                    edsearchres = self._search(nonexactsearchstring, top=top, edsearch=False)
                     #embed()
-                    if editdistance.eval(nonexcanred, ss) <= self.maxeditdistance:
-                        nonexactsearchstrings.add(nonexcan)
-            for nonexactsearchstring in nonexactsearchstrings:
-                edsearchres = self._search(nonexactsearchstring, top=top, edsearch=False)
-                #embed()
-                ret.extend(edsearchres)
+                    ret.extend(edsearchres)
         return ret
 
     def searchsentence(self, sentence, top=5):
