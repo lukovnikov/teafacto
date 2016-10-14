@@ -121,7 +121,8 @@ class SubjectSearch(object):
         while ngramsize > 0:
             for i in range(0, len(words) - ngramsize + 1):
                 coveredpos = set(range(i, i + ngramsize))
-                if len(coveredpos.difference(bannedpos)) == 0 and self.ignoresubgrams:
+                if len(coveredpos.difference(bannedpos)) == 0 \
+                        and self.ignoresubgrams:
                     pass
                 else:
                     ss = words[i: i + ngramsize]
@@ -130,6 +131,8 @@ class SubjectSearch(object):
                     else:
                         res = self._search(" ".join(ss), top=top)
                     if len(res) > 0 and self.ignoresubgrams:
+                        if ss[0] in self.stops:
+                            coveredpos = set([i])
                         bannedpos.update(coveredpos)
                     ret += res
             ngramsize -= 1
