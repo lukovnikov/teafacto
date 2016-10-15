@@ -513,7 +513,7 @@ class NegIdxGen(object):
             return ret.astype("int32")
 
 
-def run(closenegsam=False,
+def run(negsammode="closest",   # "close" or "random"
         checkdata=False,
         glove=True,
         embdim=100,
@@ -557,7 +557,7 @@ def run(closenegsam=False,
 
     relsamplespace = None
     subjsamplespace = None
-    if closenegsam:
+    if negsammode == "closest" or negsammode == "close":
         relsamplespace, revind = buildrelsamplespace(relmat, worddic)
         subjsamplespace = loadsubjsamplespace()
     tt.tock("data loaded")
@@ -571,11 +571,13 @@ def run(closenegsam=False,
     maskid = -1
     numchars = 256
 
+    nsrelsperent = relsperent if negsammode == "closest" else None
+
     if testnegsam:
         nig = NegIdxGen(numsubjs - 1, numrels - 1,
                   relclose=relsamplespace,
                   subjclose=subjsamplespace,
-                  relsperent=relsperent)
+                  relsperent=nsrelsperent)
         embed()
 
     if mode == "seq":
@@ -697,7 +699,7 @@ def run(closenegsam=False,
             .negsamplegen(NegIdxGen(numsubjs-1, numrels-1,
                                     relclose=relsamplespace,
                                     subjclose=subjsamplespace,
-                                    relsperent=relsperent)) \
+                                    relsperent=nsrelsperent)) \
             .objective(obj).adagrad(lr=lr).l2(wreg).grad_total_norm(gradnorm)\
             .validate_on([validdata, validgold])\
             .train(numbats=numbats, epochs=epochs)
