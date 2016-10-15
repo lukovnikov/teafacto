@@ -453,6 +453,66 @@ class CustomPredictor(object):
         return ret
 
 
+class NegIdxGen(object):
+    def __init__(self, maxentid, maxrelid, relclose=None, subjclose=None, relsperent=None):
+        self.maxentid = maxentid
+        self.maxrelid = maxrelid
+        self.relclose = {k: set(v) for k, v in relclose.items()} if relclose is not None else None
+        self.subjclose = {k: set(v) for k, v in subjclose.items()} if subjclose is not None else None
+        self.relsperent = {k: set(v[0]) for k, v in relsperent.items()} if relsperent is not None else None
+        self.samprobf = lambda x: np.tanh(np.log(x + 1)/3)
+
+    def __call__(self, datas, gold):
+        subjrand = self.sample(gold[:, 0], self.subjclose, self.maxentid)
+        if self.relsperent is not None:     # sample uber-close
+            relrand = self.samplereluberclose(gold[:, 1], gold[:, 0])
+        else:
+            relrand = self.sample(gold[:, 1], self.relclose, self.maxrelid)
+        ret = np.concatenate([subjrand, relrand], axis=1)
+        # embed()
+        # TODO NEGATIVE SAMPLING OF RELATIONS FROM GOLD ENTITY'S RELATIONS
+        return datas, ret.astype("int32")
+
+    def samplereluberclose(self, relgold, entgold):
+        ret = np.zeros_like(relgold, dtype="int32")
+        for i in range(relgold.shape[0]):
+            uberclosesampleset = (self.relsperent[entgold[i]] if entgold[i] in self.relsperent else set())\
+                .difference({relgold[i]})
+            if np.random.random() < self.samprobf(len(uberclosesampleset)):
+                ret[i] = random.sample(uberclosesampleset, 1)[0]
+            else:
+                completerandom = False
+                if self.relclose is not None:
+                    closesampleset = (self.relclose[relgold[i]] if relgold[i] in self.relclose else set())\
+                        .difference({relgold[i]})
+                    if np.random.random() < self.samprobf(len(closesampleset)):
+                        ret[i] = random.sample(closesampleset, 1)[0]
+                    else:
+                        completerandom = True
+                else:
+                    completerandom = True
+                if completerandom:
+                    ret[i] = np.random.randint(0, self.maxrelid + 1)
+        ret = np.expand_dims(ret, axis=1)
+        return ret
+
+
+    def sample(self, gold, closeset, maxid):
+        # assert(gold.ndim == 2 and gold.shape[1] == 1)
+        if closeset is None:
+            return np.random.randint(0, maxid + 1, (gold.shape[0], 1))
+        else:
+            ret = np.zeros_like(gold)
+            for i in range(gold.shape[0]):
+                sampleset = closeset[gold[i]] if gold[i] in closeset else []
+                if np.random.random() < self.samprobf(len(sampleset)):
+                    ret[i] = random.sample(sampleset, 1)[0]
+                else:
+                    ret[i] = np.random.randint(0, maxid + 1)
+            ret = np.expand_dims(ret, axis=1)
+            return ret.astype("int32")
+
+
 def run(closenegsam=False,
         checkdata=False,
         glove=True,
@@ -478,6 +538,7 @@ def run(closenegsam=False,
         numtestcans=5,
         multiprune=-1,
         multivec=False,
+        testnegsam=False,
         ):
     tt = ticktock("script")
     tt.tick("loading data")
@@ -485,6 +546,8 @@ def run(closenegsam=False,
     (subjmat, relmat), (subjdic, reldic), worddic, \
     subjinfo, (testsubjcans, relsperent) = readdata(debug=debug,
                                                     numtestcans=numtestcans if numtestcans > 0 else None)
+
+
 
     if usetypes:
         print "building type matrix"
@@ -507,6 +570,13 @@ def run(closenegsam=False,
     numrels = max(reldic.values()) + 1
     maskid = -1
     numchars = 256
+
+    if testnegsam:
+        nig = NegIdxGen(numsubjs - 1, numrels - 1,
+                  relclose=relsamplespace,
+                  subjclose=subjsamplespace,
+                  relsperent=relsperent)
+        embed()
 
     if mode == "seq":
         decdim = encdim
@@ -589,36 +659,6 @@ def run(closenegsam=False,
 
     obj = lambda p, n: T.sum((n - p + margin).clip(0, np.infty), axis=1)
 
-    # negative sampling
-    class NegIdxGen(object):
-        def __init__(self, maxentid, maxrelid, relclose=None, subjclose=None):
-            self.maxentid = maxentid
-            self.maxrelid = maxrelid
-            self.relclose = relclose
-            self.subjclose = subjclose
-
-        def __call__(self, datas, gold):
-            subjrand = self.sample(gold[:, 0], self.subjclose, self.maxentid)
-            relrand = self.sample(gold[:, 1], self.relclose, self.maxrelid)
-            ret = np.concatenate([subjrand, relrand], axis=1)
-            #embed()
-            return datas, ret.astype("int32")
-
-        def sample(self, gold, closeset, maxid):
-            #assert(gold.ndim == 2 and gold.shape[1] == 1)
-            if closeset is None:
-                return np.random.randint(0, maxid + 1, (gold.shape[0], 1))
-            else:
-                ret = np.zeros_like(gold)
-                for i in range(gold.shape[0]):
-                    sampleset = closeset[gold[i]] if gold[i] in closeset else []
-                    if len(sampleset) > 4:
-                        ret[i] = random.sample(sampleset, 1)[0]
-                    else:
-                        ret[i] = np.random.randint(0, maxid+1)
-                ret = np.expand_dims(ret, axis=1)
-                return ret.astype("int32")
-
     class PreProc(object):
         def __init__(self, subjmat, relmat):
             self.ef = PreProcEnt(subjmat)
@@ -656,7 +696,8 @@ def run(closenegsam=False,
         nscorer = scorer.nstrain([traindata, traingold]).transform(transf)\
             .negsamplegen(NegIdxGen(numsubjs-1, numrels-1,
                                     relclose=relsamplespace,
-                                    subjclose=subjsamplespace)) \
+                                    subjclose=subjsamplespace,
+                                    relsperent=relsperent)) \
             .objective(obj).adagrad(lr=lr).l2(wreg).grad_total_norm(gradnorm)\
             .validate_on([validdata, validgold])\
             .train(numbats=numbats, epochs=epochs)
