@@ -457,6 +457,9 @@ class NegIdxGen(object):
     def __init__(self, maxentid, maxrelid, relclose=None, subjclose=None, relsperent=None):
         self.maxentid = maxentid
         self.maxrelid = maxrelid
+        print "using relclose" if relclose is not None else "no relclose"
+        print "using subjclose" if subjclose is not None else "no subjclose"
+        print "using relsperent" if relsperent is not None else "no relsperent"
         self.relclose = {k: set(v) for k, v in relclose.items()} if relclose is not None else None
         self.subjclose = {k: set(v) for k, v in subjclose.items()} if subjclose is not None else None
         self.relsperent = {k: set(v[0]) for k, v in relsperent.items()} if relsperent is not None else None
@@ -575,9 +578,9 @@ def run(negsammode="closest",   # "close" or "random"
 
     if testnegsam:
         nig = NegIdxGen(numsubjs - 1, numrels - 1,
-                  relclose=relsamplespace,
-                  subjclose=subjsamplespace,
-                  relsperent=nsrelsperent)
+                        relclose=relsamplespace,
+                        subjclose=subjsamplespace,
+                        relsperent=nsrelsperent)
         embed()
 
     if mode == "seq" or mode == "multi":
@@ -603,27 +606,28 @@ def run(negsammode="closest",   # "close" or "random"
                                 stride=1)
     elif charenc == "rnn":
         print "using RNN char encoder"
-        charenc = RNNSeqEncoder(inpemb=charemb, innerdim=charencdim)\
+        charenc = RNNSeqEncoder(inpemb=charemb, innerdim=charencdim) \
             .maskoptions(maskid, MaskMode.AUTO)
     else:
         raise Exception("no other character encoding modes available")
 
-    wordenc = RNNSeqEncoder(inpemb=False, inpembdim=wordemb.outdim + charencdim,
-                            innerdim=encdim, bidir=bidir).maskoptions(MaskMode.NONE)
     if mode == "multi":
-        question_encoder = \
+        wordenc = \
             SimpleSeq2MultiVec(inpemb=False, inpembdim=wordemb.outdim + charencdim,
-                              innerdim=encdim, bidir=bidir, numouts=2, mode="seq")
+                               innerdim=encdim, bidir=bidir, numouts=2, mode="seq")
     else:
-        question_encoder = TwoLevelEncoder(l1enc=charenc, l2emb=wordemb,
-                                           l2enc=wordenc, maskid=maskid)
 
+        wordenc = RNNSeqEncoder(inpemb=False, inpembdim=wordemb.outdim + charencdim,
+                                innerdim=encdim, bidir=bidir).maskoptions(MaskMode.NONE)
+
+    question_encoder = TwoLevelEncoder(l1enc=charenc, l2emb=wordemb,
+                                       l2enc=wordenc, maskid=maskid)
     # encode predicate on word level
     predemb = SimpleSeq2Vec(inpemb=wordemb,
-                           innerdim=decdim,
-                           maskid=maskid,
-                           bidir=bidir,
-                           layers=1)
+                            innerdim=decdim,
+                            maskid=maskid,
+                            bidir=bidir,
+                            layers=1)
     #predemb.load(relmat)
 
     if usetypes:
@@ -635,18 +639,18 @@ def run(negsammode="closest",   # "close" or "random"
                                    layers=1)
         # encode subject on character level
         subjemb = SimpleSeq2Vec(inpemb=charemb,
-                               innerdim=int(np.floor(decdim*2./3)),
-                               maskid=maskid,
-                               bidir=bidir,
-                               layers=1)
+                                innerdim=int(np.floor(decdim*2./3)),
+                                maskid=maskid,
+                                bidir=bidir,
+                                layers=1)
         subjemb = TypedSubjBlock(typlen, subjemb, subjtypemb)
     else:
         # encode subject on character level
         subjemb = SimpleSeq2Vec(inpemb=charemb,
-                               innerdim=decdim,
-                               maskid=maskid,
-                               bidir=bidir,
-                               layers=1)
+                                innerdim=decdim,
+                                maskid=maskid,
+                                bidir=bidir,
+                                layers=1)
     #subjemb.load(subjmat)
     if testmodel:
         embed()
@@ -703,14 +707,14 @@ def run(negsammode="closest",   # "close" or "random"
         tt.tick("training")
         saveid = "".join([str(np.random.randint(0, 10)) for i in range(4)])
         print("CHECKPOINTING AS: {}".format(saveid))
-        nscorer = scorer.nstrain([traindata, traingold]).transform(transf)\
+        nscorer = scorer.nstrain([traindata, traingold]).transform(transf) \
             .negsamplegen(NegIdxGen(numsubjs-1, numrels-1,
                                     relclose=relsamplespace,
                                     subjclose=subjsamplespace,
                                     relsperent=nsrelsperent)) \
-            .objective(obj).adagrad(lr=lr).l2(wreg).grad_total_norm(gradnorm)\
-            .validate_on([validdata, validgold])\
-            .train(numbats=numbats, epochs=epochs)\
+            .objective(obj).adagrad(lr=lr).l2(wreg).grad_total_norm(gradnorm) \
+            .validate_on([validdata, validgold]) \
+            .train(numbats=numbats, epochs=epochs) \
             .autosavethis(scorer, "fullrank{}.model".format(saveid))
         tt.tock("trained").tick()
 
@@ -788,15 +792,15 @@ def run(negsammode="closest",   # "close" or "random"
             if shownotincan and subjx in [k for k, v in subjrank]:
                 continue
             print "test question {}: {} \t GOLD: {}".format(i,
-                                                wordids2string(testdata[i, :, 0], rwd),
-                                                "{} ({}) - {} rels --- {}".format(
-                                                    *([subjinfo[subjx][0],
-                                                    subjinfo[subjx][1],
-                                                    subjinfo[subjx][3],
-                                                    subjinfo[subjx][2]]
-                                                    if subjx in subjinfo
-                                                    else ["<UNK>", "<UNK>", "<UNK>", "<UNK>"])
-                                                ))
+                                                            wordids2string(testdata[i, :, 0], rwd),
+                                                            "{} ({}) - {} rels --- {}".format(
+                                                                *([subjinfo[subjx][0],
+                                                                   subjinfo[subjx][1],
+                                                                   subjinfo[subjx][3],
+                                                                   subjinfo[subjx][2]]
+                                                                  if subjx in subjinfo
+                                                                  else ["<UNK>", "<UNK>", "<UNK>", "<UNK>"])
+                                                            ))
             inspres = subjinspect(subjrank, subjx)
             i = 1
             for inspre in inspres:
@@ -815,8 +819,8 @@ def run(negsammode="closest",   # "close" or "random"
             if relx == relrank[0][0] and hidecorrect:
                 continue
             print "test question {}: {} \t GOLD: {}".format(i,
-                                            wordids2string(testdata[i, :, 0], rwd),
-                                            wordids2string(relmat[relx, :], rwd))
+                                                            wordids2string(testdata[i, :, 0], rwd),
+                                                            wordids2string(relmat[relx, :], rwd))
             inspres = [(("GOLD - " if relx == x else "        ") +
                         wordids2string(relmat[x], rwd), y) for x, y in relrank]
             i = 1

@@ -95,7 +95,8 @@ class SimpleSeq2Vec(Seq2Vec):
 
 class SimpleSeq2MultiVec(Block):
     def __init__(self, indim=400, inpembdim=50, inpemb=None, mode="concat",
-                 innerdim=100, numouts=1, maskid=0, bidir=False, **kw):
+                 innerdim=100, numouts=1, maskid=0, bidir=False,
+                 maskmode=MaskMode.NONE, **kw):
         super(SimpleSeq2MultiVec, self).__init__(**kw)
         if inpemb is None:
             if inpembdim is None:
@@ -103,6 +104,8 @@ class SimpleSeq2MultiVec(Block):
                 inpembdim = indim
             else:
                 inpemb = VectorEmbed(indim=indim, dim=inpembdim)
+        elif inpemb is False:
+            inpemb = None
         else:
             inpembdim = inpemb.outdim
         if not issequence(innerdim):
@@ -116,7 +119,7 @@ class SimpleSeq2MultiVec(Block):
         self.mode = mode
         if not issequence(rnn):
             rnn = [rnn]
-        self.enc = SeqEncoder(inpemb, *rnn).maskoptions(maskid, MaskMode.AUTO)
+        self.enc = SeqEncoder(inpemb, *rnn).maskoptions(maskid, maskmode)
         self.enc.all_outputs()
 
     @staticmethod
