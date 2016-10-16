@@ -269,7 +269,7 @@ class CustomPredictor(object):
 
     def ranksubjects(self, entcans):
         assert(self.qencodings is not None)
-        if self.mode == "concat":
+        if self.mode == "concat" or self.mode == "multi":
             mid = self.qencodings.shape[1] / 2
         elif self.mode == "seq":
             mid = self.qencodings.shape[1]
@@ -298,7 +298,7 @@ class CustomPredictor(object):
 
     def rankrelations(self, relcans):
         assert(self.qencodings is not None)
-        if self.mode == "concat":
+        if self.mode == "concat" or self.mode == "multi":
             mid = self.qencodings.shape[1] / 2
         elif self.mode == "seq":
             mid = 0
@@ -514,31 +514,31 @@ class NegIdxGen(object):
 
 
 def run(negsammode="closest",   # "close" or "random"
-        checkdata=False,
+        usetypes=True,
+        mode="seq",      # "seq" or "concat" or "multi"
         glove=True,
         embdim=100,
         charencdim=100,
         charembdim=50,
         encdim=400,
         bidir=False,
-        charenc="cnn",  # "cnn" or "rnn"
-        mode="seq",      # "seq" or "concat"
+        charenc="rnn",  # "cnn" or "rnn"
         margin=0.5,
         lr=0.1,
         numbats=700,
         epochs=15,
-        debug=False,
         gradnorm=1.0,
         wreg=0.0001,
         loadmodel=-1,
+        debug=False,
         debugtest=False,
         forcesubjincl=False,
-        usetypes=False,
         randsameval=0,
         numtestcans=5,
         multiprune=-1,
-        multivec=False,
+        checkdata=False,
         testnegsam=False,
+        testmodel=False,
         ):
     tt = ticktock("script")
     tt.tick("loading data")
@@ -580,20 +580,21 @@ def run(negsammode="closest",   # "close" or "random"
                   relsperent=nsrelsperent)
         embed()
 
-    if mode == "seq":
+    if mode == "seq" or mode == "multi":
         decdim = encdim
-        print "seq mode: {} decdim".format(decdim)
     elif mode == "concat":
         decdim = encdim / 2
-        print "concat mode: {} decdim".format(decdim)
     else:
         raise Exception("unrecognized mode")
+
+    print "{} mode: {} decdim".format(mode, decdim)
 
     # defining model
     if glove:
         wordemb = Glove(embdim).adapt(worddic)
     else:
         wordemb = WordEmb(dim=embdim, indim=numwords)
+
     charemb = VectorEmbed(indim=numchars, dim=charembdim)
     if charenc == "cnn":
         print "using CNN char encoder"
@@ -605,13 +606,17 @@ def run(negsammode="closest",   # "close" or "random"
         charenc = RNNSeqEncoder(inpemb=charemb, innerdim=charencdim)\
             .maskoptions(maskid, MaskMode.AUTO)
     else:
-        raise Exception("no other modes available")
-    if multivec:
-        encdim += 2     # support multivec
+        raise Exception("no other character encoding modes available")
+
     wordenc = RNNSeqEncoder(inpemb=False, inpembdim=wordemb.outdim + charencdim,
                             innerdim=encdim, bidir=bidir).maskoptions(MaskMode.NONE)
-    question_encoder = TwoLevelEncoder(l1enc=charenc, l2emb=wordemb,
-                                       l2enc=wordenc, maskid=maskid)
+    if mode == "multi":
+        question_encoder = \
+            SimpleSeq2MultiVec(inpemb=False, inpembdim=wordemb.outdim + charencdim,
+                              innerdim=encdim, bidir=bidir, numouts=2, mode="seq")
+    else:
+        question_encoder = TwoLevelEncoder(l1enc=charenc, l2emb=wordemb,
+                                           l2enc=wordenc, maskid=maskid)
 
     # encode predicate on word level
     predemb = SimpleSeq2Vec(inpemb=wordemb,
@@ -619,9 +624,6 @@ def run(negsammode="closest",   # "close" or "random"
                            maskid=maskid,
                            bidir=bidir,
                            layers=1)
-
-    if multivec:
-        question_encoder = None
     #predemb.load(relmat)
 
     if usetypes:
@@ -646,13 +648,17 @@ def run(negsammode="closest",   # "close" or "random"
                                bidir=bidir,
                                layers=1)
     #subjemb.load(subjmat)
-
+    if testmodel:
+        embed()
     # package
     if mode == "seq":
         lb = SeqLeftBlock(question_encoder)
         rb = RightBlock(subjemb, predemb)
     elif mode == "concat":
         lb = ConcatLeftBlock(question_encoder, decdim)
+        rb = RightBlock(subjemb, predemb)
+    elif mode == "multi":
+        lb = question_encoder       # ready as is (seq mode)
         rb = RightBlock(subjemb, predemb)
     else:
         raise Exception("unrecognized mode")
@@ -695,6 +701,8 @@ def run(negsammode="closest",   # "close" or "random"
 
     if epochs > 0 and loadmodel < 0:
         tt.tick("training")
+        saveid = "".join([str(np.random.randint(0, 10)) for i in range(4)])
+        print("CHECKPOINTING AS: {}".format(saveid))
         nscorer = scorer.nstrain([traindata, traingold]).transform(transf)\
             .negsamplegen(NegIdxGen(numsubjs-1, numrels-1,
                                     relclose=relsamplespace,
@@ -702,13 +710,13 @@ def run(negsammode="closest",   # "close" or "random"
                                     relsperent=nsrelsperent)) \
             .objective(obj).adagrad(lr=lr).l2(wreg).grad_total_norm(gradnorm)\
             .validate_on([validdata, validgold])\
-            .train(numbats=numbats, epochs=epochs)
+            .train(numbats=numbats, epochs=epochs)\
+            .autosavethis(scorer, "fullrank{}.model".format(saveid))
         tt.tock("trained").tick()
 
         # saving
-        saveid = "".join([str(np.random.randint(0, 10)) for i in range(4)])
-        scorer.save("fullrank{}.model".format(saveid))
-        tt.tock("saved: {}".format(saveid))
+        #scorer.save("fullrank{}.model".format(saveid))
+        print("SAVED AS: {}".format(saveid))
 
     if loadmodel > -1:
         tt.tick("loading model")

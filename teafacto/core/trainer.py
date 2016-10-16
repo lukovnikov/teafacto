@@ -40,6 +40,8 @@ class ModelTrainer(object):
         self.validsetmode= False
         self.average_err = True # TODO: do we still need this?
         self._autosave = False
+        self._autosavepath = None
+        self._autosaveblock = None
         # training settings
         self.learning_rate = None
         self.dynamic_lr = None
@@ -498,7 +500,7 @@ class ModelTrainer(object):
             evalcount += 1
             #embed()
             if self._autosave:
-                self.save(self.model)
+                self.save()
         self.tt.tock("trained").tick()
         return err, verr
 
@@ -548,7 +550,17 @@ class ModelTrainer(object):
         self._autosave = True
         return self
 
-    def save(self, model, filepath=None):
+    def autosavethis(self, block, p):
+        self._autosave = True
+        self._autosaveblock = block
+        self._autosavepath = p
+        return self
+
+    def save(self, model=None, filepath=None):
+        model = model if model is not None else \
+            self.model if self._autosaveblock is None else \
+                self._autosaveblock
+        filepath = filepath if filepath is not None else self._autosavepath
         model.save(filepath=filepath)
 
 

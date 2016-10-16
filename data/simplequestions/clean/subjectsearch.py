@@ -240,7 +240,9 @@ def run(numcans=10,
         gencan=False,
         genclose=False,
         test=False,
-        editdistance=False):
+        editdistance=False,
+        data="test",    # or "train" or "valid"
+        ):
     if False:
         p = Processor()
         o = p.processline("porter ' s stemmer works ' in united states")
@@ -261,8 +263,8 @@ def run(numcans=10,
         print "loading datamat"
         x = pickle.load(open("datamat.word.fb2m.pkl"))
         print "datamat loaded"
-        testdata = x["test"][0]
-        testgold = x["test"][1]
+        testdata = x[data][0]
+        testgold = x[data][1]
         wd = x["worddic"]
         ed = x["entdic"]
         del x

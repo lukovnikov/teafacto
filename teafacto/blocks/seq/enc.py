@@ -126,8 +126,12 @@ class SimpleSeq2MultiVec(Block):
     def apply(self, x, mask=None, weights=None):
         ret = self.enc(x, mask=mask, weights=weights)   # (batsize, seqlen, lastdim)
         outs = []
+        # apply mask    (SeqEncoder should attach mask to outvar if all_outputs()
+        mask = ret.mask
         for i in range(self.numouts):
             selfweights = Softmax()(ret[:, :, i])   # (batsize, seqlen)
+            selfweights *= mask     # apply mask
+            selfweights = selfweights / T.sum(selfweights, axis=1).dimshuffle(0, "x")   # renormalize
             weightedstates = ret[:, :, self.numouts:] * selfweights.dimshuffle(0, 1, "x")
             out = T.sum(weightedstates, axis=1)     # (batsize, lastdim)
             outs.append(out)

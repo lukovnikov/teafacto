@@ -363,6 +363,19 @@ class RNNSeqEncoder(SeqEncoder):
         super(RNNSeqEncoder, self).__init__(inpemb, *layers, **kw)
 
 
+class RNNSeqEncoderMulti(RNNSeqEncoder):
+    def __init__(self, indim=500, inpembdim=100, inpemb=None, mode="concat",
+                 innerdim=200, numouts=1, bidir=False, maskid=None,**kw):
+        if not issequence(innerdim):
+            innerdim = [innerdim]
+        innerdim[-1] += numouts
+        super(RNNSeqEncoderMulti, self).__init__(indim=indim, inpembdim=inpembdim,
+             inpemb=inpemb, innerdim=innerdim, bidir=bidir, maskid=maskid, **kw)
+        self.numouts = numouts
+        self.mode = mode
+        self.all_outputs()
+
+
 class SeqDecoder(Block):
     """ seq decoder with attention with new inconcat implementation """
     def __init__(self, layers, softmaxoutblock=None, innerdim=None,

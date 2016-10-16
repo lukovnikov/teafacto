@@ -36,7 +36,8 @@ class TwoLevelEncoder(Block):
         else:
             l2vecs = EncLastDim(self.l1enc)(x)
             wmask = T.gt(T.sum(T.eq(x, self.maskid), axis=2), 0)
-        fenc = self.l2enc(l2vecs, mask=wmask)
+        l2vecs.mask = wmask
+        fenc = self.l2enc(l2vecs)
         return fenc
 
 
