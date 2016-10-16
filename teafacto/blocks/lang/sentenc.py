@@ -38,7 +38,7 @@ class TwoLevelEncoder(Block):
             wmask = T.gt(T.sum(T.eq(x, self.maskid), axis=2), 0)
         l2vecs.mask = wmask
         fenc = self.l2enc(l2vecs)
-        return fenc
+        return fenc, mask #mask for debug
 
 
 class WordCharSentEnc(TwoLevelEncoder):
