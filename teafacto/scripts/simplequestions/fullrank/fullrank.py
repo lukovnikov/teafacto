@@ -499,7 +499,6 @@ class NegIdxGen(object):
         ret = np.expand_dims(ret, axis=1)
         return ret
 
-
     def sample(self, gold, closeset, maxid):
         # assert(gold.ndim == 2 and gold.shape[1] == 1)
         if closeset is None:
@@ -726,7 +725,10 @@ def run(negsammode="closest",   # "close" or "random"
         tt.tick("loading model")
         m = SeqMatchScore.load("fullrank{}.model".format(loadmodel))
         #embed()
-        question_encoder = m.l.inner
+        if mode == "multi":
+            question_encoder = m.l
+        else:
+            question_encoder = m.l.inner
         subjemb = m.r.subjenc
         predemb = m.r.predenc
         tt.tock("loaded model")
