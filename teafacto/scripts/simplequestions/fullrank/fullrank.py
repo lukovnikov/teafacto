@@ -217,15 +217,16 @@ class ConcatLeftBlock(Block):
 
 
 class MultiLeftBlock(Block):
-    def __init__(self, inner, mode, **kw):
+    def __init__(self, inner, mid, mode, **kw):
         super(MultiLeftBlock, self).__init__(**kw)
         self.inner = inner
         self.mode = mode
+        self.mid = mid
 
     def apply(self, x):
         res = self.inner(x)             # (batsize, 2, encdim)
-        mid = T.cast(res.shape[2] / 2, "int32")
         if self.mode == "multic":   # take top half of first and bottom half of second
+            mid = self.mid
             ret = T.concatenate([res[:, 0, :mid], res[:, 1, mid:]], axis=1)
         else:                       # return as is
             ret = res
@@ -683,7 +684,7 @@ def run(negsammode="closest",   # "close" or "random"
         lb = ConcatLeftBlock(question_encoder, decdim)
         rb = RightBlock(subjemb, predemb)
     elif mode == "multi" or mode == "multic":
-        lb = MultiLeftBlock(question_encoder, mode)
+        lb = MultiLeftBlock(question_encoder, decdim, mode)
         rb = RightBlock(subjemb, predemb)
     else:
         raise Exception("unrecognized mode")
