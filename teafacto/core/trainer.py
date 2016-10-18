@@ -471,31 +471,32 @@ class ModelTrainer(object):
         tt = TT("iter")
         prevverre = [float("inf")] * len(self.validators)
         while not stop:
+            if self._autosave:
+                self.save()
             tt.tick("%d/%d" % (self.currentiter, int(self.maxiter)))
             erre = trainf()
             if self.currentiter == self.maxiter:
                 stop = True
             self.currentiter += 1
             err.append(erre)
-            print "done training"
+            #print "done training"
             verre = prevverre
             if validf is not None and self.currentiter % evalinter == 0: # validate and print
                 verre = validf()
                 prevverre = verre
                 verr.append(verre)
-                tt.msg("training error: %s \t validation error: %s"
+                ttmsg = "training error: %s \t validation error: %s" \
                        % ("%.4f" % erre[0],
-                          " - ".join(map(lambda x: "%.4f" % x, verre))),
-                       prefix="-")
+                          " - ".join(map(lambda x: "%.4f" % x, verre)))
             else:
-                tt.msg("training error: %s" % " - ".join(map(lambda x: "%.4f" % x, erre)), prefix="-")
+                ttmsg = "training error: %s" % " - ".join(map(lambda x: "%.4f" % x, erre))
             # retaining the best
             if self.besttaker is not None:
                 modelscore = self.besttaker(([erre]+verre+[self.currentiter]))
                 if modelscore < self.bestmodel[1]:
                     #tt.tock("freezing best with score %.3f (prev: %.3f)" % (modelscore, self.bestmodel[1]), prefix="-").tick()
                     self.bestmodel = (self.model.freeze(), modelscore)
-            tt.tock("done", prefix="-")
+            tt.tock(ttmsg + "\t", prefix="-")
             self._update_lr(self.currentiter, self.maxiter, err, verr)
             evalcount += 1
             #embed()

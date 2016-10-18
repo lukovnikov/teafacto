@@ -758,6 +758,7 @@ class NSTrainConfig():
         trainer.traingold = gold
 
         # apply settings on trainer
+        #print self.trainerargs
         for k, v in self.trainerargs:
             kf = getattr(trainer, k)
             kf(*v[0], **v[1])

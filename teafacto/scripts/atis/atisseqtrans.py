@@ -216,7 +216,9 @@ class StupidAtisScanNative(StupidAtisNative):
 
 
 
-def run(p="../../../data/atis/atis.pkl", wordembdim=100, innerdim=200, lr=0.05, numbats=100, epochs=20, validinter=1, wreg=0.0003, depth=1):
+def run(p="../../../data/atis/atis.pkl", wordembdim=100,
+        innerdim=200, lr=0.05, numbats=100, epochs=20,
+        validinter=1, wreg=0.0003, depth=1):
     p = os.path.join(os.path.dirname(__file__), p)
     train, test, dics = pickle.load(open(p))
     word2idx = dics["words2idx"]
@@ -260,7 +262,7 @@ def run(p="../../../data/atis/atis.pkl", wordembdim=100, innerdim=200, lr=0.05, 
         .split_validate(splits=5, random=True).seq_cross_entropy().seq_accuracy().validinter(validinter)\
         .train(numbats, epochs)'''
 
-    m.train([traindata], traingold).adagrad(lr=lr).grad_total_norm(5.0).seq_cross_entropy().l2(wreg)\
+    m.train([traindata], traingold).adagrad(lr=lr).seq_cross_entropy().l2(wreg).grad_total_norm(5.)\
         .split_validate(splits=5, random=True).seq_cross_entropy().seq_accuracy().validinter(validinter)\
         .train(numbats, epochs)
 

@@ -713,8 +713,8 @@ def run(negsammode="closest",   # "close" or "random"
                                     relsperent=nsrelsperent)) \
             .objective(obj).adagrad(lr=lr).l2(wreg).grad_total_norm(gradnorm) \
             .validate_on([validdata, validgold]) \
-            .train(numbats=numbats, epochs=epochs) \
-            .autosavethis(scorer, "fullrank{}.model".format(saveid))
+            .autosavethis(scorer, "fullrank{}.model".format(saveid)) \
+            .train(numbats=numbats, epochs=epochs)
         tt.tock("trained").tick()
 
         # saving
