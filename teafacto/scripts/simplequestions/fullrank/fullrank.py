@@ -747,10 +747,7 @@ def run(negsammode="closest",   # "close" or "random"
         tt.tick("loading model")
         m = SeqMatchScore.load("fullrank{}.model".format(loadmodel))
         #embed()
-        if mode == "multi":
-            question_encoder = m.l
-        else:
-            question_encoder = m.l.inner
+        question_encoder = m.l.inner
         subjemb = m.r.subjenc
         predemb = m.r.predenc
         tt.tock("loaded model")
