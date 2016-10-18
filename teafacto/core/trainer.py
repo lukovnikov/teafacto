@@ -471,8 +471,6 @@ class ModelTrainer(object):
         tt = TT("iter")
         prevverre = [float("inf")] * len(self.validators)
         while not stop:
-            if self._autosave:
-                self.save()
             tt.tick("%d/%d" % (self.currentiter, int(self.maxiter)))
             erre = trainf()
             if self.currentiter == self.maxiter:
