@@ -82,7 +82,7 @@ class RNUBase(ReccableBlock):
 
     def __init__(self, dim=20, innerdim=20, wreg=0.0001,
                  initmult=0.1, nobias=False, paraminit="uniform",
-                 layernormalize=False, **kw): # dim is input dimensions, innerdim = dimension of internal elements
+                 **kw): #layernormalize=False): # dim is input dimensions, innerdim = dimension of internal elements
         super(RNUBase, self).__init__(**kw)
         self.indim = dim
         self.innerdim = innerdim
@@ -90,15 +90,15 @@ class RNUBase(ReccableBlock):
         self.initmult = initmult
         self.nobias = nobias
         self.paraminit = paraminit
-        self.layernormalize = layernormalize
+        '''self.layernormalize = layernormalize
         if self.layernormalize:
             self.layernorm_gain = param((innerdim,), name="layer_norm_gain").uniform()
             self.layernorm_bias = param((innerdim,), name="layer_norm_bias").uniform()
-            #self.nobias = True
+            #self.nobias = True'''
         self.rnuparams = {}
         if not self._waitforit:
             self.initparams()
-
+    '''
     def normalize_layer(self, vec):     # (batsize, hdim)
         if self.layernormalize:
             fshape = T.cast(vec.shape[1], "float32")
@@ -109,6 +109,7 @@ class RNUBase(ReccableBlock):
         else:
             ret = vec
         return ret
+    '''
 
     def recappl(self, inps, states):
         numrecargs = getnumargs(self.rec) - 2       # how much to pop from states
@@ -164,7 +165,7 @@ class RNU(RNUBase):
         inp = T.dot(x_t, self.w)    # w: (dim, innerdim) ==> inp: (batsize, innerdim)
         rep = T.dot(h_tm1, self.u)  # u: (innerdim, innerdim) ==> rep: (batsize, innerdim)
         h = inp + rep + self.b               # h: (batsize, innerdim)
-        h = self.normalize_layer(h)
+        '''h = self.normalize_layer(h)'''
         h = self.outpactivation(h)               #
         return [h, h] #T.tanh(inp+rep)
 
@@ -190,7 +191,7 @@ class GRU(GatedRNU):
         mgate =  self.gateactivation(T.dot(h_tm1, self.um)  + T.dot(x_t, self.wm)  + self.bm)
         hfgate = self.gateactivation(T.dot(h_tm1, self.uhf) + T.dot(x_t, self.whf) + self.bhf)
         canh = T.dot(h_tm1 * hfgate, self.u) + T.dot(x_t, self.w) + self.b
-        canh = self.normalize_layer(canh)
+        '''canh = self.normalize_layer(canh)'''
         canh = self.outpactivation(canh)
         h = mgate * h_tm1 + (1-mgate) * canh
         #h = self.normalize_layer(h)
