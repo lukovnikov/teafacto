@@ -224,7 +224,7 @@ class MultiLeftBlock(Block):
 
     def apply(self, x):
         res = self.inner(x)             # (batsize, 2, encdim)
-        mid = T.cast(res.shape[2] / 2, "float32")
+        mid = T.cast(res.shape[2] / 2, "int32")
         if self.mode == "multic":   # take top half of first and bottom half of second
             ret = T.concatenate([res[:, 0, :mid], res[:, 1, mid:]], axis=1)
         else:                       # return as is
