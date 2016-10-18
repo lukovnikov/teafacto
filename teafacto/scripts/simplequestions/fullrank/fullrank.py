@@ -200,7 +200,7 @@ class SeqLeftBlock(Block):
         # idxs^(batsize, seqlen, ...) --> (batsize, seqlen, 2, encdim)
         res = self.inner(x).dimshuffle(0, "x", 1)
         ret = T.concatenate([res, res], axis=1)
-        return ret
+        return ret      # (batsize, 2, decdim)
 
 
 class ConcatLeftBlock(Block):
@@ -213,7 +213,23 @@ class ConcatLeftBlock(Block):
         res = self.inner(x).dimshuffle(0, "x", 1) # (batsize, 1, q_enc_dim)
         mid = self.mid #res.shape[2]/2
         ret = T.concatenate([res[:, :, :mid], res[:, :, mid:]], axis=1)
-        return ret
+        return ret      # (batsize, 2, decdim)
+
+
+class MultiLeftBlock(Block):
+    def __init__(self, inner, mode, **kw):
+        super(MultiLeftBlock, self).__init__(**kw)
+        self.inner = inner
+        self.mode = mode
+
+    def apply(self, x):
+        res = self.inner(x)             # (batsize, 2, encdim)
+        mid = T.cast(res.shape[2] / 2, "float32")
+        if self.mode == "multic":   # take top half of first and bottom half of second
+            ret = T.concatenate([res[:, 0, :mid], res[:, 1, mid:]], axis=1)
+        else:                       # return as is
+            ret = res
+        return ret      # (batsize, 2, decdim)
 
 
 class RightBlock(Block):
@@ -226,7 +242,7 @@ class RightBlock(Block):
         aret = self.subjenc(subjslice).dimshuffle(0, "x", 1)
         bret = self.predenc(relslice).dimshuffle(0, "x", 1)
         ret = T.concatenate([aret, bret], axis=1)
-        return ret
+        return ret  # (batsize, 2, decdim)
 
 
 class TypedSubjBlock(Block):
@@ -269,13 +285,16 @@ class CustomPredictor(object):
 
     def ranksubjects(self, entcans):
         assert(self.qencodings is not None)
-        if self.mode == "concat" or self.mode == "multi":
-            mid = self.qencodings.shape[1] / 2
+        if self.mode == "concat":
+            qencforent = self.qencodings[:, :(self.qencodings.shape[1] / 2)]
         elif self.mode == "seq":
-            mid = self.qencodings.shape[1]
+            qencforent = self.qencodings[:, :]
+        elif self.mode == "multi":
+            qencforent = self.qencodings[:, 0, :]
+        elif self.mode == "multic":
+            qencforent = self.qencodings[:, 0, :(self.qencodings.shape[2] / 2)]
         else:
             raise Exception("unrecognized mode in prediction")
-        qencforent = self.qencodings[:, :mid]
         self.tt.tick("rank subjects")
         ret = []    # list of lists of (subj, score) tuples, sorted
         for i in range(self.qencodings.shape[0]):       # for every question
@@ -298,13 +317,16 @@ class CustomPredictor(object):
 
     def rankrelations(self, relcans):
         assert(self.qencodings is not None)
-        if self.mode == "concat" or self.mode == "multi":
-            mid = self.qencodings.shape[1] / 2
+        if self.mode == "concat":
+            qencforrel = self.qencodings[:, (self.qencodings.shape[1] / 2):]
         elif self.mode == "seq":
-            mid = 0
+            qencforrel = self.qencodings[:, :]
+        elif self.mode == "multi":
+            qencforrel = self.qencodings[:, 1, :]
+        elif self.mode == "multic":
+            qencforrel = self.qencodings[:, 1, (self.qencodings.shape[2] / 2):]
         else:
             raise Exception("unrecognized mode in prediction")
-        qencforrel = self.qencodings[:, mid:]
         self.tt.tick("rank relations")
         ret = []
         for i in range(self.qencodings.shape[0]):
@@ -517,7 +539,7 @@ class NegIdxGen(object):
 
 def run(negsammode="closest",   # "close" or "random"
         usetypes=True,
-        mode="seq",      # "seq" or "concat" or "multi"
+        mode="concat",      # "seq" or "concat" or "multi" or "multic"
         glove=True,
         embdim=100,
         charencdim=100,
@@ -584,7 +606,7 @@ def run(negsammode="closest",   # "close" or "random"
 
     if mode == "seq" or mode == "multi":
         decdim = encdim
-    elif mode == "concat":
+    elif mode == "concat" or mode == "multic":
         decdim = encdim / 2
     else:
         raise Exception("unrecognized mode")
@@ -610,7 +632,7 @@ def run(negsammode="closest",   # "close" or "random"
     else:
         raise Exception("no other character encoding modes available")
 
-    if mode == "multi":
+    if mode == "multi" or mode == "multic":
         wordenc = \
             SimpleSeq2MultiVec(inpemb=False, inpembdim=wordemb.outdim + charencdim,
                                innerdim=encdim, bidir=bidir, numouts=2, mode="seq")
@@ -660,8 +682,8 @@ def run(negsammode="closest",   # "close" or "random"
     elif mode == "concat":
         lb = ConcatLeftBlock(question_encoder, decdim)
         rb = RightBlock(subjemb, predemb)
-    elif mode == "multi":
-        lb = question_encoder       # ready as is (seq mode)
+    elif mode == "multi" or mode == "multic":
+        lb = MultiLeftBlock(question_encoder, mode)
         rb = RightBlock(subjemb, predemb)
     else:
         raise Exception("unrecognized mode")
