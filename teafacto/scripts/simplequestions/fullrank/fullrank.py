@@ -227,9 +227,10 @@ class MultiLeftBlock(Block):
         res = self.inner(x)             # (batsize, 2, encdim)
         if self.mode == "multic":   # take top half of first and bottom half of second
             mid = self.mid
-            ret = T.concatenate([res[:, 0, :mid], res[:, 1, mid:]], axis=1)
+            ret = T.concatenate([res[:, 0:1, :mid], res[:, 1:2, mid:]], axis=1)
         else:                       # return as is
             ret = res
+        print "!!!!!!!!!!!!!!!!!!!!!{}".format(ret.ndim)
         return ret      # (batsize, 2, decdim)
 
 
