@@ -204,33 +204,40 @@ class SeqLeftBlock(Block):
 
 
 class ConcatLeftBlock(Block):
-    def __init__(self, inner, mid, **kw):
+    def __init__(self, inner, **kw):
         super(ConcatLeftBlock, self).__init__(**kw)
         self.inner = inner
-        self.mid = mid
 
     def apply(self, x):
         res = self.inner(x).dimshuffle(0, "x", 1) # (batsize, 1, q_enc_dim)
-        mid = self.mid #res.shape[2]/2
+        mid = res.shape[2]/2
         ret = T.concatenate([res[:, :, :mid], res[:, :, mid:]], axis=1)
         return ret      # (batsize, 2, decdim)
 
 
 class MultiLeftBlock(Block):
-    def __init__(self, inner, mid, mode, **kw):
+    def __init__(self, inner, mode, **kw):
         super(MultiLeftBlock, self).__init__(**kw)
         self.inner = inner
         self.mode = mode
-        self.mid = mid
 
     def apply(self, x):
         res = self.inner(x)             # (batsize, 2, encdim)
         if self.mode == "multic":   # take top half of first and bottom half of second
-            mid = self.mid
-            ret = T.concatenate([res[:, 0:1, :mid], res[:, 1:2, mid:]], axis=1)
+            if not self.inner.bidir:
+                mid = res.shape[2]/2
+                ret = T.concatenate([res[:, 0:1, :mid], res[:, 1:2, mid:]], axis=1)
+            else:
+                quarts = res.shape[2]/4
+                ret = T.concatenate([
+                            T.concatenate([ res[:, 0:1, :quarts],
+                                            res[:, 0:1, 2*quarts:3*quarts]], axis=2),
+                            T.concatenate([ res[:, 1:2, quarts:2*quarts],
+                                            res[:, 1:2, 3*quarts:]], axis=2)
+                ], axis=1)
         else:                       # return as is
             ret = res
-        print "!!!!!!!!!!!!!!!!!!!!!{}".format(ret.ndim)
+        print "NDIM MULTILEFTBLOCK !!!!!!!!!!!!!!!!!!!!!{}".format(ret.ndim)
         return ret      # (batsize, 2, decdim)
 
 
@@ -287,7 +294,8 @@ class CustomPredictor(object):
 
     def ranksubjects(self, entcans):
         assert(self.qencodings is not None)
-        if self.mode == "concat":
+        qencforent = self.qencodings[:, 0, :]
+        '''if self.mode == "concat":
             qencforent = self.qencodings[:, :(self.qencodings.shape[1] / 2)]
         elif self.mode == "seq":
             qencforent = self.qencodings[:, :]
@@ -296,7 +304,7 @@ class CustomPredictor(object):
         elif self.mode == "multic":
             qencforent = self.qencodings[:, 0, :(self.qencodings.shape[2] / 2)]
         else:
-            raise Exception("unrecognized mode in prediction")
+            raise Exception("unrecognized mode in prediction")'''
         self.tt.tick("rank subjects")
         ret = []    # list of lists of (subj, score) tuples, sorted
         for i in range(self.qencodings.shape[0]):       # for every question
@@ -319,7 +327,8 @@ class CustomPredictor(object):
 
     def rankrelations(self, relcans):
         assert(self.qencodings is not None)
-        if self.mode == "concat":
+        qencforrel = self.qencodings[:, 1, :]
+        '''if self.mode == "concat":
             qencforrel = self.qencodings[:, (self.qencodings.shape[1] / 2):]
         elif self.mode == "seq":
             qencforrel = self.qencodings[:, :]
@@ -328,7 +337,7 @@ class CustomPredictor(object):
         elif self.mode == "multic":
             qencforrel = self.qencodings[:, 1, (self.qencodings.shape[2] / 2):]
         else:
-            raise Exception("unrecognized mode in prediction")
+            raise Exception("unrecognized mode in prediction")'''
         self.tt.tick("rank relations")
         ret = []
         for i in range(self.qencodings.shape[0]):
@@ -682,10 +691,10 @@ def run(negsammode="closest",   # "close" or "random"
         lb = SeqLeftBlock(question_encoder)
         rb = RightBlock(subjemb, predemb)
     elif mode == "concat":
-        lb = ConcatLeftBlock(question_encoder, decdim)
+        lb = ConcatLeftBlock(question_encoder)
         rb = RightBlock(subjemb, predemb)
     elif mode == "multi" or mode == "multic":
-        lb = MultiLeftBlock(question_encoder, decdim, mode)
+        lb = MultiLeftBlock(question_encoder, mode)
         rb = RightBlock(subjemb, predemb)
     else:
         raise Exception("unrecognized mode")
@@ -749,13 +758,13 @@ def run(negsammode="closest",   # "close" or "random"
         tt.tick("loading model")
         m = SeqMatchScore.load("fullrank{}.model".format(loadmodel))
         #embed()
-        question_encoder = m.l.inner
+        lb = m.l
         subjemb = m.r.subjenc
         predemb = m.r.predenc
         tt.tock("loaded model")
 
     # evaluation
-    predictor = CustomPredictor(questionencoder=question_encoder,
+    predictor = CustomPredictor(questionencoder=lb,
                                 entityencoder=subjemb,
                                 relationencoder=predemb,
                                 mode=mode,

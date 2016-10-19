@@ -647,7 +647,7 @@ class MakeRNU(object):
                        set(spec.keys()).union(set(fspec.keys()))
                             == set(fspec.keys()))
                 fspec.update(spec)
-            if fspec["bidir"] == True:
+            if fspec["bidir"]:
                 rnn = BiRNU.fromrnu(fspec["rnu"], dim=prevdim, innerdim=fspec["dim"])
                 prevdim = fspec["dim"] * 2
             else:

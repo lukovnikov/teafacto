@@ -17,13 +17,19 @@ def recurmap(fun, data):
         return type(data)(dict([(recurmap(fun, item[0]), recurmap(fun, item[1])) for item in data.items()]))
     elif isinstance(data, (tuple, list, set)):
         return type(data)([recurmap(fun, elem) for elem in data])
+    elif isinstance(data, slice):
+        sliceattrs = [recurmap(fun, elem) for elem in [data.start, data.stop, data.step]]
+        return slice(*sliceattrs)
     else:
         return fun(data)
+
 
 def recurfilter(fun, data):
     acc = []
     if isinstance(data, dict):
         data = data.items()
+    if isinstance(data, slice):
+        data = [data.start, data.stop, data.step]
     if isinstance(data, (tuple, list, set)):
         for elem in data:
             ret = recurfilter(fun, elem)

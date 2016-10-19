@@ -51,4 +51,13 @@ class TestSimpleSeq2MultiVec(TestCase):
         prd = enc.predict(x)
         self.assertEqual(prd.shape, (33, 2, 20))
 
+    def test_bidir_shape(self):
+        enc = SimpleSeq2MultiVec(indim=100, inpembdim=10,
+                                 innerdim=20, numouts=2, mode="seq",
+                                 bidir=True)
+        x = np.random.randint(0, 100, (33, 5))
+        prd = enc.predict(x)
+        self.assertEqual(prd.shape, (33, 2, 40))
+
+
 
