@@ -210,8 +210,15 @@ class ConcatLeftBlock(Block):
 
     def apply(self, x):
         res = self.inner(x).dimshuffle(0, "x", 1) # (batsize, 1, q_enc_dim)
-        mid = res.shape[2]/2
-        ret = T.concatenate([res[:, :, :mid], res[:, :, mid:]], axis=1)
+        if not self.inner.bidir:
+            mid = res.shape[2]/2
+            ret = T.concatenate([res[:, :, :mid], res[:, :, mid:]], axis=1)
+        else:
+            quart = res.shape[2]/2
+            ret = T.concatenate([
+                T.concatenate([res[:, :, :quart], res[:, :, 2*quart:3*quart]], axis=2),
+                T.concatenate([res[:, :, quart:2*quart], res[:, :, 3*quart:]], axis=2)
+            ], axis=1)
         return ret      # (batsize, 2, decdim)
 
 
@@ -272,13 +279,13 @@ class TypedSubjBlock(Block):
 
 class CustomPredictor(object):
     def __init__(self, questionencoder=None, entityencoder=None,
-                 relationencoder=None, mode=None,
+                 relationencoder=None,
                  enttrans=None, reltrans=None, debug=False,
                  subjinfo=None):
         self.qenc = questionencoder
         self.eenc = entityencoder
         self.renc = relationencoder
-        self.mode = mode
+        #self.mode = mode
         self.enttrans = enttrans
         self.reltrans = reltrans
         self.debug = debug
@@ -582,8 +589,6 @@ def run(negsammode="closest",   # "close" or "random"
     subjinfo, (testsubjcans, relsperent) = readdata(debug=debug,
                                                     numtestcans=numtestcans if numtestcans > 0 else None)
 
-
-
     if usetypes:
         print "building type matrix"
         typmat = buildtypmat(subjmat, subjinfo, worddic)
@@ -658,7 +663,7 @@ def run(negsammode="closest",   # "close" or "random"
     predemb = SimpleSeq2Vec(inpemb=wordemb,
                             innerdim=decdim,
                             maskid=maskid,
-                            bidir=bidir,
+                            bidir=False,
                             layers=1)
     #predemb.load(relmat)
 
@@ -667,13 +672,13 @@ def run(negsammode="closest",   # "close" or "random"
         subjtypemb = SimpleSeq2Vec(inpemb=wordemb,
                                    innerdim=int(np.ceil(decdim*1./3)),
                                    maskid=maskid,
-                                   bidir=bidir,
+                                   bidir=False,
                                    layers=1)
         # encode subject on character level
         subjemb = SimpleSeq2Vec(inpemb=charemb,
                                 innerdim=int(np.floor(decdim*2./3)),
                                 maskid=maskid,
-                                bidir=bidir,
+                                bidir=False,
                                 layers=1)
         subjemb = TypedSubjBlock(typlen, subjemb, subjtypemb)
     else:
@@ -681,7 +686,7 @@ def run(negsammode="closest",   # "close" or "random"
         subjemb = SimpleSeq2Vec(inpemb=charemb,
                                 innerdim=decdim,
                                 maskid=maskid,
-                                bidir=bidir,
+                                bidir=False,
                                 layers=1)
     #subjemb.load(subjmat)
     if testmodel:
@@ -767,7 +772,7 @@ def run(negsammode="closest",   # "close" or "random"
     predictor = CustomPredictor(questionencoder=lb,
                                 entityencoder=subjemb,
                                 relationencoder=predemb,
-                                mode=mode,
+                                #mode=mode,
                                 enttrans=transf.ef,
                                 reltrans=transf.rf,
                                 debug=debugtest,
