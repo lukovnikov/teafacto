@@ -571,7 +571,7 @@ def run(negsammode="closest",   # "close" or "random"
         epochs=15,
         gradnorm=1.0,
         wreg=0.0001,
-        loadmodel=-1,
+        loadmodel="no",
         debug=False,
         debugtest=False,
         forcesubjincl=False,
@@ -740,7 +740,7 @@ def run(negsammode="closest",   # "close" or "random"
     if debug:
         embed()
 
-    if epochs > 0 and loadmodel < 0:
+    if epochs > 0 and loadmodel == "no":
         tt.tick("training")
         saveid = "".join([str(np.random.randint(0, 10)) for i in range(4)])
         print("CHECKPOINTING AS: {}".format(saveid))
@@ -759,7 +759,7 @@ def run(negsammode="closest",   # "close" or "random"
         #scorer.save("fullrank{}.model".format(saveid))
         print("SAVED AS: {}".format(saveid))
 
-    if loadmodel > -1:
+    if loadmodel is not "no":
         tt.tick("loading model")
         m = SeqMatchScore.load("fullrank{}.model".format(loadmodel))
         #embed()
