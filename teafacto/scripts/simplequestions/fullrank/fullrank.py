@@ -9,7 +9,7 @@ from teafacto.blocks.lang.sentenc import TwoLevelEncoder
 from teafacto.blocks.seq.rnn import RNNSeqEncoder, MaskMode
 from teafacto.blocks.seq.enc import SimpleSeq2Vec, SimpleSeq2MultiVec
 from teafacto.blocks.cnn import CNNSeqEncoder
-from teafacto.blocks.basic import VectorEmbed
+from teafacto.blocks.basic import VectorEmbed, MatDot
 from teafacto.blocks.memory import MemVec
 from teafacto.blocks.match import SeqMatchScore, CosineDistance, MatchScore
 
@@ -206,10 +206,14 @@ class SeqLeftBlock(Block):
 class ConcatLeftBlock(Block):
     def __init__(self, inner, **kw):
         super(ConcatLeftBlock, self).__init__(**kw)
+        self.trans = MatDot(inner.outdim, inner.outdim, init="glorotuniform") \
+            if inner.bidir else lambda x: x
         self.inner = inner
 
     def apply(self, x):
-        res = self.inner(x).dimshuffle(0, "x", 1) # (batsize, 1, q_enc_dim)
+        res = self.inner(x)
+        res = self.trans(res)
+        res = res.dimshuffle(0, "x", 1)     # (batsize, 1, q_enc_dim)
         if not self.inner.bidir:
             mid = res.shape[2]/2
             ret = T.concatenate([res[:, :, :mid], res[:, :, mid:]], axis=1)
@@ -647,6 +651,9 @@ def run(negsammode="closest",   # "close" or "random"
             .maskoptions(maskid, MaskMode.AUTO)
     else:
         raise Exception("no other character encoding modes available")
+
+    if bidir:
+        encdim = encdim / 2
 
     if mode == "multi" or mode == "multic":
         wordenc = \
