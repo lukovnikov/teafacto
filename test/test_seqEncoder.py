@@ -2,7 +2,7 @@ from unittest import TestCase
 
 import numpy as np
 
-from teafacto.blocks.seq.rnn import SeqEncoder, MaskSetMode
+from teafacto.blocks.seq.rnn import SeqEncoder, MaskSetMode, RNNSeqEncoder
 from teafacto.blocks.seq.rnu import GRU
 from teafacto.blocks.basic import IdxToOneHot, VectorEmbed
 from teafacto.core.base import Val
@@ -106,3 +106,16 @@ class TestSeqEncoder(TestCase):
         print encmaskpred.shape
         print encmaskpred
         self.assertTrue(np.sum(encmaskpred - embmaskpred) == 0)
+
+
+class TestRNNSeqEncoder(TestCase):
+    def test_bidir(self):
+        m = RNNSeqEncoder(indim=20, inpembdim=5, innerdim=10, bidir=True, maskid=0).with_outputs()
+        xval = np.random.randint(1, 20, (7, 3))
+        xval = np.concatenate([xval, np.zeros_like(xval)], axis=1)
+        x = Val(xval)
+        mp, fmp = m(x)
+        fmpval, mpval = mp.eval(), fmp.eval()
+        self.assertTrue(np.allclose(fmpval[:, :10], mpval[:, -1, :10]))
+        self.assertTrue(np.allclose(fmpval[:, 10:], mpval[:, 0, 10:]))
+        mpm = mp.mask
