@@ -568,6 +568,7 @@ def run(negsammode="closest",   # "close" or "random"
         charembdim=50,
         encdim=400,
         bidir=False,
+        layers=1,
         charenc="rnn",  # "cnn" or "rnn"
         margin=0.5,
         lr=0.1,
@@ -660,7 +661,7 @@ def run(negsammode="closest",   # "close" or "random"
             SimpleSeq2MultiVec(inpemb=False, inpembdim=wordemb.outdim + charencdim,
                                innerdim=encdim, bidir=bidir, numouts=2, mode="seq")
     else:
-
+        encdim = [encdim] * layers
         wordenc = RNNSeqEncoder(inpemb=False, inpembdim=wordemb.outdim + charencdim,
                                 innerdim=encdim, bidir=bidir).maskoptions(MaskMode.NONE)
 
