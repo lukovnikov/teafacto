@@ -112,7 +112,7 @@ class SimpleSeq2MultiVec(Block):
             innerdim = [innerdim]
         innerdim[-1] += numouts
         rnn, lastdim = self.makernu(inpembdim, innerdim, bidir=bidir)
-        self.outdim = lastdim*numouts
+        self.outdim = lastdim*numouts if mode=="concat" else lastdim
         self.maskid = maskid
         self.inpemb = inpemb
         self.numouts = numouts
