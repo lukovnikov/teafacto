@@ -110,12 +110,13 @@ class TestSeqEncoder(TestCase):
 
 class TestRNNSeqEncoder(TestCase):
     def test_bidir(self):
-        m = RNNSeqEncoder(indim=20, inpembdim=5, innerdim=10, bidir=True, maskid=0).with_outputs()
+        m = RNNSeqEncoder(indim=20, inpembdim=5, innerdim=(10, 10), bidir=True, maskid=0).with_outputs()
         xval = np.random.randint(1, 20, (7, 3))
         xval = np.concatenate([xval, np.zeros_like(xval)], axis=1)
         x = Val(xval)
-        mp, fmp = m(x)
-        fmpval, mpval = mp.eval(), fmp.eval()
+        fmp, mp = m(x)
+        fmpval, mpval = fmp.eval(), mp.eval()
         self.assertTrue(np.allclose(fmpval[:, :10], mpval[:, -1, :10]))
         self.assertTrue(np.allclose(fmpval[:, 10:], mpval[:, 0, 10:]))
         mpm = mp.mask
+        self.assertEqual(np.sum(mpm.eval() - xval > 0), 0)

@@ -20,6 +20,7 @@ class TwoLevelEncoder(Block):
         self.l2enc = l2enc
         self.maskid = maskid
         self.bidir = l2enc.bidir
+        self.outdim = l2enc.outdim
 
     def all_outputs(self):
         self.l2enc = self.l2enc.all_outputs()
