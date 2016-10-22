@@ -75,7 +75,9 @@ class Seq2Vec(Block):
 class SimpleSeq2Vec(Seq2Vec):
     def __init__(self, indim=400, inpembdim=50, inpemb=None,
                  innerdim=100, maskid=0, bidir=False, pool=False, **kw):
-        if inpemb is None:
+        if inpemb is False:
+            inpemb = None
+        elif inpemb is None:
             if inpembdim is None:
                 inpemb = IdxToOneHot(indim)
                 inpembdim = indim
@@ -221,15 +223,7 @@ class SimpleSeq2Sca(SimpleSeq2Vec):
     def __init__(self, **kw):
         super(SimpleSeq2Sca, self).__init__(**kw)
         self.enc.all_outputs().with_mask()
-        if "innerdim" in kw:
-            kwindim = kw["innerdim"]
-            if issequence(kwindim):
-                summdim = kwindim[-1]
-            else:
-                summdim = kwindim
-        else:
-            summdim = 100
-        self.summ = param((summdim,), name="summarize").uniform()
+        self.summ = param((self.outdim,), name="summarize").uniform()
 
     def apply(self, x, mask=None):
         enco, mask = self.enc(x, mask=mask)

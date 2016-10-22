@@ -10,7 +10,8 @@ from teafacto.blocks.basic import VectorEmbed, MatDot
 
 
 class CustomSeq2Pair(Block):
-    def __init__(self, inpemb, encdim=100, scadim=100, maskid=0, bidir=False, scalayers=1, enclayers=1, outdim=100, **kw):
+    def __init__(self, inpemb, encdim=100, scadim=100, maskid=0,
+                 bidir=False, scalayers=1, enclayers=1, outdim=100, **kw):
         super(CustomSeq2Pair, self).__init__(**kw)
         self.tosca = SimpleSeq2Sca(inpemb=inpemb, inpembdim=inpemb.outdim, innerdim=scadim, maskid=maskid, bidir=bidir, layers=scalayers)
         self.subjenc = SimpleSeq2Vec(inpemb=inpemb, inpembdim=inpemb.outdim, innerdim=encdim, maskid=maskid, bidir=bidir, layers=enclayers)

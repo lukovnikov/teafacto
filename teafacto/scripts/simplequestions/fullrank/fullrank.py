@@ -7,9 +7,9 @@ from scipy import sparse
 from teafacto.blocks.lang.wordvec import Glove, WordEmb
 from teafacto.blocks.lang.sentenc import TwoLevelEncoder
 from teafacto.blocks.seq.rnn import RNNSeqEncoder, MaskMode
-from teafacto.blocks.seq.enc import SimpleSeq2Vec, SimpleSeq2MultiVec
+from teafacto.blocks.seq.enc import SimpleSeq2Vec, SimpleSeq2MultiVec, SimpleSeq2Sca, EncLastDim
 from teafacto.blocks.cnn import CNNSeqEncoder
-from teafacto.blocks.basic import VectorEmbed, MatDot
+from teafacto.blocks.basic import VectorEmbed, MatDot, Linear
 from teafacto.blocks.memory import MemVec
 from teafacto.blocks.match import SeqMatchScore, CosineDistance, MatchScore
 
@@ -250,6 +250,47 @@ class MultiLeftBlock(Block):
             ret = res
         print "NDIM MULTILEFTBLOCK !!!!!!!!!!!!!!!!!!!!!{}".format(ret.ndim)
         return ret      # (batsize, 2, decdim)
+
+
+class BinoEncoder(Block):
+    def __init__(self, charenc=None, wordemb=None, maskid=-1, scalayers=1,
+            scadim=100, encdim=100, outdim=None, scabidir=False, encbidir=False, enclayers=1, **kw):
+        super(BinoEncoder, self).__init__(**kw)
+        self.charenc = charenc
+        self.wordemb = wordemb
+        self.maskid = maskid
+        self.bidir = encbidir  # TODO
+        outdim = encdim if outdim is None else outdim
+        self.outdim = outdim  # TODO
+        self.outerpol = SimpleSeq2Sca(inpemb=False, inpembdim=charenc.outdim + wordemb.outdim,
+                                      innerdim=[scadim]*scalayers, bidir=scabidir)
+        self.leftenc = RNNSeqEncoder(inpemb=False, inpembdim=charenc.outdim + wordemb.outdim,
+                                     innerdim=[encdim]*enclayers, bidir=encbidir, maskid=maskid)
+        self.rightenc = RNNSeqEncoder(inpemb=False, inpembdim=charenc.outdim + wordemb.outdim,
+                                      innerdim=[encdim]*enclayers, bidir=encbidir, maskid=maskid)
+        self.leftlin = Linear(self.leftenc.outdim, outdim)
+        self.rightlin = Linear(self.rightenc.outdim, outdim)
+
+    def apply(self, x):
+        # word vectors and mask
+        charten = x[:, :, 1:]
+        charencs = EncLastDim(self.charenc)(charten)
+        wordmat = x[:, :, 0]
+        wordembs = self.wordemb(wordmat)
+        wordvecs = T.concatenate([charencs, wordembs], axis=2)
+        wordmask = T.neq(wordmat, self.maskid)
+        wordvecs.mask = wordmask
+        # do outerpolation
+        weights, mask = self.outerpol(wordvecs)
+        leftenco = self.leftenc(x, weights=weights).dimshuffle(0, 'x', 1)
+        rightenco = self.rightenc(x, weights=(1 - weights)).dimshuffle(0, 'x', 1)
+        ret = T.concatenate([self.leftlin(leftenco),
+                             self.rightlin(rightenco)],
+                            axis=1)
+        return ret
+
+
+
 
 
 class RightBlock(Block):
@@ -561,7 +602,7 @@ class NegIdxGen(object):
 
 def run(negsammode="closest",   # "close" or "random"
         usetypes=True,
-        mode="concat",      # "seq" or "concat" or "multi" or "multic"
+        mode="concat",      # "seq" or "concat" or "multi" or "multic" or "bino"
         glove=True,
         embdim=100,
         charencdim=100,
@@ -656,38 +697,51 @@ def run(negsammode="closest",   # "close" or "random"
     if bidir:
         encdim = encdim / 2
 
-    if mode == "multi" or mode == "multic":
-        wordenc = \
-            SimpleSeq2MultiVec(inpemb=False, inpembdim=wordemb.outdim + charencdim,
-                               innerdim=encdim, bidir=bidir, numouts=2, mode="seq")
-    else:
-        encdim = [encdim] * layers
-        wordenc = RNNSeqEncoder(inpemb=False, inpembdim=wordemb.outdim + charencdim,
-                                innerdim=encdim, bidir=bidir).maskoptions(MaskMode.NONE)
+    if mode != "bino":
+        if mode == "multi" or mode == "multic":
+            wordenc = \
+                SimpleSeq2MultiVec(inpemb=False, inpembdim=wordemb.outdim + charencdim,
+                                   innerdim=encdim, bidir=bidir, numouts=2, mode="seq")
+        else:
+            encdim = [encdim] * layers
+            wordenc = RNNSeqEncoder(inpemb=False, inpembdim=wordemb.outdim + charencdim,
+                                    innerdim=encdim, bidir=bidir).maskoptions(MaskMode.NONE)
 
-    question_encoder = TwoLevelEncoder(l1enc=charenc, l2emb=wordemb,
-                                       l2enc=wordenc, maskid=maskid)
+        question_encoder = TwoLevelEncoder(l1enc=charenc, l2emb=wordemb,
+                                           l2enc=wordenc, maskid=maskid)
+
+    else:
+        question_encoder = BinoEncoder(charenc=charenc, wordemb=wordemb, maskid=maskid,
+                                       scadim=100, encdim=encdim/2, bidir=bidir,
+                                       enclayers=layers, outdim=decdim, scabidir=True)
+
     # encode predicate on word level
     predemb = SimpleSeq2Vec(inpemb=wordemb,
                             innerdim=decdim,
                             maskid=maskid,
                             bidir=False,
                             layers=1)
+
     #predemb.load(relmat)
+
 
     if usetypes:
         # encode subj type on word level
         subjtypemb = SimpleSeq2Vec(inpemb=wordemb,
-                                   innerdim=int(np.ceil(decdim*1./3)),
+                                   innerdim=int(np.ceil(decdim*1./2)),
                                    maskid=maskid,
                                    bidir=False,
                                    layers=1)
         # encode subject on character level
+        charbidir = True
+        charencinnerdim = int(np.floor(decdim*1./2))
+        if charbidir:
+            charencinnerdim /= 2
         subjemb = SimpleSeq2Vec(inpemb=charemb,
-                                innerdim=int(np.floor(decdim*2./3)),
+                                innerdim=charencinnerdim,
                                 maskid=maskid,
-                                bidir=False,
-                                layers=1)
+                                bidir=charbidir,
+                                layers=2)
         subjemb = TypedSubjBlock(typlen, subjemb, subjtypemb)
     else:
         # encode subject on character level
@@ -822,6 +876,21 @@ def run(negsammode="closest",   # "close" or "random"
                 y) if x in subjinfo else (x, y)
                for x, y in subjrank]
         return ret
+
+
+    def inspectboth(hidecorrect=False, hidenotincan=False):
+        rwd = {v: k for k, v in worddic.items()}
+        for i in range(len(predictor.subjranks)):
+            subjx = testgold[i, 0]
+            predx = testgold[i, 1]
+            subjrank = predictor.subjranks[i]
+            predrank = predictor.relranks[i]
+            if hidecorrect and subjx == subjrank[0][0] and predrank[0][0] == predx:
+                continue
+            if subjx not in [k for k, v in subjrank]:
+                if hidenotincan:
+                    continue
+
 
 
     def inspectsubjs(hidecorrect=False, hidenotincan=False, shownotincan=False):

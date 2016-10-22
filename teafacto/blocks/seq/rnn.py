@@ -361,7 +361,8 @@ class RNNSeqEncoder(SeqEncoder):
         if not issequence(innerdim):
             innerdim = [innerdim]
         self.outdim = innerdim[-1] if not bidir else innerdim[-1] * 2
-        layers, _ = MakeRNU.make(inpembdim, innerdim, bidir=bidir)
+        layers, lastdim = MakeRNU.make(inpembdim, innerdim, bidir=bidir)
+        #self.outdim = lastdim      # TODO
         super(RNNSeqEncoder, self).__init__(inpemb, *layers, **kw)
 
 
