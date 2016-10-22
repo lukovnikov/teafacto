@@ -282,12 +282,12 @@ class BinoEncoder(Block):
         wordvecs.mask = wordmask
         # do outerpolation
         weights, mask = self.outerpol(wordvecs)
-        leftenco = self.leftenc(x, weights=weights).dimshuffle(0, 'x', 1)
-        rightenco = self.rightenc(x, weights=(1 - weights)).dimshuffle(0, 'x', 1)
+        leftenco = self.leftenc(wordvecs, weights=weights).dimshuffle(0, 'x', 1)
+        rightenco = self.rightenc(wordvecs, weights=(1 - weights)).dimshuffle(0, 'x', 1)
         ret = T.concatenate([self.leftlin(leftenco),
                              self.rightlin(rightenco)],
                             axis=1)
-        return ret
+        return ret      # (batsize, 2, decdim)
 
 
 
