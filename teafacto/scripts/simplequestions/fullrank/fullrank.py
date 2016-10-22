@@ -668,7 +668,7 @@ def run(negsammode="closest",   # "close" or "random"
 
     if mode == "seq" or mode == "multi":
         decdim = encdim
-    elif mode == "concat" or mode == "multic":
+    elif mode == "concat" or mode == "multic" or mode == "bino":
         decdim = encdim / 2
     else:
         raise Exception("unrecognized mode")
@@ -735,13 +735,15 @@ def run(negsammode="closest",   # "close" or "random"
         # encode subject on character level
         charbidir = True
         charencinnerdim = int(np.floor(decdim*1./2))
+        charenclayers = 1
         if charbidir:
             charencinnerdim /= 2
+            charenclayers = 2
         subjemb = SimpleSeq2Vec(inpemb=charemb,
                                 innerdim=charencinnerdim,
                                 maskid=maskid,
                                 bidir=charbidir,
-                                layers=2)
+                                layers=charenclayers)
         subjemb = TypedSubjBlock(typlen, subjemb, subjtypemb)
     else:
         # encode subject on character level
@@ -762,6 +764,9 @@ def run(negsammode="closest",   # "close" or "random"
         rb = RightBlock(subjemb, predemb)
     elif mode == "multi" or mode == "multic":
         lb = MultiLeftBlock(question_encoder, mode)
+        rb = RightBlock(subjemb, predemb)
+    elif mode == "bino":
+        lb = question_encoder
         rb = RightBlock(subjemb, predemb)
     else:
         raise Exception("unrecognized mode")
