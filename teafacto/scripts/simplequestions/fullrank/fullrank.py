@@ -627,6 +627,7 @@ def run(negsammode="closest",   # "close" or "random"
         checkdata=False,
         testnegsam=False,
         testmodel=False,
+        sepcharembs=False,
         ):
     tt = ticktock("script")
     tt.tick("loading data")
@@ -682,6 +683,7 @@ def run(negsammode="closest",   # "close" or "random"
         wordemb = WordEmb(dim=embdim, indim=numwords)
 
     charemb = VectorEmbed(indim=numchars, dim=charembdim)
+    charemb2 = VectorEmbed(indim=numchars, dim=charembdim)
     if charenc == "cnn":
         print "using CNN char encoder"
         charenc = CNNSeqEncoder(inpemb=charemb,
@@ -724,7 +726,7 @@ def run(negsammode="closest",   # "close" or "random"
 
     #predemb.load(relmat)
 
-
+    scharemb = charemb2 if sepcharembs else charemb
     if usetypes:
         # encode subj type on word level
         subjtypemb = SimpleSeq2Vec(inpemb=wordemb,
@@ -739,7 +741,7 @@ def run(negsammode="closest",   # "close" or "random"
         if charbidir:
             charencinnerdim /= 2
             charenclayers = 2
-        subjemb = SimpleSeq2Vec(inpemb=charemb,
+        subjemb = SimpleSeq2Vec(inpemb=scharemb,
                                 innerdim=charencinnerdim,
                                 maskid=maskid,
                                 bidir=charbidir,
@@ -747,7 +749,7 @@ def run(negsammode="closest",   # "close" or "random"
         subjemb = TypedSubjBlock(typlen, subjemb, subjtypemb)
     else:
         # encode subject on character level
-        subjemb = SimpleSeq2Vec(inpemb=charemb,
+        subjemb = SimpleSeq2Vec(inpemb=scharemb,
                                 innerdim=decdim,
                                 maskid=maskid,
                                 bidir=False,
