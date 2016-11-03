@@ -70,7 +70,7 @@ def run(p="m",
             .cross_entropy().adam().grad_total_norm(1.)\
             .split_validate(5).cross_entropy().seq_accuracy()\
             .train(numbats, epochs)
-    except Exception:
+    except Exception, e:
         embed()
 
     embed()

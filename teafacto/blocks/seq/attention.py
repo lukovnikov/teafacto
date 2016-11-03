@@ -168,8 +168,3 @@ class WeightedSumAttCon(AttentionConsumer):    # applies attention to sequence w
         return T.sum(ret, axis=1)
 
 
-class ArgmaxAttCon(AttentionConsumer):
-    def apply(self, data, weights):
-        bestidx = T.argmax(weights, axis=1)
-        return data[T.arange(bestidx.shape[0]), bestidx, :]
-
