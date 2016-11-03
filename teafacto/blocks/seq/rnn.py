@@ -3,7 +3,7 @@ import numpy as np
 
 from teafacto.blocks.seq.attention import WeightedSumAttCon, Attention, AttentionConsumer, LinearGateAttentionGenerator
 from teafacto.blocks.seq.rnu import GRU, ReccableBlock, RecurrentBlock, RNUBase
-from teafacto.blocks.basic import IdxToOneHot, Softmax, MatDot, Eye, VectorEmbed
+from teafacto.blocks.basic import IdxToOneHot, Softmax, MatDot, Eye, VectorEmbed, Linear
 from teafacto.core.base import Block, tensorops as T, asblock
 from teafacto.util import issequence, isnumber
 
@@ -400,7 +400,8 @@ class SeqDecoder(Block):
         seq_emb_t0 = T.repeat(seq_emb_t0_sym[np.newaxis, :], num, axis=0)
         return seq_emb_t0
 
-    def apply(self, context, seq, context_0=None, initstates=None, mask=None, encmask=None, startsymemb=None, **kw):  # context: (batsize, enc.innerdim), seq: idxs-(batsize, seqlen)
+    def apply(self, context, seq, context_0=None, initstates=None, mask=None,
+              encmask=None, startsymemb=None, **kw):  # context: (batsize, enc.innerdim), seq: idxs-(batsize, seqlen)
         if initstates is None:
             initstates = seq.shape[0]
         elif issequence(initstates):
@@ -448,6 +449,7 @@ class SeqDecoder(Block):
     def _get_ctx_t(self, ctx, states_tm1, encmask):
         if ctx.d.ndim == 2:     # static context
             ctx_t = ctx
+            assert(self.attention is None)
         elif ctx.d.ndim > 2:
             # ctx is 3D, always dynamic context
             assert(self.attention is not None)
@@ -470,6 +472,83 @@ class SeqDecoder(Block):
         _y_t = T.concatenate([h_t, ctx_t], axis=1) if self.outconcat else h_t
         y_t = self.softmaxoutblock(_y_t)
         return [y_t, ctx_t, t] + states_t
+
+
+class SeqDecoderAtt(Block):
+    """ seq decoder with attention with new inconcat implementation """
+
+    def __init__(self, layers, softmaxoutblock=None, innerdim=None,
+                 attention=None, inconcat=True, outconcat=False, **kw):
+        super(SeqDecoderAtt, self).__init__(**kw)
+        self.embedder = layers[0]
+        self.block = RecStack(*layers[1:])
+        self.outdim = innerdim
+        self.attention = attention
+        self.inconcat = inconcat
+        self.outconcat = outconcat
+        self._mask = False
+        self._attention = None
+        assert (isinstance(self.block, ReccableBlock))
+        if softmaxoutblock is None:  # default softmax out block
+            sm = Softmax()
+            self.lin = Linear(indim=self.outdim, dim=self.embedder.indim)
+            self.softmaxoutblock = asblock(lambda x: sm(self.lin(x)))
+        elif softmaxoutblock is False:
+            self.softmaxoutblock = asblock(lambda x: x)
+        else:
+            self.softmaxoutblock = softmaxoutblock
+
+    @property
+    def numstates(self):
+        return self.block.numstates
+
+    def apply(self, ctx, seq, initstates=None, mask=None, ctxmask=None, **kw):  # context: (batsize, enc.innerdim), seq: idxs-(batsize, seqlen)
+        ctxmask = ctx.mask if ctxmask is None else ctxmask
+        if initstates is None:
+            initstates = seq.shape[0]
+        elif issequence(initstates):
+            if len(initstates) < self.numstates:  # fill up with batsizes for lower layers
+                initstates = [seq.shape[0]] * (self.numstates - len(initstates)) + initstates
+        init_info = self.get_init_info(initstates)  # sets init states to provided ones
+        ctxmask = T.ones(ctx.shape[:2], dtype="float32") if ctxmask is None else ctxmask
+
+        seq_emb = self.embedder(seq)    # (batsize, seqlen, embdim)
+        mask = seq_emb.mask if mask is None else mask
+        outputs, _ = T.scan(fn=self.rec,
+                            sequences=seq_emb.dimswap(1, 0),
+                            outputs_info=[None, 0] + init_info,
+                            non_sequences=[ctxmask, ctx])
+        ret = outputs[0].dimswap(1, 0)  # returns probabilities of symbols --> (batsize, seqlen, vocabsize)
+        ret.mask = mask
+        return ret
+
+    def get_init_info(self, initstates):
+        initstates = self.block.get_init_info(initstates)
+        return initstates
+
+    def _get_ctx_t(self, ctx, h_tm1, encmask):
+        # ctx is 3D, always dynamic context
+        assert (self.attention is not None)
+        assert(ctx.d.ndim > 2)
+        ctx_t = self.attention(h_tm1, ctx, mask=encmask)
+        return ctx_t
+
+    def rec(self, x_t_emb, t, *args):  # x_t_emb: (batsize, embdim), context: (batsize, enc.innerdim)
+        states_tm1 = args[:-2]
+        ctx = args[-1]
+        encmask = args[-2]
+        # x_t_emb = self.embedder(x_t)  # i_t: (batsize, embdim)
+        # compute current context
+        ctx_t = self._get_ctx_t(ctx, states_tm1[0], encmask)     # TODO: might not work with LSTM
+        # do inconcat
+        i_t = T.concatenate([x_t_emb, ctx_t], axis=1) if self.inconcat else x_t_emb
+        rnuret = self.block.rec(i_t, *states_tm1)
+        t += 1
+        h_t = rnuret[0]
+        states_t = rnuret[1:]
+        _y_t = T.concatenate([h_t, ctx_t], axis=1) if self.outconcat else h_t
+        y_t = self.softmaxoutblock(_y_t)
+        return [y_t, t] + states_t
 
 # ----------------------------------------------------------------------------------------------------------------------
 

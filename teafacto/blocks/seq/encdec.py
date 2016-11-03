@@ -1,7 +1,7 @@
 from teafacto.core.base import Block, asblock, Val, issequence
-from teafacto.blocks.seq.rnn import SeqEncoder, MaskMode, MaskSetMode, SeqDecoder, BiRNU
+from teafacto.blocks.seq.rnn import SeqEncoder, MaskMode, MaskSetMode, SeqDecoder, SeqDecoderAtt, BiRNU
 from teafacto.blocks.seq.rnu import GRU
-from teafacto.blocks.seq.attention import Attention, WeightedSumAttCon, GenDotProdAttGen, ForwardAttGen
+from teafacto.blocks.seq.attention import Attention, WeightedSumAttCon, DotprodAttGen, GenDotProdAttGen, ForwardAttGen
 from teafacto.blocks.basic import VectorEmbed, IdxToOneHot, MatDot
 
 
@@ -17,37 +17,31 @@ class SeqEncDec(Block):
         else:
             self.statetrans = statetrans
 
-    def apply(self, inpseq, outseq, maskseq=None):
-        if maskseq is None:
-            mask = "auto"
-        else:
-            mask = maskseq
-        enco, allenco, encmask = self.enc(inpseq, mask=mask)
-        mask = None
+    def apply(self, inpseq, outseq, inmask=None, outmask=None):
+        enco, allenco = self.enc(inpseq, mask=inmask)
         if self.statetrans is not None:
             topstate = self.statetrans(enco, allenco)
-            deco = self.dec(allenco, outseq, initstates=[topstate], mask=mask, encmask=encmask)
+            deco = self.dec(allenco, outseq, initstates=[topstate], mask=outmask)
         else:
-            deco = self.dec(allenco, outseq, mask=mask, encmask=encmask)      # no state transfer
+            deco = self.dec(allenco, outseq, mask=outmask)      # no state transfer
         return deco
 
+    # TODO: DON'T USE THIS --> USE DEDICATED SAMPLER INSTEAD this should be called "start()" <-- REFACTOR
     def get_init_info(self, inpseq, batsize, maskseq=None):     # TODO: must evaluate enc here, in place, without any side effects
         """
         VERY DIFFERENT FROM THE PURELY SYMBOLIC GET_INIT_INFO IN REAL REC BLOCKS !!!
         This one is used in decoder/prediction
         """
-        enco, allenco, encmask = self.enc.predict(inpseq, mask=maskseq)
+        enco, allenco, _ = self.enc.predict(inpseq, mask=maskseq)
 
         if self.statetrans is not None:
             topstate = self.statetrans.predict(enco, allenco)   # this gives unused input warning in theano - it's normal
             initstates = [topstate]
         else:
             initstates = batsize
-        return self.dec.get_init_info(Val(allenco),
-                                      [Val(x) for x in initstates]
+        return self.dec.get_init_info([Val(x) for x in initstates]
                                             if issequence(initstates)
-                                            else initstates,
-                                      encmask=Val(encmask))
+                                            else initstates)
 
     def rec(self, x_t, *states):
         return self.dec.rec(x_t, *states)
@@ -56,13 +50,12 @@ class SeqEncDec(Block):
 class SeqEncDecAtt(SeqEncDec):
     def __init__(self, enclayers, declayers, attgen, attcon,
                  decinnerdim, statetrans=None, vecout=False,
-                 inconcat=True, outconcat=False, **kw):
+                 inconcat=True, outconcat=False, maskid=-1, **kw):
         enc = SeqEncoder(*enclayers)\
             .with_outputs()\
-            .with_mask()\
-            .maskoptions(-1, MaskMode.AUTO, MaskSetMode.ZERO)
+            .maskoptions(maskid, MaskMode.AUTO, MaskSetMode.ZERO)
         smo = False if vecout else None
-        dec = SeqDecoder(
+        dec = SeqDecoderAtt(
             declayers,
             attention=Attention(attgen, attcon),
             innerdim=decinnerdim, inconcat=inconcat,
@@ -86,21 +79,22 @@ class SimpleSeqEncDecAtt(SeqEncDecAtt):
                  vecout=False,
                  inconcat=True,
                  outconcat=False,
+                 maskid=-1,
                  **kw):
         encinnerdim = [encdim] if not issequence(encdim) else encdim
         decinnerdim = [decdim] if not issequence(decdim) else decdim
 
         self.enclayers, lastencinnerdim = \
-            self.getenclayers(inpembdim, inpvocsize, encinnerdim, bidir, rnu)
+            self.getenclayers(inpembdim, inpvocsize, encinnerdim, bidir, rnu, maskid=maskid)
 
         self.declayers = \
             self.getdeclayers(outembdim, outvocsize, lastencinnerdim,
-                              decinnerdim, rnu, inconcat)
+                              decinnerdim, rnu, inconcat, maskid=maskid)
 
         # attention
         lastdecinnerdim = decinnerdim[-1]
         argdecinnerdim = lastdecinnerdim if outconcat is False else lastencinnerdim + lastdecinnerdim
-        attgen = GenDotProdAttGen(indim=lastencinnerdim, memdim=lastdecinnerdim)
+        attgen = DotprodAttGen()
         attcon = WeightedSumAttCon()
 
         if statetrans is True:
@@ -113,7 +107,7 @@ class SimpleSeqEncDecAtt(SeqEncDecAtt):
             attgen, attcon, argdecinnerdim, statetrans=statetrans, vecout=vecout,
             inconcat=inconcat, outconcat=outconcat, **kw)
 
-    def getenclayers(self, inpembdim, inpvocsize, encinnerdim, bidir, rnu):
+    def getenclayers(self, inpembdim, inpvocsize, encinnerdim, bidir, rnu, maskid=-1):
         if inpembdim is None:
             inpemb = IdxToOneHot(inpvocsize)
             inpembdim = inpvocsize
@@ -121,7 +115,7 @@ class SimpleSeqEncDecAtt(SeqEncDecAtt):
             inpemb = inpembdim
             inpembdim = inpemb.outdim
         else:
-            inpemb = VectorEmbed(indim=inpvocsize, dim=inpembdim)
+            inpemb = VectorEmbed(indim=inpvocsize, dim=inpembdim, maskid=maskid)
         encrnus = []
         dims = [inpembdim] + encinnerdim
         #print dims
@@ -138,7 +132,7 @@ class SimpleSeqEncDecAtt(SeqEncDecAtt):
         return enclayers, lastencinnerdim
 
     def getdeclayers(self, outembdim, outvocsize, lastencinnerdim,
-                     decinnerdim, rnu, inconcat):
+                     decinnerdim, rnu, inconcat, maskid=-1):
         if outembdim is None:
             outemb = IdxToOneHot(outvocsize)
             outembdim = outvocsize
@@ -146,7 +140,7 @@ class SimpleSeqEncDecAtt(SeqEncDecAtt):
             outemb = outembdim
             outembdim = outemb.outdim
         else:
-            outemb = VectorEmbed(indim=outvocsize, dim=outembdim)
+            outemb = VectorEmbed(indim=outvocsize, dim=outembdim, maskid=maskid)
         decrnus = []
         firstdecdim = outembdim + lastencinnerdim if inconcat else outembdim
         dims = [firstdecdim] + decinnerdim

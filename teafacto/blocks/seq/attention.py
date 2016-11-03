@@ -57,9 +57,9 @@ class AttentionGenerator(Block):
 
     def apply(self, criterion, data, mask=None):   # criterion: (batsize, indim), data: (batsize, seqlen, memdim)
         o = self.getscores(criterion, data)       # (batsize, seqlen)
-        o = Softmax()(o)
         if mask is not None:        # {0,1}^(batsize, seqlen)
             o = mask * o
+        o = Softmax()(o)
         return o
 
     def getscores(self, criterion, data):

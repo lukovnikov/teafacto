@@ -87,11 +87,12 @@ class ModelTrainer(object):
         return self
 
     @classmethod
-    def _inner_cross_entropy(cls, probs, gold):
+    def _inner_cross_entropy(cls, probs, gold, mask=None):
         if gold.ndim == 1:
+            assert(mask is None)
             return tensor.nnet.categorical_crossentropy(probs, gold) #-tensor.log(probs[tensor.arange(gold.shape[0]), gold])
         elif gold.ndim == 2:    # sequences
-            return cls._inner_seq_neg_log_prob(probs, gold)
+            return cls._inner_seq_neg_log_prob(probs, gold, mask=mask)
 
     def seq_cross_entropy(self): # probs (batsize, seqlen, vocsize) + gold: (batsize, seqlen) ==> sum of neg log-probs of correct seq
         """ Own implementation of categorical cross-entropy, applied to a sequence of probabilities that should be multiplied """
@@ -99,13 +100,15 @@ class ModelTrainer(object):
         return self
 
     @classmethod
-    def _inner_seq_neg_log_prob(cls, probs, gold):   # probs: (batsize, seqlen, vocsize) probs, gold: (batsize, seqlen) idxs
+    def _inner_seq_neg_log_prob(cls, probs, gold, mask=None):   # probs: (batsize, seqlen, vocsize) probs, gold: (batsize, seqlen) idxs
         #print "using inner seq neg log prob"
         def _f(probsmat, goldvec):      # probsmat: (seqlen, vocsize), goldvec: (seqlen,)
             ce = tensor.nnet.categorical_crossentropy(probsmat, goldvec) #-tensor.log(probsmat[tensor.arange(probsmat.shape[0]), goldvec])
-            return tensor.sum(ce)
-        o, _ = theano.scan(fn=_f, sequences=[probs, gold], outputs_info=None)      # out: (batsize,)
-        return o
+            return ce       # (seqlen,) ==> (1,)
+        o, _ = theano.scan(fn=_f, sequences=[probs, gold], outputs_info=None)      # out: (batsize, seqlen)
+        o = o * mask if mask is not None else o     # (batsize, seqlen)
+        o = tensor.sum(o, axis=1)
+        return o        # (batsize,)
 
     def squared_error(self):
         self._set_objective(squared_error)
@@ -146,18 +149,20 @@ class ModelTrainer(object):
         return self
 
     def seq_accuracy(self): # sequences must be exactly the same
-        def inner(probs, gold):
+        def inner(probs, gold, mask=None):
             if gold.ndim == probs.ndim:
                 gold = tensor.argmax(gold, axis=-1)
             elif gold.ndim != probs.ndim - 1:
                 raise TypeError('rank mismatch between targets and predictions')
             top = tensor.argmax(probs, axis=-1)
-            assert(gold.ndim == 2 and top.ndim == 2)
+            assert(gold.ndim == 2 and top.ndim == 2 and mask.ndim == 2)
+            if mask is not None:
+                gold = gold * mask
+                top = top * mask
             diff = tensor.sum(abs(top - gold), axis=1)
             return tensor.eq(diff, tensor.zeros_like(diff))
-        self._set_objective(lambda x, y: 1-inner(x, y))
+        self._set_objective(inner)
         return self
-
 
     def hinge_loss(self, margin=1., labelbin=True): # gold must be -1 or 1 if labelbin if False, otherwise 0 or 1
         def inner(preds, gold):     # preds: (batsize,), gold: (batsize,)
@@ -213,6 +218,10 @@ class ModelTrainer(object):
     #endregion
 
     #region ###################  LEARNING RATE ###################
+    def lr(self, lr):
+        self._setlr(lr)
+        return self
+
     def _setlr(self, lr):
         if isinstance(lr, DynamicLearningParam):
             self.dynamic_lr = lr
@@ -221,11 +230,18 @@ class ModelTrainer(object):
 
     def _update_lr(self, epoch, maxepoch, terrs, verrs):
         if self.dynamic_lr is not None:
-            self.learning_rate.set_value(np.cast[theano.config.floatX](self.dynamic_lr(self.learning_rate.get_value(), epoch, maxepoch, terrs, verrs)))
+            self.learning_rate.set_value(
+                np.cast[theano.config.floatX](
+                    self.dynamic_lr(self.learning_rate.get_value(),
+                                    epoch, maxepoch, terrs, verrs)))
 
     def dlr_thresh(self, thresh=5):
         self.dynamic_lr = thresh_lr(self.learning_rate, thresh=thresh)
         return self
+
+
+    def dlr_exp_decay(self, decay=0.5):
+        pass
     #endregion
 
     #region #################### OPTIMIZERS ######################
@@ -332,6 +348,9 @@ class ModelTrainer(object):
             ret = (ret,) + errors
         return ret
 
+    def get_learning_rate(self):
+        return self.learning_rate
+
     def buildtrainfun(self, model):
         self.tt.tick("compiling training function")
         params = model.output.allparams
@@ -358,7 +377,7 @@ class ModelTrainer(object):
         self.tt.msg("computed gradients")
         grads = self._gradconstrain(grads)
         for param, grad in zip(params, grads):
-            upds = self.optimizer([grad], [param.d], self.learning_rate*param.lrmul)
+            upds = self.optimizer([grad], [param.d], self.get_learning_rate()*param.lrmul)
             for upd in upds:
                 broken = False
                 for para in params:
@@ -381,7 +400,11 @@ class ModelTrainer(object):
         return trainf
 
     def buildlosses(self, model, objs):
-        return [aggregate(obj(model.output.d, self.goldvar), mode='mean' if self.average_err is True else 'sum') for obj in objs], None
+        return [aggregate(
+                    obj(model.output.d, self.goldvar,
+                        mask=(model.output.mask.d if hasattr(model.output, "mask") else None))
+                , mode='mean' if self.average_err is True else 'sum')
+                for obj in objs], None
 
     def buildvalidfun(self, model):
         self.tt.tick("compiling validation function")
