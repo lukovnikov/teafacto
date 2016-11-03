@@ -1,5 +1,6 @@
 from teafacto.util import argprun
 import numpy as np
+from IPython import embed
 
 from teafacto.core.base import Val
 from teafacto.blocks.seq.rnn import SeqEncoder, RNNSeqEncoder, SeqDecoder, SeqDecoderAtt
@@ -67,6 +68,7 @@ def run(p="m",
         .split_validate(5).cross_entropy().seq_accuracy()\
         .train(numbats, epochs)
 
+    embed()
 
 if __name__ == "__main__":
     argprun(run)
