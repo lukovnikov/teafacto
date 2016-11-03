@@ -67,7 +67,7 @@ def run(p="m",
 
     try:
         encdec.train([qmat, amat[:, :-1]], amat[:, 1:])\
-            .cross_entropy().adam().grad_total_norm(1.)\
+            .cross_entropy().rmsprop(lr=lr/numbats).grad_total_norm(1.)\
             .split_validate(5).cross_entropy().seq_accuracy()\
             .train(numbats, epochs)
     except Exception, e:
