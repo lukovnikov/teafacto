@@ -57,10 +57,13 @@ class AttentionGenerator(Block):
 
     def apply(self, criterion, data, mask=None):   # criterion: (batsize, indim), data: (batsize, seqlen, memdim)
         o = self.getscores(criterion, data)       # (batsize, seqlen)
-        if mask is not None:        # {0,1}^(batsize, seqlen)
-            o = mask * o
-        o = Softmax()(o)
-        return o
+        o_exp = T.exp(o)
+        if mask is not None:
+            o_exp *= mask
+        o_exp_sum = T.sum(o_exp, axis=1) + 1e-6
+        o_exp_sum = o_exp_sum.dimshuffle(0, 'x')
+        o_out = o_exp / o_exp_sum
+        return o_out
 
     def getscores(self, criterion, data):
         raise NotImplementedError()

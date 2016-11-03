@@ -19,6 +19,21 @@ class TestGenDotProdAttGen(TestCase):
         self.assertTrue(np.allclose(np.sum(pred, axis=1), np.ones((pred.shape[0],))))
 
 
+class TestDotprodAttgen(TestCase):
+    def test_with_mask(self):
+        batsize, seqlen, dim = 6, 5, 10
+        crit = np.random.random((batsize, dim))
+        data = np.random.random((batsize, seqlen, dim))
+        maskstarts = np.random.randint(1, 5, (batsize,))
+        mask = np.ones((batsize, seqlen), dtype="int32")
+        for i in range(batsize):
+            mask[i, maskstarts[i]:] = 0
+        m = DotprodAttGen()
+        pred = m.predict(crit, data, mask=mask)
+        self.assertTrue(np.allclose(mask, pred > 0))
+        self.assertTrue(np.allclose(np.sum(pred, axis=1), np.ones((pred.shape[0],))))
+
+
 class TestForwardAttGen(TestCase):
     def test_shapes(self):
         batsize, seqlen, datadim, critdim, attdim = 100, 7, 50, 40, 60
