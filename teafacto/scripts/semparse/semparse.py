@@ -37,7 +37,9 @@ def loadgeo(p="../../../data/semparse/geoquery.txt"):
     for i in range(len(qss)):
         q = qss[i]
         a = ass[i]
-        qmat[i, :len(q)] = [qdic[x] for x in q].reverse()
+        qx = [qdic[x] for x in q]
+        qx.reverse()
+        qmat[i, :len(q)] = qx
         amat[i, :len(a)] = [adic[x] for x in a]
     return qmat, amat, qdic, adic, qwords, awords
 
