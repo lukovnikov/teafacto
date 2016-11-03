@@ -44,7 +44,9 @@ def loadgeo(p="../../../data/semparse/geoquery.txt"):
 def run(p="m",
         numbats=50,
         epochs=10,
-        lr=1.):
+        lr=1.,
+        embdim=200,
+        encdim=400):
     # loaddata
     qmat, amat, qdic, adic, qwc, awc = loadgeo()
 
@@ -52,11 +54,11 @@ def run(p="m",
 
     # make seq/dec+att
     encdec = SimpleSeqEncDecAtt(inpvocsize=len(qdic)+1,
-                                inpembdim=100,
+                                inpembdim=embdim,
                                 outvocsize=len(adic)+1,
-                                outembdim=100,
-                                encdim=200,
-                                decdim=200,
+                                outembdim=embdim,
+                                encdim=encdim,
+                                decdim=encdim,
                                 maskid=0)
 
     encdec.train([qmat, amat[:, :-1]], amat[:, 1:])\
