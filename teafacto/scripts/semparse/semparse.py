@@ -39,7 +39,6 @@ def loadgeo(p="../../../data/semparse/geoquery.txt"):
         a = ass[i]
         qx = [qdic[x] for x in q]
         qx.reverse()
-        qx.reverse() #
         qmat[i, :len(q)] = qx
         amat[i, :len(a)] = [adic[x] for x in a]
     return qmat, amat, qdic, adic, qwords, awords
@@ -59,17 +58,20 @@ def run(p="m",
     # make seq/dec+att
     encdec = SimpleSeqEncDecAtt(inpvocsize=len(qdic)+1,
                                 inpembdim=embdim,
-                                outvocsize=len(qdic)+1, #
+                                outvocsize=len(adic)+1,
                                 outembdim=embdim,
                                 encdim=encdim,
                                 decdim=encdim,
                                 maskid=0,
                                 statetrans=True)
 
-    encdec.train([qmat, qmat[:, :-1]], qmat[:, 1:])\
-        .cross_entropy().adadelta(lr=lr/numbats).grad_total_norm(1.)\
-        .split_validate(5).cross_entropy().seq_accuracy()\
-        .train(numbats, epochs)
+    try:
+        encdec.train([qmat, amat[:, :-1]], amat[:, 1:])\
+            .cross_entropy().adadelta(lr=lr/numbats).grad_total_norm(1.)\
+            .split_validate(5).cross_entropy().seq_accuracy()\
+            .train(numbats, epochs)
+    except Exception:
+        embed()
 
     embed()
 
