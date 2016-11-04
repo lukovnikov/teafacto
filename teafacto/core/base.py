@@ -366,27 +366,29 @@ class Val(Elem, TensorWrapped, Masked):
 
 
 class RVal(Elem, TensorWrapped, Masked):    # random value
-    def __init__(self, shape, seed=None, **kw):
+    def __init__(self, seed=None, **kw):
         super(RVal, self).__init__(**kw)
         if seed is None:
             seed = np.random.randint(0, 1e6)
         self.rng = RandomStreams(seed=seed)
         self.value = None
-        self._shape = shape
 
-    def binomial(self, n=1, p=0.5, ndim=None, dtype="int32"):
-        self.value = self.rng.binomial(self._shape, n, p, ndim, dtype)
+    def binomial(self, shape, n=1, p=0.5, ndim=None, dtype="int32"):
+        shape = shape.d
+        self.value = self.rng.binomial(shape, n, p, ndim, dtype)
         return self
 
-    def normal(self, avg=0.0, std=1.0, ndim=None, dtype=None):
-        self.value = self.rng.normal(self._shape, avg, std, ndim, dtype)
+    def normal(self, shape, avg=0.0, std=1.0, ndim=None, dtype=None):
+        shape = shape.d
+        self.value = self.rng.normal(shape, avg, std, ndim, dtype)
         return self
 
-    def multinomial(self, n=1, pvals=None, without_replacement=False, ndim=None, dtype="int32"):
+    def multinomial(self, shape, n=1, pvals=None, without_replacement=False, ndim=None, dtype="int32"):
+        shape = shape.d
         if without_replacement:
-            self.value = self.rng.multinomial_wo_replacement(self._shape, n, pvals, ndim, dtype)
+            self.value = self.rng.multinomial_wo_replacement(shape, n, pvals, ndim, dtype)
         else:
-            self.value = self.rng.multinomial(self._shape, n, pvals, ndim, dtype)
+            self.value = self.rng.multinomial(shape, n, pvals, ndim, dtype)
         return self
 
     @property
