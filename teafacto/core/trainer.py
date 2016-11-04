@@ -353,7 +353,7 @@ class ModelTrainer(object):
 
     def buildtrainfun(self, model):
         self.tt.tick("training - autobuilding")
-        inps, outp = model.autobuild(*self.traindata, trainmode=True)
+        inps, outp = model.autobuild(*self.traindata, _trainmode=True)
         self.tt.tock("training - autobuilt")
         self.tt.tick("compiling training function")
         params = outp.allparams
@@ -411,7 +411,7 @@ class ModelTrainer(object):
 
     def buildvalidfun(self, model):
         self.tt.tick("validation - autobuilding")
-        inps, outp = model.autobuild(*self.traindata, trainmode=False)
+        inps, outp = model.autobuild(*self.traindata, _trainmode=False)
         self.tt.tock("validation - autobuilt")
         self.tt.tick("compiling validation function")
         metrics, newinp = self.buildlosses(outp, self.validators)
