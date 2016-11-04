@@ -65,13 +65,10 @@ def run(p="m",
                                 maskid=0,
                                 statetrans=True)
 
-    try:
-        encdec.train([qmat, amat[:, :-1]], amat[:, 1:])\
-            .cross_entropy().rmsprop(lr=lr/numbats).grad_total_norm(1.)\
-            .split_validate(5).cross_entropy().seq_accuracy()\
-            .train(numbats, epochs)
-    except Exception, e:
-        embed()
+    encdec.train([qmat, amat[:, :-1]], amat[:, 1:])\
+        .cross_entropy().rmsprop(lr=lr/numbats).grad_total_norm(1.)\
+        .split_validate(5).cross_entropy().seq_accuracy()\
+        .train(numbats, epochs)
 
     embed()
 
