@@ -757,17 +757,14 @@ class NSTrainConfig():
     def _maketrainer(self):
         block = self._makeblock()
         gold = np.ones((self.datas[-1].shape[0],), dtype="float32")  # gold is a vector of ones of length batsize
-        inputdata = self.datas + self.datas
         # wrap data in datafeeds, generate gold var
         goldvar = Input(gold.ndim, gold.dtype, name="gold")
-        #inps, outp = block.autobuild(*inputdata)
 
         trainer = NSModelTrainer(block, goldvar.d, self.nrate, self.nsamgen)
         trainer.traindata = self.datas
         trainer.traingold = gold
 
         # apply settings on trainer
-        #print self.trainerargs
         for k, v in self.trainerargs:
             kf = getattr(trainer, k)
             kf(*v[0], **v[1])

@@ -351,9 +351,12 @@ class ModelTrainer(object):
     def get_learning_rate(self):
         return self.learning_rate
 
+    def autobuild_model(self, model, *traindata, **kw):
+        return model.autobuild(*traindata, **kw)
+
     def buildtrainfun(self, model):
         self.tt.tick("training - autobuilding")
-        inps, outps = model.autobuild(*self.traindata, _trainmode=True)
+        inps, outps = self.autobuild_model(model, *self.traindata, _trainmode=True)
         assert(len(outps) == 1)
         outp = outps[0]
         self.tt.tock("training - autobuilt")
@@ -415,7 +418,7 @@ class ModelTrainer(object):
 
     def buildvalidfun(self, model):
         self.tt.tick("validation - autobuilding")
-        inps, outps = model.autobuild(*self.traindata, _trainmode=False)
+        inps, outps = self.autobuild_model(model, *self.traindata, _trainmode=False)
         assert(len(outps) == 1)
         outp = outps[0]
         self.tt.tock("validation - autobuilt")
@@ -620,3 +623,6 @@ class NSModelTrainer(ModelTrainer):
                     ret.append(np.concatenate([x, y], axis=0))
             acc = ret
         return acc
+
+    def autobuild_model(self, model, *traindata, **kw):
+        return model.autobuild(*(traindata + traindata))
