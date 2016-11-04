@@ -557,7 +557,7 @@ class Block(Elem, Saveable): # block with parameters
         outinputs = filter(lambda x: x is not None, outinputs)
         output = (output,) if not issequence(output) else output
         self.inputs = outinputs
-        self.outputs = output
+        self.outputs = output       # TODO: remove this assignment
         return outinputs, output
 
     def __call__(self, *args, **kwargs):
