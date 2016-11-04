@@ -374,17 +374,20 @@ class RVal(Elem, TensorWrapped, Masked):    # random value
         self.value = None
 
     def binomial(self, shape, n=1, p=0.5, ndim=None, dtype="int32"):
-        shape = shape.d
+        if isinstance(shape, Elem):
+            shape = shape.d
         self.value = self.rng.binomial(shape, n, p, ndim, dtype)
         return self
 
     def normal(self, shape, avg=0.0, std=1.0, ndim=None, dtype=None):
-        shape = shape.d
+        if isinstance(shape, Elem):
+            shape = shape.d
         self.value = self.rng.normal(shape, avg, std, ndim, dtype)
         return self
 
     def multinomial(self, shape, n=1, pvals=None, without_replacement=False, ndim=None, dtype="int32"):
-        shape = shape.d
+        if isinstance(shape, Elem):
+            shape = shape.d
         if without_replacement:
             self.value = self.rng.multinomial_wo_replacement(shape, n, pvals, ndim, dtype)
         else:
