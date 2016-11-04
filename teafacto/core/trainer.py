@@ -406,8 +406,8 @@ class ModelTrainer(object):
             outputs=[cost],
             updates=allupdates,
             #mode=NanGuardMode(nan_is_error=True, inf_is_error=False, big_is_error=False)
+            # TODO: enabling NanGuard with Dropout doesn't work --> see Theano.git/issues/4823
         )
-        # TODO: add givens for transferring dataset to GPU --> must reimplement parts of trainer (batch generation, givens, ...)
         self.tt.tock("training function compiled")
         return trainf
 
