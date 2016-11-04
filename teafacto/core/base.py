@@ -2,6 +2,7 @@ from types import ModuleType
 from collections import OrderedDict
 from IPython import embed
 import theano
+import inspect
 from lasagne.init import *
 from lasagne.updates import norm_constraint
 from theano import tensor
@@ -10,6 +11,8 @@ from theano.tensor.var import _tensor_py_operators
 from teafacto.core.trainer import ModelTrainer, NSModelTrainer
 from teafacto.util import isstring, issequence, isfunction, Saveable, isnumber
 from teafacto.core.datafeed import DataFeed
+
+_TRAINMODE = False
 
 
 def recurmap(fun, data):
@@ -170,7 +173,6 @@ class TensorWrapped(object):
                     slices.append(slice(None, None, None))
             return v[tuple(slices)]
         return OpBlock(rinner, name="reverse")(self, axes)
-
 
 
 ### WORRY ABOUT THIS
@@ -421,6 +423,10 @@ class Block(Elem, Saveable): # block with parameters
         self._pristine = True
 
     @property
+    def param(self):
+        return param
+
+    @property
     def ownparams(self):
         return self._ownparams
 
@@ -448,49 +454,6 @@ class Block(Elem, Saveable): # block with parameters
     # may override: -------------------------------------------------
     @property
     def predict(self): # returns callable object
-        class BlockPredictor(object):
-            def __init__(self, block):
-                def ident(*args, **kwargs): return args, kwargs
-                self.transf = ident
-                self.block = block
-
-            def transform(self, f):
-                if f is not None:
-                    assert(isfunction(f))
-                    self.transf = f if f is not None and isfunction(f) else self.transf
-                return self
-
-            def __call__(self, *inputdata, **kwinputdata):    # do predict, take into account prediction settings set
-                if self.block._predictf is None: # or block._predictf._transform != self.transfZ:
-                    # if False or len(self.inputs) == 0 or self.output is None:
-                    kwinpl = kwinputdata.items()
-                    if self.transf is not None:
-                        kwinpl.append(("transform", self.transf))
-                    inps, outp = self.block.autobuild(*inputdata, **dict(kwinpl))
-                    if hasattr(self.block, "_predict_postapply"):
-                        outp = self.block._predict_postapply(outp)
-                    self.block._predictf = theano.function(outputs=[o.d for o in outp],
-                                                           inputs=[x.d for x in inps],
-                                                           on_unused_input="warn")
-                args = []
-
-                def _inner(x):
-                    if isinstance(x, DataFeed):
-                        return x[:]
-                    elif not isinstance(x, np.ndarray):
-                        return np.asarray(x)
-                    else:
-                        return x
-
-                kwn = []
-                for k in sorted(kwinputdata.keys()):
-                    kwn.append(kwinputdata[k])
-                allinputdata = inputdata + tuple(kwn)
-                allinputdata = filter(lambda x: x is not None, allinputdata)
-                args = map(_inner, allinputdata)
-                valret = self.block._predictf(*args)
-                ret = valret[0] if len(valret) == 1 else tuple(valret)
-                return ret
         return BlockPredictor(self)
     """
     def predict(self, transform=None, *inputdata, **kwinputdata):
@@ -525,8 +488,15 @@ class Block(Elem, Saveable): # block with parameters
     # TODO: propagate _ownparams to output vars
     def wrapply(self, *args, **kwargs): # is this multi-output compatible?
         transform = None
+        oldtrainmode = None
+        global _TRAINMODE
         if "transform" in kwargs and kwargs["transform"] is not None:
             transform = kwargs.pop("transform")
+        if "_trainmode" in kwargs:      # changes global _TRAINMODE
+            oldtrainmode = _TRAINMODE
+            _TRAINMODE = kwargs.pop("_trainmode")
+        if "_trainmode" in inspect.getargspec(self.apply)[0]:
+            kwargs["_trainmode"] = _TRAINMODE
         paramstopush = set()        # params to transfer from input vars to output vars
         for var in recurfilter(lambda x: isinstance(x, Var), kwargs) + recurfilter(lambda x: isinstance(x, Var), args):
             paramstopush.update(var._params)
@@ -537,20 +507,25 @@ class Block(Elem, Saveable): # block with parameters
         for p in possiblechildren:
             p.push_params(paramstopush)
             p.push_params(self.ownparams)
+        if oldtrainmode is not None:    # this was where we changed the global _TRAINMODE
+            _TRAINMODE = oldtrainmode   # put it back
         return ret
 
     def build(self): # stores block inputs and block output
         self.inputs = self.initinputs()
-        self._build(*self.inputs)
+        self.wrapply(*self.inputs)
 
-    def _build(self, *inps, **kwinps):
-        output = self.wrapply(*inps, **kwinps)
-        return output
+    #def _build(self, *inps, **kwinps):
+    #    output = self.wrapply(*inps, **kwinps)
+    #    return output
 
     def autobuild(self, *inputdata, **kwinputdata):
         transform = None
+        trainmode = False
         if "transform" in kwinputdata:
             transform = kwinputdata.pop("transform")
+        if "_trainmode" in kwinputdata:
+            trainmode = kwinputdata.pop("_trainmode")
         inputdata = map(lambda x:
                         x if isinstance(x, (np.ndarray, DataFeed)) else (np.asarray(x) if x is not None else None),
                         inputdata)
@@ -571,7 +546,8 @@ class Block(Elem, Saveable): # block with parameters
         kwinputl = kwinputs.items()
         if transform is not None:
             kwinputl.append(("transform", transform))
-        output = self._build(*inputs, **dict(kwinputl))
+        kwinputl.append(("_trainmode", trainmode))
+        output = self.wrapply(*inputs, **dict(kwinputl))
 
         kwn = []
         for k in sorted(kwinputs.keys()):
@@ -616,7 +592,8 @@ class Block(Elem, Saveable): # block with parameters
     def train(self, inputdata, gold):
         # wrap data in datafeeds, generate gold var
         goldvar = Input(gold.ndim, gold.dtype, name="gold")
-        inps, outp = self.autobuild(*inputdata)
+        #self.autobuilder = self.get_autobuilder(*inputdata)
+        #inps, outp = self.autobuild(*inputdata)
 
         trainer = ModelTrainer(self, goldvar.d)
         trainer.traindata = inputdata
@@ -832,3 +809,49 @@ class until(Elem):
     @property
     def d(self): # wrap theano.scan_module.until(cond)
         return theano.scan_module.until(self.expr.d)
+
+
+class BlockPredictor(object):
+    def __init__(self, block):
+        def ident(*args, **kwargs): return args, kwargs
+
+        self.transf = ident
+        self.block = block
+
+    def transform(self, f):
+        if f is not None:
+            assert (isfunction(f))
+            self.transf = f if f is not None and isfunction(f) else self.transf
+        return self
+
+    def __call__(self, *inputdata, **kwinputdata):  # do predict, take into account prediction settings set
+        if self.block._predictf is None:  # or block._predictf._transform != self.transfZ:
+            # if False or len(self.inputs) == 0 or self.output is None:
+            kwinpl = kwinputdata.items()
+            if self.transf is not None:
+                kwinpl.append(("transform", self.transf))
+            inps, outp = self.block.autobuild(*inputdata, **dict(kwinpl))
+            if hasattr(self.block, "_predict_postapply"):
+                outp = self.block._predict_postapply(outp)
+            self.block._predictf = theano.function(outputs=[o.d for o in outp],
+                                                   inputs=[x.d for x in inps],
+                                                   on_unused_input="warn")
+        args = []
+
+        def _inner(x):
+            if isinstance(x, DataFeed):
+                return x[:]
+            elif not isinstance(x, np.ndarray):
+                return np.asarray(x)
+            else:
+                return x
+
+        kwn = []
+        for k in sorted(kwinputdata.keys()):
+            kwn.append(kwinputdata[k])
+        allinputdata = inputdata + tuple(kwn)
+        allinputdata = filter(lambda x: x is not None, allinputdata)
+        args = map(_inner, allinputdata)
+        valret = self.block._predictf(*args)
+        ret = valret[0] if len(valret) == 1 else tuple(valret)
+        return ret

@@ -107,6 +107,25 @@ class Masker(Block):
             return x
 
 
+class Dropout(Block):
+    def __init__(self, p=0.3, seed=None, rescale=True, **kw):
+        super(Dropout, self).__init__(**kw)
+        if seed is None:
+            seed = np.random.randint(0, 1e6)
+        #self.rng = T.shared_randomstreams.RandomStreams(seed)      # TODO: wrap random-MRG in base
+        self.p = p
+        self.rescale = rescale
+
+    def apply(self, x, _trainmode=False):
+        if _trainmode and self.p > 0:
+            if self.rescale:
+                one = T.constant(1)
+                x /= one - self.p
+            pass # TODO: do dropout
+        else:
+            return x
+
+
 
 class VectorEmbed(Embedder):
     def __init__(self, indim=None, dim=None, value=None,

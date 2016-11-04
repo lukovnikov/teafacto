@@ -352,10 +352,13 @@ class ModelTrainer(object):
         return self.learning_rate
 
     def buildtrainfun(self, model):
+        self.tt.tick("training - autobuilding")
+        inps, outp = model.autobuild(*self.traindata, trainmode=True)
+        self.tt.tock("training - autobuilt")
         self.tt.tick("compiling training function")
-        params = model.output.allparams
-        inputs = model.inputs
-        loss, newinp = self.buildlosses(model, [self.objective])
+        params = outp.allparams
+        inputs = inps
+        loss, newinp = self.buildlosses(outp, [self.objective])
         loss = loss[0]
         if newinp is not None:
             inputs = newinp
@@ -399,17 +402,20 @@ class ModelTrainer(object):
         self.tt.tock("training function compiled")
         return trainf
 
-    def buildlosses(self, model, objs):
+    def buildlosses(self, output, objs):
         return [aggregate(
-                    obj(model.output.d, self.goldvar,
-                        mask=(model.output.mask.d if hasattr(model.output, "mask") else None))
+                    obj(output.d, self.goldvar,
+                        mask=(output.mask.d if hasattr(output, "mask") else None))
                 , mode='mean' if self.average_err is True else 'sum')
                 for obj in objs], None
 
     def buildvalidfun(self, model):
+        self.tt.tick("validation - autobuilding")
+        inps, outp = model.autobuild(*self.traindata, trainmode=False)
+        self.tt.tock("validation - autobuilt")
         self.tt.tick("compiling validation function")
-        metrics, newinp = self.buildlosses(model, self.validators)
-        inputs = newinp if newinp is not None else model.inputs
+        metrics, newinp = self.buildlosses(outp, self.validators)
+        inputs = newinp if newinp is not None else inps
         ret = None
         if len(metrics) > 0:
             ret = theano.function(inputs=[x.d for x in inputs] + [self.goldvar],
@@ -431,8 +437,8 @@ class ModelTrainer(object):
         return err, None, None, None
 
     def _train_validdata(self):
-        validf = self.buildvalidfun(self.model)
         trainf = self.buildtrainfun(self.model)
+        validf = self.buildvalidfun(self.model)
         df = DataFeeder(*(self.traindata + [self.traingold]))
         vdf = DataFeeder(*(self.validdata + [self.validgold]))
         #embed()
