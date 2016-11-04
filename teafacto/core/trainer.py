@@ -1,4 +1,4 @@
-import sys, gc
+import sys, gc, inspect
 from pympler import asizeof
 from datetime import datetime as dt
 from IPython import embed
@@ -406,8 +406,10 @@ class ModelTrainer(object):
 
     def buildlosses(self, output, objs):
         return [aggregate(
-                    obj(output.d, self.goldvar,
-                        mask=(output.mask.d if hasattr(output, "mask") else None))
+                    obj(output.d, self.goldvar, mask=output.mask.d if output.mask is not None else None)
+                        if "mask" in inspect.getargspec(obj)
+                        else
+                    obj(output.d, self.goldvar)
                 , mode='mean' if self.average_err is True else 'sum')
                 for obj in objs], None
 
@@ -486,9 +488,9 @@ class ModelTrainer(object):
         return avgerr, avgverr, err, verr
     #endregion
 
-    @staticmethod
-    def resetmodel(model):
-        params = model.output.allparams
+    def resetmodel(self, model):    # TODO: very hacky
+        _, outs = model.autobuild(*self.traindata)
+        params = outs[0].allparams
         for param in params:
             param.reset()
 

@@ -7,6 +7,7 @@ from lasagne.init import *
 from lasagne.updates import norm_constraint
 from theano import tensor
 from theano.tensor.var import _tensor_py_operators
+from theano.sandbox.rng_mrg import MRG_RandomStreams as RandomStreams
 
 from teafacto.core.trainer import ModelTrainer, NSModelTrainer
 from teafacto.util import isstring, issequence, isfunction, Saveable, isnumber
@@ -364,6 +365,41 @@ class Val(Elem, TensorWrapped, Masked):
         return self.value.get_value()
 
 
+class RVal(Elem, TensorWrapped, Masked):    # random value
+    def __init__(self, shape, seed=None, **kw):
+        super(RVal, self).__init__(**kw)
+        if seed is None:
+            seed = np.random.randint(0, 1e6)
+        self.rng = RandomStreams(seed=seed)
+        self.value = None
+        self._shape = shape
+
+    def binomial(self, n=1, p=0.5, ndim=None, dtype="int32"):
+        self.value = self.rng.binomial(self._shape, n, p, ndim, dtype)
+        return self
+
+    def normal(self, avg=0.0, std=1.0, ndim=None, dtype=None):
+        self.value = self.rng.normal(self._shape, avg, std, ndim, dtype)
+        return self
+
+    def multinomial(self, n=1, pvals=None, without_replacement=False, ndim=None, dtype="int32"):
+        if without_replacement:
+            self.value = self.rng.multinomial_wo_replacement(self._shape, n, pvals, ndim, dtype)
+        else:
+            self.value = self.rng.multinomial(self._shape, n, pvals, ndim, dtype)
+        return self
+
+    @property
+    def d(self):
+        return self.value
+
+    @property
+    def v(self):
+        return self.value.eval()
+
+
+
+
 ### WORRY ABOUT THIS
 class Var(Elem, TensorWrapped, Masked): # result of applying a block on theano variables
     """ Var has params propagated from all the blocks used to compute it """
@@ -430,11 +466,6 @@ class Block(Elem, Saveable): # block with parameters
     @ownparams.setter
     def ownparams(self, x):
         self._ownparams = x if isinstance(x, set) else set(x)
-
-    @property
-    def output(self):
-        assert(len(self.outputs) == 1)
-        return self.outputs[0]
 
     def reset(self): # clear all non-param info in whole expression structure that ends in this block
         print "resetting block"
@@ -729,7 +760,7 @@ class NSTrainConfig():
         inputdata = self.datas + self.datas
         # wrap data in datafeeds, generate gold var
         goldvar = Input(gold.ndim, gold.dtype, name="gold")
-        inps, outp = block.autobuild(*inputdata)
+        #inps, outp = block.autobuild(*inputdata)
 
         trainer = NSModelTrainer(block, goldvar.d, self.nrate, self.nsamgen)
         trainer.traindata = self.datas
@@ -812,6 +843,8 @@ class BlockPredictor(object):
         self._predictf = None
         self.transf = ident
         self.block = block
+        self.inps = []
+        self.outs = []
 
     def transform(self, f):
         if f is not None:
@@ -826,6 +859,7 @@ class BlockPredictor(object):
             if self.transf is not None:
                 kwinpl.append(("transform", self.transf))
             inps, outp = self.block.autobuild(*inputdata, **dict(kwinpl))
+            self.inps, self.outs = inps, outp
             if hasattr(self.block, "_predict_postapply"):
                 outp = self.block._predict_postapply(outp)
             self._predictf = theano.function(outputs=[o.d for o in outp],

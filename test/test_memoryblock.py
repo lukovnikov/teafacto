@@ -40,7 +40,6 @@ class TestMemoryBlock(TestCase):
         memb = MemoryBlock(payload, np.asarray([1, 2, 6]), outdim=payload.outdim)
         memory_embedding = memb.predict([2])
         self.assertTrue(np.allclose(original_embedding, memory_embedding))
-        print memb.output.allparams
 
     def test_memory_block_with_seq_encoder(self):
         invocabsize = 5
@@ -55,10 +54,11 @@ class TestMemoryBlock(TestCase):
         )
         memb = MemoryBlock(payload, data, indim=invocabsize, outdim=encdim)
         idxs = [0, 2, 5]
-        memory_element = memb.predict(idxs)
+        p = memb.predict
+        memory_element = p(idxs)
         self.assertEqual(memory_element.shape, (len(idxs), encdim))
         gruparams = set([getattr(gru, pname) for pname in gru.paramnames])
-        allparams = set(memb.output.allparams)
+        allparams = set(p.outs[0].allparams)
         self.assertEqual(gruparams.intersection(allparams), allparams)
 
     def test_memory_block_with_seq_encoder_dynamic(self):
@@ -74,10 +74,11 @@ class TestMemoryBlock(TestCase):
         )
         dynmemb = MemoryBlock(payload, outdim=encdim)
         idxs = [0, 2, 5]
-        memory_element = dynmemb.predict(idxs, data)
+        p = dynmemb.predict
+        memory_element = p(idxs, data)
         self.assertEqual(memory_element.shape, (len(idxs), encdim))
         gruparams = set([getattr(gru, pname) for pname in gru.paramnames])
-        allparams = set(dynmemb.output.allparams)
+        allparams = set(p.outs[0].allparams)
         self.assertEqual(gruparams.intersection(allparams), allparams)
 
         statmemb = MemoryBlock(payload, data, outdim=encdim)

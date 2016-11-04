@@ -19,7 +19,8 @@ class SimpleRNNEncoderTest(TestCase):
         self.enc = SeqEncoder(None, GRU(dim=dim, innerdim=self.outdim))
         self.enc = self.doswitches(self.enc)
         self.data = np.random.random((batsize, seqlen, dim)).astype("float32")
-        self.out = self.enc.predict(self.data)
+        self.p = self.enc.predict
+        self.out = self.p(self.data)
 
     def test_output_shape(self):
         self.assertEqual(self.out.shape, self.expectshape(self.data.shape, self.outdim))
@@ -28,7 +29,7 @@ class SimpleRNNEncoderTest(TestCase):
         return (datashape[0], outdim)
 
     def test_all_output_parameters(self):
-        outputs = self.enc.wrapply(*self.enc.inputs)
+        outputs = self.enc.wrapply(*self.p.inps)
         if issequence(outputs) and len(outputs) > 1:
             outputparamsets = [x.allparams for x in outputs]
             for i in range(len(outputparamsets)):

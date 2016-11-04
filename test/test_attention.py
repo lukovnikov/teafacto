@@ -106,8 +106,8 @@ class DummyAttentionGeneratorConsumerTest(TestCase):
         self.assertEqual(pred.shape, self.attgenshape)
 
     def test_generator_param_prop(self):
-        self.attgen.predict(self.criterion_val, self.data_val)
-        allparams = self.attgen.output.allparams
+        _, outps = self.attgen.autobuild(self.criterion_val, self.data_val)
+        allparams = outps[0].allparams
         self.assertSetEqual(allparams, self.attgenparams)
 
     def test_consumer_shape(self):
@@ -115,8 +115,8 @@ class DummyAttentionGeneratorConsumerTest(TestCase):
         self.assertEqual(pred.shape, self.attconshape)
 
     def test_consumer_param_prop(self):
-        self.att.predict(self.criterion_val, self.data_val)
-        allparams = self.att.output.allparams
+        _, outps = self.att.autobuild(self.criterion_val, self.data_val)
+        allparams = outps[0].allparams
         self.assertSetEqual(allparams, self.attgenparams)
 
 
@@ -161,11 +161,11 @@ class TestAttentionRNNDecoder(TestCase):
         self.assertEqual(pred.shape, self.predshape)
 
     def test_attentiongenerator_param_in_allparams(self):
-        self.decwatt.predict(self.attdata, self.seqdata)
-        allparams = self.decwatt.output.allparams
+        inps, outps = self.decwatt.autobuild(self.attdata, self.seqdata)
+        allparams = outps[0].allparams
         self.assertIn(self.att.attentiongenerator.W, allparams)
 
     def test_attentiongenerator_param_not_in_params_of_dec_wo_att(self):
-        self.decwoatt.predict(self.data, self.seqdata)
-        allparams = self.decwoatt.output.allparams
+        _, outps = self.decwoatt.autobuild(self.data, self.seqdata)
+        allparams = outps[0].allparams
         self.assertNotIn(self.att.attentiongenerator.W, allparams)

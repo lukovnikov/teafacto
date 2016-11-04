@@ -156,7 +156,8 @@ class TestNSModelTrainer(TestCase):
 
         class NegIdxGen():
             def __init__(self, num): self.n = num
-            def __call__(self, l, r): return l, np.random.randint(0, self.n, r.shape)
+            def __call__(self, l, r):
+                return l, np.random.randint(0, self.n, r.shape)
 
         m = m.nstrain([idxs, idxs]).negsamplegen(NegIdxGen(num+1)).negrate(5)\
             .adagrad(lr=0.1)\

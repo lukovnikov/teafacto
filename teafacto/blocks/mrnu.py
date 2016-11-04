@@ -1,4 +1,4 @@
-from teafacto.blocks.seq.attention import ArgmaxAttCon, WeightedSumAttCon, DotprodAttGen
+from teafacto.blocks.seq.attention import WeightedSumAttCon, DotprodAttGen
 from teafacto.blocks.seq.rnu import GatedRNU
 from teafacto.core.base import tensorops as T
 from teafacto.util import issequence
@@ -23,7 +23,7 @@ class XLTM(GatedRNU):
         self.discrete = discrete
         self.memsize = memsize
         self.attgen = DotprodAttGen(self.innerdim, -1, self.innerdim)
-        self.attcon = ArgmaxAttCon() if self.discrete else WeightedSumAttCon()
+        self.attcon = WeightedSumAttCon() if self.discrete else WeightedSumAttCon()
         self.initparams()
 
     def do_get_init_info(self, initstates):

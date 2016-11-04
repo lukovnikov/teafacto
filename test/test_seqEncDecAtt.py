@@ -15,12 +15,14 @@ class TestSimpleSeqEncDecAtt(TestCase):
         outvocsize = 13
         inpembdim = 10
         outembdim = 5
-        encdim = 9
-        decdim = 7
-        attdim = 8
+        encdim = 20
+        decdim = 20
         batsize = 11
         inpseqlen = 7
         outseqlen = 5
+
+        if bidir:
+            encdim /= 2
 
         m = SimpleSeqEncDecAtt(inpvocsize=inpvocsize,
                                inpembdim=inpembdim,
@@ -28,14 +30,13 @@ class TestSimpleSeqEncDecAtt(TestCase):
                                outembdim=outembdim,
                                encdim=encdim,
                                decdim=decdim,
-                               attdim=attdim,
                                bidir=bidir)
 
         inpseq = np.random.randint(0, inpvocsize, (batsize, inpseqlen)).astype("int32")
         outseq = np.random.randint(0, outvocsize, (batsize, outseqlen)).astype("int32")
 
-        predenco, _, _ = m.enc.predict(inpseq)
-        self.assertEqual(predenco.shape, (batsize, encdim if not bidir else encdim*2))
+        predenco, _ = m.enc.predict(inpseq)
+        self.assertEqual(predenco.shape, (batsize, encdim if not bidir else encdim * 2))
 
         pred = m.predict(inpseq, outseq)
         self.assertEqual(pred.shape, (batsize, outseqlen, outvocsize))

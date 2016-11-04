@@ -20,7 +20,8 @@ class TestGRU(TestCase):
         self.wshape = (self.dim, self.innerdim)
         self.ushape = (self.innerdim, self.innerdim)
         self.bshape = (self.innerdim, )
-        self.rnu.autobuild(self.testdata)
+        inps, outps = self.rnu.autobuild(self.testdata)
+        self.outp = outps[0]
         self.toremovefiles = []
 
     def tearDown(self):
@@ -55,7 +56,7 @@ class TestGRU(TestCase):
             self.assertEqual(getattr(self.rnu, param).shape, self.bshape)
 
     def test_params_propagated_to_outvar(self):
-        outpvar = self.rnu.output
+        outpvar = self.outp
         gruparamset = set([getattr(self.rnu, paramname) for paramname in self.paramnames])
         varparamset = set(outpvar.allparams)
         self.assertSetEqual(gruparamset, varparamset)
@@ -128,7 +129,7 @@ class TestGRUnobias(TestGRU):
             self.assertEqual(getattr(self.rnu, bias), 0)
 
     def test_output_var_has_no_bias_params(self):
-        outpvarparamnames = [x.name for x in self.rnu.output.allparams]
+        outpvarparamnames = [x.name for x in self.outp.allparams]
         for bias in super(self.__class__, self).getbparamnames():
             self.assertNotIn(bias, outpvarparamnames)
 

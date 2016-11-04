@@ -16,7 +16,8 @@ class TestSimpleEncoderDecoder(TestCase):
         self.sed = SimpleEncoderDecoder(innerdim=innerdim, input_vocsize=inpvocsize, output_vocsize=outvocsize)
         inpseqv = np.random.randint(0, inpvocsize, (batsize, seqlen))
         outseqv = np.random.randint(0, outvocsize, (batsize, seqlen))
-        self.sedoutv = self.sed.predict(inpseqv, outseqv)
+        self.p = self.sed.predict
+        self.sedoutv = self.p(inpseqv, outseqv)
         self.sedoutvshape = (batsize, seqlen, outvocsize)
 
     def test_output_shapes(self):
@@ -33,7 +34,7 @@ class TestSimpleEncoderDecoder(TestCase):
                           "uhf": 2,
                           "bhf": 2,
                           "matdot": 1}
-        for param in [x.name for x in self.sed.output.allparams]:
+        for param in [x.name for x in self.p.outs[0].allparams]:
             expectedparams[param] -= 1
         for k, v in expectedparams.items():
             self.assertEqual(v, 0)
