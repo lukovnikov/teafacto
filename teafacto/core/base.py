@@ -419,7 +419,6 @@ class Block(Elem, Saveable): # block with parameters
         self._ownparams = set()
         self.inputs = []
         self.outputs = []
-        self._predictf = None
         self._pristine = True
 
     @property
@@ -453,7 +452,7 @@ class Block(Elem, Saveable): # block with parameters
 
     # may override: -------------------------------------------------
     @property
-    def predict(self): # returns callable object
+    def predict(self): # returns callable predictor object
         return BlockPredictor(self)
     """
     def predict(self, transform=None, *inputdata, **kwinputdata):
@@ -814,7 +813,7 @@ class until(Elem):
 class BlockPredictor(object):
     def __init__(self, block):
         def ident(*args, **kwargs): return args, kwargs
-
+        self._predictf = None
         self.transf = ident
         self.block = block
 
@@ -825,7 +824,7 @@ class BlockPredictor(object):
         return self
 
     def __call__(self, *inputdata, **kwinputdata):  # do predict, take into account prediction settings set
-        if self.block._predictf is None:  # or block._predictf._transform != self.transfZ:
+        if self._predictf is None:  # or block._predictf._transform != self.transfZ:
             # if False or len(self.inputs) == 0 or self.output is None:
             kwinpl = kwinputdata.items()
             if self.transf is not None:
@@ -833,7 +832,7 @@ class BlockPredictor(object):
             inps, outp = self.block.autobuild(*inputdata, **dict(kwinpl))
             if hasattr(self.block, "_predict_postapply"):
                 outp = self.block._predict_postapply(outp)
-            self.block._predictf = theano.function(outputs=[o.d for o in outp],
+            self._predictf = theano.function(outputs=[o.d for o in outp],
                                                    inputs=[x.d for x in inps],
                                                    on_unused_input="warn")
         args = []
@@ -852,6 +851,6 @@ class BlockPredictor(object):
         allinputdata = inputdata + tuple(kwn)
         allinputdata = filter(lambda x: x is not None, allinputdata)
         args = map(_inner, allinputdata)
-        valret = self.block._predictf(*args)
+        valret = self._predictf(*args)
         ret = valret[0] if len(valret) == 1 else tuple(valret)
         return ret
