@@ -76,7 +76,7 @@ class SeqMatchScore(MatchScore):
         super(SeqMatchScore, self).__init__(lenc, renc, **kw)
 
     def innerapply(self, l, r):
-        scores, _ = T.scan(self.rec, sequences=[l.dimswap(1, 0), r.dimswap(1, 0)])
+        scores = T.scan(self.rec, sequences=[l.dimswap(1, 0), r.dimswap(1, 0)])
         scores = scores.dimswap(1, 0)
         ret = self.agg(scores)
         print ret.ndim

@@ -143,19 +143,19 @@ class StupidAtisScanMod(StupidAtis):
         E = self.E
         def rec(x_t):
             return E[x_t]
-        return T.scan(fn=rec, sequences=x.dimshuffle(1, 0), outputs_info=None)[0].dimshuffle(1, 0, 2)
+        return T.scan(fn=rec, sequences=x.dimshuffle(1, 0), outputs_info=None).dimshuffle(1, 0, 2)
 
     def recout(self, x):
         W = self.W
         def rec(x_t):
             return T.dot(x_t, W)
-        return T.scan(fn=rec, sequences=x.dimshuffle(1, 0, 2), outputs_info=None)[0].dimshuffle(1, 0, 2)
+        return T.scan(fn=rec, sequences=x.dimshuffle(1, 0, 2), outputs_info=None).dimshuffle(1, 0, 2)
 
     def recret(self, x):
         sm = T.nnet.softmax
         def rec(x_t):
             return sm(x_t)
-        return T.scan(fn=rec, sequences=x.dimshuffle(1, 0, 2), outputs_info=None)[0].dimshuffle(1, 0, 2)
+        return T.scan(fn=rec, sequences=x.dimshuffle(1, 0, 2), outputs_info=None).dimshuffle(1, 0, 2)
 
 
 class StupidAtisScanModNative(StupidAtisNative):
@@ -197,7 +197,7 @@ class StupidAtisScan(StupidAtis):
             emb = E[x_t]
             outs = T.dot(emb, W)
             return sm(outs)
-        o, _ = T.scan(fn=rec, sequences=x.dimshuffle(1, 0), outputs_info=None)
+        o = T.scan(fn=rec, sequences=x.dimshuffle(1, 0), outputs_info=None)
         return o.dimshuffle(1, 0, 2)
 
 
@@ -210,7 +210,7 @@ class StupidAtisScanNative(StupidAtisNative):
             emb = E[x_t]
             outs = TT.dot(emb, W)
             return sm(outs)
-        o, _ = theano.scan(fn=rec, sequences=x.dimshuffle(1, 0, 2), outputs_info=None)
+        o = theano.scan(fn=rec, sequences=x.dimshuffle(1, 0, 2), outputs_info=None)
         return o.dimshuffle(1, 0, 2)
 
 

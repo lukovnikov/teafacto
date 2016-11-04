@@ -43,25 +43,29 @@ class Softmax(Block):
 
 
 class MatDot(Block):
-    def __init__(self, indim, dim, init="uniform", **kw):
+    def __init__(self, indim, dim, init="uniform", dropout=False, **kw):
         super(MatDot, self).__init__(**kw)
         self.indim = indim
         self.dim = dim
         self.W = param((self.indim, self.dim), name="matdot").init(init)
+        self.dropout = Dropout(dropout)
 
     def apply(self, inptensor):
-        return T.dot(inptensor, self.W)
+        inp = self.dropout(inptensor)
+        return T.dot(inp, self.W)
 
 
 class Linear(Block):
-    def __init__(self, indim, dim, w_init="uniform", b_init="uniform", **kw):
+    def __init__(self, indim, dim, w_init="uniform", b_init="uniform", dropout=False, **kw):
         super(Linear, self).__init__(**kw)
         self.indim = indim
         self.dim = dim
         self.W = param((self.indim, self.dim)).init(w_init)
         self.b = param((self.dim,)).init(b_init)
+        self.dropout = Dropout(dropout)
 
     def apply(self, inp):
+        inp = self.dropout(inp)
         return T.dot(inp, self.W) + self.b
 
 
@@ -112,17 +116,21 @@ class Dropout(Block):
         super(Dropout, self).__init__(**kw)
         if seed is None:
             seed = np.random.randint(0, 1e6)
-        self.p = p
+        self.p = 0.0 if p is False else 0.3 if p is True else p
         self.rescale = rescale
-        self.rng = RVal(seed)
+        self.seed = seed
 
     def apply(self, x, _trainmode=False):
         if _trainmode and self.p > 0:
+            xmask = x.mask
             if self.rescale:
                 one = T.constant(1)
                 x /= one - self.p
-            rv = self.rng.binomial(x.shape, p=1-self.p, dtype=x.dtype)
+            rng = RVal(self.seed)
+            rv = rng.binomial(x.shape, p=1-self.p, dtype=x.dtype)
             x = x * rv
+            #print "done dropouts"
+            x.mask = xmask
             return x
         else:
             return x

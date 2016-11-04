@@ -2,6 +2,7 @@ from teafacto.core.base import Block, param
 from teafacto.core.base import tensorops as T
 from teafacto.util import getnumargs
 from teafacto.util import issequence
+from teafacto.blocks.basic import Dropout
 
 
 class RecurrentBlock(Block):     # ancestor class for everything that consumes sequences f32~(batsize, seqlen, ...)
@@ -53,12 +54,12 @@ class ReccableBlock(RecurrentBlock):    # exposes a rec function
         inputs = x.dimswap(1, 0) # inputs is (seq_len, batsize, dim)
         init_info = self.get_init_info(infoarg)
         if mask is None:
-            outputs, _ = T.scan(fn=self.rec,
+            outputs = T.scan(fn=self.rec,
                                 sequences=inputs,
                                 outputs_info=[None]+init_info,
                                 go_backwards=self._reverse)
         else:
-            outputs, _ = T.scan(fn=self.recwmask,
+            outputs = T.scan(fn=self.recwmask,
                                 sequences=[inputs, mask.dimswap(1, 0)],
                                 outputs_info=[None] + init_info,
                                 go_backwards=self._reverse)
@@ -82,7 +83,7 @@ class RNUBase(ReccableBlock):
 
     def __init__(self, dim=20, innerdim=20, wreg=0.0001,
                  initmult=0.1, nobias=False, paraminit="uniform",
-                 **kw): #layernormalize=False): # dim is input dimensions, innerdim = dimension of internal elements
+                 dropout_in=False, dropout_h=False, **kw): #layernormalize=False): # dim is input dimensions, innerdim = dimension of internal elements
         super(RNUBase, self).__init__(**kw)
         self.indim = dim
         self.innerdim = innerdim
@@ -98,6 +99,8 @@ class RNUBase(ReccableBlock):
         self.rnuparams = {}
         if not self._waitforit:
             self.initparams()
+        self.dropout_in = Dropout(dropout_in)
+        self.dropout_h = Dropout(dropout_h)
     '''
     def normalize_layer(self, vec):     # (batsize, hdim)
         if self.layernormalize:
@@ -162,6 +165,8 @@ class RNU(RNUBase):
         return acc
 
     def rec(self, x_t, h_tm1):      # x_t: (batsize, dim), h_tm1: (batsize, innerdim)
+        x_t = self.dropout_in(x_t)
+        h_tm1 = self.dropout_h(h_tm1)
         inp = T.dot(x_t, self.w)    # w: (dim, innerdim) ==> inp: (batsize, innerdim)
         rep = T.dot(h_tm1, self.u)  # u: (innerdim, innerdim) ==> rep: (batsize, innerdim)
         h = inp + rep + self.b               # h: (batsize, innerdim)
@@ -188,6 +193,8 @@ class GRU(GatedRNU):
         :param h_tm1: previous states (nb_samples, out_dim)
         :return: new state (nb_samples, out_dim)
         '''
+        x_t = self.dropout_in(x_t)
+        h_tm1 = self.dropout_h(h_tm1)
         mgate =  self.gateactivation(T.dot(h_tm1, self.um)  + T.dot(x_t, self.wm)  + self.bm)
         hfgate = self.gateactivation(T.dot(h_tm1, self.uhf) + T.dot(x_t, self.whf) + self.bhf)
         canh = T.dot(h_tm1 * hfgate, self.u) + T.dot(x_t, self.w) + self.b
@@ -213,6 +220,8 @@ class IFGRU(GatedRNU):      # input-modulating GRU
         :param h_tm1: previous states (nb_samples, out_dim)
         :return: new state (nb_samples, out_dim)
         '''
+        x_t = self.dropout_in(x_t)
+        h_tm1 = self.dropout_h(h_tm1)
         mgate =  self.gateactivation(T.dot(h_tm1, self.um)  + T.dot(x_t, self.wm)  + self.bm)
         hfgate = self.gateactivation(T.dot(h_tm1, self.uhf) + T.dot(x_t, self.whf) + self.bhf)
         ifgate = self.gateactivation(T.dot(h_tm1, self.uif) + T.dot(x_t, self.wif) + self.bif)
@@ -225,6 +234,8 @@ class LSTM(GatedRNU):
     paramnames = ["wf", "rf", "bf", "wi", "ri", "bi", "wo", "ro", "bo", "w", "r", "b", "pf", "pi", "po"]
 
     def rec(self, x_t, y_tm1, c_tm1):
+        x_t = self.dropout_in(x_t)
+        c_tm1 = self.dropout_h(cZ_tm1)
         fgate = self.gateactivation(c_tm1*self.pf + self.bf + T.dot(x_t, self.wf) + T.dot(y_tm1, self.rf))
         igate = self.gateactivation(c_tm1*self.pi + self.bi + T.dot(x_t, self.wi) + T.dot(y_tm1, self.ri))
         cf = c_tm1 * fgate

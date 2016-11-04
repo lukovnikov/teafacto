@@ -66,7 +66,7 @@ class WordEncoderPlusGlove(Block):
             return T.concatenate([emb, enc], axis=1)    # (batsize, embdim + encdim)
         elif seq.ndim == 3:     # (batsize, seqlen, 1+maxwordlen)
             emb = self.glove(seq[:, :, 0])
-            o, _ = T.scan(fn=self.recenc, sequences=seq[:, :, 1:].dimswap(1, 0), outputs_info=None)
+            o = T.scan(fn=self.recenc, sequences=seq[:, :, 1:].dimswap(1, 0), outputs_info=None)
             enc = o.dimswap(1, 0)
             return T.concatenate([emb, enc], axis=2)    # (batsize, seqlen, embdim + encdim)
 

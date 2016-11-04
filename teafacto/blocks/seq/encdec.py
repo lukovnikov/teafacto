@@ -6,7 +6,7 @@ from teafacto.blocks.basic import VectorEmbed, IdxToOneHot, MatDot
 
 
 class SeqEncDec(Block):
-    def __init__(self, enc, dec, statetrans=None, **kw):
+    def __init__(self, enc, dec, statetrans=None, dropout=False, **kw):
         super(SeqEncDec, self).__init__(**kw)
         self.enc = enc
         self.dec = dec
@@ -50,8 +50,8 @@ class SeqEncDec(Block):
 class SeqEncDecAtt(SeqEncDec):
     def __init__(self, enclayers, declayers, attgen, attcon,
                  decinnerdim, statetrans=None, vecout=False,
-                 inconcat=True, outconcat=False, maskid=-1, **kw):
-        enc = SeqEncoder(*enclayers)\
+                 inconcat=True, outconcat=False, maskid=-1, dropout=False, **kw):
+        enc = SeqEncoder(*enclayers, dropout=dropout)\
             .with_outputs()\
             .maskoptions(maskid, MaskMode.AUTO, MaskSetMode.ZERO)
         smo = False if vecout else None
@@ -59,9 +59,10 @@ class SeqEncDecAtt(SeqEncDec):
             declayers,
             attention=Attention(attgen, attcon),
             innerdim=decinnerdim, inconcat=inconcat,
-            softmaxoutblock=smo, outconcat=outconcat
+            softmaxoutblock=smo, outconcat=outconcat,
+            dropout=dropout
         )
-        super(SeqEncDecAtt, self).__init__(enc, dec, statetrans=statetrans, **kw)
+        super(SeqEncDecAtt, self).__init__(enc, dec, statetrans=statetrans, dropout=dropout, **kw)
 
 
 class SimpleSeqEncDecAtt(SeqEncDecAtt):
@@ -80,16 +81,17 @@ class SimpleSeqEncDecAtt(SeqEncDecAtt):
                  inconcat=True,
                  outconcat=False,
                  maskid=-1,
+                 dropout=False,
                  **kw):
         encinnerdim = [encdim] if not issequence(encdim) else encdim
         decinnerdim = [decdim] if not issequence(decdim) else decdim
 
         self.enclayers, lastencinnerdim = \
-            self.getenclayers(inpembdim, inpvocsize, encinnerdim, bidir, rnu, maskid=maskid)
+            self.getenclayers(inpembdim, inpvocsize, encinnerdim, bidir, rnu, maskid=maskid, dropout=dropout)
 
         self.declayers = \
             self.getdeclayers(outembdim, outvocsize, lastencinnerdim,
-                              decinnerdim, rnu, inconcat, maskid=maskid)
+                              decinnerdim, rnu, inconcat, maskid=maskid, dropout=dropout)
 
         # attention
         lastdecinnerdim = decinnerdim[-1]
@@ -105,9 +107,9 @@ class SimpleSeqEncDecAtt(SeqEncDecAtt):
 
         super(SimpleSeqEncDecAtt, self).__init__(self.enclayers, self.declayers,
             attgen, attcon, argdecinnerdim, statetrans=statetrans, vecout=vecout,
-            inconcat=inconcat, outconcat=outconcat, **kw)
+            inconcat=inconcat, outconcat=outconcat, dropout=dropout, **kw)
 
-    def getenclayers(self, inpembdim, inpvocsize, encinnerdim, bidir, rnu, maskid=-1):
+    def getenclayers(self, inpembdim, inpvocsize, encinnerdim, bidir, rnu, maskid=-1, dropout=False):
         if inpembdim is None:
             inpemb = IdxToOneHot(inpvocsize)
             inpembdim = inpvocsize
@@ -123,16 +125,16 @@ class SimpleSeqEncDecAtt(SeqEncDecAtt):
         lastencinnerdim = dims[-1] if not bidir else dims[-1] * 2
         while i < len(dims):
             if bidir:
-                newrnu = BiRNU.fromrnu(rnu, dim=dims[i - 1], innerdim=dims[i])
+                newrnu = BiRNU.fromrnu(rnu, dim=dims[i - 1], innerdim=dims[i], dropout_in=dropout, dropout_h=False)
             else:
-                newrnu = rnu(dim=dims[i - 1], innerdim=dims[i])
+                newrnu = rnu(dim=dims[i - 1], innerdim=dims[i], dropout_in=dropout, dropout_h=False)
             encrnus.append(newrnu)
             i += 1
         enclayers = [inpemb] + encrnus
         return enclayers, lastencinnerdim
 
     def getdeclayers(self, outembdim, outvocsize, lastencinnerdim,
-                     decinnerdim, rnu, inconcat, maskid=-1):
+                     decinnerdim, rnu, inconcat, maskid=-1, dropout=False):
         if outembdim is None:
             outemb = IdxToOneHot(outvocsize)
             outembdim = outvocsize
@@ -146,7 +148,7 @@ class SimpleSeqEncDecAtt(SeqEncDecAtt):
         dims = [firstdecdim] + decinnerdim
         i = 1
         while i < len(dims):
-            decrnus.append(rnu(dim=dims[i - 1], innerdim=dims[i]))
+            decrnus.append(rnu(dim=dims[i - 1], innerdim=dims[i], dropout_in=dropout, dropout_h=False))
             i += 1
         declayers = [outemb] + decrnus
         return declayers

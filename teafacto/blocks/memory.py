@@ -102,7 +102,7 @@ class LinearGateMemAddr(MemoryAddress):     # TODO: -- TOO MUCH MEMORY USE, TOO 
             trans = T.tanh(trans)                                       # apply tanh
             ret = T.dot(trans, self.U)                                  # (batsize, )
             return ret
-        o, _ = T.scan(fn=rec, sequences=self.memblock.innervar, non_sequences=criterion)    # (memsize, batsize)
+        o = T.scan(fn=rec, sequences=self.memblock.innervar, non_sequences=criterion)    # (memsize, batsize)
         return o.dimswap(1, 0)                                                              # (batsize, memsize)
 
     def _get_combo(self, x_t, crit):    # x_t: (mem_dim),   crit: (batsize, crit_dim), out: (batsize, mem_dim + crit_dim)

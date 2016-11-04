@@ -68,7 +68,7 @@ class SpatialEmb(Block):
         return -divmul * dist
 
     def apply(self, x):     # x: (batsize, 4)
-        o, _ = T.scan(fn=self.rec, sequences=[x[:, 0], x[:, 1], x[:, 2]], non_sequences=[self.xes, self.yes, self.divmul], outputs_info=None)    # (batsize, outdim)
+        o = T.scan(fn=self.rec, sequences=[x[:, 0], x[:, 1], x[:, 2]], non_sequences=[self.xes, self.yes, self.divmul], outputs_info=None)    # (batsize, outdim)
         #axes = T.tile(x[:, 0], (self.xes.shape[0], 1)).T
         #ayes = T.tile(x[:, 1], (self.xes.shape[0], 1)).T
         #adivs = T.tile(x[:, 2], (self.xes.shape[0], 1)).T

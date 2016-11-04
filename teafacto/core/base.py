@@ -79,6 +79,7 @@ def wrapf(attr, root=None):
         innerwrap = Var(attr)
         if isinstance(root, Var):       # propagate params
             innerwrap.push_params(root._params)
+            innerwrap.push_updates(root._updates)
     else:
         innerwrap = attr
     return innerwrap
@@ -403,9 +404,6 @@ class RVal(Elem, TensorWrapped, Masked):    # random value
         return self.value.eval()
 
 
-
-
-### WORRY ABOUT THIS
 class Var(Elem, TensorWrapped, Masked): # result of applying a block on theano variables
     """ Var has params propagated from all the blocks used to compute it """
     def __init__(self, value, name=None, **kw):
@@ -415,9 +413,28 @@ class Var(Elem, TensorWrapped, Masked): # result of applying a block on theano v
         self.value = value
         self._shape = None
         self._params = set()            # params this variable may depend on
+        self._updates = OrderedDict()
 
+    # params
     def push_params(self, setofparams):
         self._params.update(setofparams)
+
+    @property
+    def allparams(self):
+        return self._params
+
+    # updates
+    def push_updates(self, dictofupdates):
+        for updatesrc in dictofupdates:
+            updatetgt = dictofupdates[updatesrc]
+            if updatesrc in self._updates and updatetgt != self._updates[updatesrc]:
+                raise Exception("update collision")
+            self._updates[updatesrc] = updatetgt
+
+    # some stuff
+    @property
+    def allupdates(self):
+        return self._updates
 
     @property
     def v(self):
@@ -432,10 +449,6 @@ class Var(Elem, TensorWrapped, Masked): # result of applying a block on theano v
 
     def __repr__(self):
         return "var::%s-%s:%s" % (self._name, self.value.dtype, str(self._shape))
-
-    @property
-    def allparams(self):
-        return self._params
 
     @property
     def name(self):
@@ -535,11 +548,13 @@ class Block(Elem, Saveable): # block with parameters
             paramstopush.update(var._params)
         if transform is not None and isfunction(transform):
             args, kwargs = transform(*args, **kwargs)
+        updatestopush = _get_updates_from([args, kwargs])
         ret = self.apply(*args, **kwargs)   # ret carries params of its own --> these params have been added in this block
         possiblechildren = recurfilter(lambda x: isinstance(x, Var), ret)
         for p in possiblechildren:
             p.push_params(paramstopush)
             p.push_params(self.ownparams)
+            p.push_updates(updatestopush)
         if oldtrainmode is not None:    # this was where we changed the global _TRAINMODE
             _TRAINMODE = oldtrainmode   # put it back
         return ret
@@ -660,6 +675,9 @@ class OpBlock(Block):
             paramstopush.update(var._params)
         if self.root is not None and isinstance(self.root, Var):
             paramstopush.update(self.root._params)
+
+        updatestopush = _get_updates_from([args, kwargs] + ([self.root] if self.root is not None and isinstance(self.root, Var) else []))   # gather all updates
+
         # push all "own" params, params that are args or root
         params = recurfilter(lambda x: isinstance(x, Parameter), args)
         kwparams = recurfilter(lambda x: isinstance(x, Parameter), kwargs)
@@ -679,6 +697,7 @@ class OpBlock(Block):
         for p in possiblechildren:
             p.push_params(paramstopush)
             p.push_params(ownparams)
+            p.push_updates(updatestopush)
         return ret
 
 
@@ -821,11 +840,26 @@ class scan(Block):
 
     def apply(self, fn, **kwargs):
         trueargs = recurmap(lambda x: x.d if hasattr(x, "d") else x, kwargs)
-        o, updates = theano.scan(self.fnwrap(fn), **trueargs)
+        oldupdates = _get_updates_from(kwargs)
+        o, newupdates = theano.scan(self.fnwrap(fn), **trueargs)
         ret = [Var(oe) for oe in o] if issequence(o) else Var(o)
         for var in recurfilter(lambda x: isinstance(x, Var), ret):
             var.push_params(self._recparams)
-        return ret, updates
+            var.push_updates(oldupdates)
+            var.push_updates(newupdates)
+        #print updates
+        return ret
+
+
+def _get_updates_from(kwargs):
+    updates = {}
+    for var in recurfilter(lambda x: isinstance(x, Var), kwargs):
+        for updatesrc in var.allupdates:
+            updatetgt = var.allupdates[updatesrc]
+            if updatesrc in updates and updates[updatesrc] != updatetgt:
+                raise Exception("update overwriting same update source")
+            updates[updatesrc] = updatetgt
+    return updates
 
 
 class until(Elem):

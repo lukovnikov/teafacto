@@ -111,7 +111,7 @@ class LinearSumAttentionGenerator(AttentionGenerator):  #EVIL # simple feedforwa
         def rec(x_t, crit):     # x_t is (batsize, elem_dim), crit is (batsize, crit_dim)
             ret = T.dot(T.concatenate([x_t, crit], axis=1), self.W)     # (batsize, innerdim)
             return T.sum(ret, axis=1)       # (batsize, )
-        o, _ = T.scan(fn=rec, sequences=data.dimswap(1, 0), non_sequences=criterion)    # o is (seqlen, batsize)
+        o = T.scan(fn=rec, sequences=data.dimswap(1, 0), non_sequences=criterion)    # o is (seqlen, batsize)
         return o.dimswap(1, 0)       # returns (batsize, seqlen), softmaxed on seqlen
 
 
@@ -133,7 +133,7 @@ class LinearGateAttentionGenerator(AttentionGenerator): #EVIL
             if self.nonlinearities:
                 ret = T.nnet.sigmoid(ret)                                  # apply sigmoid
             return ret
-        o, _ = T.scan(fn=rec, sequences=data.dimswap(1, 0), non_sequences=criterion)
+        o = T.scan(fn=rec, sequences=data.dimswap(1, 0), non_sequences=criterion)
         return o.dimswap(1, 0)     # (batsize, seqlen)
 
     def _get_combo(self, x_t, crit):

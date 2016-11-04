@@ -44,12 +44,13 @@ def loadgeo(p="../../../data/semparse/geoquery.txt"):
     return qmat, amat, qdic, adic, qwords, awords
 
 
-def run(p="m",
+def run(
         numbats=50,
         epochs=10,
         lr=1.,
         embdim=200,
-        encdim=400):
+        encdim=400,
+        dropout=True):
     # loaddata
     qmat, amat, qdic, adic, qwc, awc = loadgeo()
 
@@ -63,7 +64,8 @@ def run(p="m",
                                 encdim=encdim,
                                 decdim=encdim,
                                 maskid=0,
-                                statetrans=True)
+                                statetrans=True,
+                                dropout=dropout)
 
     encdec.train([qmat, amat[:, :-1]], amat[:, 1:])\
         .cross_entropy().rmsprop(lr=lr/numbats).grad_total_norm(1.)\

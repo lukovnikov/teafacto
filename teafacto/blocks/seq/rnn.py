@@ -59,7 +59,7 @@ class RecStack(ReccableBlock):
 
     @classmethod
     def recurnonreclayer(cls, x, layer):
-        y, _ = T.scan(fn=cls.dummyrec(layer),
+        y = T.scan(fn=cls.dummyrec(layer),
                       sequences=x.dimswap(1, 0),
                       outputs_info=None)
         return y.dimswap(1, 0)
@@ -182,7 +182,7 @@ class EncLastDim(Block):
         if x.ndim == mindim:
             return self.enc(x, mask=mask)
         elif x.ndim > mindim:
-            ret, _ = T.scan(fn=self.outerrec, sequences=[x, mask], outputs_info=None)
+            ret = T.scan(fn=self.outerrec, sequences=[x, mask], outputs_info=None)
             return ret
         else:
             raise Exception("cannot have less than {} dims".format(mindim))
@@ -209,6 +209,7 @@ class SeqEncoder(AttentionConsumer, Block):
         self._returnings = {"enc"}
         self._nomask = False
         self._maskconfig = kw["maskcfg"] if "maskcfg" in kw else MaskConfig(MaskMode.AUTO, 0, MaskSetMode.NONE)
+        dropout = False if "dropout" not in kw else kw["dropout"]
         self.embedder = embedder
         if len(layers) > 0:
             if len(layers) == 1:
@@ -350,7 +351,8 @@ class SeqEncoder(AttentionConsumer, Block):
 
 class RNNSeqEncoder(SeqEncoder):
     def __init__(self, indim=500, inpembdim=100, inpemb=None,
-                 innerdim=200, bidir=False, maskid=None, **kw):
+                 innerdim=200, bidir=False, maskid=None,
+                 dropout_in=False, dropout_h=False, **kw):
         self.bidir = bidir
         if inpemb is None:
             inpemb = VectorEmbed(indim=indim, dim=inpembdim, maskid=maskid)
@@ -361,7 +363,8 @@ class RNNSeqEncoder(SeqEncoder):
         if not issequence(innerdim):
             innerdim = [innerdim]
         self.outdim = innerdim[-1] if not bidir else innerdim[-1] * 2
-        layers, lastdim = MakeRNU.make(inpembdim, innerdim, bidir=bidir)
+        layers, lastdim = MakeRNU.make(inpembdim, innerdim, bidir=bidir,
+                                       dropout_in=dropout_in, dropout_h=dropout_h)
         #self.outdim = lastdim      # TODO
         super(RNNSeqEncoder, self).__init__(inpemb, *layers, **kw)
 
@@ -412,11 +415,11 @@ class SeqDecoder(Block):
         embedder = self.embedder
         def recemb(x):
             return embedder(x)
-        seq_emb, _ = T.scan(fn=recemb, sequences=seq[:, 1:].dimswap(1, 0))
+        seq_emb = T.scan(fn=recemb, sequences=seq[:, 1:].dimswap(1, 0))
         seq_emb = seq_emb.dimswap(1, 0)
         seq_emb_t0 = self._get_seq_emb_t0(seq_emb.shape[0], startsymemb=startsymemb)
         seq_emb = T.concatenate([seq_emb_t0.dimshuffle(0, "x", 1), seq_emb], axis=1)
-        outputs, _ = T.scan(fn=self.rec,
+        outputs = T.scan(fn=self.rec,
                             sequences=seq_emb.dimswap(1, 0),
                             outputs_info=[None] + init_info,
                             non_sequences=nonseq)
@@ -478,7 +481,7 @@ class SeqDecoderAtt(Block):
     """ seq decoder with attention with new inconcat implementation """
 
     def __init__(self, layers, softmaxoutblock=None, innerdim=None,
-                 attention=None, inconcat=True, outconcat=False, **kw):
+                 attention=None, inconcat=True, outconcat=False, dropout=False, **kw):
         super(SeqDecoderAtt, self).__init__(**kw)
         self.embedder = layers[0]
         self.block = RecStack(*layers[1:])
@@ -491,7 +494,7 @@ class SeqDecoderAtt(Block):
         assert (isinstance(self.block, ReccableBlock))
         if softmaxoutblock is None:  # default softmax out block
             sm = Softmax()
-            self.lin = Linear(indim=self.outdim, dim=self.embedder.indim)
+            self.lin = Linear(indim=self.outdim, dim=self.embedder.indim, dropout=dropout)
             self.softmaxoutblock = asblock(lambda x: sm(self.lin(x)))
         elif softmaxoutblock is False:
             self.softmaxoutblock = asblock(lambda x: x)
@@ -514,7 +517,7 @@ class SeqDecoderAtt(Block):
 
         seq_emb = self.embedder(seq)    # (batsize, seqlen, embdim)
         mask = seq_emb.mask if mask is None else mask
-        outputs, _ = T.scan(fn=self.rec,
+        outputs = T.scan(fn=self.rec,
                             sequences=seq_emb.dimswap(1, 0),
                             outputs_info=[None, 0] + init_info,
                             non_sequences=[ctxmask, ctx])
@@ -701,7 +704,7 @@ class BiRewAttSumDecoder(Block):
 class MakeRNU(object):
     ''' generates a list of RNU's'''
     @staticmethod
-    def make(initdim, specs, rnu=GRU, bidir=False):
+    def make(initdim, specs, rnu=GRU, bidir=False, dropout_in=False, dropout_h=False):
         if not issequence(specs):
             specs = [specs]
         rnns = []
@@ -717,18 +720,21 @@ class MakeRNU(object):
                             == set(fspec.keys()))
                 fspec.update(spec)
             if fspec["bidir"]:
-                rnn = BiRNU.fromrnu(fspec["rnu"], dim=prevdim, innerdim=fspec["dim"])
+                rnn = BiRNU.fromrnu(fspec["rnu"], dim=prevdim, innerdim=fspec["dim"],
+                                    dropout_in=dropout_in, dropout_h=dropout_h)
                 prevdim = fspec["dim"] * 2
             else:
-                rnn = fspec["rnu"](dim=prevdim, innerdim=fspec["dim"])
+                rnn = fspec["rnu"](dim=prevdim, innerdim=fspec["dim"],
+                                   dropout_in=dropout_in, dropout_h=dropout_h)
                 prevdim = fspec["dim"]
             rnns.append(rnn)
         return rnns, prevdim
 
     @staticmethod
-    def fromdims(innerdim, rnu=GRU):
+    def fromdims(innerdim, rnu=GRU, dropout_in=False, dropout_h=False):
         assert(len(innerdim) >= 2)
         initdim = innerdim[0]
         otherdim = innerdim[1:]
-        return MakeRNU.make(initdim, otherdim, rnu=rnu)
+        return MakeRNU.make(initdim, otherdim, rnu=rnu,
+                            dropout_in=dropout_in, dropout_h=dropout_h)
 

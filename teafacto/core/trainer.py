@@ -106,6 +106,7 @@ class ModelTrainer(object):
             ce = tensor.nnet.categorical_crossentropy(probsmat, goldvec) #-tensor.log(probsmat[tensor.arange(probsmat.shape[0]), goldvec])
             return ce       # (seqlen,) ==> (1,)
         o, _ = theano.scan(fn=_f, sequences=[probs, gold], outputs_info=None)      # out: (batsize, seqlen)
+        #print "MASK!!" if mask is not None else "NO MASK!!!"
         o = o * mask if mask is not None else o     # (batsize, seqlen)
         o = tensor.sum(o, axis=1)
         return o        # (batsize,)
@@ -155,10 +156,10 @@ class ModelTrainer(object):
             elif gold.ndim != probs.ndim - 1:
                 raise TypeError('rank mismatch between targets and predictions')
             top = tensor.argmax(probs, axis=-1)
-            assert(gold.ndim == 2 and top.ndim == 2 and mask.ndim == 2)
+            assert(gold.ndim == 2 and top.ndim == 2 and (mask.ndim == 2 or mask is None))
             if mask is not None:
-                gold = gold * mask
-                top = top * mask
+                gold *= mask
+                top *= mask
             diff = tensor.sum(abs(top - gold), axis=1)
             return tensor.eq(diff, tensor.zeros_like(diff))
         self._set_objective(inner)
@@ -362,6 +363,7 @@ class ModelTrainer(object):
         self.tt.tock("training - autobuilt")
         self.tt.tick("compiling training function")
         params = outp.allparams
+        scanupdates = outp.allupdates
         inputs = inps
         loss, newinp = self.buildlosses(outp, [self.objective])
         loss = loss[0]
@@ -397,10 +399,12 @@ class ModelTrainer(object):
                     updates.append((upd, upds[upd]))
         #print updates
         #embed()
+        finputs = [x.d for x in inputs] + [self.goldvar]
+        allupdates = updates + scanupdates.items()
         trainf = theano.function(
-            inputs=[x.d for x in inputs]+[self.goldvar],
+            inputs=finputs,
             outputs=[cost],
-            updates=updates,
+            updates=allupdates,
             mode=NanGuardMode(nan_is_error=True, inf_is_error=False, big_is_error=False)
         )
         # TODO: add givens for transferring dataset to GPU --> must reimplement parts of trainer (batch generation, givens, ...)
@@ -408,13 +412,17 @@ class ModelTrainer(object):
         return trainf
 
     def buildlosses(self, output, objs):
-        return [aggregate(
-                    obj(output.d, self.goldvar, mask=output.mask.d if output.mask is not None else None)
-                        if "mask" in inspect.getargspec(obj)
-                        else
-                    obj(output.d, self.goldvar)
-                , mode='mean' if self.average_err is True else 'sum')
-                for obj in objs], None
+        acc = []
+        for objective in objs:
+            if "mask" in inspect.getargspec(objective)[0]:
+                mask = output.mask.d if output.mask is not None else None
+                obj = objective(output.d, self.goldvar, mask=mask)
+            else:
+                assert(output.mask is None)
+                obj = objective(output.d, self.goldvar)
+            objagg = aggregate(obj, mode="mean" if self.average_err is True else "sum")
+            acc.append(objagg)
+        return acc, None
 
     def buildvalidfun(self, model):
         self.tt.tick("validation - autobuilding")

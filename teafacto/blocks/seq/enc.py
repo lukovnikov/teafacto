@@ -14,7 +14,7 @@ class SeqUnroll(Block):
 
     def apply(self, seq):   # (batsize, seqlen, ...)
         x = seq.dimswap(1, 0)
-        ret, _ = T.scan(self.rec, sequences=x)
+        ret = T.scan(self.rec, sequences=x)
         return ret.dimswap(1, 0)
 
     def rec(self, *args, **kwargs):
