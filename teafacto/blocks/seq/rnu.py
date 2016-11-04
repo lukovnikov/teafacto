@@ -235,7 +235,7 @@ class LSTM(GatedRNU):
 
     def rec(self, x_t, y_tm1, c_tm1):
         x_t = self.dropout_in(x_t)
-        c_tm1 = self.dropout_h(cZ_tm1)
+        c_tm1 = self.dropout_h(c_tm1)
         fgate = self.gateactivation(c_tm1*self.pf + self.bf + T.dot(x_t, self.wf) + T.dot(y_tm1, self.rf))
         igate = self.gateactivation(c_tm1*self.pi + self.bi + T.dot(x_t, self.wi) + T.dot(y_tm1, self.ri))
         cf = c_tm1 * fgate
