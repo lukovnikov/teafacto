@@ -50,7 +50,7 @@ def run(
         lr=1.,
         embdim=200,
         encdim=400,
-        dropout=True):
+        dropout=0.5):
     # loaddata
     qmat, amat, qdic, adic, qwc, awc = loadgeo()
 
