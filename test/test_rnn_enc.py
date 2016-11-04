@@ -87,7 +87,8 @@ class StackRNNEncoderTest(SimpleRNNEncoderTest):
                               GRU(dim=hdim2, innerdim=self.outdim))
         self.enc = self.doswitches(self.enc)
         self.data = np.random.random((batsize, seqlen, indim)).astype("float32")
-        self.out = self.enc.predict(self.data)
+        self.p = self.enc.predict
+        self.out = self.p(self.data)
 
     def doswitches(self, enc):
         return enc
