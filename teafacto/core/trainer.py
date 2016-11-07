@@ -156,7 +156,8 @@ class ModelTrainer(object):
             elif gold.ndim != probs.ndim - 1:
                 raise TypeError('rank mismatch between targets and predictions')
             top = tensor.argmax(probs, axis=-1)
-            assert(gold.ndim == 2 and top.ndim == 2 and (mask.ndim == 2 or mask is None))
+            assert(gold.ndim == 2 and top.ndim == 2)
+            assert(mask is None or mask.ndim == 2)
             if mask is not None:
                 gold *= mask
                 top *= mask

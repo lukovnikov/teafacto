@@ -4,6 +4,7 @@ from IPython import embed
 
 from teafacto.core.base import Val
 from teafacto.blocks.seq.rnn import SeqEncoder, RNNSeqEncoder, SeqDecoder, SeqDecoderAtt
+from teafacto.blocks.seq.rnu import RXRU
 from teafacto.blocks.seq.encdec import SimpleSeqEncDecAtt
 
 
@@ -50,11 +51,14 @@ def run(
         lr=1.,
         embdim=200,
         encdim=400,
-        dropout=0.5):
+        dropout=0.5,
+        layers=3):
     # loaddata
     qmat, amat, qdic, adic, qwc, awc = loadgeo()
 
     np.random.seed(1234)
+    encdim = [encdim] * layers
+    decdim = [encdim] * layers
 
     # make seq/dec+att
     encdec = SimpleSeqEncDecAtt(inpvocsize=len(qdic)+1,
@@ -62,10 +66,11 @@ def run(
                                 outvocsize=len(adic)+1,
                                 outembdim=embdim,
                                 encdim=encdim,
-                                decdim=encdim,
+                                decdim=decdim,
                                 maskid=0,
                                 statetrans=True,
-                                dropout=dropout)
+                                dropout=dropout,
+                                rnu=RXRU)
 
     encdec.train([qmat, amat[:, :-1]], amat[:, 1:])\
         .cross_entropy().rmsprop(lr=lr/numbats).grad_total_norm(1.)\

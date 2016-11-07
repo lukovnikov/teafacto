@@ -82,7 +82,7 @@ class RNUBase(ReccableBlock):
     _waitforit = False
 
     def __init__(self, dim=20, innerdim=20, wreg=0.0001,
-                 initmult=0.1, nobias=False, paraminit="uniform",
+                 initmult=0.1, nobias=False, paraminit="glorotuniform",
                  dropout_in=False, dropout_h=False, **kw): #layernormalize=False): # dim is input dimensions, innerdim = dimension of internal elements
         super(RNUBase, self).__init__(**kw)
         self.indim = dim
@@ -136,12 +136,16 @@ class RNUBase(ReccableBlock):
                 setattr(self, paramname, 0)
                 continue
             if shape is None:
-                if paramname[0] == "b" or paramname[0] == "p": # bias or peepholes, internal weights
-                    shape = (self.innerdim,)
-                elif paramname[0] == "w": #input processing matrices
-                    shape = (self.indim, self.innerdim)
-                else: # internal recurrent matrices
-                    shape = (self.innerdim, self.innerdim)
+                startname = paramname[0]
+                namesuffix = paramname[-2:] if len(paramname) > 1 else paramname
+                rdim = self.indim if namesuffix == "_x" else self.innerdim
+                if startname == "b" or startname == "p":
+                    shape = (rdim,)
+                    self.paraminit = "uniform"
+                elif startname == "w":
+                    shape = (self.indim, rdim)
+                else:
+                    shape = (self.innerdim, rdim)
             self.rnuparams[paramname] = param(shape, name=paramname).init(self.paraminit)
             setattr(self, paramname, self.rnuparams[paramname])
 
@@ -244,6 +248,26 @@ class LSTM(GatedRNU):
         ogate = self.gateactivation(c_t*self.po + self.bo + T.dot(x_t, self.wo) + T.dot(y_tm1, self.ro))
         y_t = ogate * self.outpactivation(c_t)
         return [y_t, y_t, c_t]
+
+
+class XRU(RNU):
+    pass
+
+
+class RXRU(XRU):
+    paramnames = "ui wi bi uh bh uo bo wt".split()
+
+    def rec(self, x_t, h_tm1):
+        x_t_i = self.dropout_in(x_t)
+        h_tm1_i = self.dropout_h(h_tm1)
+        l_t = self.outpactivation(T.dot(x_t_i, self.wi) + T.dot(h_tm1_i, self.ui) + self.bi)
+        o_t_i = self.outpactivation(T.dot(l_t, self.uo) + self.bo)
+        h_t_i = self.outpactivation(T.dot(l_t, self.uh) + self.bh)
+        x_t_o = T.dot(x_t_i, self.wt)
+        y_t = x_t_o + o_t_i
+        h_t = h_t_i + h_tm1_i
+        return [y_t, h_t]
+
 
 
 

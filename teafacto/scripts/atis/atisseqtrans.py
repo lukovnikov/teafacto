@@ -7,6 +7,7 @@ from theano import tensor as TT
 
 from teafacto.blocks.seq.trans import SimpleSeqTrans
 #from teafacto.blocks.seq.oldseqproc import SimpleSeqTransducer as SimpleSeqTrans
+from teafacto.blocks.seq.rnu import RXRU, GRU
 from teafacto.blocks.basic import Softmax
 from teafacto.core.base import Block, param, tensorops as T
 from teafacto.util import argprun
@@ -217,8 +218,8 @@ class StupidAtisScanNative(StupidAtisNative):
 
 
 def run(p="../../../data/atis/atis.pkl", wordembdim=100,
-        innerdim=200, lr=0.05, numbats=100, epochs=20,
-        validinter=1, wreg=0.0003, depth=1):
+        innerdim=200, lr=0.01, numbats=100, epochs=20,
+        validinter=1, wreg=0.00003, depth=5):
     p = os.path.join(os.path.dirname(__file__), p)
     train, test, dics = pickle.load(open(p))
     word2idx = dics["words2idx"]
@@ -250,7 +251,7 @@ def run(p="../../../data/atis/atis.pkl", wordembdim=100,
 
     # define model
     innerdim = [innerdim] * depth
-    m = SimpleSeqTrans(indim=numwords, embdim=wordembdim,
+    m = SimpleSeqTrans(indim=numwords, embdim=wordembdim, rnu=RXRU,
                        innerdim=innerdim, outdim=numlabels)
     '''m = StupidAtis(inpembdim = wordembdim, indim = numwords, outdim = numlabels)
     m = StupidAtisNative(inpembdim=wordembdim, indim=numwords, outdim=numlabels)'''
@@ -262,7 +263,7 @@ def run(p="../../../data/atis/atis.pkl", wordembdim=100,
         .split_validate(splits=5, random=True).seq_cross_entropy().seq_accuracy().validinter(validinter)\
         .train(numbats, epochs)'''
 
-    m.train([traindata], traingold).adagrad(lr=lr).seq_cross_entropy().l2(wreg).grad_total_norm(5.)\
+    m.train([traindata], traingold).adagrad(lr=lr).seq_cross_entropy().l2(wreg).grad_total_norm(1.)\
         .split_validate(splits=5, random=True).seq_cross_entropy().seq_accuracy().validinter(validinter)\
         .train(numbats, epochs)
 

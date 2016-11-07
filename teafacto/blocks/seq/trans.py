@@ -26,6 +26,6 @@ class SimpleSeqTrans(SeqTrans):
         if not issequence(innerdim):
             innerdim = [innerdim]
         innerdim = [embdim] + innerdim
-        rnn, _ = MakeRNU.fromdims(innerdim, rnu=rnu)
-        smo = Lin(indim=innerdim[-1], dim=outdim)
+        rnn, lastdim = MakeRNU.fromdims(innerdim, rnu=rnu)
+        smo = Lin(indim=lastdim, dim=outdim)
         super(SimpleSeqTrans, self).__init__(emb, *(rnn + [smo, Softmax()]), **kw)
