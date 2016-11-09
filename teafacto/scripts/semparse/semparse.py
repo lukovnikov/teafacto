@@ -129,7 +129,7 @@ def run(
                      outvocsize=len(adic)+1, dropout=dropout)
 
     if customemb:
-        smo.setlin2(outemb.W.T)
+        smo.setlin2(outemb.baseemb.W.T)
 
     # make seq/dec+att
     encdec = SimpleSeqEncDecAtt(inpvocsize=len(qdic)+1,
