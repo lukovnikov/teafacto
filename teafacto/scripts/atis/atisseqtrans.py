@@ -7,7 +7,7 @@ from theano import tensor as TT
 
 from teafacto.blocks.seq.trans import SimpleSeqTrans
 #from teafacto.blocks.seq.oldseqproc import SimpleSeqTransducer as SimpleSeqTrans
-from teafacto.blocks.seq.rnu import RXRU, GRU
+from teafacto.blocks.seq.rnu import GRU
 from teafacto.blocks.basic import Softmax
 from teafacto.core.base import Block, param, tensorops as T
 from teafacto.util import argprun
@@ -218,8 +218,8 @@ class StupidAtisScanNative(StupidAtisNative):
 
 
 def run(p="../../../data/atis/atis.pkl", wordembdim=100,
-        innerdim=200, lr=0.01, numbats=100, epochs=20,
-        validinter=1, wreg=0.00003, depth=5):
+        innerdim=200, lr=1., numbats=100, epochs=20,
+        validinter=1, wreg=0.00003, depth=1):
     p = os.path.join(os.path.dirname(__file__), p)
     train, test, dics = pickle.load(open(p))
     word2idx = dics["words2idx"]
@@ -251,7 +251,7 @@ def run(p="../../../data/atis/atis.pkl", wordembdim=100,
 
     # define model
     innerdim = [innerdim] * depth
-    m = SimpleSeqTrans(indim=numwords, embdim=wordembdim, rnu=RXRU,
+    m = SimpleSeqTrans(indim=numwords, embdim=wordembdim, rnu=GRU,
                        innerdim=innerdim, outdim=numlabels)
     '''m = StupidAtis(inpembdim = wordembdim, indim = numwords, outdim = numlabels)
     m = StupidAtisNative(inpembdim=wordembdim, indim=numwords, outdim=numlabels)'''

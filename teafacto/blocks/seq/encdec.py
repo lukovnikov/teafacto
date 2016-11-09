@@ -69,8 +69,10 @@ class SimpleSeqEncDecAtt(SeqEncDecAtt):
     def __init__(self,
                  inpvocsize=400,
                  inpembdim=None,
+                 inpemb=None,
                  outvocsize=100,
                  outembdim=None,
+                 outemb=None,
                  encdim=100,
                  decdim=100,
                  attdim=100,
@@ -86,12 +88,14 @@ class SimpleSeqEncDecAtt(SeqEncDecAtt):
         encinnerdim = [encdim] if not issequence(encdim) else encdim
         decinnerdim = [decdim] if not issequence(decdim) else decdim
 
+        inpemb = self.getemb(inpemb, inpembdim, inpvocsize)
         self.enclayers, lastencinnerdim = \
-            self.getenclayers(inpembdim, inpvocsize, encinnerdim, bidir, rnu, maskid=maskid, dropout=dropout)
+            self.getenclayers(inpemb, encinnerdim, bidir, rnu, dropout=dropout)
 
+        outemb = self.getemb(outemb, outembdim, outvocsize)
         self.declayers = \
-            self.getdeclayers(outembdim, outvocsize, lastencinnerdim,
-                              decinnerdim, rnu, inconcat, maskid=maskid, dropout=dropout)
+            self.getdeclayers(outemb, lastencinnerdim,
+                              decinnerdim, rnu, inconcat, dropout=dropout)
 
         # attention
         lastdecinnerdim = decinnerdim[-1]
@@ -109,17 +113,19 @@ class SimpleSeqEncDecAtt(SeqEncDecAtt):
             attgen, attcon, argdecinnerdim, statetrans=statetrans, vecout=vecout,
             inconcat=inconcat, outconcat=outconcat, dropout=dropout, **kw)
 
-    def getenclayers(self, inpembdim, inpvocsize, encinnerdim, bidir, rnu, maskid=-1, dropout=False):
-        if inpembdim is None:
-            inpemb = IdxToOneHot(inpvocsize)
-            inpembdim = inpvocsize
-        elif isinstance(inpembdim, Block):
-            inpemb = inpembdim
-            inpembdim = inpemb.outdim
+    def getemb(self, emb=None, embdim=None, vocsize=None, maskid=-1):
+        if emb is not None:
+            #assert(embdim is None and vocsize is None)
+            return emb
         else:
-            inpemb = VectorEmbed(indim=inpvocsize, dim=inpembdim, maskid=maskid)
+            if embdim is None:
+                return IdxToOneHot(vocsize)
+            else:
+                return VectorEmbed(indim=vocsize, dim=embdim, maskid=maskid)
+
+    def getenclayers(self, inpemb, encinnerdim, bidir, rnu, dropout=False):
         encrnus = []
-        dims = [inpembdim] + encinnerdim
+        dims = [inpemb.outdim] + encinnerdim
         #print dims
         i = 1
         lastencinnerdim = dims[-1] if not bidir else dims[-1] * 2
@@ -133,18 +139,10 @@ class SimpleSeqEncDecAtt(SeqEncDecAtt):
         enclayers = [inpemb] + encrnus
         return enclayers, lastencinnerdim
 
-    def getdeclayers(self, outembdim, outvocsize, lastencinnerdim,
-                     decinnerdim, rnu, inconcat, maskid=-1, dropout=False):
-        if outembdim is None:
-            outemb = IdxToOneHot(outvocsize)
-            outembdim = outvocsize
-        elif isinstance(outembdim, Block):
-            outemb = outembdim
-            outembdim = outemb.outdim
-        else:
-            outemb = VectorEmbed(indim=outvocsize, dim=outembdim, maskid=maskid)
+    def getdeclayers(self, outemb, lastencinnerdim,
+                     decinnerdim, rnu, inconcat, dropout=False):
         decrnus = []
-        firstdecdim = outembdim + lastencinnerdim if inconcat else outembdim
+        firstdecdim = outemb.outdim + lastencinnerdim if inconcat else outemb.outdim
         dims = [firstdecdim] + decinnerdim
         i = 1
         while i < len(dims):

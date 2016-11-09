@@ -2,10 +2,11 @@ from teafacto.util import argprun
 import numpy as np
 from IPython import embed
 
-from teafacto.core.base import Val
+from teafacto.core.base import Val, Block, tensorops as T
 from teafacto.blocks.seq.rnn import SeqEncoder, RNNSeqEncoder, SeqDecoder, SeqDecoderAtt
-from teafacto.blocks.seq.rnu import RXRU
+from teafacto.blocks.seq.rnu import GRU
 from teafacto.blocks.seq.encdec import SimpleSeqEncDecAtt
+from teafacto.blocks.basic import VectorEmbed
 
 
 def loadgeo(p="../../../data/semparse/geoquery.txt"):
@@ -45,6 +46,22 @@ def loadgeo(p="../../../data/semparse/geoquery.txt"):
     return qmat, amat, qdic, adic, qwords, awords
 
 
+class VectorPosEmb(Block):
+    def __init__(self, vocsize, embdim, numpos, posembdim, maskid=-1, **kw):
+        super(VectorPosEmb, self).__init__(**kw)
+        self.wemb = VectorEmbed(indim=vocsize, dim=embdim, maskid=maskid)
+        self.pemb = VectorEmbed(indim=numpos, dim=posembdim)
+        self.outdim = self.wemb.outdim + self.pemb.outdim
+        self.indim = self.wemb.indim
+
+    def apply(self, x):     # (batsize, seqlen, 2)
+        wembeddings = self.wemb(x[:, :, 0])
+        pembeddings = self.pemb(x[:, :, 1])
+        ret = T.concatenate([wembeddings, pembeddings], axis=2)     # (batsize, seqlen, wembdim+pembdim)
+        ret.mask = wembeddings.mask
+        return ret
+
+
 def run(
         numbats=50,
         epochs=10,
@@ -52,27 +69,50 @@ def run(
         embdim=200,
         encdim=400,
         dropout=0.5,
-        layers=3):
+        layers=3,
+        posemb=False):
     # loaddata
     qmat, amat, qdic, adic, qwc, awc = loadgeo()
 
     np.random.seed(1234)
-    encdim = [encdim] * layers
-    decdim = [encdim] * layers
+    encdimi = [encdim] * layers
+    decdimi = [encdim] * layers
+
+    inpemb = None   # normal args are used
+    outemb = None   # normal args are used
+
+    maskid = 0
+
+    if posemb:      # custom emb layers, with positional embeddings
+        posembdim = 50
+        inpemb = VectorPosEmb(len(qdic)+1, embdim, qmat.shape[1], posembdim, maskid=maskid)
+        outemb = VectorPosEmb(len(adic)+1, embdim, amat.shape[1], posembdim, maskid=maskid)
 
     # make seq/dec+att
     encdec = SimpleSeqEncDecAtt(inpvocsize=len(qdic)+1,
                                 inpembdim=embdim,
+                                inpemb=inpemb,
                                 outvocsize=len(adic)+1,
                                 outembdim=embdim,
-                                encdim=encdim,
-                                decdim=decdim,
-                                maskid=0,
+                                outemb=outemb,
+                                encdim=encdimi,
+                                decdim=decdimi,
+                                maskid=maskid,
                                 statetrans=True,
                                 dropout=dropout,
-                                rnu=RXRU)
+                                rnu=GRU)
 
-    encdec.train([qmat, amat[:, :-1]], amat[:, 1:])\
+    amati = amat
+
+    if posemb:
+        qposmat = np.arange(0, qmat.shape[1])[None, :]
+        qposmat = np.repeat(qposmat, qmat.shape[0], axis=0)
+        qmat = np.concatenate([qmat[:, :, None], qposmat[:, :, None]], axis=2)
+        aposmat = np.arange(0, amat.shape[1])[None, :]
+        aposmat = np.repeat(aposmat, amat.shape[0], axis=0)
+        amati = np.concatenate([amat[:, :, None], aposmat[:, :, None]], axis=2)
+
+    encdec.train([qmat, amati[:, :-1]], amat[:, 1:])\
         .cross_entropy().rmsprop(lr=lr/numbats).grad_total_norm(1.)\
         .split_validate(5).cross_entropy().seq_accuracy()\
         .train(numbats, epochs)

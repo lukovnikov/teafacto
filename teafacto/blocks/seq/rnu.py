@@ -198,15 +198,20 @@ class GRU(GatedRNU):
         :return: new state (nb_samples, out_dim)
         '''
         x_t = self.dropout_in(x_t)
-        h_tm1 = self.dropout_h(h_tm1)
-        mgate =  self.gateactivation(T.dot(h_tm1, self.um)  + T.dot(x_t, self.wm)  + self.bm)
-        hfgate = self.gateactivation(T.dot(h_tm1, self.uhf) + T.dot(x_t, self.whf) + self.bhf)
-        canh = T.dot(h_tm1 * hfgate, self.u) + T.dot(x_t, self.w) + self.b
+        h_tm1_i = self.dropout_h(h_tm1)
+        mgate =  self.gateactivation(T.dot(h_tm1_i, self.um)  + T.dot(x_t, self.wm)  + self.bm)
+        hfgate = self.gateactivation(T.dot(h_tm1_i, self.uhf) + T.dot(x_t, self.whf) + self.bhf)
+        canh = T.dot(h_tm1_i * hfgate, self.u) + T.dot(x_t, self.w) + self.b
         '''canh = self.normalize_layer(canh)'''
         canh = self.outpactivation(canh)
         h = mgate * h_tm1 + (1-mgate) * canh
         #h = self.normalize_layer(h)
         return [h, h]
+
+
+class RHN(GatedRNU):
+    pass    # TODO implement
+            # TODO maybe move one abstraction layer higher
 
 
 class IFGRU(GatedRNU):      # input-modulating GRU
@@ -249,7 +254,7 @@ class LSTM(GatedRNU):
         y_t = ogate * self.outpactivation(c_t)
         return [y_t, y_t, c_t]
 
-
+'''
 class XRU(RNU):
     pass
 
@@ -263,15 +268,29 @@ class RXRU(XRU):
         l_t = self.outpactivation(T.dot(x_t_i, self.wi) + T.dot(h_tm1_i, self.ui) + self.bi)
         o_t_i = self.outpactivation(T.dot(l_t, self.uo) + self.bo)
         h_t_i = self.outpactivation(T.dot(l_t, self.uh) + self.bh)
-        x_t_o = T.dot(x_t_i, self.wt)
+        x_t_o = T.dot(x_t, self.wt)
         y_t = x_t_o + o_t_i
         h_t = h_t_i + h_tm1_i
         return [y_t, h_t]
 
 
+class GXRU(XRU, GatedRNU):
+    paramnames = "um wm bm uhf whf bhf w u b uo wo bo wio".split()
+
+    def rec(self, x_t, h_tm1):
+        x_t_i = self.dropout_in(x_t)
+        x_t_o = T.dot(x_t, self.wio)
+        h_tm1_i = self.dropout_h(h_tm1)
+        mgate = self.gateactivation(T.dot(h_tm1_i, self.um) + T.dot(x_t_i, self.wm) + self.bm)
+        ogate = self.gateactivation(T.dot(h_tm1_i, self.uo) + T.dot(x_t_i, self.wo) + self.bo)
+        hfgate = self.gateactivation(T.dot(h_tm1_i, self.uhf) + T.dot(x_t_i, self.whf) + self.bhf)
+        canh = T.dot(h_tm1_i * hfgate, self.u) + T.dot(x_t, self.w) + self.b
+        canh = self.outpactivation(canh)
+        h_t = mgate * h_tm1 + (1 - mgate) * canh
+        y_t = ogate * x_t_o + (1 - ogate) * canh
+        return [y_t, h_t]
 
 
-'''
 class IEGRU(GRU): # self-input-embedding GRU
     def rec(self, x_t, h_tm1):
         mgate =  self.gateactivation(T.dot(h_tm1, self.um)  + self.wm[x_t, :] + self.bm)
