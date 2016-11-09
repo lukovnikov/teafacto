@@ -6,17 +6,19 @@ from teafacto.core.base import Val, Block, tensorops as T
 from teafacto.blocks.seq.rnn import SeqEncoder, RNNSeqEncoder, SeqDecoder, SeqDecoderAtt
 from teafacto.blocks.seq.rnu import GRU
 from teafacto.blocks.seq.encdec import SimpleSeqEncDecAtt
-from teafacto.blocks.basic import VectorEmbed, Linear
+from teafacto.blocks.basic import VectorEmbed, Linear, MatDot
 from teafacto.blocks.activations import Softmax, Tanh
+from teafacto.blocks.lang.wordvec import WordEmb, Glove
 
 
-def loadgeo(p="../../../data/semparse/geoquery.txt"):
+def loadgeo(p="../../../data/semparse/geoquery.txt", customemb=False):
     qss, ass = [], []
     maxqlen, maxalen = 0, 0
     qwords, awords = {}, {}
 
     for line in open(p):
-        q, a = [re.split("[\s-]", x) for x in line[:-1].split("\t")]
+        splitre = "[\s-]" if customemb else "\s"
+        q, a = [re.split(splitre, x) for x in line[:-1].split("\t")]
         q = ["<s>"] + q + ["</s>"]
         a = ["<s>"] + a + ["</s>"]
         qss.append(q)
@@ -48,15 +50,15 @@ def loadgeo(p="../../../data/semparse/geoquery.txt"):
 
 
 class VectorPosEmb(Block):
-    def __init__(self, vocsize, embdim, numpos, posembdim, maskid=-1, **kw):
+    def __init__(self, baseemb, numpos, posembdim, **kw):
         super(VectorPosEmb, self).__init__(**kw)
-        self.wemb = VectorEmbed(indim=vocsize, dim=embdim, maskid=maskid)
+        self.baseemb = baseemb
         self.pemb = VectorEmbed(indim=numpos, dim=posembdim)
-        self.outdim = self.wemb.outdim + self.pemb.outdim
-        self.indim = self.wemb.indim
+        self.outdim = self.baseemb.outdim + self.pemb.outdim
+        self.indim = self.baseemb.indim
 
     def apply(self, x):     # (batsize, seqlen, 2)
-        wembeddings = self.wemb(x[:, :, 0])
+        wembeddings = self.baseemb(x[:, :, 0])
         pembeddings = self.pemb(x[:, :, 1])
         ret = T.concatenate([wembeddings, pembeddings], axis=2)     # (batsize, seqlen, wembdim+pembdim)
         ret.mask = wembeddings.mask
@@ -66,8 +68,9 @@ class VectorPosEmb(Block):
 class SoftMaxOut(Block):
     def __init__(self, indim=None, innerdim=None, outvocsize=None, dropout=None, **kw):
         super(SoftMaxOut, self).__init__(**kw)
+        self.indim, self.innerdim, self.outvocsize = indim, innerdim, outvocsize
         self.lin1 = Linear(indim=indim, dim=innerdim, dropout=dropout)
-        self.lin2 = Linear(indim=innerdim, dim=outvocsize)
+        self.lin2 = MatDot(indim=innerdim, dim=outvocsize)
 
     def apply(self, x):
         a = self.lin1(x)
@@ -76,19 +79,23 @@ class SoftMaxOut(Block):
         d = Softmax()(c)
         return d
 
+    def setlin2(self, v):
+        self.lin2 = MatDot(indim=self.indim, dim=self.innerdim, value=v)
+
 
 def run(
         numbats=50,
         epochs=10,
         lr=1.,
-        embdim=200,
+        embdim=50,
         encdim=400,
         dropout=0.5,
         layers=1,
+        inconcat=True,
         posemb=False,
-        inconcat=True):
+        customemb=False):
     # loaddata
-    qmat, amat, qdic, adic, qwc, awc = loadgeo()
+    qmat, amat, qdic, adic, qwc, awc = loadgeo(customemb=customemb)
 
     #embed()
 
@@ -101,12 +108,28 @@ def run(
 
     maskid = 0
 
+    inpemb = WordEmb(worddic=qdic, maskid=maskid, dim=embdim)
+    outemb = WordEmb(worddic=adic, maskid=maskid, dim=embdim)
+
+    if customemb:
+        thresh = 10
+        sawc = sorted(awc.items(), key=lambda (k, v): v, reverse=True)
+        rarewords = {k for (k, v) in sawc if v < thresh}
+        g = Glove(embdim)
+        inpemb = inpemb.override(g)
+        outemb = outemb.override(g, which=rarewords)
+
     if posemb:      # custom emb layers, with positional embeddings
         posembdim = 50
-        inpemb = VectorPosEmb(len(qdic)+1, embdim, qmat.shape[1], posembdim, maskid=maskid)
-        outemb = VectorPosEmb(len(adic)+1, embdim, amat.shape[1], posembdim, maskid=maskid)
+        inpemb = VectorPosEmb(inpemb, qmat.shape[1], posembdim)
+        outemb = VectorPosEmb(inpemb, amat.shape[1], posembdim)
 
-    smo = SoftMaxOut(indim=encdim+encdim, innerdim=encdim, outvocsize=len(adic)+1, dropout=dropout)
+    smodim = embdim
+    smo = SoftMaxOut(indim=encdim+encdim, innerdim=smodim,
+                     outvocsize=len(adic)+1, dropout=dropout)
+
+    if customemb:
+        smo.setlin2(outemb.W.T)
 
     # make seq/dec+att
     encdec = SimpleSeqEncDecAtt(inpvocsize=len(qdic)+1,

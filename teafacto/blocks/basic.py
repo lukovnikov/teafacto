@@ -43,11 +43,14 @@ class Softmax(Block):
 
 
 class MatDot(Block):
-    def __init__(self, indim, dim, init="uniform", dropout=False, **kw):
+    def __init__(self, indim, dim, value=None, init="uniform", dropout=False, **kw):
         super(MatDot, self).__init__(**kw)
         self.indim = indim
         self.dim = dim
-        self.W = param((self.indim, self.dim), name="matdot").init(init)
+        if value is None:
+            self.W = param((self.indim, self.dim), name="matdot").init(init)
+        else:
+            self.W = value
         self.dropout = Dropout(dropout)
 
     def apply(self, inptensor):
@@ -89,6 +92,7 @@ class IdxToOneHot(Embedder):
 
     def apply(self, inp):
         return self.W[inp, :]
+
 
 class Eye(Block):
     def __init__(self, dim=None, **kw):
@@ -155,17 +159,26 @@ class VectorEmbed(Embedder):
             self.W = None       # no initialization
         else:
             self.setvalue(value)
-            self.indim, self.outdim = value.shape
         if self.normalize:
             self.W = self.W.normalize(axis=1)
         # assertions
-        assert(self.W is None or self.W.d.get_value().shape == (self.indim, self.outdim))
+        if isinstance(self.W, (Parameter, Val)):
+            assert(self.W.d.get_value().shape == (self.indim, self.outdim))
+        elif isinstance(self.W, Var):
+            assert(self.indim is not None and self.outdim is not None)
+        else:
+            assert(self.W is None)
+
 
     def setvalue(self, v):
-        if self.trainfrac == 0.0:
-            self.W = Val(v, name="embedder_val")
+        if isinstance(v, Var):
+            self.W = v
         else:
-            self.W = Parameter(v, lrmul=self.trainfrac, name="embedder")
+            if self.trainfrac == 0.0:
+                self.W = Val(v, name="embedder_val")
+            else:
+                self.W = Parameter(v, lrmul=self.trainfrac, name="embedder")
+            self.indim, self.outdim = v.shape
 
     def apply(self, inptensor):
         ret = self.W[inptensor]
@@ -179,6 +192,10 @@ class VectorEmbed(Embedder):
             mask = None
         ret.mask = mask
 
+    @property
+    def w(self):
+        return self.W
+
 
 class SMO(Block):   # softmax output layer
     def __init__(self, inner, outdim=2, nobias=False, **kw):
@@ -191,3 +208,12 @@ class SMO(Block):   # softmax output layer
         vec = self.inner(*args, **kwargs)
         ret = self.outl(vec)
         return Softmax()(ret)
+
+
+class Switch(Block):
+    def __init__(self, a, b, mask, **kw):
+        super(Switch, self).__init__(**kw)
+        self.a, self.b, self.mask = a, b, mask
+
+    def apply(self):
+        return T.switch(self.mask, self.a, self.b)

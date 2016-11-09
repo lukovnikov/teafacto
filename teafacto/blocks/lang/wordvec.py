@@ -5,7 +5,7 @@ import os
 from IPython import embed
 
 from teafacto.core.base import Block, Val, tensorops as T
-from teafacto.blocks.basic import VectorEmbed, Embedder
+from teafacto.blocks.basic import VectorEmbed, Embedder, Switch
 from teafacto.util import ticktock as TT, isnumber, isstring
 from teafacto.blocks.seq.enc import SimpleSeqStar2Vec
 
@@ -107,8 +107,8 @@ class WordEmb(WordEmbBase, VectorEmbed): # unknown words are mapped to index 0, 
     def adapt(self, wdic):
         return AdaptedWordEmb(self, wdic, maskid=self.maskid)
 
-    def override(self, wordemb):
-        return OverriddenWordEmb(self, wordemb, maskid=self.maskid)
+    def override(self, wordemb, which=None):
+        return NewOverriddenWordEmb(self, wordemb, maskid=self.maskid, which=which)
 
     def augment(self, wordemb):
         return AugmentedWordEmb(self, wordemb, maskid=self.maskid)
@@ -161,6 +161,10 @@ class AdaptedWordEmb(WordEmb):
 
 
 class OverriddenWordEmb(WordEmb): # TODO: RARE TOKEN MGMT
+    """
+    Overrides every word from base's dictionary with override's vectors,
+    if in override's dictionary
+    """
     def __init__(self, base, override, **kw):
         assert(base.outdim == override.outdim)
         super(OverriddenWordEmb, self).__init__(worddic=base.D, value=False,
@@ -186,6 +190,26 @@ class OverriddenWordEmb(WordEmb): # TODO: RARE TOKEN MGMT
     @property
     def w(self):
         return None         # TODO
+
+
+class NewOverriddenWordEmb(WordEmb):
+    def __init__(self, base, override, maskid=-1, which=None, **kw):
+        assert(base.outdim == override.outdim)
+        baseindexes = Val(np.asarray(sorted(base.D.values()), dtype="int32"))
+        basevar = base(baseindexes)
+        if which is None:
+            ad = {v: override.D[k] if k in override.D else 0 for k, v in base.D.items()}
+        else:
+            ad = {base.D[k]: override.D[k] if k in override.D else 0 for k in which}
+        valval = np.zeros((max(ad.keys()) + 1,), dtype="int32")
+        for i in range(valval.shape[0]):
+            valval[i] = ad[i] if i in ad else 0
+        overrideindexes = Val(valval)
+        overridevar = override(overrideindexes)
+        overridemask = np.repeat(valval[:, None], base.outdim, axis=1)
+        v = Switch(overridevar, basevar, overridemask)
+        super(NewOverriddenWordEmb, self).__init__(worddic=base.D, value=v(),
+               dim=base.outdim, maskid=maskid)
 
 
 class AugmentedWordEmb(WordEmb):    # TODO: RARE TOKEN MGMT

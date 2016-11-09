@@ -1,5 +1,6 @@
 from unittest import TestCase
-from teafacto.blocks.basic import IdxToOneHot, MatDot, Linear, Softmax
+from teafacto.blocks.basic import IdxToOneHot, MatDot, Linear, Softmax, Switch
+from teafacto.core.base import Val
 import numpy as np
 
 class TestBasic(TestCase):
@@ -35,4 +36,20 @@ class TestLinear(TestCase):
 
     def test_linear_output(self):
         self.assertTrue(np.allclose(self.out, np.dot(self.data, self.linear.W.d.get_value()) + self.linear.b.d.get_value()))
+
+
+class TestCompoundVar(TestCase):
+    def test_compound_var(self):
+        aval = np.zeros((10, 10))
+        bval = np.ones((10, 10))
+        maskval = np.repeat(np.asarray([[0,1,0,0,1,0,0,1,1,1]]).T, 10, axis=1)
+        print maskval
+        print aval * maskval + bval * (1 - maskval)
+        a = Val(aval)
+        b = Val(bval)
+        mask = Val(maskval)
+        cv = Switch(a, b, mask)
+        cvpred = cv().eval()
+        print cvpred
+        self.assertTrue(np.allclose(cvpred, aval * maskval + bval * (1 - maskval)))
 

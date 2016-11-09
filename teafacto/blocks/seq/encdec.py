@@ -54,13 +54,11 @@ class SeqEncDecAtt(SeqEncDec):
         enc = SeqEncoder(*enclayers, dropout=dropout)\
             .with_outputs()\
             .maskoptions(maskid, MaskMode.AUTO, MaskSetMode.ZERO)
-        #smo = False if vecout else None
-        smo = vecout
         dec = SeqDecoderAtt(
             declayers,
             attention=Attention(attgen, attcon),
             innerdim=decinnerdim, inconcat=inconcat,
-            softmaxoutblock=smo, outconcat=outconcat,
+            softmaxoutblock=vecout, outconcat=outconcat,
             dropout=dropout
         )
         super(SeqEncDecAtt, self).__init__(enc, dec, statetrans=statetrans, dropout=dropout, **kw)
@@ -80,7 +78,7 @@ class SimpleSeqEncDecAtt(SeqEncDecAtt):
                  bidir=False,
                  rnu=GRU,
                  statetrans=None,
-                 vecout=False,
+                 vecout=None,
                  inconcat=True,
                  outconcat=False,
                  maskid=-1,
