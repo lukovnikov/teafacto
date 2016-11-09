@@ -123,7 +123,7 @@ def run(
                                 inconcat=inconcat,
                                 outconcat=True,
                                 rnu=GRU,
-
+                                vecout=smo,
                                 )
 
     amati = amat

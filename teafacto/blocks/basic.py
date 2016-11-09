@@ -60,8 +60,8 @@ class Linear(Block):
         super(Linear, self).__init__(**kw)
         self.indim = indim
         self.dim = dim
-        self.W = param((self.indim, self.dim)).init(w_init)
-        self.b = param((self.dim,)).init(b_init)
+        self.W = param((self.indim, self.dim), name="linear_W").init(w_init)
+        self.b = param((self.dim,), name="linear_b").init(b_init)
         self.dropout = Dropout(dropout)
 
     def apply(self, inp):
@@ -116,7 +116,7 @@ class Dropout(Block):
         super(Dropout, self).__init__(**kw)
         if seed is None:
             seed = np.random.randint(0, 1e6)
-        self.p = 0.0 if p is False else 0.3 if p is True else p
+        self.p = 0.0 if (p is False or p is None) else 0.3 if p is True else p
         self.rescale = rescale
         self.seed = seed
 
