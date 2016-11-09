@@ -69,7 +69,7 @@ def run(
         embdim=200,
         encdim=400,
         dropout=0.5,
-        layers=3,
+        layers=1,
         posemb=False):
     # loaddata
     qmat, amat, qdic, adic, qwc, awc = loadgeo()
