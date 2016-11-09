@@ -1,12 +1,13 @@
 from teafacto.util import argprun
-import numpy as np
+import numpy as np, re
 from IPython import embed
 
 from teafacto.core.base import Val, Block, tensorops as T
 from teafacto.blocks.seq.rnn import SeqEncoder, RNNSeqEncoder, SeqDecoder, SeqDecoderAtt
 from teafacto.blocks.seq.rnu import GRU
 from teafacto.blocks.seq.encdec import SimpleSeqEncDecAtt
-from teafacto.blocks.basic import VectorEmbed
+from teafacto.blocks.basic import VectorEmbed, Linear
+from teafacto.blocks.activations import Softmax, Tanh
 
 
 def loadgeo(p="../../../data/semparse/geoquery.txt"):
@@ -15,7 +16,7 @@ def loadgeo(p="../../../data/semparse/geoquery.txt"):
     qwords, awords = {}, {}
 
     for line in open(p):
-        q, a = [x.split(" ") for x in line[:-1].split("\t")]
+        q, a = [re.split("[\s-]", x) for x in line[:-1].split("\t")]
         q = ["<s>"] + q + ["</s>"]
         a = ["<s>"] + a + ["</s>"]
         qss.append(q)
@@ -62,6 +63,20 @@ class VectorPosEmb(Block):
         return ret
 
 
+class SoftMaxOut(Block):
+    def __init__(self, indim=None, innerdim=None, outvocsize=None, dropout=None, **kw):
+        super(SoftMaxOut, self).__init__(**kw)
+        self.lin1 = Linear(indim=indim, dim=innerdim, dropout=dropout)
+        self.lin2 = Linear(indim=innerdim, dim=outvocsize)
+
+    def apply(self, x):
+        a = self.lin1(x)
+        b = Tanh()(a)
+        c = self.lin2(b)
+        d = Softmax()(c)
+        return d
+
+
 def run(
         numbats=50,
         epochs=10,
@@ -70,9 +85,12 @@ def run(
         encdim=400,
         dropout=0.5,
         layers=1,
-        posemb=False):
+        posemb=False,
+        inconcat=True):
     # loaddata
     qmat, amat, qdic, adic, qwc, awc = loadgeo()
+
+    embed()
 
     np.random.seed(1234)
     encdimi = [encdim] * layers
@@ -88,6 +106,8 @@ def run(
         inpemb = VectorPosEmb(len(qdic)+1, embdim, qmat.shape[1], posembdim, maskid=maskid)
         outemb = VectorPosEmb(len(adic)+1, embdim, amat.shape[1], posembdim, maskid=maskid)
 
+    smo = SoftMaxOut()
+
     # make seq/dec+att
     encdec = SimpleSeqEncDecAtt(inpvocsize=len(qdic)+1,
                                 inpembdim=embdim,
@@ -100,7 +120,10 @@ def run(
                                 maskid=maskid,
                                 statetrans=True,
                                 dropout=dropout,
-                                rnu=GRU)
+                                inconcat=inconcat,
+                                outconcat=True,
+                                rnu=GRU,
+                                vecout=smo)
 
     amati = amat
 

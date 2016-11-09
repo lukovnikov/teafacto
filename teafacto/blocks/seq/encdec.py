@@ -88,11 +88,11 @@ class SimpleSeqEncDecAtt(SeqEncDecAtt):
         encinnerdim = [encdim] if not issequence(encdim) else encdim
         decinnerdim = [decdim] if not issequence(decdim) else decdim
 
-        inpemb = self.getemb(inpemb, inpembdim, inpvocsize)
+        inpemb = self.getemb(inpemb, inpembdim, inpvocsize, maskid=maskid)
         self.enclayers, lastencinnerdim = \
             self.getenclayers(inpemb, encinnerdim, bidir, rnu, dropout=dropout)
 
-        outemb = self.getemb(outemb, outembdim, outvocsize)
+        outemb = self.getemb(outemb, outembdim, outvocsize, maskid=maskid)
         self.declayers = \
             self.getdeclayers(outemb, lastencinnerdim,
                               decinnerdim, rnu, inconcat, dropout=dropout)
