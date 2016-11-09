@@ -106,7 +106,7 @@ def run(
         inpemb = VectorPosEmb(len(qdic)+1, embdim, qmat.shape[1], posembdim, maskid=maskid)
         outemb = VectorPosEmb(len(adic)+1, embdim, amat.shape[1], posembdim, maskid=maskid)
 
-    smo = SoftMaxOut(indim=encdim+embdim, innerdim=encdim, outvocsize=len(adic)+1, dropout=dropout)
+    smo = SoftMaxOut(indim=encdim+encdim, innerdim=encdim, outvocsize=len(adic)+1, dropout=dropout)
 
     # make seq/dec+att
     encdec = SimpleSeqEncDecAtt(inpvocsize=len(qdic)+1,
