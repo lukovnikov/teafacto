@@ -122,7 +122,7 @@ def run(
     if posemb:      # custom emb layers, with positional embeddings
         posembdim = 50
         inpemb = VectorPosEmb(inpemb, qmat.shape[1], posembdim)
-        outemb = VectorPosEmb(inpemb, amat.shape[1], posembdim)
+        outemb = VectorPosEmb(outemb, amat.shape[1], posembdim)
 
     smodim = embdim
     smo = SoftMaxOut(indim=encdim+encdim, innerdim=smodim,
