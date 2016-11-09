@@ -90,7 +90,7 @@ def run(
     # loaddata
     qmat, amat, qdic, adic, qwc, awc = loadgeo()
 
-    embed()
+    #embed()
 
     np.random.seed(1234)
     encdimi = [encdim] * layers

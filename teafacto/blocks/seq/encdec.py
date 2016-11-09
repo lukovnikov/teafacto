@@ -54,7 +54,8 @@ class SeqEncDecAtt(SeqEncDec):
         enc = SeqEncoder(*enclayers, dropout=dropout)\
             .with_outputs()\
             .maskoptions(maskid, MaskMode.AUTO, MaskSetMode.ZERO)
-        smo = False if vecout else None
+        #smo = False if vecout else None
+        smo = vecout
         dec = SeqDecoderAtt(
             declayers,
             attention=Attention(attgen, attcon),
