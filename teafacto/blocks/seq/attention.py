@@ -1,23 +1,9 @@
 from teafacto.blocks.basic import MatDot as Lin, Softmax, VectorEmbed, IdxToOneHot
 from teafacto.core.base import Block, param, Val
+from teafacto.blocks.match import Distance
 from teafacto.core.base import tensorops as T
 import numpy as np
 import theano, theano.tensor
-
-
-class Attention(Block):
-    '''
-    Block wraps both an AttentionGenerator and AttentionConsumer.
-    '''
-    def __init__(self, attentiongenerator, attentionconsumer, **kw):
-        super(Attention, self).__init__(**kw)
-        self.attentiongenerator = attentiongenerator
-        self.attentionconsumer = attentionconsumer
-
-    def apply(self, criterion, data, mask=None):
-        attention = self.attentiongenerator(criterion, data, mask=mask)
-        return self.attentionconsumer(data, attention)
-
 
 ############################## ATTENTION GENERATORS ###############################
 
@@ -55,5 +41,22 @@ class WeightedSumAttCon(AttentionConsumer):    # applies attention to sequence w
         w = weights.dimshuffle(0, 1, 'x')
         ret = data * w
         return T.sum(ret, axis=1)
+
+
+class Attention(Block):
+    '''
+    Block wraps both an AttentionGenerator and AttentionConsumer.
+    '''
+    def __init__(self, attentiongenerator, attentionconsumer=WeightedSumAttCon, **kw):
+        super(Attention, self).__init__(**kw)
+        if isinstance(attentiongenerator, AttGen):
+            self.attentiongenerator = attentiongenerator
+        elif isinstance(attentiongenerator, Distance):
+            self.attentiongenerator = AttGen(attentiongenerator)
+        self.attentionconsumer = attentionconsumer
+
+    def apply(self, criterion, data, mask=None):
+        attention = self.attentiongenerator(criterion, data, mask=mask)
+        return self.attentionconsumer(data, attention)
 
 

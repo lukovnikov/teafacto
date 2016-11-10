@@ -13,7 +13,7 @@ class TestSimpleSeqEncDecAtt(TestCase):
         pred = encdec.predict(encdata, decdata)
         self.assertEqual(pred.shape, (1, 5, 17))
 
-        encdec = SimpleSeqEncDecAtt(inpvocsize=19, outvocsize=17, vecout=True, outconcat=False, encdim=110, decdim=110)
+        encdec = SimpleSeqEncDecAtt(inpvocsize=19, outvocsize=17, vecout=False, outconcat=False, encdim=110, decdim=110)
         pred = encdec.predict(encdata, decdata)
         print pred.shape
         self.assertEqual(pred.shape, (1, 5, 110))

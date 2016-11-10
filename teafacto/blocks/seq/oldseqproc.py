@@ -1,7 +1,6 @@
 from teafacto.blocks.basic import Linear as Lin, Softmax
 from teafacto.blocks.basic import VectorEmbed, IdxToOneHot, MatDot
 from teafacto.blocks.memory import MemoryStack, MemoryBlock, DotMemAddr
-from teafacto.blocks.seq.attention import Attention, LinearGateAttentionGenerator, WeightedSumAttCon
 from teafacto.blocks.seq.rnn import MakeRNU
 from teafacto.blocks.seq.rnn import RecStack, SeqDecoder, BiRNU, SeqEncoder, MaskSetMode, MaskMode
 from teafacto.blocks.seq.rnu import GRU
