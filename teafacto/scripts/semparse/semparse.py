@@ -98,6 +98,14 @@ def run(
     qmat, amat, qdic, adic, qwc, awc = loadgeo(customemb=customemb)
 
     #embed()
+    # TODO: understand the network
+    # TODO: add trainable part to custom emb-based smo in decoder
+    # TODO: do bi-attention (two encoders)
+    #           - what to feed to inconcat and what to outconcat?
+    #           - ! messing in attention mechanisms (big work)
+
+    # TODO: Dong's preprocessing
+    # TODO: test decoder
 
     np.random.seed(1234)
     encdimi = [encdim] * layers

@@ -5,7 +5,7 @@ from IPython import embed
 from teafacto.core.base import Val, tensorops as T, Block
 
 from teafacto.blocks.seq.enc import SimpleSeq2Vec, SimpleSeq2Sca, SeqUnroll
-from teafacto.blocks.match import SeqMatchScore, GenDotDistance, DotDistance, CosineDistance
+from teafacto.blocks.match import SeqMatchScore, BilinearDistance, DotDistance, CosineDistance
 from teafacto.blocks.basic import VectorEmbed, MatDot
 
 

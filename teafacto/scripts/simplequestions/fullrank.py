@@ -5,7 +5,7 @@ from teafacto.blocks.seq.encdec import SimpleSeqEncDecAtt
 from teafacto.blocks.seq.enc import SimpleSeq2Vec, SeqUnroll
 
 from teafacto.blocks.basic import VectorEmbed
-from teafacto.blocks.match import SeqMatchScore, GenDotDistance
+from teafacto.blocks.match import SeqMatchScore, BilinearDistance
 from teafacto.core.base import Val, tensorops as T, Block
 from teafacto.eval.metrics import ClassAccuracy
 from teafacto.modelusers import RecPredictor, SeqEncDecPredictor
@@ -365,7 +365,7 @@ def run(
 
     scorerargs = ([encdec, SeqUnroll(entenc)],
                   {"argproc": lambda x, y, z: ((x, y), (z,)),
-                   "scorer": GenDotDistance(decinnerdim[-1], entenc.outdim)})
+                   "scorer": BilinearDistance(decinnerdim[-1], entenc.outdim)})
     if sumhingeloss:
         scorerargs[1]["aggregator"] = lambda x: x  # no aggregation of scores
     scorer = SeqMatchScore(*scorerargs[0], **scorerargs[1])
