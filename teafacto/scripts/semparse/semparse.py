@@ -3,7 +3,6 @@ import numpy as np, re
 from IPython import embed
 
 from teafacto.core.base import Val, Block, tensorops as T
-from teafacto.blocks.seq.rnn import SeqEncoder, RNNSeqEncoder, SeqDecoder, SeqDecoderAtt
 from teafacto.blocks.seq.rnu import GRU
 from teafacto.blocks.seq.encdec import SimpleSeqEncDecAtt
 from teafacto.blocks.basic import VectorEmbed, Linear, MatDot

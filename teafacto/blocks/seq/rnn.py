@@ -1,7 +1,7 @@
 from enum import Enum
 import numpy as np
 
-from teafacto.blocks.seq.attention import WeightedSumAttCon, Attention, AttentionConsumer, LinearGateAttentionGenerator
+from teafacto.blocks.seq.attention import WeightedSumAttCon, Attention, AttentionConsumer
 from teafacto.blocks.seq.rnu import GRU, ReccableBlock, RecurrentBlock, RNUBase
 from teafacto.blocks.basic import IdxToOneHot, Softmax, MatDot, Eye, VectorEmbed, Linear
 from teafacto.core.base import Block, tensorops as T, asblock
