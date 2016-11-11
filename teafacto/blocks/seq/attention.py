@@ -5,6 +5,7 @@ from teafacto.core.base import tensorops as T
 import numpy as np
 import theano, theano.tensor
 
+
 ############################## ATTENTION GENERATORS ###############################
 
 class AttGen(Block):
@@ -17,7 +18,6 @@ class AttGen(Block):
         o = self.dist(criterion, data)
         o_out = Softmax()(o, mask=mask)
         return o_out
-
 
 
 ################################ ATTENTION CONSUMERS #####################################
@@ -43,20 +43,31 @@ class WeightedSumAttCon(AttentionConsumer):    # applies attention to sequence w
         return T.sum(ret, axis=1)
 
 
+# ATTENTIONS
+
 class Attention(Block):
-    '''
-    Block wraps both an AttentionGenerator and AttentionConsumer.
-    '''
-    def __init__(self, attentiongenerator, attentionconsumer=WeightedSumAttCon, **kw):
+    def __init__(self, attentiongenerator, attentionconsumer=WeightedSumAttCon, separate=False, **kw):
         super(Attention, self).__init__(**kw)
         if isinstance(attentiongenerator, AttGen):
             self.attentiongenerator = attentiongenerator
         elif isinstance(attentiongenerator, Distance):
             self.attentiongenerator = AttGen(attentiongenerator)
         self.attentionconsumer = attentionconsumer
+        self.separate = separate
 
     def apply(self, criterion, data, mask=None):
+        if not self.separate:
+            return self._apply_normal(criterion, data, mask=mask)
+        else:
+            return self._apply_separate(criterion, data, mask=mask)
+
+    def _apply_normal(self, criterion, data, mask=None):
         attention = self.attentiongenerator(criterion, data, mask=mask)
         return self.attentionconsumer(data, attention)
+
+    def _apply_separate(self, criterion, data, mask=None):    # data: (batsize, seqlen, 2, dim)
+        weights = self.attentiongenerator(criterion, data[:, :, 1, :], mask=mask)
+        ret = self.attentionconsumer(data[:, :, 0, :], weights)
+        return ret
 
 

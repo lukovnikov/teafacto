@@ -4,8 +4,8 @@ import numpy as np
 
 from teafacto.blocks.seq.oldseqproc import SimpleSeqTransDec
 from teafacto.scripts.atis.atisseqtrans import getdatamatrix, atiseval
-from teafacto.search import SeqTransDecSearch
 from teafacto.util import argprun
+from teafacto.use.recsearch import SeqTransDecSearcher
 
 
 def shiftdata(x, right=1):
@@ -54,7 +54,7 @@ def run(p="../../../data/atis/atis.pkl", wordembdim=70, lablembdim=70, innerdim=
         .train(numbats, epochs)
 
     # predict after training
-    s = SeqTransDecSearch(m)
+    s = SeqTransDecSearcher(m)
     testpred, _ = s.decode(testdata)
     testpred = testpred * testmask
 

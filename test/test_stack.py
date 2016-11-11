@@ -2,13 +2,13 @@ from unittest import TestCase
 
 import numpy as np
 
+from teafacto.blocks.basic import Softmax, VectorEmbed
 from teafacto.blocks.seq.oldseqproc import SimpleSeqTransDec
 from teafacto.blocks.seq.rnn import RecStack
 from teafacto.blocks.seq.rnu import GRU
-from teafacto.blocks.basic import Softmax, VectorEmbed
 from teafacto.core.base import Input, param, asblock, tensorops as T
 from teafacto.core.stack import stack
-from teafacto.modelusers import RecPredictor
+from teafacto.use.modelusers import RecPredictor
 
 
 class TestRecurrentStack(TestCase):
@@ -48,7 +48,6 @@ class TestSeqTransDecRecappl(TestCase):     # TODO: move this test
             outpval = mu.feed(inpval, inpval2)
             inpval2 = np.argmax(outpval, axis=1).astype("int32")
             self.assertEqual(outpval.shape, (batsize, 50))
-
 
 
 class TestBlockStack(TestCase):

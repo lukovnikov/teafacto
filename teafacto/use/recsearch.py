@@ -1,17 +1,17 @@
 import numpy as np
 
-from teafacto.modelusers import RecPredictor, SeqEncDecPredictor
+from use.modelusers import RecPredictor
 
 
 class Searcher(object):
-    def __init__(self, model, beamsize=1, *buildargs, **kw):
+    def __init__(self, model, strategy=GreedySearch(), *buildargs, **kw):
         super(Searcher, self).__init__(**kw)
-        self.beamsize = beamsize
+        self.strategy = strategy
         self.model = model
-        self.mu = RecPredictor(model, *buildargs)
+        self.recpred = RecPredictor(model, *buildargs)
 
 
-class SeqTransDecSearch(Searcher):
+class SeqTransDecSearcher(Searcher):
     # responsible for generating recappl prediction function from recappl of decoder
     """ Default: greedy search strategy """
     def decode(self, inpseq):
@@ -22,7 +22,7 @@ class SeqTransDecSearch(Searcher):
         outs = []
         while not stop:
             curinp = inpseq[:, i]
-            curprobs = self.mu.feed(curinp, curout)
+            curprobs = self.recpred.feed(curinp, curout)
             accprobs *= np.max(curprobs, axis=1)
             curout = np.argmax(curprobs, axis=1).astype("int32")
             outs.append(curout)
@@ -32,4 +32,25 @@ class SeqTransDecSearch(Searcher):
         ret = np.stack(outs).T
         assert (ret.shape == inpseq.shape)
         return ret, accprobs
+
+
+class SeqEncDecSearch(Searcher):
+    pass
+
+
+# STRATEGIES
+class SearchStrategy(object):
+    pass
+
+
+class GreedySearch(SearchStrategy):
+    pass
+
+
+class BeamSearch(SearchStrategy):
+    pass
+
+
+class VarBeamSearch(BeamSearch):
+    pass
 

@@ -378,7 +378,10 @@ class ModelTrainer(object):
         # theano.printing.debugprint(cost)
         # theano.printing.pydotprint(cost, outfile="pics/debug.png")
         updates = []
-        print "params:\n " + "".join(map(lambda x: "\t%s\n" % str(x), params)) + "\n\t\t (in Block, base.py)\n"
+        print "params:\n " + "".join(
+            map(lambda x: "\t%s\n" % str(x),
+                sorted(params, key=lambda x: str(x)))) \
+              + "\n\t\t (in Block, base.py)\n"
         self.tt.msg("computing gradients")
         #grads = []
         #for x in params:

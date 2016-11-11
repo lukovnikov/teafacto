@@ -354,13 +354,16 @@ class SeqEncoder(AttentionConsumer, Block):
 
     @staticmethod
     def getemb(emb=None, embdim=None, vocsize=None, maskid=-1):
-        if emb is not None:
-            return emb
+        if emb is False:
+            assert(embdim is not None)
+            return None, embdim
+        elif emb is not None:
+            return emb, emb.outdim
         else:
             if embdim is None:
-                return IdxToOneHot(vocsize)
+                return IdxToOneHot(vocsize), vocsize
             else:
-                return VectorEmbed(indim=vocsize, dim=embdim, maskid=maskid)
+                return VectorEmbed(indim=vocsize, dim=embdim, maskid=maskid), embdim
 
 
 class RNNSeqEncoder(SeqEncoder):
@@ -368,8 +371,7 @@ class RNNSeqEncoder(SeqEncoder):
                  innerdim=200, bidir=False, maskid=None,
                  dropout_in=False, dropout_h=False, **kw):
         self.bidir = bidir
-        inpemb = SeqEncoder.getemb(inpemb, inpembdim, indim)
-        inpembdim = inpemb.outdim
+        inpemb, inpembdim = SeqEncoder.getemb(inpemb, inpembdim, indim, maskid=maskid)
         if not issequence(innerdim):
             innerdim = [innerdim]
         #self.outdim = innerdim[-1] if not bidir else innerdim[-1] * 2
@@ -379,11 +381,11 @@ class RNNSeqEncoder(SeqEncoder):
         super(RNNSeqEncoder, self).__init__(inpemb, *layers, **kw)
 
 
-class SeqDecoder(Block):
+class SeqDecoderOld(Block):
     """ seq decoder with attention with new inconcat implementation """
     def __init__(self, layers, softmaxoutblock=None, innerdim=None,
                  attention=None, inconcat=True, outconcat=False, **kw):
-        super(SeqDecoder, self).__init__(**kw)
+        super(SeqDecoderOld, self).__init__(**kw)
         self.embedder = layers[0]
         self.block = RecStack(*layers[1:])
         self.outdim = innerdim
@@ -487,12 +489,12 @@ class SeqDecoder(Block):
         return [y_t, ctx_t, t] + states_t
 
 
-class SeqDecoderAtt(Block):
+class SeqDecoder(Block):
     """ seq decoder with attention with new inconcat implementation """
 
     def __init__(self, layers, softmaxoutblock=None, innerdim=None,
                  attention=None, inconcat=True, outconcat=False, dropout=False, **kw):
-        super(SeqDecoderAtt, self).__init__(**kw)
+        super(SeqDecoder, self).__init__(**kw)
         self.embedder = layers[0]
         self.block = RecStack(*layers[1:])
         self.outdim = innerdim
@@ -541,10 +543,12 @@ class SeqDecoderAtt(Block):
 
     def _get_ctx_t(self, ctx, h_tm1, encmask):
         # ctx is 3D, always dynamic context
-        assert (self.attention is not None)
-        assert(ctx.d.ndim > 2)
-        ctx_t = self.attention(h_tm1, ctx, mask=encmask)
-        return ctx_t
+        if self.attention is not None:
+            assert(ctx.d.ndim > 2)
+            ctx_t = self.attention(h_tm1, ctx, mask=encmask)
+            return ctx_t
+        else:
+            return ctx
 
     def rec(self, x_t_emb, t, *args):  # x_t_emb: (batsize, embdim), context: (batsize, enc.innerdim)
         states_tm1 = args[:-2]
@@ -569,10 +573,10 @@ class SeqDecoderAtt(Block):
 
     @staticmethod
     def RNN(*args, **kwargs):
-        return SimpleRNNSeqDecoderAtt(*args, **kwargs)
+        return SimpleRNNSeqDecoder(*args, **kwargs)
 
 
-class SimpleRNNSeqDecoderAtt(SeqDecoderAtt):
+class SimpleRNNSeqDecoder(SeqDecoder):
     def __init__(self, emb=None, embdim=None, embsize=None, maskid=-1,
                  ctxdim=None, innerdim=None, rnu=GRU,
                  inconcat=True, outconcat=False, attention=None,
@@ -580,14 +584,14 @@ class SimpleRNNSeqDecoderAtt(SeqDecoderAtt):
         layers, lastdim = self.getlayers(emb, embdim, embsize, maskid,
                            ctxdim, innerdim, rnu, inconcat, dropout, dropout_h)
         lastdim = lastdim if outconcat is False else lastdim + ctxdim
-        super(SimpleRNNSeqDecoderAtt, self).__init__(layers, softmaxoutblock=softmaxoutblock,
-                innerdim=lastdim, attention=attention, inconcat=inconcat,
-                outconcat=outconcat, dropout=dropout, **kw)
+        super(SimpleRNNSeqDecoder, self).__init__(layers, softmaxoutblock=softmaxoutblock,
+                                                  innerdim=lastdim, attention=attention, inconcat=inconcat,
+                                                  outconcat=outconcat, dropout=dropout, **kw)
 
     def getlayers(self, emb, embdim, embsize, maskid, ctxdim, innerdim, rnu,
                   inconcat, dropout, dropout_h):
-        emb = SeqDecoderAtt.getemb(emb, embdim, embsize, maskid)
-        firstdecdim = emb.outdim + ctxdim if inconcat else emb.outdim
+        emb, embdim = SeqDecoder.getemb(emb, embdim, embsize, maskid)
+        firstdecdim = embdim + ctxdim if inconcat else embdim
         layers, lastdim = MakeRNU.make(firstdecdim, innerdim, bidir=False, rnu=rnu,
                                        dropout_in=dropout, dropout_h=dropout_h)
         layers = [emb] + layers

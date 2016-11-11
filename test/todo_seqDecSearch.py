@@ -1,11 +1,12 @@
-import numpy as np
-import pandas as pd
 import re
 from unittest import TestCase
 
-from teafacto.blocks.seq.encdec import SimpleSeqEncDecAtt
+import numpy as np
+import pandas as pd
+
 from teafacto.blocks.lang.wordembed import Glove
-from teafacto.search import SeqEncDecSearch
+from teafacto.blocks.seq.encdec import SimpleSeqEncDecAtt
+from teafacto.use.recsearch import SeqEncDecSearch
 
 
 def word2int(word):
@@ -61,7 +62,8 @@ class TestSeqDecSearch(TestCase):
         testpred = words2ints(testpred)
         print testpred
 
-        block = SimpleSeqEncDecAtt(inpvocsize=vocsize, outvocsize=vocsize, encdim=encdim, decdim=statedim,
+        block = SimpleSeqEncDecAtt(inpvocsize=vocsize, outvocsize=vocsize,
+                                   encdim=encdim, decdim=statedim,
                                    attdim=attdim, inconcat=False)
 
         s = SeqEncDecSearch(block)

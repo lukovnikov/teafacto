@@ -1,15 +1,18 @@
-import numpy as np, os, pickle, sys, math
+import math
+import numpy as np
+import os
+import pickle
+import sys
 from IPython import embed
-
-from teafacto.blocks.seq.encdec import SimpleSeqEncDecAtt
-from teafacto.blocks.seq.enc import SimpleSeq2Vec, SeqUnroll
 
 from teafacto.blocks.basic import VectorEmbed
 from teafacto.blocks.match import SeqMatchScore, BilinearDistance
+from teafacto.blocks.seq.enc import SimpleSeq2Vec, SeqUnroll
+from teafacto.blocks.seq.encdec import SimpleSeqEncDecAtt
 from teafacto.core.base import Val, tensorops as T, Block
 from teafacto.eval.metrics import ClassAccuracy
-from teafacto.modelusers import RecPredictor, SeqEncDecPredictor
 from teafacto.util import argprun, ticktock
+from teafacto.use.modelusers import RecPredictor
 
 
 def readdata(mode, testcans=None, debug=False, specids=False, usetypes=False, maskid=0):  # if none, included in file
@@ -96,7 +99,7 @@ class SeqEncDecRankSearch(object):
         super(SeqEncDecRankSearch, self).__init__(**kw)
         self.model = model
         self.beamsize = beamsize
-        self.mu = SeqEncDecPredictor(model, *buildargs)
+        self.mu = RecPredictor(model, *buildargs)
         self.scorer = scorer
         self.canenc = canenc
         self.agg = agg
