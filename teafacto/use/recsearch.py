@@ -1,6 +1,6 @@
 import numpy as np
 
-from use.modelusers import RecPredictor
+from teafacto.use.modelusers import RecPredictor
 
 
 class Searcher(object):
