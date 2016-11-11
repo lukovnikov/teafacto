@@ -208,7 +208,7 @@ class SeqEncoder(AttentionConsumer, Block):
         self._returnings = {"enc"}
         self._nomask = False
         self._maskconfig = kw["maskcfg"] if "maskcfg" in kw else MaskConfig(MaskMode.AUTO, 0, MaskSetMode.NONE)
-        dropout = False if "dropout" not in kw else kw["dropout"]
+        #dropout = False if "dropout" not in kw else kw["dropout"]
         self.embedder = embedder
         if len(layers) > 0:
             if len(layers) == 1:
@@ -347,24 +347,35 @@ class SeqEncoder(AttentionConsumer, Block):
             self._returnings.add(arg)
         return self
 
+    @staticmethod
+    def RNN(*args, **kwargs):
+        return RNNSeqEncoder(*args, **kwargs)
+    #CNN = CNNSeqEncoder        # TODO
+
+    @staticmethod
+    def getemb(emb=None, embdim=None, vocsize=None, maskid=-1):
+        if emb is not None:
+            return emb
+        else:
+            if embdim is None:
+                return IdxToOneHot(vocsize)
+            else:
+                return VectorEmbed(indim=vocsize, dim=embdim, maskid=maskid)
+
 
 class RNNSeqEncoder(SeqEncoder):
     def __init__(self, indim=500, inpembdim=100, inpemb=None,
                  innerdim=200, bidir=False, maskid=None,
                  dropout_in=False, dropout_h=False, **kw):
         self.bidir = bidir
-        if inpemb is None:
-            inpemb = VectorEmbed(indim=indim, dim=inpembdim, maskid=maskid)
-        elif inpemb is False:
-            inpemb = None
-        else:
-            inpembdim = inpemb.outdim
+        inpemb = SeqEncoder.getemb(inpemb, inpembdim, indim)
+        inpembdim = inpemb.outdim
         if not issequence(innerdim):
             innerdim = [innerdim]
-        self.outdim = innerdim[-1] if not bidir else innerdim[-1] * 2
+        #self.outdim = innerdim[-1] if not bidir else innerdim[-1] * 2
         layers, lastdim = MakeRNU.make(inpembdim, innerdim, bidir=bidir,
                                        dropout_in=dropout_in, dropout_h=dropout_h)
-        #self.outdim = lastdim      # TODO
+        self.outdim = lastdim
         super(RNNSeqEncoder, self).__init__(inpemb, *layers, **kw)
 
 
@@ -541,7 +552,7 @@ class SeqDecoderAtt(Block):
         encmask = args[-2]
         # x_t_emb = self.embedder(x_t)  # i_t: (batsize, embdim)
         # compute current context
-        ctx_t = self._get_ctx_t(ctx, states_tm1[0], encmask)     # TODO: might not work with LSTM
+        ctx_t = self._get_ctx_t(ctx, states_tm1[-1], encmask)     # TODO: might not work with LSTM
         # do inconcat
         i_t = T.concatenate([x_t_emb, ctx_t], axis=1) if self.inconcat else x_t_emb
         rnuret = self.block.rec(i_t, *states_tm1)
@@ -551,6 +562,36 @@ class SeqDecoderAtt(Block):
         _y_t = T.concatenate([h_t, ctx_t], axis=1) if self.outconcat else h_t
         y_t = self.softmaxoutblock(_y_t)
         return [y_t, t] + states_t
+
+    @staticmethod
+    def getemb(*args, **kwargs):
+        return SeqEncoder.getemb(*args, **kwargs)
+
+    @staticmethod
+    def RNN(*args, **kwargs):
+        return SimpleRNNSeqDecoderAtt(*args, **kwargs)
+
+
+class SimpleRNNSeqDecoderAtt(SeqDecoderAtt):
+    def __init__(self, emb=None, embdim=None, embsize=None, maskid=-1,
+                 ctxdim=None, innerdim=None, rnu=GRU,
+                 inconcat=True, outconcat=False, attention=None,
+                 softmaxoutblock=None, dropout=False, dropout_h=False, **kw):
+        layers, lastdim = self.getlayers(emb, embdim, embsize, maskid,
+                           ctxdim, innerdim, rnu, inconcat, dropout, dropout_h)
+        lastdim = lastdim if outconcat is False else lastdim + ctxdim
+        super(SimpleRNNSeqDecoderAtt, self).__init__(layers, softmaxoutblock=softmaxoutblock,
+                innerdim=lastdim, attention=attention, inconcat=inconcat,
+                outconcat=outconcat, dropout=dropout, **kw)
+
+    def getlayers(self, emb, embdim, embsize, maskid, ctxdim, innerdim, rnu,
+                  inconcat, dropout, dropout_h):
+        emb = SeqDecoderAtt.getemb(emb, embdim, embsize, maskid)
+        firstdecdim = emb.outdim + ctxdim if inconcat else emb.outdim
+        layers, lastdim = MakeRNU.make(firstdecdim, innerdim, bidir=False, rnu=rnu,
+                                       dropout_in=dropout, dropout_h=dropout_h)
+        layers = [emb] + layers
+        return layers, lastdim
 
 
 class MakeRNU(object):
