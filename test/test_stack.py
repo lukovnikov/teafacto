@@ -30,7 +30,7 @@ class TestRecurrentStackRecappl(TestCase):
         batsize = 100
         self.dims = [50, 20, 30, 40]
         recstack = RecStack(*[GRU(dim=self.dims[i], innerdim=self.dims[i+1]) for i in range(len(self.dims)-1)])
-        mu = RecPredictor(recstack)
+        mu = RecPredictor(recstack).init(batsize)
         for i in range(3):
             inpval = np.random.random((batsize, 50)).astype("float32")
             outpvals = mu.feed(inpval)
@@ -41,7 +41,7 @@ class TestSeqTransDecRecappl(TestCase):     # TODO: move this test
     def test_recappl_shapes_model_user(self):
         batsize = 100
         model = SimpleSeqTransDec(indim=200, outdim=50, inpembdim=20, outembdim=20, innerdim=[40, 30])
-        mu = RecPredictor(model)
+        mu = RecPredictor(model).init(batsize)
         inpval2 = np.random.randint(0, 50, (batsize,)).astype("int32")
         for i in range(5):
             inpval = np.random.randint(0, 200, (batsize,)).astype("int32")

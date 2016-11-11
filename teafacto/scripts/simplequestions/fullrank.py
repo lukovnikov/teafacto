@@ -117,7 +117,7 @@ class SeqEncDecRankSearch(object):
             self.ott.tick()
             inpseq = inpseqs[isplit*splitsize: min(inpseqs.shape[0], (isplit+1)*splitsize)]
             self.mu.reset()
-            self.mu.setbuildargs(inpseq)
+            self.mu.setinitargs(inpseq)
             self.mu.settransform(transform)
             stop = False
             j = 0

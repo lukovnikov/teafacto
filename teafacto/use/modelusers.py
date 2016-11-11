@@ -12,56 +12,42 @@ class ModelUser(object):
 
 
 class RecPredictor(ModelUser):
-    def __init__(self, model, *buildargs, **kw):
+    def __init__(self, model, **kw):
         super(RecPredictor, self).__init__(model, **kw)
-        self.statevals = None
-        self.nonseqvals = None
-        self.buildargs = buildargs
-        self.buildkwargs = kw
-        self.transf = None
-        self.startsym = kw["startsym"] if "startsym" in kw else 0
+        self._transf = None
+        self.statevars, self.statevals, self.nonseqvars, self.nonseqvals = None, None, None, None
 
-    def reset(self):
-        self.buildargs = []
-        self.buildkwargs = {}
-        self.statevals = None
-        self.nonseqvals = None
-        self.transf = None
-        self.f = None
-
-    def setbuildargs(self, *args):
-        self.buildargs = args
-
-    def setbuildkwargs(self, **kwargs):
-        self.buildkwargs = kwargs
-
-    def settransform(self, f):
-        self.transf = f
-
-    def build(self, inps):  # data: (batsize, ...)
-        batsize = inps[0].shape[0]
-        inits = self.model.get_init_info(*(list(self.buildargs)+[batsize]))
+    def init(self, *initargs):
+        # pre-build
+        inits = self.model.get_init_info(*initargs)
         nonseqs = []
         if isinstance(inits, tuple):
             nonseqs = inits[1]
             inits = inits[0]
+        self.statevars = [self.wrapininput(x) for x in inits]
+        self.nonseqvars = [self.wrapininput(x) for x in nonseqs]
+        self.statevals = [self.evalstate(x) for x in inits]
+        self.nonseqvals = [self.evalstate(x) for x in nonseqs]
+        return self
+
+    def transf(self, transf):
+        self._transf = transf
+        return self
+
+    def build(self, inps):
         inpvars = [Input(ndim=inp.ndim, dtype=inp.dtype) for inp in inps]
-        if self.transf is not None:
-            tinpvars = self.transf(*inpvars)
+        if self._transf is not None:
+            tinpvars = self._transf(*inpvars)
             if not issequence(tinpvars):
                 tinpvars = (tinpvars,)
             tinpvars = list(tinpvars)
         else:
             tinpvars = inpvars
-        statevars = [self.wrapininput(x) for x in inits]
-        nonseqvars = [self.wrapininput(x) for x in nonseqs]
-        out = self.model.rec(*(tinpvars + statevars + nonseqvars))
+        out = self.model.rec(*(tinpvars + self.statevars + self.nonseqvars))
         alloutvars = out
-        self.f = theano.function(inputs=[x.d for x in inpvars + statevars + nonseqvars],
+        self.f = theano.function(inputs=[x.d for x in inpvars + self.statevars + self.nonseqvars],
                                  outputs=[x.d for x in alloutvars],
                                  on_unused_input="warn")
-        self.statevals = [self.evalstate(x) for x in inits]
-        self.nonseqvals = [self.evalstate(x) for x in nonseqs]
 
     def wrapininput(self, x):
         if isinstance(x, (Var, Val)):
@@ -75,6 +61,7 @@ class RecPredictor(ModelUser):
         else:
             return x
 
+    # feed
     def feed(self, *inps):  # inps: (batsize, ...)
         if self.f is None:      # build
             self.build(inps)

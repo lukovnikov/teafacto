@@ -4,11 +4,16 @@ from use.modelusers import RecPredictor
 
 
 class Searcher(object):
-    def __init__(self, model, strategy=GreedySearch(), *buildargs, **kw):
+    def __init__(self, model, strategy=GreedySearch(), stopsymbol=None, **kw):
         super(Searcher, self).__init__(**kw)
         self.strategy = strategy
         self.model = model
-        self.recpred = RecPredictor(model, *buildargs)
+        self.stopsymbol = stopsymbol        # TODO use it
+        self.recpred = RecPredictor(model)
+
+    def init(self, *args):
+        self.recpred.init(*args)
+        return self
 
 
 class SeqTransDecSearcher(Searcher):
