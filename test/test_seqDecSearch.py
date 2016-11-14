@@ -1,10 +1,7 @@
-import re
 from unittest import TestCase
 
 import numpy as np
 import pandas as pd
-
-from teafacto.blocks.lang.wordembed import Glove
 from teafacto.blocks.seq.encdec import SimpleSeqEncDecAtt
 from teafacto.use.recsearch import GreedySearch
 
@@ -34,7 +31,7 @@ def shiftdata(x):
 
 
 class TestSeqDecSearch(TestCase):
-    def test_seqdecatt(  # seems to work
+    def test_seqdecatt(self,  # seems to work
             wreg=0.00001,  # TODO: regularization other than 0.0001 first stagnates, then goes down
             epochs=50,
             numbats=20,
@@ -46,27 +43,21 @@ class TestSeqDecSearch(TestCase):
     ):
         # get words
         vocsize = 27
-        embdim = 50
-        lm = Glove(embdim, 2000)
-        allwords = filter(lambda x: re.match("^[a-z]+$", x), lm.D.keys())
-        words = allwords[1000:]
-        vwords = allwords[:1000]
-        data = words2ints(words)
-        sdata = shiftdata(data)
-        vdata = words2ints(vwords)
-        svdata = shiftdata(vdata)
-        testneglogprob = 17
 
         testpred = ["the", "alias", "mock", "test", "stalin", "allahuakbar", "python", "pythonista",
-                    " " * (data.shape[1])]
+                    " "]
         testpred = words2ints(testpred)
         print testpred
 
         block = SimpleSeqEncDecAtt(inpvocsize=vocsize, outvocsize=vocsize,
                                    encdim=encdim, decdim=statedim,
-                                   attdim=attdim, inconcat=False)
+                                   attdim=attdim, inconcat=False,
+                                   maskid=0)
 
-        s = GreedySearch(block, startsymbol=startsym)
+        s = GreedySearch(block, startsymbol=startsym, maxlen=testpred.shape[1])
         s.init(testpred, testpred.shape[0])
+        ctxmask, ctx = s.wrapped.recpred.nonseqvals
+        print ctxmask
+        self.assertTrue(np.all(ctxmask == (testpred > 0)))
         pred, probs = s.search(testpred.shape[0])
         print ints2words(pred), probs
