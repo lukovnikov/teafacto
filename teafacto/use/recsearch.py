@@ -73,7 +73,7 @@ class ModelWrapper(object):
             probs[stopmask, self.stopsymbol] = 1.
             return probs
         else:
-            return self._get_cur_probs(i, curout)
+            return self.get_cur_probs(i, curout)
 
     # can override this:
     def setargs(self, *args):
