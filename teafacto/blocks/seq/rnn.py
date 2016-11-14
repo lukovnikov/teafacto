@@ -518,39 +518,39 @@ class SeqDecoder(Block):
         return self.block.numstates
 
     def apply(self, ctx, seq, initstates=None, mask=None, ctxmask=None, **kw):  # context: (batsize, enc.innerdim), seq: idxs-(batsize, seqlen)
-        ctxmask = ctx.mask if ctxmask is None else ctxmask
-        if initstates is None:
-            initstates = seq.shape[0]
-        elif issequence(initstates):
-            if len(initstates) < self.numstates:  # fill up with batsizes for lower layers
-                initstates = [seq.shape[0]] * (self.numstates - len(initstates)) + initstates
-        init_info = self.get_init_info(initstates)  # sets init states to provided ones
-        ctxmask = T.ones(ctx.shape[:2], dtype="float32") if ctxmask is None else ctxmask
-
+        batsize = seq.shape[0]
+        init_info, nonseqs = self.get_inits(initstates, batsize, ctx, ctxmask)
         seq_emb = self.embedder(seq)    # (batsize, seqlen, embdim)
         mask = seq_emb.mask if mask is None else mask
         outputs = T.scan(fn=self.rec,
                             sequences=seq_emb.dimswap(1, 0),
-                            outputs_info=[None, 0] + init_info,
-                            non_sequences=[ctxmask, ctx])
+                            outputs_info=[None] + init_info,
+                            non_sequences=nonseqs)
         ret = outputs[0].dimswap(1, 0)  # returns probabilities of symbols --> (batsize, seqlen, vocabsize)
         ret.mask = mask
         return ret
+
+    def get_inits(self, initstates=None, batsize=None, ctx=None, ctxmask=None):
+        if initstates is None:
+            initstates = batsize
+        elif issequence(initstates):
+            if len(initstates) < self.numstates:  # fill up with batsizes for lower layers
+                initstates = [batsize * (self.numstates - len(initstates))] + initstates
+
+        ctxmask = ctx.mask if ctxmask is None else ctxmask
+        ctxmask = T.ones(ctx.shape[:2], dtype="float32") if ctxmask is None else ctxmask
+        nonseqs = [ctxmask, ctx]
+        return self.get_init_info(initstates), nonseqs
 
     def get_init_info(self, initstates):
         initstates = self.block.get_init_info(initstates)
         return initstates
 
-    def _get_ctx_t(self, ctx, h_tm1, encmask):
-        # ctx is 3D, always dynamic context
-        if self.attention is not None:
-            assert(ctx.d.ndim > 2)
-            ctx_t = self.attention(h_tm1, ctx, mask=encmask)
-            return ctx_t
-        else:
-            return ctx
+    def userec(self, x_t, *args):
+        x_t_emb = self.embedder(x_t)
+        return self.rec(x_t_emb, *args)
 
-    def rec(self, x_t_emb, t, *args):  # x_t_emb: (batsize, embdim), context: (batsize, enc.innerdim)
+    def rec(self, x_t_emb, *args):  # x_t_emb: (batsize, embdim), context: (batsize, enc.innerdim)
         states_tm1 = args[:-2]
         ctx = args[-1]
         encmask = args[-2]
@@ -560,12 +560,20 @@ class SeqDecoder(Block):
         # do inconcat
         i_t = T.concatenate([x_t_emb, ctx_t], axis=1) if self.inconcat else x_t_emb
         rnuret = self.block.rec(i_t, *states_tm1)
-        t += 1
         h_t = rnuret[0]
         states_t = rnuret[1:]
         _y_t = T.concatenate([h_t, ctx_t], axis=1) if self.outconcat else h_t
         y_t = self.softmaxoutblock(_y_t)
-        return [y_t, t] + states_t
+        return [y_t] + states_t
+
+    def _get_ctx_t(self, ctx, h_tm1, encmask):
+        # ctx is 3D, always dynamic context
+        if self.attention is not None:
+            assert(ctx.d.ndim > 2)
+            ctx_t = self.attention(h_tm1, ctx, mask=encmask)
+            return ctx_t
+        else:
+            return ctx
 
     @staticmethod
     def getemb(*args, **kwargs):

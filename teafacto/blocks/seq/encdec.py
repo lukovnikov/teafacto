@@ -4,9 +4,12 @@ from teafacto.blocks.seq.rnu import GRU
 from teafacto.blocks.seq.attention import Attention, WeightedSumAttCon, AttGen
 from teafacto.blocks.basic import MatDot
 from teafacto.blocks.match import CosineDistance
+from teafacto.use.recsearch import SeqEncDecWrapper
 
 
 class SeqEncDec(Block):
+    searchwrapper = SeqEncDecWrapper
+
     def __init__(self, enc, dec, statetrans=None, **kw):
         super(SeqEncDec, self).__init__(**kw)
         self.enc = enc
@@ -19,33 +22,24 @@ class SeqEncDec(Block):
             self.statetrans = statetrans
 
     def apply(self, inpseq, outseq, inmask=None, outmask=None):
-        enco, allenco = self.enc(inpseq, mask=inmask)
-        if self.statetrans is not None:
-            topstate = self.statetrans(enco, allenco)
-            deco = self.dec(allenco, outseq, initstates=[topstate], mask=outmask)
-        else:
-            deco = self.dec(allenco, outseq, mask=outmask)      # no state transfer
+        initstates, allenco = self.preapply(inpseq, inmask)
+        deco = self.dec(allenco, outseq, initstates=initstates, mask=outmask)      # no state transfer
         return deco
 
-    # DON'T USE THIS --> USE DEDICATED SAMPLER INSTEAD this should be called "start()" <-- REFACTOR
-    def get_init_info(self, inpseq, batsize, maskseq=None):     # must evaluate enc here, in place, without any side effects
-        """
-        VERY DIFFERENT FROM THE PURELY SYMBOLIC GET_INIT_INFO IN REAL REC BLOCKS !!!
-        This one is used in decoder/prediction
-        """
-        enco, allenco, _ = self.enc.predict(inpseq, mask=maskseq)
-
+    def preapply(self, inpseq, inmask=None):
+        enco, allenco = self.enc(inpseq, mask=inmask)
+        initstates = None
         if self.statetrans is not None:
-            topstate = self.statetrans.predict(enco, allenco)   # this gives unused input warning in theano - it's normal
+            topstate = self.statetrans(enco, allenco)
             initstates = [topstate]
-        else:
-            initstates = batsize
-        return self.dec.get_init_info([Val(x) for x in initstates]
-                                            if issequence(initstates)
-                                            else initstates)
+        return initstates, allenco
 
-    def rec(self, x_t, *states):
-        return self.dec.rec(x_t, *states)
+    def get_inits(self, inpseq, batsize, maskseq=None):
+        initstates, allenco = self.preapply(inpseq, inmask=maskseq)
+        return self.dec.get_inits(initstates, batsize, allenco)
+
+    def userec(self, x_t, *states):
+        return self.dec.userec(x_t, *states)
 
 
 class SimpleSeqEncDecAtt(SeqEncDec):

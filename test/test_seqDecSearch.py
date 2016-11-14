@@ -6,7 +6,7 @@ import pandas as pd
 
 from teafacto.blocks.lang.wordembed import Glove
 from teafacto.blocks.seq.encdec import SimpleSeqEncDecAtt
-from teafacto.use.recsearch import SeqEncDecSearch
+from teafacto.use.recsearch import GreedySearch
 
 
 def word2int(word):
@@ -66,6 +66,7 @@ class TestSeqDecSearch(TestCase):
                                    encdim=encdim, decdim=statedim,
                                    attdim=attdim, inconcat=False)
 
-        s = SeqEncDecSearch(block)
-        pred, probs = s.decode(testpred, startsym, testpred.shape[1])
+        s = GreedySearch(block, startsymbol=startsym)
+        s.init(testpred, testpred.shape[0])
+        pred, probs = s.search(testpred.shape[0])
         print ints2words(pred), probs

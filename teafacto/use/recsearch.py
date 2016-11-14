@@ -43,11 +43,15 @@ class ModelWrapper(object):
     def get_cur_probs(self, i, curout):
         raise NotImplementedError("use subclass")
 
+    def isstop(self, i):
+        return False
+
 
 class SeqTransDecWrapper(ModelWrapper):
     def setargs(self, *args):
         assert(len(args), 1)
         self.args = args[0]
+        self._batsize = self.args.shape[0]
 
     def init_out(self):
         return self.startsymbol * np.ones((self.args.shape[0],)).astype("int32")
@@ -59,6 +63,19 @@ class SeqTransDecWrapper(ModelWrapper):
 
     def isstop(self, i):
         return i == self.args.shape[1]
+
+
+class SeqEncDecWrapper(ModelWrapper):
+    def setargs(self, *args):
+        assert(len(args), 1)
+        self._batsize = args[0]
+
+    def init_out(self):
+        return self.startsymbol * np.ones((self._batsize,)).astype("int32")
+
+    def get_cur_probs(self, i, curout):
+        curprobs = self.recpred.feed(curout)
+        return curprobs
 
 
 # STRATEGIES

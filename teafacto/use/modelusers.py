@@ -19,7 +19,8 @@ class RecPredictor(ModelUser):
 
     def init(self, *initargs):
         # pre-build
-        inits = self.model.get_init_info(*initargs)
+        initargs = [Val(initarg) for initarg in initargs]
+        inits = self.model.get_inits(*initargs)
         nonseqs = []
         if isinstance(inits, tuple):
             nonseqs = inits[1]
@@ -43,7 +44,11 @@ class RecPredictor(ModelUser):
             tinpvars = list(tinpvars)
         else:
             tinpvars = inpvars
-        out = self.model.rec(*(tinpvars + self.statevars + self.nonseqvars))
+        if hasattr(self.model, "userec"):
+            recf = self.model.userec
+        else:
+            recf = self.model.rec
+        out = recf(*(tinpvars + self.statevars + self.nonseqvars))
         alloutvars = out
         self.f = theano.function(inputs=[x.d for x in inpvars + self.statevars + self.nonseqvars],
                                  outputs=[x.d for x in alloutvars],
