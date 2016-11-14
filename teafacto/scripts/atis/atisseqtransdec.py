@@ -54,7 +54,7 @@ def run(p="../../../data/atis/atis.pkl", wordembdim=70, lablembdim=70, innerdim=
         .train(numbats, epochs)
 
     # predict after training
-    s = SeqTransDecSearcher(m).init(testdata.shape[0])
+    s = SeqTransDecSearcher(m)
     testpred, _ = s.decode(testdata)
     testpred = testpred * testmask
 

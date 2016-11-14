@@ -7,6 +7,7 @@ from teafacto.blocks.seq.rnu import GRU
 from teafacto.core.base import Block, tensorops as T, Val, asblock
 from teafacto.core.stack import stack
 from teafacto.util import issequence
+from teafacto.use.recsearch import SeqTransDecWrapper
 
 """
 class SeqEncDec(Block):
@@ -201,6 +202,7 @@ class SimpleSeqTransducer(SeqTransducer):
 
 
 class SeqTransDec(Block):
+    searchwrapper = SeqTransDecWrapper
     def __init__(self, *layers, **kw):
         """ first two layers must be embedding layers. Final softmax is added automatically"""
         assert("smodim" in kw and "outdim" in kw)
