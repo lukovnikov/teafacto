@@ -4,46 +4,6 @@ from teafacto.use.modelusers import RecPredictor
 from teafacto.util import isnumber
 
 
-# OLD --> remove
-class Searcher(object):
-    def __init__(self, model, stopsymbol=None, **kw):
-        super(Searcher, self).__init__(**kw)
-        self.model = model
-        self.stopsymbol = stopsymbol        # TODO use it
-        self.recpred = RecPredictor(model)
-
-    def init(self, *args):
-        self.recpred.init(*args)
-        return self
-
-    def search(self, *args, **kwargs):
-        raise NotImplementedError("use subclass")
-
-
-# OLD
-class SeqTransDecSearcher(Searcher):
-    # responsible for generating recappl prediction function from recappl of decoder
-    """ Default: greedy search strategy """
-    def search(self, inpseq):
-        stop = False
-        i = 0
-        curout = np.zeros((inpseq.shape[0])).astype("int32")
-        accprobs = np.ones((inpseq.shape[0]))
-        outs = []
-        while not stop:
-            curinp = inpseq[:, i]
-            curprobs = self.recpred.feed(curinp, curout)
-            accprobs *= np.max(curprobs, axis=1)
-            curout = np.argmax(curprobs, axis=1).astype("int32")
-            outs.append(curout)
-            i += 1
-            stop = i == inpseq.shape[1]
-        #print accprobs
-        ret = np.stack(outs).T
-        assert (ret.shape == inpseq.shape)
-        return ret, accprobs
-
-
 # MODEL WRAPPERS
 class ModelWrapper(object):
     def __init__(self, model, startsymbol=0, stopsymbol=None, **kw):
@@ -153,4 +113,3 @@ class BeamSearch(SearchStrategy):
 
 class VarBeamSearch(BeamSearch):
     pass
-
