@@ -522,7 +522,7 @@ class SeqDecoder(Block):
         init_info, nonseqs = self.get_inits(initstates, batsize, ctx, ctxmask)
         seq_emb = self.embedder(seq)    # (batsize, seqlen, embdim)
         mask = seq_emb.mask if mask is None else mask
-        outputs = T.scan(fn=self.rec,
+        outputs = T.scan(fn=self.inner_rec,
                             sequences=seq_emb.dimswap(1, 0),
                             outputs_info=[None] + init_info,
                             non_sequences=nonseqs)
@@ -546,11 +546,11 @@ class SeqDecoder(Block):
         initstates = self.block.get_init_info(initstates)
         return initstates
 
-    def userec(self, x_t, *args):
+    def rec(self, x_t, *args):
         x_t_emb = self.embedder(x_t)
-        return self.rec(x_t_emb, *args)
+        return self.inner_rec(x_t_emb, *args)
 
-    def rec(self, x_t_emb, *args):  # x_t_emb: (batsize, embdim), context: (batsize, enc.innerdim)
+    def inner_rec(self, x_t_emb, *args):  # x_t_emb: (batsize, embdim), context: (batsize, enc.innerdim)
         states_tm1 = args[:-2]
         ctx = args[-1]
         encmask = args[-2]

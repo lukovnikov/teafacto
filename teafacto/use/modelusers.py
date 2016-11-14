@@ -44,11 +44,7 @@ class RecPredictor(ModelUser):
             tinpvars = list(tinpvars)
         else:
             tinpvars = inpvars
-        if hasattr(self.model, "userec"):
-            recf = self.model.userec
-        else:
-            recf = self.model.rec
-        out = recf(*(tinpvars + self.statevars + self.nonseqvars))
+        out = self.model.rec(*(tinpvars + self.statevars + self.nonseqvars))
         alloutvars = out
         self.f = theano.function(inputs=[x.d for x in inpvars + self.statevars + self.nonseqvars],
                                  outputs=[x.d for x in alloutvars],

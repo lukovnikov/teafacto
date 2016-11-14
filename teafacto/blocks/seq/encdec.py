@@ -38,8 +38,8 @@ class SeqEncDec(Block):
         initstates, allenco = self.preapply(inpseq, inmask=maskseq)
         return self.dec.get_inits(initstates, batsize, allenco)
 
-    def userec(self, x_t, *states):
-        return self.dec.userec(x_t, *states)
+    def rec(self, x_t, *states):
+        return self.dec.rec(x_t, *states)
 
 
 class SimpleSeqEncDecAtt(SeqEncDec):

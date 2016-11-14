@@ -234,6 +234,9 @@ class SeqTransDec(Block):
     def get_init_info(self, initstates):
         return self.block.get_init_info(initstates)
 
+    def get_inits(self, initstates):
+        return self.get_init_info(initstates)
+
 
 class SimpleSeqTransDec(SeqTransDec):
     def __init__(self, indim=400, outdim=50, inpembdim=50, outembdim=50, innerdim=100, **kw):

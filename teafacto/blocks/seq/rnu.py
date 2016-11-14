@@ -43,6 +43,9 @@ class ReccableBlock(RecurrentBlock):    # exposes a rec function
     def get_init_info(self, initstates):
         raise NotImplementedError("use subclass")
 
+    def get_inits(self, initstates):
+        return self.get_init_info(initstates)
+
     # FWD API IMPLEMENTATION USING REC API
     def innerapply(self, x, mask=None, initstates=None):
         assert(x.ndim == 3 and (mask is None or mask.ndim == 2))
