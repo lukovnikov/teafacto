@@ -141,7 +141,3 @@ class SepAttEncoders(Block):
         ret = T.concatenate([con_enc_all, att_enc_all], axis=2)
         ret.mask = encmask
         return con_enc_final, ret
-
-
-
-# TODO: add sep-attentional enc-dec
