@@ -178,6 +178,25 @@ class TensorWrapped(object):
         return OpBlock(rinner, name="reverse")(self, axes)
 
 
+
+class LazyShape(object):
+    def __init__(self, shape, f=None):
+        self._shape = list(shape)
+        self.f = f
+        if not self.islazy():
+            self.f(self._shape)
+
+    def __getitem__(self, item):
+        return self._shape[item]
+
+    def __setitem__(self, key, value):
+        self._shape[key] = value
+        if not self.islazy():
+            self.f(self._shape)
+
+    def islazy(self):
+        return None in self._shape
+
 ### WORRY ABOUT THIS
 class Parameter(TensorWrapped):
     '''
@@ -185,36 +204,53 @@ class Parameter(TensorWrapped):
     '''
     def __init__(self, value, name=None, lrmul=1., regmul=1., shape=None):
         self.initializer = None
+        this = self
+        self.name = str(name) if name is not None else "auto" + str(np.random.randint(0, 10000))
         if isinstance(value, theano.compile.sharedvalue.SharedVariable):
             self.value = value
             self.shape = value.get_value().shape
             self.initializer = lambda: value.get_values()
+            self.value.name = self.name
         elif isinstance(value, Initializer):
-            self.shape = shape
-            self.initializer = lambda: value.sample(shape).astype(theano.config.floatX)
-            self.value = theano.shared(np.zeros(shape).astype(theano.config.floatX))
-            self.reset()
+            self.initializer = lambda: value.sample(this.shape).astype(theano.config.floatX)
+            if None in shape:
+                self.shape = LazyShape(shape, f=lambda x: self.oncompleteshape(x))
+            else:
+                self.shape = shape
+                self.oncompleteshape(shape)
         elif isinstance(value, Val):
             self.value = value.d.astype(theano.config.floatX)
             self.shape = value.d.get_value().shape
             self.initializer = lambda: value.d.get_value()
+            self.value.name = self.name
         else:
             self.value = theano.shared(value.astype(theano.config.floatX))
             self.initializer = lambda: value.astype(theano.config.floatX)
             self.shape = value.shape
+            self.value.name = name
         self.lrmul = lrmul
         self.regmul = regmul
-        self.name = str(name) if name is not None else "auto" + str(np.random.randint(0, 10000))
-        self.value.name = self.name
         self.constraints = []
+
+    def oncompleteshape(self, shape):
+        self.shape = shape
+        self.value = theano.shared(np.zeros(shape).astype(theano.config.floatX))
+        self.reset()
 
     def applyonval(self, f):
         self.value.set_value(f(self.value.get_value()))
         return self
 
     def reset(self):
+        if self.lazyshape:
+            raise Exception("lazy shape cannot be reset")
         #print "resetting param %s \n\t\t (in %s)" % (str(self), self.__class__.__name__)
         self.value.set_value(self.initializer())
+        self.value.name = self.name
+
+    @property
+    def lazyshape(self):
+        return isinstance(self.shape, LazyShape)
 
     @property
     def d(self):
@@ -258,28 +294,15 @@ class param(object):
         self.value = None
         self.name = name
 
-    def _init_helper(self, f):
-        ret = Parameter(f(self.shape), lrmul=self.lrmul, regmul=self.regmul, name=self.name)
-        ret.initializer = f
-        return ret
-
     def init(self, arg, *args, **kwargs):
         if isstring(arg):
             assert hasattr(self, arg)
             return getattr(self, arg)(*args, **kwargs)
-        elif isfunction(arg):
-            return self._init_helper(arg)
-
-    ############## OWN INITS ###################
-    def random(self, offset=0.5, scale=0.1):
-        return self._init_helper(lambda shape: (np.random.random(shape).astype("float32") - offset) * scale)
-
-    def eye(self, offset=0):
-        return self._init_helper(lambda shape: np.eye(shape[0], shape[1], k=offset, dtype="float32"))
 
     ############## LASAGE INITS ################
     def _lasagne_init(self, initializer):
-        return Parameter(initializer, lrmul=self.lrmul, regmul=self.regmul, shape=self.shape, name=self.name)
+        return Parameter(initializer, lrmul=self.lrmul,
+                 regmul=self.regmul, shape=self.shape, name=self.name)
 
     def uniform(self, range=0.01, std=None, mean=0.0):
         return self._lasagne_init(Uniform(range, std, mean))
@@ -417,6 +440,13 @@ class Var(Elem, TensorWrapped, Masked): # result of applying a block on theano v
         self._updates = OrderedDict()
         self._extra_outs = {}
 
+    @property
+    def shape(self):
+        ret = self._shape
+        if ret is None:
+            return self.d.shape
+        return ret
+
     # params
     def push_params(self, setofparams):
         self._params.update(setofparams)
@@ -471,10 +501,11 @@ class Var(Elem, TensorWrapped, Masked): # result of applying a block on theano v
 
 
 class Input(Var): # generates feed + creates symbolic vars for input
-    def __init__(self, ndim, dtype, name=None, **kw): # data source (numpy array)
+    def __init__(self, ndim, dtype, shape=None, name=None, **kw): # data source (numpy array)
         value = tensor.TensorType(dtype, (False,) * ndim)(name=name)
         super(Input, self).__init__(value, parent=None, **kw)
         self.ndim = ndim # store number of dimensions
+        self._shape = shape
 
 
 class Block(Elem, Saveable): # block with parameters
@@ -601,11 +632,13 @@ class Block(Elem, Saveable): # block with parameters
         kwinputs = {}
         inpnum = 1
         for td in inputdata:
-            inputs.append(None if td is None else Input(ndim=td.ndim, dtype=td.dtype, name="inp:%d" % inpnum))
+            inputs.append(None if td is None else Input(ndim=td.ndim,
+                dtype=td.dtype, shape=td.shape, name="inp:%d" % inpnum))
             inpnum += 1
         for k in kwinputdata:
             td = kwinputdata[k]
-            kwinputs[k] = None if td is None else Input(ndim=td.ndim, dtype=td.dtype, name="kwinp:%s" % k)
+            kwinputs[k] = None if td is None else Input(ndim=td.ndim,
+                dtype=td.dtype, shape=td.shape, name="kwinp:%s" % k)
 
         kwinputl = kwinputs.items()
         if transform is not None:

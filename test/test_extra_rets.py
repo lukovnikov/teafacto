@@ -42,11 +42,12 @@ class TestExtraRet(TestCase):
             def f(self, s):
                 a = s * 2
                 b = T.sum(a, axis=0)
-                a.push_extra_outs({"b": b})
+                c = T.sum(a, axis=0)
+                a.push_extra_outs({"b": b, "c": c})
                 return a
         b = DummyRecBlock()
         d = np.random.random((3, 10, 5)).astype("float32")
         pred, extra = b.predict(d, _extra_outs=True)
-        print pred
-        print extra
+        self.assertIn("b", extra)
+        self.assertIn("c", extra)
 

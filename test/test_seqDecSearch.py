@@ -31,11 +31,7 @@ def shiftdata(x):
 
 
 class TestSeqDecSearch(TestCase):
-    def test_seqdecatt(self,  # seems to work
-            wreg=0.00001,  # TODO: regularization other than 0.0001 first stagnates, then goes down
-            epochs=50,
-            numbats=20,
-            lr=0.1,
+    def test_seqdecatt(self,
             statedim=50,
             encdim=50,
             attdim=50,
