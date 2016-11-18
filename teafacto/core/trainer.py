@@ -409,7 +409,7 @@ class ModelTrainer(object):
             inputs=finputs,
             outputs=[cost],
             updates=allupdates,
-            #mode=NanGuardMode(nan_is_error=True, inf_is_error=False, big_is_error=False)
+            mode=NanGuardMode(nan_is_error=True, inf_is_error=False, big_is_error=False)
             # TODO: enabling NanGuard with Dropout doesn't work --> see Theano.git/issues/4823
         )
         self.tt.tock("training function compiled")
