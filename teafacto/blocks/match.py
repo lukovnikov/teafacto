@@ -20,8 +20,8 @@ class DotDistance(Block):
 class CosineDistance(Block):
     def apply(self, l, r):  # l: f32^(batsize, dim), r:f32^(batsize, dim)
         dots = T.batched_dot(r, l)
-        lnorms = T.sqrt(T.sum(l ** 2, axis=-1) + 1e-6)
-        rnorms = T.sqrt(T.sum(r ** 2, axis=-1) + 1e-6)
+        lnorms = T.sqrt(T.maximum(T.sum(l ** 2, axis=-1), 1e-6))
+        rnorms = T.sqrt(T.maximum(T.sum(r ** 2, axis=-1), 1e-6))
         #rnorms = r.norm(2, axis=-1)
         while lnorms.ndim < dots.ndim:
             lnorms = T.shape_padaxis(lnorms, -1)
