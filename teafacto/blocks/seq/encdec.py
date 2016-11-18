@@ -3,7 +3,7 @@ from teafacto.blocks.seq.rnn import SeqEncoder, MaskMode, MaskSetMode, SeqDecode
 from teafacto.blocks.seq.rnu import GRU
 from teafacto.blocks.seq.attention import Attention, WeightedSumAttCon, AttGen
 from teafacto.blocks.basic import VectorEmbed, IdxToOneHot, MatDot
-from teafacto.blocks.match import CosineDistance
+from teafacto.blocks.match import CosineDistance, DotDistance
 
 
 class SeqEncDec(Block):
@@ -100,7 +100,8 @@ class SimpleSeqEncDecAtt(SeqEncDecAtt):
         # attention
         lastdecinnerdim = decinnerdim[-1]
         argdecinnerdim = lastdecinnerdim if outconcat is False else lastencinnerdim + lastdecinnerdim
-        attgen = AttGen(CosineDistance())
+        #attgen = AttGen(CosineDistance())
+        attgen = AttGen(DotDistance())
         attcon = WeightedSumAttCon()
 
         if statetrans is True:
