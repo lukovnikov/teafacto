@@ -49,7 +49,7 @@ class TestForwardAttGen(TestCase):
 
 class AttentionGenTest(TestCase):
     def test_shapes(self):
-        batsize, seqlen = 100, 7
+        batsize, seqlen = 9, 7
         criterionshape = (batsize, 10)
         datashape = (batsize, seqlen, 10)
         attgen = AttGen(CosineDistance())
@@ -58,11 +58,12 @@ class AttentionGenTest(TestCase):
         data = np.random.random(datashape)
         # predict and test
         pred = attgen.predict(criterion, data)
+        #print pred
         self.assertEqual(pred.shape, (batsize, seqlen))
         self.assertTrue(np.allclose(pred.sum(axis=1), np.ones((pred.shape[0],))))
 
     def test_mask(self):
-        batsize, seqlen = 100, 7
+        batsize, seqlen = 9, 7
         criterionshape = (batsize, 10)
         datashape = (batsize, seqlen, 10)
         attgen = AttGen(CosineDistance())
@@ -75,6 +76,7 @@ class AttentionGenTest(TestCase):
             mask[i, maskids[i]:] = 0
         # predict and test
         pred = attgen.predict(criterion, data, mask)
+        print pred
         maskthrough = np.not_equal(pred, 0)
         self.assertTrue(np.all(maskthrough == mask))
 

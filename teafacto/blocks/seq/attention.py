@@ -15,8 +15,9 @@ class AttGen(Block):
 
     def apply(self, criterion, data, mask=None):
         o = self.dist(criterion, data)
-        o_out = Softmax()(o, mask=mask)
-        return o_out
+        #o_out = Softmax()(o, mask=mask)
+        #return o_out
+        return o
 
 
 
