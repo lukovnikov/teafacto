@@ -3,7 +3,7 @@ from teafacto.blocks.seq.rnn import SeqEncoder, MaskSetMode, SeqDecoder
 from teafacto.blocks.seq.rnu import GRU
 from teafacto.blocks.seq.attention import Attention, WeightedSumAttCon, AttGen
 from teafacto.blocks.basic import MatDot
-from teafacto.blocks.match import CosineDistance
+from teafacto.blocks.match import CosineDistance, DotDistance
 from teafacto.use.recsearch import SeqEncDecWrapper
 
 
@@ -60,7 +60,7 @@ class SimpleSeqEncDecAtt(SeqEncDec):
                  outconcat=False,
                  maskid=-1,
                  dropout=False,
-                 attdist=CosineDistance(),
+                 attdist=DotDistance(),
                  sepatt=False,
                  **kw):
         encinnerdim = [encdim] if not issequence(encdim) else encdim
