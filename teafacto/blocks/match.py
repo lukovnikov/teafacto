@@ -26,7 +26,9 @@ class CosineDistance(Block):
             lnorms = T.shape_padaxis(lnorms, -1)
         while rnorms.ndim < dots.ndim:
             rnorms = T.shape_padaxis(rnorms, -1)
-        return dots/(lnorms*rnorms + 1e-6)
+        ret = dots/(lnorms*rnorms + 1e-6)
+        ret.push_extra_outs({"lnorms": lnorms, "rnorms": rnorms})
+        return ret
 
 
 class EuclideanDistance(Block):

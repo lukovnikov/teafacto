@@ -35,13 +35,16 @@ class TestBilinearDistance(TestCase):
 class TestCosineDistance(TestCase):
     def test_shape(self):
         batsize = 10
+        seqlen=3
         ldim = 5
         rdim = 5
         l = np.random.random((batsize, ldim))
-        r = np.random.random((batsize, rdim))
+        r = np.random.random((batsize, seqlen, rdim))
         b = CosineDistance()
-        pred = b.predict(l, r)
-        self.assertEqual(pred.shape, (batsize,))
+        pred, extra = b.predict(l, r, _extra_outs=["lnorms", "rnorms"])
+        print extra
+        print pred
+        self.assertEqual(pred.shape, (batsize, seqlen))
         self.assertTrue(np.all((pred - np.ones_like(pred)) < 0))
 
 
