@@ -100,8 +100,8 @@ class SimpleSeqEncDecAtt(SeqEncDecAtt):
         # attention
         lastdecinnerdim = decinnerdim[-1]
         argdecinnerdim = lastdecinnerdim if outconcat is False else lastencinnerdim + lastdecinnerdim
-        #attgen = AttGen(CosineDistance())
-        attgen = AttGen(DotDistance())
+        attgen = AttGen(CosineDistance())
+        #attgen = AttGen(DotDistance())
         attcon = WeightedSumAttCon()
 
         if statetrans is True:
