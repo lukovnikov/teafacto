@@ -60,7 +60,7 @@ class SimpleSeqEncDecAtt(SeqEncDec):
                  outconcat=False,
                  maskid=-1,
                  dropout=False,
-                 attdist=DotDistance(),
+                 attdist=CosineDistance(),
                  sepatt=False,
                  **kw):
         encinnerdim = [encdim] if not issequence(encdim) else encdim
