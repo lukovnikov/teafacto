@@ -106,7 +106,7 @@ def run(
     # TODO: Dong's preprocessing
     # TODO: test decoder
 
-    np.random.seed(1234)
+    np.random.seed(12345)
     encdimi = [encdim] * layers
     decdimi = [encdim] * layers
 
