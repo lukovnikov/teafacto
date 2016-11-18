@@ -2,6 +2,7 @@ from unittest import TestCase
 from teafacto.core.base import Block, param, tensorops as T
 import numpy as np
 
+
 class TestLazyParam(TestCase):
     def test_lazy_param(self):
         class DummyBlock(Block):
@@ -23,6 +24,7 @@ class TestLazyParam(TestCase):
             def apply(self, x):
                 self.W = param((x.shape[1], 2), name="test_param").uniform()
                 a = T.dot(x, self.W)
+                a.shape = (x.shape[0], 2)
                 return a
         d = np.random.random((5, 4))
         b = DummyBlock()

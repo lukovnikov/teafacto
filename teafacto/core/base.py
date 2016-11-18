@@ -447,6 +447,10 @@ class Var(Elem, TensorWrapped, Masked): # result of applying a block on theano v
             return self.d.shape
         return ret
 
+    @shape.setter
+    def shape(self, shape):
+        self._shape = list(shape)
+
     # params
     def push_params(self, setofparams):
         self._params.update(setofparams)

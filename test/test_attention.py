@@ -79,7 +79,6 @@ class AttentionGenTest(TestCase):
         self.assertTrue(np.all(maskthrough == mask))
 
 
-
 class DummyAttentionGeneratorConsumerTest(TestCase):
     def setUp(self):
         criteriondim = 20
