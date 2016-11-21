@@ -196,6 +196,7 @@ def run(
         elif len(x) == 0:
             for i in range(0, xqmat.shape[0]):
                 play(i)
+                raw_input()
         else:
             raise Exception("invalid argument to play")
 
