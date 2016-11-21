@@ -108,6 +108,10 @@ def run(
     # TODO: test decoder
 
     np.random.seed(12345)
+
+    eids = np.arange(qmat.shape[0])
+    np.random.shuffle(eids)
+
     encdimi = [encdim] * layers
     decdimi = [encdim] * layers
 
@@ -167,18 +171,25 @@ def run(
         aposmat = np.repeat(aposmat, amat.shape[0], axis=0)
         amati = np.concatenate([amat[:, :, None], aposmat[:, :, None]], axis=2)
 
-    encdec.train([qmat, amati[:, :-1]], amat[:, 1:])\
+    tqmat = qmat[eids[:600]]
+    tamat = amat[eids[:600]]
+    tamati = amati[eids[:600]]
+    xqmat = qmat[eids[600:]]
+    xamat = amat[eids[600:]]
+    xamati = amati[eids[600:]]
+
+    encdec.train([tqmat, tamati[:, :-1]], tamat[:, 1:])\
         .cross_entropy().rmsprop(lr=lr/numbats).grad_total_norm(1.)\
-        .split_validate(5).cross_entropy().seq_accuracy()\
+        .validate_on([xqmat, xamati[:, :-1]], xamat[:, 1:]).cross_entropy().seq_accuracy()\
         .train(numbats, epochs)
 
     qrwd = {v: k for k, v in qdic.items()}
     arwd = {v: k for k, v in adic.items()}
 
     def play(x):
-        print wordids2string(qmat[x], rwd=qrwd, maskid=maskid, reverse=True)
-        print wordids2string(amati[x], rwd=arwd, maskid=maskid)
-        pred = encdec.predict(qmat[x:x+1], amati[x:x+1, :-1])
+        print wordids2string(xqmat[x], rwd=qrwd, maskid=maskid, reverse=True)
+        print wordids2string(xamat[x, 1:], rwd=arwd, maskid=maskid)
+        pred = encdec.predict(xqmat[x:x+1], xamati[x:x+1, :-1])
         print wordids2string(np.argmax(pred[0], axis=1), rwd=arwd, maskid=maskid)
 
     embed()
