@@ -1,4 +1,5 @@
 from teafacto.util import argprun
+from teafacto.procutil import wordids2string
 import numpy as np, re
 from IPython import embed
 
@@ -170,6 +171,14 @@ def run(
         .cross_entropy().rmsprop(lr=lr/numbats).grad_total_norm(1.)\
         .split_validate(5).cross_entropy().seq_accuracy()\
         .train(numbats, epochs)
+
+    qrwd = {v: k for k, v in qdic.items()}
+    arwd = {v: k for k, v in adic.items()}
+
+    def play(x):
+        print wordids2string(qmat[x], rwd=qrwd, maskid=maskid)
+        pred = encdec.predict(qmat[x:x+1], amati[x:x+1, :-1])[0]
+        print wordids2string(pred, rwd=arwd, maskid=maskid)
 
     embed()
 

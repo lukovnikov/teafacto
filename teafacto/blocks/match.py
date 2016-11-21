@@ -33,7 +33,7 @@ class CosineDistance(Block):
 
 class EuclideanDistance(Block):
     def apply(self, l, r):
-        return (l-r).norm(2, axis=1)
+        return T.sqrt(T.maximum(T.sum((l-r)**2, axis=1), 1e-6))
 
 
 class LinearDistance(Block):
