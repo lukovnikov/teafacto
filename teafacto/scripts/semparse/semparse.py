@@ -186,11 +186,18 @@ def run(
     qrwd = {v: k for k, v in qdic.items()}
     arwd = {v: k for k, v in adic.items()}
 
-    def play(x):
-        print wordids2string(xqmat[x], rwd=qrwd, maskid=maskid, reverse=True)
-        print wordids2string(xamat[x, 1:], rwd=arwd, maskid=maskid)
-        pred = encdec.predict(xqmat[x:x+1], xamati[x:x+1, :-1])
-        print wordids2string(np.argmax(pred[0], axis=1), rwd=arwd, maskid=maskid)
+    def play(*x):
+        if len(x) == 1:
+            x = x[0]
+            print wordids2string(xqmat[x], rwd=qrwd, maskid=maskid, reverse=True)
+            print wordids2string(xamat[x, 1:], rwd=arwd, maskid=maskid)
+            pred = encdec.predict(xqmat[x:x+1], xamati[x:x+1, :-1])
+            print wordids2string(np.argmax(pred[0], axis=1), rwd=arwd, maskid=maskid)
+        elif len(x) == 0:
+            for i in range(0, xqmat.shape[0]):
+                play(i)
+        else:
+            raise Exception("invalid argument to play")
 
     embed()
 
