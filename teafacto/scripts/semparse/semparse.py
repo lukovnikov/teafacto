@@ -176,9 +176,10 @@ def run(
     arwd = {v: k for k, v in adic.items()}
 
     def play(x):
-        print wordids2string(qmat[x], rwd=qrwd, maskid=maskid)
+        print wordids2string(qmat[x], rwd=qrwd, maskid=maskid, reverse=True)
+        print wordids2string(amati[x], rwd=arwd, maskid=maskid)
         pred = encdec.predict(qmat[x:x+1], amati[x:x+1, :-1])[0]
-        print wordids2string(pred, rwd=arwd, maskid=maskid)
+        print wordids2string(np.argmax(pred[0], axis=1), rwd=arwd, maskid=maskid)
 
     embed()
 

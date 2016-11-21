@@ -77,9 +77,11 @@ def wordmat2charmat(wordmat, worddic=None, rwd=None, maxlen=100, raretoken="<RAR
     return charmat
 
 
-def wordids2string(inp, rwd, maskid=-1):
-    ret = " ".join([rwd[x] if x in rwd else "<???>"
-                    for x in inp if x != maskid])
+def wordids2string(inp, rwd, maskid=-1, reverse=False):
+    ret = [rwd[x] if x in rwd else "<???>" for x in inp if x != maskid]
+    if reverse:
+        ret.reverse()
+    ret = " ".join(ret)
     return ret
 
 
