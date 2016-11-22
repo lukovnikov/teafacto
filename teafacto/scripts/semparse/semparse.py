@@ -11,7 +11,7 @@ from teafacto.blocks.activations import Softmax, Tanh
 from teafacto.blocks.lang.wordvec import WordEmb, Glove
 
 
-def loadgeopl(p="../../../data/semparse/geoquery.txt", customemb=False):
+def loadgeopl(p="../../../data/semparse/geoquery.txt", customemb=False, reverse=True):
     qss, ass = [], []
     maxqlen, maxalen = 0, 0
     qwords, awords = {}, {}
@@ -46,7 +46,8 @@ def loadgeopl(p="../../../data/semparse/geoquery.txt", customemb=False):
         q = qss[i]
         a = ass[i]
         qx = [qdic[x] for x in q]
-        qx.reverse()
+        if reverse:
+            qx.reverse()
         qmat[i, :len(q)] = qx
         amat[i, :len(a)] = [adic[x] for x in a]
     return qmat, amat, qdic, adic, qwords, awords
@@ -54,7 +55,8 @@ def loadgeopl(p="../../../data/semparse/geoquery.txt", customemb=False):
 
 def loadgeo(trainp="../../../data/semparse/geoquery.lbd.dev",
             testp="../../../data/semparse/geoquery.lbd.test",
-            customemb=False):
+            customemb=False,
+            reverse=True):
 
     d = []
 
@@ -93,7 +95,7 @@ def loadgeo(trainp="../../../data/semparse/geoquery.lbd.dev",
     addlines(trainp, d)
     addlines(testp, d)
 
-    return loadgeopl(p=d, customemb=customemb)
+    return loadgeopl(p=d, customemb=customemb, reverse=reverse)
 
 
 class VectorPosEmb(Block):
@@ -144,13 +146,21 @@ def run(
         customemb=False,
         charlevel=True):
     # loaddata
-    qmat, amat, qdic, adic, qwc, awc = loadgeo(customemb=customemb)
+    qmat, amat, qdic, adic, qwc, awc = loadgeo(customemb=customemb, reverse=not charlevel)
+
+    maskid = 0
 
     if charlevel:
-        qmat = wordmat2charmat(qmat, qdic, maxlen=1000)
-        amat = wordmat2charmat(amat, adic, maxlen=1000)
-        qdic = dict([(chr(x), x) for x in range(np.max(qmat))])
-        adic = dict([(chr(x), x) for x in range(np.max(amat))])
+        qmat = wordmat2charmat(qmat, qdic, maxlen=1000, maskid=maskid)
+        amat = wordmat2charmat(amat, adic, maxlen=1000, maskid=maskid)
+        qmat[qmat > 0] += 2
+        amat[amat > 0] += 2
+        qdic = dict([(chr(x), x + 2) for x in range(np.max(qmat))])
+        adic = dict([(chr(x), x + 2) for x in range(np.max(amat))])
+        qdic.update({"<RARE>": 1})
+        adic.update({"<RARE>": 1})
+        print wordids2string(qmat[0], {v: k for k, v in qdic.items()})
+        print wordids2string(amat[0], {v: k for k, v in adic.items()})
 
     embed()
 
@@ -169,10 +179,6 @@ def run(
     encdimi = [encdim] * layers
     decdimi = [encdim] * layers
 
-    inpemb = None   # normal args are used
-    outemb = None   # normal args are used
-
-    maskid = 0
 
     inpemb = WordEmb(worddic=qdic, maskid=maskid, dim=embdim)
     outemb = WordEmb(worddic=adic, maskid=maskid, dim=embdim)
