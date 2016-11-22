@@ -88,7 +88,7 @@ def loadgeo(trainp="../../../data/semparse/geoquery.lbd.dev",
                         line = re.sub("([^\s]?)([()])([^\s]?)",
                                          fixbrackets,
                                          line)
-                    curline = "{}\t{}".format(curline, line[:-1])
+                    curline = "{}\t{}".format(curline, line)
 
     addlines(trainp, d)
     addlines(testp, d)
@@ -222,7 +222,7 @@ def run(
     xamat = amat[600:]
     xamati = amati[600:]
 
-    embed()
+    #embed()
 
     encdec.train([tqmat, tamati[:, :-1]], tamat[:, 1:])\
         .cross_entropy().rmsprop(lr=lr/numbats).grad_total_norm(1.)\
