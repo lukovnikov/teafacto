@@ -1,5 +1,5 @@
 from teafacto.util import argprun, isstring, issequence
-from teafacto.procutil import wordids2string
+from teafacto.procutil import wordids2string, wordmat2charmat
 import numpy as np, re
 from IPython import embed
 
@@ -139,10 +139,18 @@ def run(
         dropout=0.5,
         layers=1,
         inconcat=True,
+        outconcat=True,
         posemb=False,
-        customemb=False):
+        customemb=False,
+        charlevel=True):
     # loaddata
     qmat, amat, qdic, adic, qwc, awc = loadgeo(customemb=customemb)
+
+    if charlevel:
+        qmat = wordmat2charmat(qmat, qdic, maxlen=1000)
+        amat = wordmat2charmat(amat, adic, maxlen=1000)
+
+    embed()
 
     #embed()
     # TODO: understand the network
@@ -187,11 +195,17 @@ def run(
     if customemb:
         smo.setlin2(outemb.baseemb.W.T)
 
+    inpvocsize = len(qdic) + 1
+    outvocsize = len(adic) + 1
+    if charlevel:
+        inpvocsize = np.max(qmat) + 1
+        outvocsize = np.max(amat) + 1
+
     # make seq/dec+att
-    encdec = SimpleSeqEncDecAtt(inpvocsize=len(qdic)+1,
+    encdec = SimpleSeqEncDecAtt(inpvocsize=inpvocsize,
                                 inpembdim=embdim,
                                 inpemb=inpemb,
-                                outvocsize=len(adic)+1,
+                                outvocsize=outvocsize,
                                 outembdim=embdim,
                                 outemb=outemb,
                                 encdim=encdimi,
@@ -200,7 +214,7 @@ def run(
                                 statetrans=True,
                                 dropout=dropout,
                                 inconcat=inconcat,
-                                outconcat=True,
+                                outconcat=outconcat,
                                 rnu=GRU,
                                 vecout=smo,
                                 )
