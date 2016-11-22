@@ -149,6 +149,8 @@ def run(
     if charlevel:
         qmat = wordmat2charmat(qmat, qdic, maxlen=1000)
         amat = wordmat2charmat(amat, adic, maxlen=1000)
+        qdic = dict([(chr(x), x) for x in range(np.max(qmat))])
+        adic = dict([(chr(x), x) for x in range(np.max(amat))])
 
     embed()
 
@@ -195,17 +197,11 @@ def run(
     if customemb:
         smo.setlin2(outemb.baseemb.W.T)
 
-    inpvocsize = len(qdic) + 1
-    outvocsize = len(adic) + 1
-    if charlevel:
-        inpvocsize = np.max(qmat) + 1
-        outvocsize = np.max(amat) + 1
-
     # make seq/dec+att
-    encdec = SimpleSeqEncDecAtt(inpvocsize=inpvocsize,
+    encdec = SimpleSeqEncDecAtt(inpvocsize=len(qdic) + 1,
                                 inpembdim=embdim,
                                 inpemb=inpemb,
-                                outvocsize=outvocsize,
+                                outvocsize=len(adic) + 1,
                                 outembdim=embdim,
                                 outemb=outemb,
                                 encdim=encdimi,
