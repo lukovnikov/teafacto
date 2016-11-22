@@ -144,7 +144,12 @@ def run(
         outconcat=True,
         posemb=False,
         customemb=False,
-        charlevel=True):
+        charlevel=False):
+
+    #TODO: multilayer gets shape mismatch error ERROR!!!
+    #TODO: Dong's preprocessing
+    #       - rare words index = maskid in word-level preprocessing
+    #TODO: bi-encoder and other beasts
     # loaddata
     qmat, amat, qdic, adic, qwc, awc = loadgeo(customemb=customemb, reverse=not charlevel)
 
@@ -161,18 +166,6 @@ def run(
         adic.update({"<RARE>": 1})
         print wordids2string(qmat[0], {v: k for k, v in qdic.items()})
         print wordids2string(amat[0], {v: k for k, v in adic.items()})
-
-    embed()
-
-    #embed()
-    # TODO: understand the network
-    # TODO: add trainable part to custom emb-based smo in decoder
-    # TODO: do bi-attention (two encoders)
-    #           - what to feed to inconcat and what to outconcat?
-    #           - ! messing in attention mechanisms (big work)
-
-    # TODO: Dong's preprocessing
-    # TODO: test decoder
 
     np.random.seed(12345)
 
