@@ -1,4 +1,4 @@
-from teafacto.util import argprun
+from teafacto.util import argprun, isstring, issequence
 from teafacto.procutil import wordids2string
 import numpy as np, re
 from IPython import embed
@@ -11,12 +11,15 @@ from teafacto.blocks.activations import Softmax, Tanh
 from teafacto.blocks.lang.wordvec import WordEmb, Glove
 
 
-def loadgeo(p="../../../data/semparse/geoquery.txt", customemb=False):
+def loadgeopl(p="../../../data/semparse/geoquery.txt", customemb=False):
     qss, ass = [], []
     maxqlen, maxalen = 0, 0
     qwords, awords = {}, {}
 
-    for line in open(p):
+    if isstring(p):
+        p = open(p)
+
+    for line in p:
         splitre = "[\s-]" if customemb else "\s"
         q, a = [re.split(splitre, x) for x in line[:-1].split("\t")]
         q = ["<s>"] + q + ["</s>"]
@@ -47,6 +50,50 @@ def loadgeo(p="../../../data/semparse/geoquery.txt", customemb=False):
         qmat[i, :len(q)] = qx
         amat[i, :len(a)] = [adic[x] for x in a]
     return qmat, amat, qdic, adic, qwords, awords
+
+
+def loadgeo(trainp="../../../data/semparse/geoquery.lbd.dev",
+            testp="../../../data/semparse/geoquery.lbd.test",
+            customemb=False):
+
+    d = []
+
+    def fixbrackets(m):
+        ret = ""
+        if len(m.group(1)) > 0:
+            ret += m.group(1)
+            ret += " "
+        ret += m.group(2)
+        if len(m.group(3)) > 0:
+            ret += " "
+            ret += m.group(3)
+        return ret
+
+    def addlines(p, d):
+        curline = ""
+        for line in open(p):
+            if len(curline) == 0:
+                curline = line
+            else:
+                if line == "\n":
+                    d.append(""+curline)
+                    curline = ""
+                elif line[:2] == "//":
+                    pass
+                else:
+                    oldline = line
+                    line = line[:-1]
+                    while oldline != line:
+                        oldline = line
+                        line = re.sub("([^\s]?)([()])([^\s]?)",
+                                         fixbrackets,
+                                         line)
+                    curline = "{}\t{}".format(curline, line[:-1])
+
+    addlines(trainp, d)
+    addlines(testp, d)
+
+    return loadgeopl(p=d, customemb=customemb)
 
 
 class VectorPosEmb(Block):
@@ -109,9 +156,6 @@ def run(
 
     np.random.seed(12345)
 
-    eids = np.arange(qmat.shape[0])
-    np.random.shuffle(eids)
-
     encdimi = [encdim] * layers
     decdimi = [encdim] * layers
 
@@ -171,12 +215,14 @@ def run(
         aposmat = np.repeat(aposmat, amat.shape[0], axis=0)
         amati = np.concatenate([amat[:, :, None], aposmat[:, :, None]], axis=2)
 
-    tqmat = qmat[eids[:600]]
-    tamat = amat[eids[:600]]
-    tamati = amati[eids[:600]]
-    xqmat = qmat[eids[600:]]
-    xamat = amat[eids[600:]]
-    xamati = amati[eids[600:]]
+    tqmat = qmat[:600]
+    tamat = amat[:600]
+    tamati = amati[:600]
+    xqmat = qmat[600:]
+    xamat = amat[600:]
+    xamati = amati[600:]
+
+    embed()
 
     encdec.train([tqmat, tamati[:, :-1]], tamat[:, 1:])\
         .cross_entropy().rmsprop(lr=lr/numbats).grad_total_norm(1.)\
@@ -186,17 +232,28 @@ def run(
     qrwd = {v: k for k, v in qdic.items()}
     arwd = {v: k for k, v in adic.items()}
 
-    def play(*x):
+    def play(*x, **kw):
+        hidecorrect = False
+        if "hidecorrect" in kw:
+            hidecorrect = kw["hidecorrect"]
         if len(x) == 1:
             x = x[0]
-            print wordids2string(xqmat[x], rwd=qrwd, maskid=maskid, reverse=True)
-            print wordids2string(xamat[x, 1:], rwd=arwd, maskid=maskid)
+            q = wordids2string(xqmat[x], rwd=qrwd, maskid=maskid, reverse=True)
+            ga = wordids2string(xamat[x, 1:], rwd=arwd, maskid=maskid)
             pred = encdec.predict(xqmat[x:x+1], xamati[x:x+1, :-1])
-            print wordids2string(np.argmax(pred[0], axis=1), rwd=arwd, maskid=maskid)
+            pa = wordids2string(np.argmax(pred[0], axis=1), rwd=arwd, maskid=maskid)
+            if hidecorrect and ga == pa[:len(ga)]:  # correct
+                return False
+            else:
+                print "{}: {}".format(x, q)
+                print ga
+                print pa
+                return True
         elif len(x) == 0:
             for i in range(0, xqmat.shape[0]):
-                play(i)
-                raw_input()
+                r = play(i)
+                if r:
+                    raw_input()
         else:
             raise Exception("invalid argument to play")
 

@@ -10,13 +10,14 @@ import theano, theano.tensor
 
 class AttGen(Block):
     """ wraps a distance """
-    def __init__(self, distance, **kw):
+    def __init__(self, distance, normalizer=Softmax(), **kw):
         super(AttGen, self).__init__(**kw)
         self.dist = distance
+        self.normalizer = normalizer
 
     def apply(self, criterion, data, mask=None):
         o = self.dist(criterion, data)
-        o_out = Softmax()(o, mask=mask)
+        o_out = self.normalizer(o, mask=mask)
         return o_out
 
 
