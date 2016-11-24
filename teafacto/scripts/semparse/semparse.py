@@ -132,6 +132,96 @@ class SoftMaxOut(Block):
         self.lin2 = MatDot(indim=self.indim, dim=self.innerdim, value=v)
 
 
+def preprocess(qmat, amat, qdic, adic, qwc, awc, maskid, qreversed=False):
+    amat[amat == adic["capital:c"]] = adic["capital:t"]
+    replaceina = set()
+    for k in adic:
+        if (k[-2:] in ":c :s :r :m :n".split() or
+            k[-3:] in ":lo :co".split()) and not k == "capital:c":
+            replaceina.add(k)
+    for r in replaceina:
+        splits = r.split(":")
+        rt = splits[1]+"-type"
+        if not rt in adic:
+            adic[rt] = max(adic.values()) + 1
+        if not rt in qdic:
+            qdic[rt] = max(qdic.values()) + 1
+    radic = {v: k for k, v in adic.items()}
+    rqdic = {v: k for k, v in qdic.items()}
+    for i in range(qmat.shape[0]):
+        for j in range(amat.shape[1]):
+            if amat[i, j] in {adic[x] for x in replaceina}:
+                sf = radic[amat[i, j]].split(":")[0].split("_")
+                #if sf[-1] == "river" or len(sfs[0][-1]) == 2:
+                #    sf = sf[:-1]
+                sft = radic[amat[i, j]].split(":")[1]
+                amat[i, j] = adic[sft+"-type"]
+                sfs = [sf]
+                qmati = qmat[i]
+                if qreversed:
+                    qmatio = maskid * np.ones_like(qmati)
+                    m = qmati.shape[0] - 1
+                    n = 0
+                    while m >= 0:
+                        if qmati[m] == maskid:
+                            pass
+                        else:
+                            qmatio[n] = qmati[m]
+                            n += 1
+                        m -= 1
+                    qmati = qmatio
+                if sf == ["usa"]:
+                    sfs.append("united states".split())
+                    sfs.append("the country".split())
+                    sfs.append("the states".split())
+                    sfs.append(["us"])
+                for sf in sfs:
+                    k = 0
+                    while k < qmat.shape[1]:
+                        if qmati[k] != maskid and \
+                                        rqdic[qmati[k]] == sf[0]:
+                            l = 0
+                            while l < len(sf) and l + k < qmat.shape[1]:
+                                if rqdic[qmati[k + l]] == sf[l]:
+                                    l += 1
+                                else:
+                                    break
+                            if l >= len(sf) - 1:
+                                qmati[k] = qdic[sft+"-type"]
+                                qmati[k+1:qmat.shape[1]-l+1] = qmati[k+l:]
+                                qmati[qmat.shape[1]-l+1:] = maskid
+                        k += 1
+                if qreversed:
+                    qmatio = maskid * np.ones_like(qmati)
+                    m = qmati.shape[0] - 1
+                    n = 0
+                    while m >= 0:
+                        if qmati[m] == maskid:
+                            pass
+                        else:
+                            qmatio[n] = qmati[m]
+                            n += 1
+                        m -= 1
+                    qmati = qmatio
+                qmat[i] = qmati
+    def pp(i):
+        print wordids2string(qmat[i], {v: k for k, v in qdic.items()})
+        print wordids2string(amat[i], {v: k for k, v in adic.items()})
+    # test
+    wop = []
+    for i in range(qmat.shape[0]):
+        if "-type" in wordids2string(amat[i], {v: k for k, v in adic.items()}) and \
+            "-type" not in wordids2string(qmat[i], {v: k for k, v in qdic.items()}):
+            wop.append(i)
+    print "{}/{}".format(len(wop), qmat.shape[0])
+    # rare words
+    print qwc
+    embed()
+
+    return qmat, amat, qdic, adic, qwc, awc
+
+
+
 def run(
         numbats=50,
         epochs=10,
@@ -144,7 +234,8 @@ def run(
         outconcat=True,
         posemb=False,
         customemb=False,
-        charlevel=False):
+        charlevel=False,
+        preproc=True):
 
     #TODO: multilayer gets shape mismatch error ERROR!!!
     #TODO: Dong's preprocessing
@@ -152,8 +243,9 @@ def run(
     #TODO: bi-encoder and other beasts
     # loaddata
     qmat, amat, qdic, adic, qwc, awc = loadgeo(customemb=customemb, reverse=not charlevel)
-
     maskid = 0
+    if preproc:
+        qmat, amat, qdic, adic, qwc, awc = preprocess(qmat, amat, qdic, adic, qwc, awc, maskid, qreversed=not charlevel)
 
     if charlevel:
         qmat = wordmat2charmat(qmat, qdic, maxlen=1000, maskid=maskid)
@@ -168,6 +260,8 @@ def run(
         print wordids2string(amat[0], {v: k for k, v in adic.items()})
 
     np.random.seed(12345)
+
+    embed()
 
     encdimi = [encdim] * layers
     decdimi = [encdim] * layers

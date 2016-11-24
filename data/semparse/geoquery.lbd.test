@@ -594,7 +594,7 @@ what is the density of the new york
 (density:i new_york:s)
 
 what is the maximum elevation of san francisco
-(argmax $0 (and (place:t $0) (loc:t $0 san_franciso_ca:c)) (elevation:i $0))
+(argmax $0 (and (place:t $0) (loc:t $0 san_francisco_ca:c)) (elevation:i $0))
 
 how many capitals does rhode island have
 (count $0 (and (capital:t $0) (loc:t $0 rhode_island:s)))
