@@ -575,7 +575,7 @@ class ModelTrainer(object):
                     tt.live(s)
                     prevperc = perc
                 sampleinps = datafeeder.nextbatch()
-                embed()
+                #embed()
                 sampleinps = sampletransf(*sampleinps, phase=phase)
                 try:
                     eterr = trainf(*sampleinps)
@@ -595,7 +595,7 @@ class ModelTrainer(object):
     def _transformsamples(self, *s, **kw):
         phase = kw["phase"]
         if self._sampletransformer is None \
-                or (hasattr(self._sampletransformer, "phases")
+                or not (hasattr(self._sampletransformer, "phases")
                     and phase in self._sampletransformer.phases):
             return s
         else:
