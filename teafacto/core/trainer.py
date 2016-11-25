@@ -594,12 +594,10 @@ class ModelTrainer(object):
 
     def _transformsamples(self, *s, **kw):
         phase = kw["phase"]
-        if self._sampletransformer is None \
-                or not (hasattr(self._sampletransformer, "phases")
-                    and phase in self._sampletransformer.phases):
+        if self._sampletransformer is None:
             return s
         else:
-            return self._sampletransformer(*s)
+            return self._sampletransformer(*s, phase=phase)
 
     def sampletransform(self, f):
         self._sampletransformer = f

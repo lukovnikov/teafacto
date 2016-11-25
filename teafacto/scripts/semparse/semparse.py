@@ -319,13 +319,15 @@ def run(
             self.maskid = maskid
             self.phases = {"TRAIN"}
 
-        def __call__(self, encinp, decinp, gold):
-            print "\ntransforming\n"
-            if self.corruptencoder is not None:
-                encinp = self._corruptseq(encinp, self.corruptencoder)
-            if self.corruptdecoder is not None:
-                decinp = self._corruptseq(decinp, self.corruptdecoder)
+        def __call__(self, encinp, decinp, gold, phase=None):
+            if phase == "TRAIN":
+                print "\ntransforming"
+                if self.corruptencoder is not None:
+                    encinp = self._corruptseq(encinp, self.corruptencoder)
+                if self.corruptdecoder is not None:
+                    decinp = self._corruptseq(decinp, self.corruptdecoder)
             return encinp, decinp, gold
+
 
         def _corruptseq(self, seq, range):
             corrupt = np.random.randint(range[0], range[1], seq.shape, dtype="int32")
