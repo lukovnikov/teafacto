@@ -518,7 +518,7 @@ class SeqDecoder(Block):
         return self.block.numstates
 
     def apply(self, ctx, seq, initstates=None, mask=None, ctxmask=None, **kw):  # context: (batsize, enc.innerdim), seq: idxs-(batsize, seqlen)
-        batsize = seq.shape[0]
+        batsize = seq.d.shape[0]
         init_info, nonseqs = self.get_inits(initstates, batsize, ctx, ctxmask)
         seq_emb = self.embedder(seq)    # (batsize, seqlen, embdim)
         mask = seq_emb.mask if mask is None else mask
