@@ -15,11 +15,9 @@ class DataFeeder(object): # contains data feeds
         self.offset = 0
         self.reset()
         self.autoreset = True
-        self._numbats = 1
 
     # fluent settings
     def numbats(self, numbats):
-        self._numbats = numbats
         self.batsize = int(ceil(self.size*1./numbats))
         return self
 
