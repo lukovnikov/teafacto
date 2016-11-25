@@ -326,7 +326,7 @@ def run(
             return encinp, decinp, gold
 
         def _corruptseq(self, seq, range):
-            corrupt = np.random.randint(range[0], range[1], seq.shape)
+            corrupt = np.random.randint(range[0], range[1], seq.shape, dtype="int32")
             mask = np.random.random(seq.shape) < self.p
             seqmask = seq != self.maskid
             mask = np.logical_and(mask, seqmask)
