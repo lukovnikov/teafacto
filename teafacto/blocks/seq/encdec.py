@@ -70,11 +70,11 @@ class SimpleSeqEncDecAtt(SeqEncDec):
         if sepatt:
             enc = self._getencoder_sepatt(indim=inpvocsize, inpembdim=inpembdim, inpemb=inpemb,
                             innerdim=encinnerdim, bidir=bidir, maskid=maskid,
-                            dropout_in=dropout, dropout_h=False, rnu=rnu)
+                            dropout_in=dropout, dropout_h=dropout, rnu=rnu)
         else:
             enc = self._getencoder(indim=inpvocsize, inpembdim=inpembdim, inpemb=inpemb,
                                 innerdim=encinnerdim, bidir=bidir, maskid=maskid,
-                                dropout_in=dropout, dropout_h=False, rnu=rnu)
+                                dropout_in=dropout, dropout_h=dropout, rnu=rnu)
         lastencinnerdim = enc.outdim
 
         # attention
@@ -89,7 +89,7 @@ class SimpleSeqEncDecAtt(SeqEncDec):
             ctxdim=lastencinnerdim, attention=attention,
             innerdim=decinnerdim, inconcat=inconcat,
             softmaxoutblock=vecout, outconcat=outconcat,
-            dropout=dropout, rnu=rnu
+            dropout=dropout, rnu=rnu, dropout_h=dropout,
         )
 
         # initial decoder state
