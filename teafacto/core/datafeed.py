@@ -18,11 +18,11 @@ class DataFeeder(object): # contains data feeds
 
     # fluent settings
     def numbats(self, numbats):
-        self.batsize = int(ceil(self.size*1./numbats))
+        self.batsize = int(ceil(self.size * 1. / numbats))
         return self
 
     def getnumbats(self):
-        return self.size // self.batsize + 1
+        return int(ceil(self.size * 1. / self.batsize))
 
     def random(self, random):
         self.random = random
