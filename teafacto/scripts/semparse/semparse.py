@@ -236,7 +236,7 @@ def run(
         customemb=False,
         charlevel=False,
         preproc=True,
-        corruptnoise=0):
+        corruptnoise=0.0):
 
     #TODO: multilayer gets shape mismatch error ERROR!!!
     #TODO: Dong's preprocessing
