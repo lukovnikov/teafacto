@@ -330,8 +330,8 @@ def run(
             mask = np.random.random(seq.shape) < self.p
             seqmask = seq != self.maskid
             mask = np.logical_and(mask, seqmask)
-            outp = (1 - mask) * seq + mask * corrupt
-            embed()
+            outp = ((1 - mask) * seq + mask * corrupt).astype("int32")
+            #embed()
             return outp
 
 
