@@ -235,7 +235,8 @@ def run(
         posemb=False,
         customemb=False,
         charlevel=False,
-        preproc=True):
+        preproc=True,
+        corruptnoise=0):
 
     #TODO: multilayer gets shape mismatch error ERROR!!!
     #TODO: Dong's preprocessing
@@ -354,7 +355,7 @@ def run(
     #embed()
 
     encdec.train([tqmat, tamati[:, :-1]], tamat[:, 1:])\
-        .sampletransform(RandomCorrupt(corruptdecoder=(2, max(adic.values()) + 1), maskid=maskid))\
+        .sampletransform(RandomCorrupt(corruptdecoder=(2, max(adic.values()) + 1), maskid=maskid, p=decodernoise))\
         .cross_entropy().rmsprop(lr=lr/numbats).grad_total_norm(1.)\
         .validate_on([xqmat, xamati[:, :-1]], xamat[:, 1:]).cross_entropy().seq_accuracy()\
         .train(numbats, epochs)
