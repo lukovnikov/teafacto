@@ -228,7 +228,7 @@ def run(
         lr=1.,
         embdim=50,
         encdim=400,
-        dropout=0.5,
+        dropout=0.2,
         layers=1,
         inconcat=True,
         outconcat=True,
