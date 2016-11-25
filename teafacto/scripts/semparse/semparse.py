@@ -317,7 +317,6 @@ def run(
             self.corruptencoder = corruptencoder    # encoder corrupt range
             self.p = p
             self.maskid = maskid
-            self.phases = {"TRAIN"}
 
         def __call__(self, encinp, decinp, gold, phase=None):
             if phase == "TRAIN":
@@ -326,6 +325,8 @@ def run(
                     encinp = self._corruptseq(encinp, self.corruptencoder)
                 if self.corruptdecoder is not None:
                     decinp = self._corruptseq(decinp, self.corruptdecoder)
+            else:
+                print "\n not transforming"
             return encinp, decinp, gold
 
 

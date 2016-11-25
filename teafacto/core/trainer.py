@@ -593,7 +593,7 @@ class ModelTrainer(object):
         return batchloop
 
     def _transformsamples(self, *s, **kw):
-        phase = kw["phase"]
+        phase = kw["phase"] if "phase" in kw else None
         if self._sampletransformer is None:
             return s
         else:
