@@ -573,8 +573,9 @@ class ModelTrainer(object):
             numdigs = 2
             tt = TT("iter progress", verbose=verbose)
             tt.tick()
+            datafeeder.reset()
             while datafeeder.hasnextbatch():
-                perc = round(c*100.*(10**numdigs)/this.numbats)/(10**numdigs)
+                perc = round(c*100.*(10**numdigs)/datafeeder.getnumbats())/(10**numdigs)
                 if perc > prevperc:
                     s = ("%."+str(numdigs)+"f%% \t error: %.3f") % (perc, terr[0])
                     tt.live(s)

@@ -21,6 +21,9 @@ class DataFeeder(object): # contains data feeds
         self.batsize = int(ceil(self.size*1./numbats))
         return self
 
+    def getnumbats(self):
+        return self.size // self.batsize + 1
+
     def random(self, random):
         self.random = random
         return self
