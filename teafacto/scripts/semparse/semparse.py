@@ -229,7 +229,7 @@ def run(
         embdim=50,
         encdim=400,
         dropout=0.2,
-        layers=1,
+        layers=2,
         inconcat=True,
         outconcat=True,
         posemb=False,
@@ -328,12 +328,15 @@ def run(
 
 
         def _corruptseq(self, seq, range):
-            corrupt = np.random.randint(range[0], range[1], seq.shape, dtype="int32")
-            mask = np.random.random(seq.shape) < self.p
-            seqmask = seq != self.maskid
-            mask = np.logical_and(mask, seqmask)
-            outp = ((1 - mask) * seq + mask * corrupt).astype("int32")
-            #embed()
+            if self.p > 0:
+                corrupt = np.random.randint(range[0], range[1], seq.shape, dtype="int32")
+                mask = np.random.random(seq.shape) < self.p
+                seqmask = seq != self.maskid
+                mask = np.logical_and(mask, seqmask)
+                outp = ((1 - mask) * seq + mask * corrupt).astype("int32")
+                #embed()
+            else:
+                outp = seq
             return outp
 
 
@@ -357,7 +360,9 @@ def run(
     #embed()
 
     encdec.train([tqmat, tamati[:, :-1]], tamat[:, 1:])\
-        .sampletransform(RandomCorrupt(corruptdecoder=(2, max(adic.values()) + 1), maskid=maskid, p=corruptnoise))\
+        .sampletransform(RandomCorrupt(corruptdecoder=(2, max(adic.values()) + 1),
+                                       corruptencoder=(2, max(qdic.values()) + 1),
+                                       maskid=maskid, p=corruptnoise)\
         .cross_entropy().rmsprop(lr=lr/numbats).grad_total_norm(1.)\
         .validate_on([xqmat, xamati[:, :-1]], xamat[:, 1:]).cross_entropy().seq_accuracy()\
         .train(numbats, epochs)
