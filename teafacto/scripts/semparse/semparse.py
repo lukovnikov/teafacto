@@ -320,7 +320,7 @@ def run(
             self.phases = {"TRAIN"}
 
         def __call__(self, encinp, decinp, gold):
-            print "transforming\n\n"
+            print "\ntransforming\n"
             if self.corruptencoder is not None:
                 encinp = self._corruptseq(encinp, self.corruptencoder)
             if self.corruptdecoder is not None:

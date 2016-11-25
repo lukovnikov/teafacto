@@ -575,6 +575,7 @@ class ModelTrainer(object):
                     tt.live(s)
                     prevperc = perc
                 sampleinps = datafeeder.nextbatch()
+                embed()
                 sampleinps = sampletransf(*sampleinps, phase=phase)
                 try:
                     eterr = trainf(*sampleinps)
