@@ -429,9 +429,9 @@ class ModelTrainer(object):
             acc.append(objagg)
         return acc, None
 
-    def buildvalidfun(self, model):
+    def buildvalidfun(self, model, batsize):
         self.tt.tick("validation - autobuilding")
-        inps, outps = self.autobuild_model(model, *self.traindata, _trainmode=False)
+        inps, outps = self.autobuild_model(model, *self.traindata, _trainmode=False, _batsize=batsize)
         assert(len(outps) == 1)
         outp = outps[0]
         self.tt.tock("validation - autobuilt")
@@ -461,8 +461,9 @@ class ModelTrainer(object):
     def _train_validdata(self):
         df = DataFeeder(*(self.traindata + [self.traingold])).numbats(self.numbats)
         vdf = DataFeeder(*(self.validdata + [self.validgold]))
+        vdf.batsize = df.batsize
         trainf = self.buildtrainfun(self.model, df.batsize)
-        validf = self.buildvalidfun(self.model)
+        validf = self.buildvalidfun(self.model, vdf.batsize)
         #embed()
         #dfvalid = df.osplit(split=self.validsplits, random=self.validrandom)
         err, verr = self.trainloop(
@@ -474,8 +475,9 @@ class ModelTrainer(object):
         df = DataFeeder(*(self.traindata + [self.traingold]))
         dftrain, dfvalid = df.split(self.validsplits, self.validrandom)
         dftrain.numbats(self.numbats)
+        dfvalid.batsize = dftrain.batsize
         trainf = self.buildtrainfun(self.model, dftrain.batsize)
-        validf = self.buildvalidfun(self.model)
+        validf = self.buildvalidfun(self.model, dfvalid.batsize)
         err, verr = self.trainloop(
                 trainf=self.getbatchloop(trainf, dftrain, phase="TRAIN"),
                 validf=self.getbatchloop(validf, dfvalid, phase="VALID"))
@@ -490,8 +492,9 @@ class ModelTrainer(object):
         for splitidxs in splitter:
             tf, vf = df.isplit(splitidxs)
             tf.numbats(self.numbats)
+            vf.batsize = tf.batsize
             trainf = self.buildtrainfun(self.model, tf.batsize)
-            validf = self.buildvalidfun(self.model)
+            validf = self.buildvalidfun(self.model, vf.batsize)
             serr, sverr = self.trainloop(
                 trainf=self.getbatchloop(trainf, tf, phase="TRAIN"),
                 validf=self.getbatchloop(validf, vf, phase="VALID"))
@@ -561,6 +564,7 @@ class ModelTrainer(object):
         returns the batch loop, loaded with the provided trainf training function and samplegen sample generator
         '''
         sampletransf = self._transformsamples
+        this = self
 
         def batchloop():
             c = 0
@@ -570,7 +574,7 @@ class ModelTrainer(object):
             tt = TT("iter progress", verbose=verbose)
             tt.tick()
             while datafeeder.hasnextbatch():
-                perc = round(c*100.*(10**numdigs)/datafeeder._numbats)/(10**numdigs)
+                perc = round(c*100.*(10**numdigs)/this.numbats)/(10**numdigs)
                 if perc > prevperc:
                     s = ("%."+str(numdigs)+"f%% \t error: %.3f") % (perc, terr[0])
                     tt.live(s)
