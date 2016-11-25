@@ -215,7 +215,7 @@ def preprocess(qmat, amat, qdic, adic, qwc, awc, maskid, qreversed=False):
             wop.append(i)
     print "{}/{}".format(len(wop), qmat.shape[0])
     # rare words
-    print qwc
+    #print qwc
     #embed()
 
     return qmat, amat, qdic, adic, qwc, awc
@@ -317,8 +317,10 @@ def run(
             self.corruptencoder = corruptencoder    # encoder corrupt range
             self.p = p
             self.maskid = maskid
+            self.phases = {"TRAIN"}
 
         def __call__(self, encinp, decinp, gold):
+            print "transforming"
             if self.corruptencoder is not None:
                 encinp = self._corruptseq(encinp, self.corruptencoder)
             if self.corruptdecoder is not None:

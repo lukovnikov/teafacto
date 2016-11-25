@@ -455,7 +455,8 @@ class ModelTrainer(object):
         trainf = self.buildtrainfun(self.model)
         err, _ = self.trainloop(
                 trainf=self.getbatchloop(trainf,
-                DataFeeder(*(self.traindata + [self.traingold])).numbats(self.numbats)))
+                DataFeeder(*(self.traindata + [self.traingold])).numbats(self.numbats),
+                phase="TRAIN"))
         return err, None, None, None
 
     def _train_validdata(self):
@@ -466,8 +467,8 @@ class ModelTrainer(object):
         #embed()
         #dfvalid = df.osplit(split=self.validsplits, random=self.validrandom)
         err, verr = self.trainloop(
-                trainf=self.getbatchloop(trainf, df.numbats(self.numbats)),
-                validf=self.getbatchloop(validf, vdf))
+                trainf=self.getbatchloop(trainf, df.numbats(self.numbats), phase="TRAIN"),
+                validf=self.getbatchloop(validf, vdf, phase="VALID"))
         return err, verr, None, None
 
     def _train_split(self):
@@ -476,8 +477,8 @@ class ModelTrainer(object):
         df = DataFeeder(*(self.traindata + [self.traingold]))
         dftrain, dfvalid = df.split(self.validsplits, self.validrandom)
         err, verr = self.trainloop(
-                trainf=self.getbatchloop(trainf, dftrain.numbats(self.numbats)),
-                validf=self.getbatchloop(validf, dfvalid))
+                trainf=self.getbatchloop(trainf, dftrain.numbats(self.numbats), phase="TRAIN"),
+                validf=self.getbatchloop(validf, dfvalid, phase="VALID"))
         return err, verr, None, None
 
     def _train_cross_valid(self):
@@ -491,8 +492,8 @@ class ModelTrainer(object):
             validf = self.buildvalidfun(self.model)
             tf, vf = df.isplit(splitidxs)
             serr, sverr = self.trainloop(
-                trainf=self.getbatchloop(trainf, tf.numbats(self.numbats)),
-                validf=self.getbatchloop(validf, vf))
+                trainf=self.getbatchloop(trainf, tf.numbats(self.numbats), phase="TRAIN"),
+                validf=self.getbatchloop(validf, vf, phase="VALID"))
             err.append(serr)
             verr.append(sverr)
             self.resetmodel(self.model)
@@ -554,7 +555,7 @@ class ModelTrainer(object):
         self.tt.tock("trained").tick()
         return err, verr
 
-    def getbatchloop(self, trainf, datafeeder, verbose=True):
+    def getbatchloop(self, trainf, datafeeder, verbose=True, phase="TEST"):
         '''
         returns the batch loop, loaded with the provided trainf training function and samplegen sample generator
         '''
@@ -574,7 +575,7 @@ class ModelTrainer(object):
                     tt.live(s)
                     prevperc = perc
                 sampleinps = datafeeder.nextbatch()
-                sampleinps = sampletransf(*sampleinps)
+                sampleinps = sampletransf(*sampleinps, phase=phase)
                 try:
                     eterr = trainf(*sampleinps)
                     if len(terr) != len(eterr) and terr.count(0.0) == len(terr):
@@ -590,8 +591,11 @@ class ModelTrainer(object):
             return terr
         return batchloop
 
-    def _transformsamples(self, *s):
-        if self._sampletransformer is None:
+    def _transformsamples(self, *s, **kw):
+        phase = kw["phase"]
+        if self._sampletransformer is None \
+                or (hasattr(self._sampletransformer, "phases")
+                    and phase in self._sampletransformer.phases):
             return s
         else:
             return self._sampletransformer(*s)
