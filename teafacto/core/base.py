@@ -586,6 +586,8 @@ class Block(Elem, Saveable): # block with parameters
         if "_trainmode" in kwargs:      # changes global _TRAINMODE
             oldtrainmode = _TRAINMODE
             _TRAINMODE = kwargs.pop("_trainmode")
+        if "_batsize" in kwargs:
+            batsize = kwargs.pop("_batsize")
         if "_trainmode" in inspect.getargspec(self.apply)[0]:
             kwargs["_trainmode"] = _TRAINMODE
         paramstopush = set()        # params to transfer from input vars to output vars
@@ -621,10 +623,13 @@ class Block(Elem, Saveable): # block with parameters
     def autobuild(self, *inputdata, **kwinputdata):
         transform = None
         trainmode = False
+        batsize = None
         if "transform" in kwinputdata:
             transform = kwinputdata.pop("transform")
         if "_trainmode" in kwinputdata:
             trainmode = kwinputdata.pop("_trainmode")
+        if "_batsize" in kwinputdata:
+            batsize = kwinputdata.pop("_batsize")
         inputdata = map(lambda x:
                         x if isinstance(x, (np.ndarray, DataFeed)) else (np.asarray(x) if x is not None else None),
                         inputdata)
@@ -636,13 +641,17 @@ class Block(Elem, Saveable): # block with parameters
         kwinputs = {}
         inpnum = 1
         for td in inputdata:
+            tdshape = list(td.shape)
+            tdshape[0] = batsize if batsize is not None else tdshape[0]
             inputs.append(None if td is None else Input(ndim=td.ndim,
-                dtype=td.dtype, shape=td.shape, name="inp:%d" % inpnum))
+                dtype=td.dtype, shape=tdshape, name="inp:%d" % inpnum))
             inpnum += 1
         for k in kwinputdata:
             td = kwinputdata[k]
+            tdshape = list(td.shape)
+            tdshape[0] = batsize if batsize is not None else tdshape[0]
             kwinputs[k] = None if td is None else Input(ndim=td.ndim,
-                dtype=td.dtype, shape=td.shape, name="kwinp:%s" % k)
+                dtype=td.dtype, shape=tdshape, name="kwinp:%s" % k)
 
         kwinputl = kwinputs.items()
         if transform is not None:

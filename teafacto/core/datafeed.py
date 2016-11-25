@@ -5,7 +5,7 @@ from math import ceil
 class DataFeeder(object): # contains data feeds
     def __init__(self, *feeds): # feeds or numpy arrays
         self.feeds = feeds
-        self.batsize= None
+        self.batsize = None
         feedlens = [x.shape[0] for x in self.feeds]
         assert(feedlens.count(feedlens[0]) == len(feedlens)) # all data feeds must have equal number of examples (axis zero)
         self.size = feedlens[0]
@@ -15,11 +15,9 @@ class DataFeeder(object): # contains data feeds
         self.offset = 0
         self.reset()
         self.autoreset = True
-        self._numbats = 1
 
     # fluent settings
     def numbats(self, numbats):
-        self._numbats = numbats
         self.batsize = int(ceil(self.size*1./numbats))
         return self
 

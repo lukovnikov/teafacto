@@ -357,9 +357,9 @@ class ModelTrainer(object):
     def autobuild_model(self, model, *traindata, **kw):
         return model.autobuild(*traindata, **kw)
 
-    def buildtrainfun(self, model):
+    def buildtrainfun(self, model, batsize):
         self.tt.tick("training - autobuilding")
-        inps, outps = self.autobuild_model(model, *self.traindata, _trainmode=True)
+        inps, outps = self.autobuild_model(model, *self.traindata, _trainmode=True, _batsize=batsize)
         assert(len(outps) == 1)
         outp = outps[0]
         self.tt.tock("training - autobuilt")
@@ -452,32 +452,32 @@ class ModelTrainer(object):
 
     #region ################## TRAINING STRATEGIES ############
     def _train_full(self): # train on all data, no validation
-        trainf = self.buildtrainfun(self.model)
+        df = DataFeeder(*(self.traindata + [self.traingold])).numbats(self.numbats)
+        trainf = self.buildtrainfun(self.model, df.batsize)
         err, _ = self.trainloop(
-                trainf=self.getbatchloop(trainf,
-                DataFeeder(*(self.traindata + [self.traingold])).numbats(self.numbats),
-                phase="TRAIN"))
+                trainf=self.getbatchloop(trainf, df, phase="TRAIN"))
         return err, None, None, None
 
     def _train_validdata(self):
-        trainf = self.buildtrainfun(self.model)
-        validf = self.buildvalidfun(self.model)
-        df = DataFeeder(*(self.traindata + [self.traingold]))
+        df = DataFeeder(*(self.traindata + [self.traingold])).numbats(self.numbats)
         vdf = DataFeeder(*(self.validdata + [self.validgold]))
+        trainf = self.buildtrainfun(self.model, df.batsize)
+        validf = self.buildvalidfun(self.model)
         #embed()
         #dfvalid = df.osplit(split=self.validsplits, random=self.validrandom)
         err, verr = self.trainloop(
-                trainf=self.getbatchloop(trainf, df.numbats(self.numbats), phase="TRAIN"),
+                trainf=self.getbatchloop(trainf, df, phase="TRAIN"),
                 validf=self.getbatchloop(validf, vdf, phase="VALID"))
         return err, verr, None, None
 
     def _train_split(self):
-        trainf = self.buildtrainfun(self.model)
-        validf = self.buildvalidfun(self.model)
         df = DataFeeder(*(self.traindata + [self.traingold]))
         dftrain, dfvalid = df.split(self.validsplits, self.validrandom)
+        dftrain.numbats(self.numbats)
+        trainf = self.buildtrainfun(self.model, dftrain.batsize)
+        validf = self.buildvalidfun(self.model)
         err, verr = self.trainloop(
-                trainf=self.getbatchloop(trainf, dftrain.numbats(self.numbats), phase="TRAIN"),
+                trainf=self.getbatchloop(trainf, dftrain, phase="TRAIN"),
                 validf=self.getbatchloop(validf, dfvalid, phase="VALID"))
         return err, verr, None, None
 
@@ -488,11 +488,12 @@ class ModelTrainer(object):
         verr = []
         c = 0
         for splitidxs in splitter:
-            trainf = self.buildtrainfun(self.model)
-            validf = self.buildvalidfun(self.model)
             tf, vf = df.isplit(splitidxs)
+            tf.numbats(self.numbats)
+            trainf = self.buildtrainfun(self.model, tf.batsize)
+            validf = self.buildvalidfun(self.model)
             serr, sverr = self.trainloop(
-                trainf=self.getbatchloop(trainf, tf.numbats(self.numbats), phase="TRAIN"),
+                trainf=self.getbatchloop(trainf, tf, phase="TRAIN"),
                 validf=self.getbatchloop(validf, vf, phase="VALID"))
             err.append(serr)
             verr.append(sverr)
