@@ -632,7 +632,8 @@ class NSModelTrainer(ModelTrainer):
         self.ns_nrate = nrate
         self.ns_nsamgen = nsamgen
 
-    def _transformsamples(self, *s):
+    def _transformsamples(self, *s, **kw):
+        # phase in kw
         """ apply negative sampling function and neg sam rate """
         psams = s[:-1]
         acc = []
