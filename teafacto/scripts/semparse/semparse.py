@@ -216,7 +216,7 @@ def preprocess(qmat, amat, qdic, adic, qwc, awc, maskid, qreversed=False):
     print "{}/{}".format(len(wop), qmat.shape[0])
     # rare words
     print qwc
-    embed()
+    #embed()
 
     return qmat, amat, qdic, adic, qwc, awc
 
@@ -261,7 +261,7 @@ def run(
 
     np.random.seed(12345)
 
-    embed()
+    #embed()
 
     encdimi = [encdim] * layers
     decdimi = [encdim] * layers
@@ -291,10 +291,10 @@ def run(
         smo.setlin2(outemb.baseemb.W.T)
 
     # make seq/dec+att
-    encdec = SimpleSeqEncDecAtt(inpvocsize=len(qdic) + 1,
+    encdec = SimpleSeqEncDecAtt(inpvocsize=max(qdic.values()) + 1,
                                 inpembdim=embdim,
                                 inpemb=inpemb,
-                                outvocsize=len(adic) + 1,
+                                outvocsize=max(adic.values()) + 1,
                                 outembdim=embdim,
                                 outemb=outemb,
                                 encdim=encdimi,
@@ -309,6 +309,32 @@ def run(
                                 )
 
     amati = amat
+
+    class RandomCorrupt(object):
+        def __init__(self, p = 0.1, corruptdecoder=None, corruptencoder=None, maskid=0):
+            self.corruptdecoder = corruptdecoder    # decoder corrupt range
+            self.corruptencoder = corruptencoder    # encoder corrupt range
+            self.p = p
+            self.maskid = maskid
+
+        def __call__(self, encinp, decinp, gold):
+            if self.corruptencoder is not None:
+                encinp = self._corruptseq(encinp, self.corruptencoder)
+            if self.corruptdecoder is not None:
+                decinp = self._corruptseq(decinp, self.corruptdecoder)
+            return encinp, decinp, gold
+
+        def _corruptseq(self, seq, range):
+            corrupt = np.random.randint(range[0], range[1], seq.shape)
+            mask = np.random.random(seq.shape) < self.p
+            seqmask = seq != self.maskid
+            mask = np.logical_and(mask, seqmask)
+            outp = (1 - mask) * seq + mask * corrupt
+            embed()
+            return outp
+
+
+
 
     if posemb:
         qposmat = np.arange(0, qmat.shape[1])[None, :]
@@ -328,6 +354,7 @@ def run(
     #embed()
 
     encdec.train([tqmat, tamati[:, :-1]], tamat[:, 1:])\
+        .sampletransform(RandomCorrupt(corruptdecoder=(2, max(adic.values()) + 1), maskid=maskid))\
         .cross_entropy().rmsprop(lr=lr/numbats).grad_total_norm(1.)\
         .validate_on([xqmat, xamati[:, :-1]], xamat[:, 1:]).cross_entropy().seq_accuracy()\
         .train(numbats, epochs)

@@ -51,6 +51,7 @@ class ModelTrainer(object):
         self.traindata = None
         self.traingold = None
         self.gradconstraints = []
+        self._sampletransformer = None
         # validation settings
         self._validinter = 1
         self.trainstrategy = self._train_full
@@ -590,7 +591,14 @@ class ModelTrainer(object):
         return batchloop
 
     def _transformsamples(self, *s):
-        return s
+        if self._sampletransformer is None:
+            return s
+        else:
+            return self._sampletransformer(*s)
+
+    def sampletransform(self, f):
+        self._sampletransformer = f
+        return self
     #endregion
     #endregion
 
