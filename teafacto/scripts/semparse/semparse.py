@@ -221,7 +221,7 @@ def preprocess(qmat, amat, qdic, adic, qwc, awc, maskid, qreversed=False):
     def pp(i):
         print wordids2string(qmat[i], {v: k for k, v in qdic.items()})
         print wordids2string(amat[i], {v: k for k, v in adic.items()})
-    embed()
+    #embed()
 
     return qmat, amat, qdic, adic, qwc, awc
 
