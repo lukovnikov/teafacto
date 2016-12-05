@@ -14,7 +14,7 @@ from teafacto.blocks.lang.wordvec import WordEmb, Glove
 def loadgeopl(p="../../../data/semparse/geoquery.txt", customemb=False, reverse=True):
     qss, ass = [], []
     maxqlen, maxalen = 0, 0
-    qwords, awords = {}, {}
+    qwords, awords = {"<RARE>": 1}, {}
 
     if isstring(p):
         p = open(p)
@@ -39,7 +39,7 @@ def loadgeopl(p="../../../data/semparse/geoquery.txt", customemb=False, reverse=
     qmat = np.zeros((len(qss), maxqlen), dtype="int32")
     amat = np.zeros((len(ass), maxalen), dtype="int32")
     qdic = dict(zip([x for x, y in sorted(qwords.items(), reverse=True, key=lambda (x, y): y)],
-                    range(1, len(qwords) + 1)))
+                    range(2, len(qwords) + 2)))
     adic = dict(zip([x for x, y in sorted(awords.items(), reverse=True, key=lambda (x, y): y)],
                     range(1, len(awords) + 1)))
     for i in range(len(qss)):
@@ -204,9 +204,6 @@ def preprocess(qmat, amat, qdic, adic, qwc, awc, maskid, qreversed=False):
                         m -= 1
                     qmati = qmatio
                 qmat[i] = qmati
-    def pp(i):
-        print wordids2string(qmat[i], {v: k for k, v in qdic.items()})
-        print wordids2string(amat[i], {v: k for k, v in adic.items()})
     # test
     wop = []
     for i in range(qmat.shape[0]):
@@ -215,8 +212,16 @@ def preprocess(qmat, amat, qdic, adic, qwc, awc, maskid, qreversed=False):
             wop.append(i)
     print "{}/{}".format(len(wop), qmat.shape[0])
     # rare words
-    #print qwc
-    #embed()
+    print qwc
+    rareset = set(map(lambda (x, y): x,
+                      filter(lambda (x, y): y < 2,
+                             sorted(qwc.items(), key=lambda (x, y): y))))
+    rareids = {qdic[x] for x in rareset}
+    qmat = np.vectorize(lambda x: qdic["<RARE>"] if x in rareids else x)(qmat)
+    def pp(i):
+        print wordids2string(qmat[i], {v: k for k, v in qdic.items()})
+        print wordids2string(amat[i], {v: k for k, v in adic.items()})
+    embed()
 
     return qmat, amat, qdic, adic, qwc, awc
 
@@ -238,7 +243,6 @@ def run(
         preproc=True,
         corruptnoise=0.0):
 
-    #TODO: multilayer gets shape mismatch error ERROR!!!
     #TODO: Dong's preprocessing
     #       - rare words index = maskid in word-level preprocessing
     #TODO: bi-encoder and other beasts

@@ -451,7 +451,7 @@ class ModelTrainer(object):
     #endregion
 
     #region ################## TRAINING STRATEGIES ############
-    def _train_full(self): # train on all data, no validation
+    def _train_full(self): # on all data, no validation
         df = DataFeeder(*(self.traindata + [self.traingold])).numbats(self.numbats)
         trainf = self.buildtrainfun(self.model, df.batsize)
         err, _ = self.trainloop(

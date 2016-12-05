@@ -43,6 +43,7 @@ class SeqEncDec(Block):
 
 
 class SimpleSeqEncDecAtt(SeqEncDec):
+    """ RNN encoder decoder with attention """
     def __init__(self,
                  inpvocsize=400,
                  inpembdim=None,

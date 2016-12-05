@@ -585,6 +585,7 @@ class Block(Elem, Saveable): # block with parameters
         transform = None
         oldtrainmode = None
         global _TRAINMODE
+        #print "{} train mode (in base.py)".format(_TRAINMODE)
         if "transform" in kwargs and kwargs["transform"] is not None:
             transform = kwargs.pop("transform")
         if "_trainmode" in kwargs:      # changes global _TRAINMODE
