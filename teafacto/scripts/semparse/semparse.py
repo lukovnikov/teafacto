@@ -222,7 +222,7 @@ def preprocess(qmat, amat, qdic, adic, qwc, awc, maskid, qreversed=False):
     def pp(i):
         print wordids2string(qmat[i], {v: k for k, v in qdic.items()})
         print wordids2string(amat[i], {v: k for k, v in adic.items()})
-    embed()
+    #embed()
 
     return qmat, amat, qdic, adic, qwc, awc
 
@@ -244,11 +244,17 @@ def run(
         preproc=True,
         corruptnoise=0.0):
 
-    #TODO: Dong's preprocessing
-    #       - rare words index = maskid in word-level preprocessing
     #TODO: bi-encoder and other beasts
     # loaddata
     qmat, amat, qdic, adic, qwc, awc = loadgeo(customemb=customemb, reverse=not charlevel)
+    qmatstrings = np.apply_along_axis(lambda x: " ".join([str(xe) for xe in list(x)]), 1, qmat)
+    amatstrings = np.apply_along_axis(lambda x: " ".join([str(xe) for xe in list(x)]), 1, amat)
+    matstrings = [x + y for x, y in zip(qmatstrings, amatstrings)]
+    qoverlap = set(qmatstrings[:600]).intersection(set(qmatstrings[600:]))
+    aoverlap = set(amatstrings[:600]).intersection(set(amatstrings[600:]))
+    overlap = set(matstrings[:600]).intersection(set(matstrings[600:]))
+    print "overlaps: {}, {}: {} / {}".format(len(qoverlap), len(aoverlap), len(overlap), len(amatstrings[600:]))
+    #embed()
     maskid = 0
     if preproc:
         qmat, amat, qdic, adic, qwc, awc = preprocess(qmat, amat, qdic, adic, qwc, awc, maskid, qreversed=not charlevel)
