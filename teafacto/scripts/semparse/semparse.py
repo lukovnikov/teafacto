@@ -175,6 +175,7 @@ def preprocess(qmat, amat, qdic, adic, qwc, awc, maskid, qreversed=False):
                     sfs.append("the country".split())
                     sfs.append("the states".split())
                     sfs.append(["us"])
+                    sfs.append(["america"])
                 for sf in sfs:
                     k = 0
                     while k < qmat.shape[1]:
@@ -186,7 +187,7 @@ def preprocess(qmat, amat, qdic, adic, qwc, awc, maskid, qreversed=False):
                                     l += 1
                                 else:
                                     break
-                            if l >= len(sf) - 1:
+                            if l >= len(sf) - (1 if sf[0] != "the" else 0):
                                 qmati[k] = qdic[sft+"-type"]
                                 qmati[k+1:qmat.shape[1]-l+1] = qmati[k+l:]
                                 qmati[qmat.shape[1]-l+1:] = maskid
@@ -212,7 +213,7 @@ def preprocess(qmat, amat, qdic, adic, qwc, awc, maskid, qreversed=False):
             wop.append(i)
     print "{}/{}".format(len(wop), qmat.shape[0])
     # rare words
-    print qwc
+    #print qwc
     rareset = set(map(lambda (x, y): x,
                       filter(lambda (x, y): y < 2,
                              sorted(qwc.items(), key=lambda (x, y): y))))
@@ -221,7 +222,7 @@ def preprocess(qmat, amat, qdic, adic, qwc, awc, maskid, qreversed=False):
     def pp(i):
         print wordids2string(qmat[i], {v: k for k, v in qdic.items()})
         print wordids2string(amat[i], {v: k for k, v in adic.items()})
-    #embed()
+    embed()
 
     return qmat, amat, qdic, adic, qwc, awc
 
