@@ -21,7 +21,7 @@ def loadgeopl(p="../../../data/semparse/geoquery.txt", customemb=False, reverse=
 
     for line in p:
         splitre = "[\s-]" if customemb else "\s"
-        q, a = [re.split(splitre, x) for x in line[:-1].split("\t")]
+        q, a = [re.split(splitre, x) for x in line.split("\t")]
         q = ["<s>"] + q + ["</s>"]
         a = ["<s>"] + a + ["</s>"]
         qss.append(q)
@@ -227,6 +227,74 @@ def preprocess(qmat, amat, qdic, adic, qwc, awc, maskid, qreversed=False):
     return qmat, amat, qdic, adic, qwc, awc
 
 
+def generate(qmat, amat, qdic, adic, qmatoriginal, amatoriginal, reversed=True):
+    # !!! respect train test split
+    import re
+    tqmat = qmat[:600]
+    tqstrings = [re.sub("(\s0)+\s?$", "", a) for a in list(np.apply_along_axis(lambda x: " ".join([str(xe) for xe in list(x)]), 1, tqmat))]
+    tamat = amat[:600]
+    tastrings = [re.sub("(\s0)+\s?$", "", a) for a in list(np.apply_along_axis(lambda x: " ".join([str(xe) for xe in list(x)]), 1, tamat))]
+    xqstrings = [re.sub("(\s0)+\s?$", "", a) for a in list(np.apply_along_axis(lambda x: " ".join([str(xe) for xe in list(x)]), 1, qmatoriginal[-279:]))]
+    xastrings = [re.sub("(\s0)+\s?$", "", a) for a in list(np.apply_along_axis(lambda x: " ".join([str(xe) for xe in list(x)]), 1, amatoriginal[-279:]))]
+    # generate dic from type ids to pairs of fl ids and seqs of word-ids
+    types = [k for k in qdic if k[-5:] == "-type"]
+    flspertype = {k: [v for v in adic
+                        if (v[-len(k[:-5])-1:] == ":"+k[:-5]
+                            and v != "capital:c")
+                      ]
+                  for k in types}
+    # make new training data, without overlap
+    rqdic = {v: k for k, v in qdic.items()}
+    radic = {v: k for k, v in adic.items()}
+    newt = []
+    for i in range(len(tqstrings)):
+        qss = tqstrings[i]
+        ass = tastrings[i]
+        typeid = set(qss.split()).intersection({str(qdic[ts]) for ts in types})
+        if len(typeid) == 1:
+            typeid = list(typeid)[0]
+            for fl in flspertype[rqdic[int(typeid)]]:
+                flid = str(adic[fl])
+                words = [re.sub("_[a-z]{2}$", "", re.sub(":[a-z]{1,2}$", "", fl)).split("_")]
+                if words[0] == ["usa"]:
+                    words.append("united states".split())
+                    words.append(["us"])
+                    words.append(["america"])
+                    words.append("the states".split())
+                for wordse in words:
+                    wordse.reverse()
+                    nlids = " ".join([str(qdic[x]) for x in wordse])
+                    nqss = qss.replace(" " + typeid + " ", " " + nlids + " ")
+                    nass = ass.replace(" " + str(adic[rqdic[int(typeid)]]) + " ", " " + flid + " ")
+                    newt.append((nqss, nass))
+    newt = list(set(newt))
+    def pp(x):
+        print wordids2string([int(xe) for xe in x[0].split()], rqdic, maskid=0)
+        print wordids2string([int(xe) for xe in x[1].split()], radic, maskid=0)
+    allx = set(zip(xqstrings, xastrings))
+    newt = list(set(newt).difference(allx))
+    newt.extend(allx)
+    maxqlen, maxalen = reduce(lambda (a, b), (c, d): (max(a, c), max(b, d)), [(len(x.split()), len(y.split())) for (x, y) in newt], (0, 0))
+    #maxalen = reduce(lambda x, y: max(x, y), [len(y) for (x, y) in newt], 0)
+    embed()
+    # make matrices
+    newtqmat = np.zeros((len(newt), maxqlen), dtype="int32")
+    newtamat = np.zeros((len(newt), maxalen), dtype="int32")
+    for i in range(len(newt)):
+        qids = [int(x) for x in newt[i][0].split()]
+        aids = [int(x) for x in newt[i][1].split()]
+        newtqmat[i, :len(qids)] = qids
+        newtamat[i, :len(aids)] = aids
+
+    def ppp():
+        for i in range(newtqmat.shape[0]):
+            print wordids2string(newtqmat[i], rqdic, 0)
+            print wordids2string(newtamat[i], radic, 0)
+            print " "
+            raw_input()
+    #embed()
+    return newtqmat, newtamat
+
 
 def run(
         numbats=50,
@@ -241,10 +309,12 @@ def run(
         posemb=False,
         customemb=False,
         charlevel=False,
-        preproc=True,
+        preproc="generate",     # or "none" or "generate" or "abstract"
         bidir=False,
         corruptnoise=0.0):
 
+    #TODO: with generation, max length is smaller than without generation
+    # ===> TODO: SUM TING WONG!!!
     #TODO: bi-encoder and other beasts
     # loaddata
     qmat, amat, qdic, adic, qwc, awc = loadgeo(customemb=customemb, reverse=not charlevel)
@@ -257,8 +327,18 @@ def run(
     print "overlaps: {}, {}: {} / {}".format(len(qoverlap), len(aoverlap), len(overlap), len(amatstrings[600:]))
     #embed()
     maskid = 0
-    if preproc:
+    if preproc is not "none":
+        qmatoriginal = qmat.copy()
+        amatoriginal = amat.copy()
         qmat, amat, qdic, adic, qwc, awc = preprocess(qmat, amat, qdic, adic, qwc, awc, maskid, qreversed=not charlevel)
+        if preproc is "generate":
+            qmat, amat = generate(qmat, amat, qdic, adic, qmatoriginal, amatoriginal, reversed=not charlevel)
+            rqdic = {v: k for k, v in qdic.items()}
+            radic = {v: k for k, v in adic.items()}
+            def pp(i):
+                print wordids2string(qmat[i], rqdic, 0)
+                print wordids2string(amat[i], radic, 0)
+            #embed()
 
     if charlevel:
         qmat = wordmat2charmat(qmat, qdic, maxlen=1000, maskid=maskid)
@@ -363,14 +443,14 @@ def run(
         aposmat = np.repeat(aposmat, amat.shape[0], axis=0)
         amati = np.concatenate([amat[:, :, None], aposmat[:, :, None]], axis=2)
 
-    tqmat = qmat[:600]
-    tamat = amat[:600]
-    tamati = amati[:600]
-    xqmat = qmat[600:]
-    xamat = amat[600:]
-    xamati = amati[600:]
+    tqmat = qmat[:-279]
+    tamat = amat[:-279]
+    tamati = amati[:-279]
+    xqmat = qmat[-279:]
+    xamat = amat[-279:]
+    xamati = amati[-279:]
 
-    #embed()
+    embed()
 
     encdec.train([tqmat, tamati[:, :-1]], tamat[:, 1:])\
         .sampletransform(RandomCorrupt(corruptdecoder=(2, max(adic.values()) + 1),
