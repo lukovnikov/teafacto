@@ -242,6 +242,7 @@ def run(
         customemb=False,
         charlevel=False,
         preproc=True,
+        bidir=False,
         corruptnoise=0.0):
 
     #TODO: bi-encoder and other beasts
@@ -318,6 +319,7 @@ def run(
                                 outconcat=outconcat,
                                 rnu=GRU,
                                 vecout=smo,
+                                bidir=bidir,
                                 )
 
     amati = amat
