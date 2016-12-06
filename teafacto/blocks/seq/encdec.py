@@ -23,7 +23,7 @@ class SeqEncDec(Block):
 
     def apply(self, inpseq, outseq, inmask=None, outmask=None):
         initstates, allenco = self.preapply(inpseq, inmask)
-        deco = self.dec(allenco, outseq, initstates=initstates, mask=outmask)      # no state transfer
+        deco = self.dec(allenco, outseq, initstates=initstates, mask=outmask)
         return deco
 
     def preapply(self, inpseq, inmask=None):

@@ -277,7 +277,7 @@ def run(
     #embed()
 
     encdimi = [encdim/2 if bidir else encdim] * layers
-    decdimi = [encdim/2 if bidir else encdim] * layers
+    decdimi = [encdim] * layers
 
 
     inpemb = WordEmb(worddic=qdic, maskid=maskid, dim=embdim)
