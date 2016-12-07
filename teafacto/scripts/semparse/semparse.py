@@ -335,6 +335,7 @@ def run(
     print "overlaps: {}, {}: {} / {}".format(len(qoverlap), len(aoverlap), len(overlap), len(amatstrings[600:]))
     #embed()
     maskid = 0
+    print "{} is preproc".format(preproc)
     if preproc is not "none":
         qmat, amat, qdic, adic, qwc, awc = preprocess(qmat, amat, qdic, adic, qwc, awc, maskid, qreversed=not charlevel, dorare=preproc != "generate")
         if preproc is "generate":
