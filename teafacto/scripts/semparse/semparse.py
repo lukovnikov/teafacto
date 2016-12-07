@@ -336,9 +336,9 @@ def run(
     #embed()
     maskid = 0
     print "{} is preproc".format(preproc)
-    if preproc is not "none":
+    if preproc != "none":
         qmat, amat, qdic, adic, qwc, awc = preprocess(qmat, amat, qdic, adic, qwc, awc, maskid, qreversed=not charlevel, dorare=preproc != "generate")
-        if preproc is "generate":
+        if preproc == "generate":
             print "generating"
             qmat, amat = generate(qmat, amat, qdic, adic, reversed=not charlevel)
             rqdic = {v: k for k, v in qdic.items()}
