@@ -339,6 +339,7 @@ def run(
     if preproc is not "none":
         qmat, amat, qdic, adic, qwc, awc = preprocess(qmat, amat, qdic, adic, qwc, awc, maskid, qreversed=not charlevel, dorare=preproc != "generate")
         if preproc is "generate":
+            print "generating"
             qmat, amat = generate(qmat, amat, qdic, adic, reversed=not charlevel)
             rqdic = {v: k for k, v in qdic.items()}
             radic = {v: k for k, v in adic.items()}
