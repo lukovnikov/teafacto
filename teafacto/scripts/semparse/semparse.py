@@ -236,13 +236,15 @@ def generate(qmat, amat, qdic, adic, oqmat, oamat, reversed=True):
     tastrings = [re.sub("(\s0)+\s?$", "", a) for a in list(np.apply_along_axis(lambda x: " ".join(map(str, x)), 1, amat[:-279]))][1:]
     qmat = qmat[1:]
     amat = amat[1:]
+    oqmat = oqmat[-279:]
+    oamat = oamat[-279:]
     oqmat = np.insert(oqmat, 0, np.max(oqmat) * np.ones((oqmat.shape[1])), axis=0)
     oamat = np.insert(oamat, 0, np.max(oamat) * np.ones((oamat.shape[1])), axis=0)
-    xqstrings = [re.sub("(\s0)+\s?$", "", a) for a in list(np.apply_along_axis(lambda x: " ".join(map(str, x)), 1, oqmat[-279:]))][1:]
-    xastrings = [re.sub("(\s0)+\s?$", "", a) for a in list(np.apply_along_axis(lambda x: " ".join(map(str, x)), 1, oamat[-279:]))][1:]
+    xqstrings = [re.sub("(\s0)+\s?$", "", a) for a in list(np.apply_along_axis(lambda x: " ".join(map(str, x)), 1, oqmat))][1:]
+    xastrings = [re.sub("(\s0)+\s?$", "", a) for a in list(np.apply_along_axis(lambda x: " ".join(map(str, x)), 1, oamat))][1:]
     oqmat = oqmat[1:]
     oamat = oamat[1:]
-    #embed()
+    embed()
     # generate dic from type ids to pairs of fl ids and seqs of word-ids
     types = [k for k in qdic if k[-5:] == "-type"]
     flspertype = {k: [v for v in adic
