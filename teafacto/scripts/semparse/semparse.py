@@ -299,6 +299,7 @@ def generate(qmat, amat, qdic, adic, reversed=True):
             print wordids2string(newtamat[i], radic, 0)
             print " "
             raw_input()
+    print "{} examples after generation".format(newtqmat.shape[0])
     #embed()
     return newtqmat, newtamat
 
@@ -456,6 +457,7 @@ def run(
     xamati = amati[-279:]
 
     #embed()
+    print "{} training examples".format(tqmat.shape[0])
 
     encdec.train([tqmat, tamati[:, :-1]], tamat[:, 1:])\
         .sampletransform(RandomCorrupt(corruptdecoder=(2, max(adic.values()) + 1),
