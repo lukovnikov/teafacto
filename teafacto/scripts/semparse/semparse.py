@@ -132,7 +132,7 @@ class SoftMaxOut(Block):
         self.lin2 = MatDot(indim=self.indim, dim=self.innerdim, value=v)
 
 
-def preprocess(qmat, amat, qdic, adic, qwc, awc, maskid, qreversed=False):
+def preprocess(qmat, amat, qdic, adic, qwc, awc, maskid, qreversed=False, dorare=True):
     amat[amat == adic["capital:c"]] = adic["capital:t"]
     replaceina = set()
     for k in adic:
@@ -213,29 +213,36 @@ def preprocess(qmat, amat, qdic, adic, qwc, awc, maskid, qreversed=False):
             wop.append(i)
     print "{}/{}".format(len(wop), qmat.shape[0])
     # rare words
-    #print qwc
-    rareset = set(map(lambda (x, y): x,
-                      filter(lambda (x, y): y < 2,
-                             sorted(qwc.items(), key=lambda (x, y): y))))
-    rareids = {qdic[x] for x in rareset}
-    qmat = np.vectorize(lambda x: qdic["<RARE>"] if x in rareids else x)(qmat)
-    def pp(i):
-        print wordids2string(qmat[i], {v: k for k, v in qdic.items()})
-        print wordids2string(amat[i], {v: k for k, v in adic.items()})
+    if dorare:
+        rareset = set(map(lambda (x, y): x,
+                          filter(lambda (x, y): y < 2,
+                                 sorted(qwc.items(), key=lambda (x, y): y))))
+        rareids = {qdic[x] for x in rareset}
+        qmat = np.vectorize(lambda x: qdic["<RARE>"] if x in rareids else x)(qmat)
+        def pp(i):
+            print wordids2string(qmat[i], {v: k for k, v in qdic.items()})
+            print wordids2string(amat[i], {v: k for k, v in adic.items()})
     #embed()
 
     return qmat, amat, qdic, adic, qwc, awc
 
 
-def generate(qmat, amat, qdic, adic, qmatoriginal, amatoriginal, reversed=True):
+def generate(qmat, amat, qdic, adic, reversed=True):
     # !!! respect train test split
     import re
-    tqmat = qmat[:600]
-    tqstrings = [re.sub("(\s0)+\s?$", "", a) for a in list(np.apply_along_axis(lambda x: " ".join([str(xe) for xe in list(x)]), 1, tqmat))]
-    tamat = amat[:600]
-    tastrings = [re.sub("(\s0)+\s?$", "", a) for a in list(np.apply_along_axis(lambda x: " ".join([str(xe) for xe in list(x)]), 1, tamat))]
-    xqstrings = [re.sub("(\s0)+\s?$", "", a) for a in list(np.apply_along_axis(lambda x: " ".join([str(xe) for xe in list(x)]), 1, qmatoriginal[-279:]))]
-    xastrings = [re.sub("(\s0)+\s?$", "", a) for a in list(np.apply_along_axis(lambda x: " ".join([str(xe) for xe in list(x)]), 1, amatoriginal[-279:]))]
+    qmat = np.insert(qmat, 0, np.max(qmat) * np.ones((qmat.shape[1])), axis=0)
+    amat = np.insert(amat, 0, np.max(amat) * np.ones((amat.shape[1])), axis=0)
+    tqs = [a for a in list(np.apply_along_axis(lambda x: " ".join([str(xe) for xe in list(x)]), 1, qmat))]
+    tas = [re.sub("(\s0)+\s?$", "", a) for a in list(np.apply_along_axis(lambda x: " ".join([str(xe) for xe in list(x)]), 1, amat))]
+    qmat = qmat[1:]
+    amat = amat[1:]
+    tqs = tqs[1:]
+    tas = tas[1:]
+    tqstrings = tqs[:-279]
+    tastrings = tas[:-279]
+    xqstrings = tqs[-279:]
+    xastrings = tas[-279:]
+    #embed()
     # generate dic from type ids to pairs of fl ids and seqs of word-ids
     types = [k for k in qdic if k[-5:] == "-type"]
     flspertype = {k: [v for v in adic
@@ -276,7 +283,7 @@ def generate(qmat, amat, qdic, adic, qmatoriginal, amatoriginal, reversed=True):
     newt.extend(allx)
     maxqlen, maxalen = reduce(lambda (a, b), (c, d): (max(a, c), max(b, d)), [(len(x.split()), len(y.split())) for (x, y) in newt], (0, 0))
     #maxalen = reduce(lambda x, y: max(x, y), [len(y) for (x, y) in newt], 0)
-    embed()
+    #embed()
     # make matrices
     newtqmat = np.zeros((len(newt), maxqlen), dtype="int32")
     newtamat = np.zeros((len(newt), maxalen), dtype="int32")
@@ -328,11 +335,9 @@ def run(
     #embed()
     maskid = 0
     if preproc is not "none":
-        qmatoriginal = qmat.copy()
-        amatoriginal = amat.copy()
-        qmat, amat, qdic, adic, qwc, awc = preprocess(qmat, amat, qdic, adic, qwc, awc, maskid, qreversed=not charlevel)
+        qmat, amat, qdic, adic, qwc, awc = preprocess(qmat, amat, qdic, adic, qwc, awc, maskid, qreversed=not charlevel, dorare=preproc != "generate")
         if preproc is "generate":
-            qmat, amat = generate(qmat, amat, qdic, adic, qmatoriginal, amatoriginal, reversed=not charlevel)
+            qmat, amat = generate(qmat, amat, qdic, adic, reversed=not charlevel)
             rqdic = {v: k for k, v in qdic.items()}
             radic = {v: k for k, v in adic.items()}
             def pp(i):
@@ -450,7 +455,7 @@ def run(
     xamat = amat[-279:]
     xamati = amati[-279:]
 
-    embed()
+    #embed()
 
     encdec.train([tqmat, tamati[:, :-1]], tamat[:, 1:])\
         .sampletransform(RandomCorrupt(corruptdecoder=(2, max(adic.values()) + 1),
