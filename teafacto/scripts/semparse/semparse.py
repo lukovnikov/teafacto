@@ -316,7 +316,7 @@ def run(
         posemb=False,
         customemb=False,
         charlevel=False,
-        preproc="generate",     # or "none" or "generate" or "abstract"
+        preproc="abstract",     # or "none" or "generate" or "abstract"
         bidir=False,
         corruptnoise=0.0):
 
