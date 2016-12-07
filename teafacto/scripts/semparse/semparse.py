@@ -227,21 +227,21 @@ def preprocess(qmat, amat, qdic, adic, qwc, awc, maskid, qreversed=False, dorare
     return qmat, amat, qdic, adic, qwc, awc
 
 
-def generate(qmat, amat, qdic, adic, reversed=True):
+def generate(qmat, amat, qdic, adic, oqmat, oamat, reversed=True):
     # !!! respect train test split
     import re
     qmat = np.insert(qmat, 0, np.max(qmat) * np.ones((qmat.shape[1])), axis=0)
     amat = np.insert(amat, 0, np.max(amat) * np.ones((amat.shape[1])), axis=0)
-    tqs = [a for a in list(np.apply_along_axis(lambda x: " ".join([str(xe) for xe in list(x)]), 1, qmat))]
-    tas = [re.sub("(\s0)+\s?$", "", a) for a in list(np.apply_along_axis(lambda x: " ".join([str(xe) for xe in list(x)]), 1, amat))]
+    tqstrings = [re.sub("(\s0)+\s?$", "", a) for a in list(np.apply_along_axis(lambda x: " ".join(map(str, x)), 1, qmat[:-279]))][1:]
+    tastrings = [re.sub("(\s0)+\s?$", "", a) for a in list(np.apply_along_axis(lambda x: " ".join(map(str, x)), 1, amat[:-279]))][1:]
     qmat = qmat[1:]
     amat = amat[1:]
-    tqs = tqs[1:]
-    tas = tas[1:]
-    tqstrings = tqs[:-279]
-    tastrings = tas[:-279]
-    xqstrings = tqs[-279:]
-    xastrings = tas[-279:]
+    oqmat = np.insert(oqmat, 0, np.max(oqmat) * np.ones((oqmat.shape[1])), axis=0)
+    oamat = np.insert(oamat, 0, np.max(oamat) * np.ones((oamat.shape[1])), axis=0)
+    xqstrings = [re.sub("(\s0)+\s?$", "", a) for a in list(np.apply_along_axis(lambda x: " ".join(map(str, x)), 1, oqmat[-279:]))][1:]
+    xastrings = [re.sub("(\s0)+\s?$", "", a) for a in list(np.apply_along_axis(lambda x: " ".join(map(str, x)), 1, oamat[-279:]))][1:]
+    oqmat = oqmat[1:]
+    oamat = oamat[1:]
     #embed()
     # generate dic from type ids to pairs of fl ids and seqs of word-ids
     types = [k for k in qdic if k[-5:] == "-type"]
@@ -293,12 +293,16 @@ def generate(qmat, amat, qdic, adic, reversed=True):
         newtqmat[i, :len(qids)] = qids
         newtamat[i, :len(aids)] = aids
 
-    def ppp():
-        for i in range(newtqmat.shape[0]):
+    def ppp(i=None):
+        def pp(i):
             print wordids2string(newtqmat[i], rqdic, 0)
             print wordids2string(newtamat[i], radic, 0)
-            print " "
-            raw_input()
+        if i is None:
+            for i in range(newtqmat.shape[0]):
+                pp(i)
+                raw_input()
+        else:
+            pp(i)
     print "{} examples after generation".format(newtqmat.shape[0])
     #embed()
     return newtqmat, newtamat
@@ -337,10 +341,12 @@ def run(
     maskid = 0
     print "{} is preproc".format(preproc)
     if preproc != "none":
+        oqmat = qmat.copy()
+        oamat = amat.copy()
         qmat, amat, qdic, adic, qwc, awc = preprocess(qmat, amat, qdic, adic, qwc, awc, maskid, qreversed=not charlevel, dorare=preproc != "generate")
         if preproc == "generate":
             print "generating"
-            qmat, amat = generate(qmat, amat, qdic, adic, reversed=not charlevel)
+            qmat, amat = generate(qmat, amat, qdic, adic, oqmat, oamat, reversed=not charlevel)
             rqdic = {v: k for k, v in qdic.items()}
             radic = {v: k for k, v in adic.items()}
             def pp(i):
