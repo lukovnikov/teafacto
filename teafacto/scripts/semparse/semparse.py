@@ -244,7 +244,7 @@ def generate(qmat, amat, qdic, adic, oqmat, oamat, reversed=True):
     xastrings = [re.sub("(\s0)+\s?$", "", a) for a in list(np.apply_along_axis(lambda x: " ".join(map(str, x)), 1, oamat))][1:]
     oqmat = oqmat[1:]
     oamat = oamat[1:]
-    embed()
+    #embed()
     # generate dic from type ids to pairs of fl ids and seqs of word-ids
     types = [k for k in qdic if k[-5:] == "-type"]
     flspertype = {k: [v for v in adic
@@ -306,7 +306,7 @@ def generate(qmat, amat, qdic, adic, oqmat, oamat, reversed=True):
         else:
             pp(i)
     print "{} examples after generation".format(newtqmat.shape[0])
-    #embed()
+    embed()
     return newtqmat, newtamat
 
 
@@ -474,8 +474,10 @@ def run(
                                        corruptencoder=(2, max(qdic.values()) + 1),
                                        maskid=maskid, p=corruptnoise))\
         .cross_entropy().rmsprop(lr=lr/numbats).grad_total_norm(1.)\
-        .validate_on([xqmat, xamati[:, :-1]], xamat[:, 1:]).cross_entropy().seq_accuracy()\
+        .split_validate(splits=5, random=True)\
+        .cross_entropy().seq_accuracy()\
         .train(numbats, epochs)
+    # .validate_on([xqmat, xamati[:, :-1]], xamat[:, 1:])\
 
     qrwd = {v: k for k, v in qdic.items()}
     arwd = {v: k for k, v in adic.items()}

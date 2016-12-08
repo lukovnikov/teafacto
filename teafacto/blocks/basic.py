@@ -140,7 +140,6 @@ class Dropout(Block):
             return x
 
 
-
 class VectorEmbed(Embedder):
     def __init__(self, indim=None, dim=None, value=None,
                  normalize=False, trainfrac=1.0, init=None, maskid=None, **kw):
