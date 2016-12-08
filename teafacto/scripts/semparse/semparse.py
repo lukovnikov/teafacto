@@ -474,7 +474,7 @@ def run(
                                        corruptencoder=(2, max(qdic.values()) + 1),
                                        maskid=maskid, p=corruptnoise))\
         .cross_entropy().rmsprop(lr=lr/numbats).grad_total_norm(1.)\
-        .split_validate(splits=5, random=True)\
+        .split_validate(splits=10, random=True)\
         .cross_entropy().seq_accuracy()\
         .train(numbats, epochs)
     # .validate_on([xqmat, xamati[:, :-1]], xamat[:, 1:])\
