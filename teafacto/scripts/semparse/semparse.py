@@ -306,7 +306,7 @@ def generate(qmat, amat, qdic, adic, oqmat, oamat, reversed=True):
         else:
             pp(i)
     print "{} examples after generation".format(newtqmat.shape[0])
-    #embed()
+    embed()
     return newtqmat, newtamat
 
 
@@ -465,6 +465,13 @@ def run(
     xqmat = qmat[-279:]
     xamat = amat[-279:]
     xamati = amati[-279:]
+
+    tqmat = qmat[279:]
+    tamat = amat[279:]
+    tamati = amati[279:]
+    xqmat = qmat[:279]
+    xamat = amat[:279]
+    xamati = amati[:279]
 
     #embed()
     print "{} training examples".format(tqmat.shape[0])
