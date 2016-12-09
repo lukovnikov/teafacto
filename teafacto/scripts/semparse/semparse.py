@@ -232,8 +232,8 @@ def generate(qmat, amat, qdic, adic, oqmat, oamat, reversed=True):
     import re
     qmat = np.insert(qmat, 0, np.max(qmat) * np.ones((qmat.shape[1])), axis=0)
     amat = np.insert(amat, 0, np.max(amat) * np.ones((amat.shape[1])), axis=0)
-    tqstrings = [re.sub("(\s0)+\s?$", "", a) for a in list(np.apply_along_axis(lambda x: " ".join(map(str, x)), 1, qmat[:-279]))][1:]
-    tastrings = [re.sub("(\s0)+\s?$", "", a) for a in list(np.apply_along_axis(lambda x: " ".join(map(str, x)), 1, amat[:-279]))][1:]
+    tqstrings = [re.sub("(\s0)+\s?$", "", a) for a in list(np.apply_along_axis(lambda x: " ".join(map(str, x)), 1, qmat))][1:] #qmat[:-279]))][1:]
+    tastrings = [re.sub("(\s0)+\s?$", "", a) for a in list(np.apply_along_axis(lambda x: " ".join(map(str, x)), 1, amat))][1:] #amat[:-279]))][1:]
     qmat = qmat[1:]
     amat = amat[1:]
     oqmat = oqmat[-279:]
@@ -306,7 +306,7 @@ def generate(qmat, amat, qdic, adic, oqmat, oamat, reversed=True):
         else:
             pp(i)
     print "{} examples after generation".format(newtqmat.shape[0])
-    embed()
+    #embed()
     return newtqmat, newtamat
 
 
@@ -473,11 +473,12 @@ def run(
         .sampletransform(RandomCorrupt(corruptdecoder=(2, max(adic.values()) + 1),
                                        corruptencoder=(2, max(qdic.values()) + 1),
                                        maskid=maskid, p=corruptnoise))\
-        .cross_entropy().rmsprop(lr=lr/numbats).grad_total_norm(1.)\
-        .split_validate(splits=10, random=True)\
+        .cross_entropy().rmsprop(lr=lr/numbats).grad_total_norm(1.) \
+        .validate_on([xqmat, xamati[:, :-1]], xamat[:, 1:]) \
         .cross_entropy().seq_accuracy()\
         .train(numbats, epochs)
-    # .validate_on([xqmat, xamati[:, :-1]], xamat[:, 1:])\
+    #.split_validate(splits=10, random=True)\
+
 
     qrwd = {v: k for k, v in qdic.items()}
     arwd = {v: k for k, v in adic.items()}
