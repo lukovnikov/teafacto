@@ -306,7 +306,7 @@ def generate(qmat, amat, qdic, adic, oqmat, oamat, reversed=True):
         else:
             pp(i)
     print "{} examples after generation".format(newtqmat.shape[0])
-    embed()
+    #embed()
     return newtqmat, newtamat
 
 
@@ -354,7 +354,7 @@ def run(
             def pp(i):
                 print wordids2string(qmat[i], rqdic, 0)
                 print wordids2string(amat[i], radic, 0)
-            #embed()
+            embed()
 
     if charlevel:
         qmat = wordmat2charmat(qmat, qdic, maxlen=1000, maskid=maskid)
@@ -449,8 +449,6 @@ def run(
             return outp
 
 
-
-
     if posemb:
         qposmat = np.arange(0, qmat.shape[1])[None, :]
         qposmat = np.repeat(qposmat, qmat.shape[0], axis=0)
@@ -459,21 +457,22 @@ def run(
         aposmat = np.repeat(aposmat, amat.shape[0], axis=0)
         amati = np.concatenate([amat[:, :, None], aposmat[:, :, None]], axis=2)
 
+    """
     tqmat = qmat[:-279]
     tamat = amat[:-279]
     tamati = amati[:-279]
     xqmat = qmat[-279:]
     xamat = amat[-279:]
     xamati = amati[-279:]
-
+    """
     tqmat = qmat[279:]
     tamat = amat[279:]
     tamati = amati[279:]
     xqmat = qmat[:279]
     xamat = amat[:279]
-    xamati = amati[:279]
+    xamati = amati[:279]#"""
 
-    #embed()
+    embed()
     print "{} training examples".format(tqmat.shape[0])
 
     encdec.train([tqmat, tamati[:, :-1]], tamat[:, 1:])\
