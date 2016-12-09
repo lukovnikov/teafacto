@@ -457,7 +457,7 @@ def run(
         aposmat = np.repeat(aposmat, amat.shape[0], axis=0)
         amati = np.concatenate([amat[:, :, None], aposmat[:, :, None]], axis=2)
 
-    """
+    #"""
     tqmat = qmat[:-279]
     tamat = amat[:-279]
     tamati = amati[:-279]
@@ -470,7 +470,8 @@ def run(
     tamati = amati[279:]
     xqmat = qmat[:279]
     xamat = amat[:279]
-    xamati = amati[:279]#"""
+    xamati = amati[:279]
+    """
 
     embed()
     print "{} training examples".format(tqmat.shape[0])
