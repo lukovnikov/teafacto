@@ -360,6 +360,63 @@ def generate(qmat, amat, qdic, adic, oqmat, oamat, reversed=True):
     return newtqmat, newtamat
 
 
+class GenSample(object):
+    def __init__(self, td, reversed=True):
+        self.typdic = td
+        self.reversed = reversed
+
+    def __call__(self, encinp, decinp, gold, phase=None):
+        if phase == "TRAIN" and self.typdic is not None:  # replace a type id with entity id in all inputs
+            encacc = []
+            decacc = []
+            goldacc = []
+            for i in range(encinp.shape[0]):
+                encinprow = list(encinp[i])
+                decinprow = list(decinp[i])
+                goldrow = list(gold[i])
+                holdersleft = True
+                while holdersleft:
+                    j = 0
+                    while encinprow[j] not in self.typdic:
+                        j += 1
+                        if j == len(encinprow):  # at the end
+                            holdersleft = False
+                            break
+                    if not holdersleft:
+                        continue
+                    k = 1
+                    while decinprow[k] != self.typdic[encinprow[j]][0]:
+                        k += 1
+                        if k == len(decinprow):
+                            raise Exception("not found")
+                    fl = random.choice(self.typdic[encinprow[j]][1].keys())  # choose random filling
+                    wids = random.choice(self.typdic[encinprow[j]][1][fl])  # choose random verbalization of filling
+                    if self.reversed:
+                        wids.reverse()
+                    decinprow[k] = fl
+                    goldrow[k - 1] = fl
+                    encinphead = list(encinprow[:j])
+                    encinptail = list(encinprow[j + 1:])
+                    encinprow = encinphead + wids + encinptail
+                encacc.append(encinprow)
+                decacc.append(decinprow)
+                goldacc.append(goldrow)
+            encmaxlen = reduce(max, map(len, encacc), 0)
+            decmaxlen = reduce(max, map(len, decacc), 0)
+            goldmaxlen = reduce(max, map(len, goldacc), 0)
+            encout = np.zeros((encinp.shape[0], encmaxlen))
+            decout = np.zeros((decinp.shape[0], decmaxlen))
+            goldout = np.zeros((gold.shape[0], goldmaxlen))
+            for i, (e, d, g) in enumerate(zip(encacc, decacc, goldacc)):
+                encout[i, :len(e)] = e
+                decout[i, :len(d)] = d
+                goldout[i, :len(g)] = g
+            # embed()
+            return encout, decout, goldout
+        else:
+            return encinp, decinp, gold
+
+
 def run(
         numbats=50,
         epochs=10,
@@ -499,62 +556,6 @@ def run(
             else:
                 outp = seq
             return outp
-
-    class GenSample(object):
-        def __init__(self, td, reversed=True):
-            self.typdic = td
-            self.reversed = reversed
-
-        def __call__(self, encinp, decinp, gold, phase=None):
-            if phase == "TRAIN" and self.typdic is not None:    # replace a type id with entity id in all inputs
-                encacc = []
-                decacc = []
-                goldacc = []
-                for i in range(encinp.shape[0]):
-                    encinprow = list(encinp[i])
-                    decinprow = list(decinp[i])
-                    goldrow = list(gold[i])
-                    holdersleft = True
-                    while holdersleft:
-                        j = 0
-                        while encinprow[j] not in self.typdic:
-                            j += 1
-                            if j == len(encinprow):    # at the end
-                                holdersleft = False
-                                break
-                        if not holdersleft:
-                            continue
-                        k = 1
-                        while decinprow[k] != self.typdic[encinprow[j]][0]:
-                            k += 1
-                            if k == len(decinprow):
-                                raise Exception("not found")
-                        fl = random.choice(self.typdic[encinprow[j]][1].keys())     # choose random filling
-                        wids = random.choice(self.typdic[encinprow[j]][1][fl])      # choose random verbalization of filling
-                        if self.reversed:
-                            wids.reverse()
-                        decinprow[k] = fl
-                        goldrow[k-1] = fl
-                        encinphead = list(encinprow[:j])
-                        encinptail = list(encinprow[j+1:])
-                        encinprow = encinphead + wids + encinptail
-                    encacc.append(encinprow)
-                    decacc.append(decinprow)
-                    goldacc.append(goldrow)
-                encmaxlen = reduce(max, map(len, encacc), 0)
-                decmaxlen = reduce(max, map(len, decacc), 0)
-                goldmaxlen = reduce(max, map(len, goldacc), 0)
-                encout = np.zeros((encinp.shape[0], encmaxlen))
-                decout = np.zeros((decinp.shape[0], decmaxlen))
-                goldout = np.zeros((gold.shape[0], goldmaxlen))
-                for i, (e, d, g) in enumerate(zip(encacc, decacc, goldacc)):
-                    encout[i, :len(e)] = e
-                    decout[i, :len(d)] = d
-                    goldout[i, :len(g)] = g
-                #embed()
-                return encout, decout, goldout
-            else:
-                return encinp, decinp, gold
 
     if posemb:
         qposmat = np.arange(0, qmat.shape[1])[None, :]
