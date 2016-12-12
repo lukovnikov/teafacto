@@ -449,20 +449,17 @@ def run(
     #embed()
     maskid = 0
     typdic = None
+    oqmat = qmat.copy()
+    oamat = amat.copy()
     print "{} is preproc".format(preproc)
     if preproc != "none":
-        oqmat = qmat.copy()
-        oamat = amat.copy()
         qmat, amat, qdic, adic, qwc, awc = preprocess(qmat, amat, qdic, adic, qwc, awc, maskid, qreversed=not charlevel, dorare=preproc != "generate")
         if preproc == "generate":
             print "generating"
             qmat, amat = generate(qmat, amat, qdic, adic, oqmat, oamat, reversed=not charlevel)
             rqdic = {v: k for k, v in qdic.items()}
             radic = {v: k for k, v in adic.items()}
-            def pp(i):
-                print wordids2string(qmat[i], rqdic, 0)
-                print wordids2string(amat[i], radic, 0)
-            embed()
+            #embed()
         elif preproc == "gensample":
             typdic = gentypdic(qdic, adic)
 
@@ -529,6 +526,7 @@ def run(
                                 )
 
     amati = amat
+    oamati = oamat
 
     class RandomCorrupt(object):
         def __init__(self, p = 0.1, corruptdecoder=None, corruptencoder=None, maskid=0):
@@ -561,9 +559,11 @@ def run(
         qposmat = np.arange(0, qmat.shape[1])[None, :]
         qposmat = np.repeat(qposmat, qmat.shape[0], axis=0)
         qmat = np.concatenate([qmat[:, :, None], qposmat[:, :, None]], axis=2)
+        oqmat = np.concatenate([oqmat[:, :, None], qposmat[:, :, None]], axis=2)
         aposmat = np.arange(0, amat.shape[1])[None, :]
         aposmat = np.repeat(aposmat, amat.shape[0], axis=0)
         amati = np.concatenate([amat[:, :, None], aposmat[:, :, None]], axis=2)
+        oamati = np.concatenate([oamat[:, :, None], aposmat[:, :, None]], axis=2)
 
     #"""
     tqmat = qmat[:-279]
@@ -572,6 +572,10 @@ def run(
     xqmat = qmat[-279:]
     xamat = amat[-279:]
     xamati = amati[-279:]
+    if preproc == "gensample":
+        xqmat = oqmat[-279:]
+        xamat = oamat[-279:]
+        xamati = oamati[-279:]
     """
     tqmat = qmat[279:]
     tamat = amat[279:]
@@ -581,7 +585,13 @@ def run(
     xamati = amati[:279]
     """
 
-    #embed()
+    def tpp(i):
+        print wordids2string(tqmat[i], rqdic, 0)
+        print wordids2string(tamat[i], radic, 0)
+    def xpp(i):
+        print wordids2string(xqmat[i], rqdic, 0)
+        print wordids2string(xamat[i], radic, 0)
+    embed()
     print "{} training examples".format(tqmat.shape[0])
 
     encdec.train([tqmat, tamati[:, :-1]], tamat[:, 1:])\
