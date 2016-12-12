@@ -1,6 +1,6 @@
 from teafacto.util import argprun, isstring, issequence
 from teafacto.procutil import wordids2string, wordmat2charmat
-import numpy as np, re
+import numpy as np, re, random
 from IPython import embed
 
 from teafacto.core.base import Val, Block, tensorops as T
@@ -133,6 +133,7 @@ class SoftMaxOut(Block):
 
 
 def preprocess(qmat, amat, qdic, adic, qwc, awc, maskid, qreversed=False, dorare=True):
+    # TODO: add positional replacement and change other functions accordingly
     amat[amat == adic["capital:c"]] = adic["capital:t"]
     replaceina = set()
     for k in adic:
@@ -149,6 +150,8 @@ def preprocess(qmat, amat, qdic, adic, qwc, awc, maskid, qreversed=False, dorare
     radic = {v: k for k, v in adic.items()}
     rqdic = {v: k for k, v in qdic.items()}
     for i in range(qmat.shape[0]):
+        if i == 379:
+            pass
         for j in range(amat.shape[1]):
             if amat[i, j] in {adic[x] for x in replaceina}:
                 sf = radic[amat[i, j]].split(":")[0].split("_")
@@ -178,6 +181,7 @@ def preprocess(qmat, amat, qdic, adic, qwc, awc, maskid, qreversed=False, dorare
                     sfs.append(["america"])
                 for sf in sfs:
                     k = 0
+                    done = False
                     while k < qmat.shape[1]:
                         if qmati[k] != maskid and \
                                         rqdic[qmati[k]] == sf[0]:
@@ -191,7 +195,11 @@ def preprocess(qmat, amat, qdic, adic, qwc, awc, maskid, qreversed=False, dorare
                                 qmati[k] = qdic[sft+"-type"]
                                 qmati[k+1:qmat.shape[1]-l+1] = qmati[k+l:]
                                 qmati[qmat.shape[1]-l+1:] = maskid
+                                done = True
+                                break
                         k += 1
+                    if done:
+                        break
                 if qreversed:
                     qmatio = maskid * np.ones_like(qmati)
                     m = qmati.shape[0] - 1
@@ -227,6 +235,25 @@ def preprocess(qmat, amat, qdic, adic, qwc, awc, maskid, qreversed=False, dorare
     return qmat, amat, qdic, adic, qwc, awc
 
 
+def gentypdic(qdic, adic):
+    rqdic = {v: k for k, v in qdic.items()}
+    radic = {v: k for k, v in adic.items()}
+    types = [k[:-5] for k in qdic if k[-5:] == "-type"]
+    ret = {qdic[t+"-type"]: (adic[t+"-type"], {}) for t in types} # dict from qdic typid to ( adic type id, {adic entity id: [sfs for entity in qdic]}))
+    for t in types:
+        fls = [v for v in adic if (v[-len(t)-1:] == ":"+t and v != "capital:c")]
+        typdicpart = {fl: [re.sub("_[a-z]{2}$", "", re.sub(":[a-z]{1,2}$", "", fl)).split("_")]
+                      for fl in fls}
+        if "usa:co" in typdicpart:
+            typdicpart["usa:co"].append("united states".split())
+            typdicpart["usa:co"].append("the states".split())
+            typdicpart["usa:co"].append(["us"])
+            typdicpart["usa:co"].append(["america"])
+        idtypdicpart = {adic[k]: [[qdic[vew] for vew in ve] for ve in v] for k, v in typdicpart.items()}
+        ret[qdic[t+"-type"]][1].update(idtypdicpart)
+    return ret
+
+
 def generate(qmat, amat, qdic, adic, oqmat, oamat, reversed=True):
     # !!! respect train test split
     import re
@@ -248,40 +275,61 @@ def generate(qmat, amat, qdic, adic, oqmat, oamat, reversed=True):
     oamat = oamat[1:]
     #embed()
     # generate dic from type ids to pairs of fl ids and seqs of word-ids
-    types = [k for k in qdic if k[-5:] == "-type"]
-    flspertype = {k: [v for v in adic
-                        if (v[-len(k[:-5])-1:] == ":"+k[:-5]
-                            and v != "capital:c")
-                      ]
-                  for k in types}
+    gendic = gentypdic(qdic, adic)
     # make new training data, without overlap
     rqdic = {v: k for k, v in qdic.items()}
     radic = {v: k for k, v in adic.items()}
+    def pp(x):
+        print wordids2string([int(xe) for xe in x[0].split()], rqdic, maskid=0)
+        print wordids2string([int(xe) for xe in x[1].split()], radic, maskid=0)
     newt = []
     for i in range(len(tqstrings)):
         qss = tqstrings[i]
         ass = tastrings[i]
-        typeid = set(qss.split()).intersection({str(qdic[ts]) for ts in types})
-        if len(typeid) == 1:
-            typeid = list(typeid)[0]
-            for fl in flspertype[rqdic[int(typeid)]]:
-                flid = str(adic[fl])
-                words = [re.sub("_[a-z]{2}$", "", re.sub(":[a-z]{1,2}$", "", fl)).split("_")]
-                if words[0] == ["usa"]:
-                    words.append("united states".split())
-                    words.append(["us"])
-                    words.append(["america"])
-                    words.append("the states".split())
-                for wordse in words:
-                    wordse.reverse()
-                    nlids = " ".join([str(qdic[x]) for x in wordse])
-                    nqss = qss.replace(" " + typeid + " ", " " + nlids + " ")
-                    nass = ass.replace(" " + str(adic[rqdic[int(typeid)]]) + " ", " " + flid + " ")
-                    newt.append((nqss, nass))
+        if i == 379:
+            pass #embed()
+        acc = []
+        saveacc = []
+        newacc = [(qss, ass)]
+        while len(newacc) > 0:    # fill next slot of each on in acc
+            acc = newacc
+            newacc = []
+            while len(acc) > 0:
+                qss, ass = acc.pop()
+                k = 0
+                qssids = map(int, qss.split())
+                while k < len(qssids) and qssids[k] not in gendic.keys(): # find next slot and fill
+                    k += 1
+                if k < len(qssids):
+                    id = qssids[k]
+                else:
+                    saveacc.append((qss, ass))
+                    continue
+                l = 0
+                assids = map(int, ass.split())
+                try:
+                    while assids[l] != gendic[id][0]:
+                        l += 1
+                except IndexError, e:
+                    pass
+                    embed()
+                for fl, sfs in gendic[id][1].items():
+                    assids = map(int, ass.split())
+                    assids.pop(l)
+                    assids.insert(l, fl)
+                    wids = [[sfw for sfw in sf] for sf in sfs]
+                    for widse in wids:
+                        if reversed:
+                            widse.reverse()
+                        m = 0
+                        qssids = map(int, qss.split())
+                        qssids.pop(k)
+                        for widses in widse:
+                            qssids.insert(k + m, widses)
+                            m += 1
+                        newacc.append((" ".join(map(str, qssids)), " ".join(map(str, assids))))
+        newt.extend(saveacc)
     newt = list(set(newt))
-    def pp(x):
-        print wordids2string([int(xe) for xe in x[0].split()], rqdic, maskid=0)
-        print wordids2string([int(xe) for xe in x[1].split()], radic, maskid=0)
     allx = set(zip(xqstrings, xastrings))
     newt = list(set(newt).difference(allx))
     newt.extend(allx)
@@ -325,7 +373,7 @@ def run(
         posemb=False,
         customemb=False,
         charlevel=False,
-        preproc="abstract",     # or "none" or "generate" or "abstract"
+        preproc="abstract",     # "none" or "generate" or "abstract" or "gensample"
         bidir=False,
         corruptnoise=0.0):
 
@@ -343,6 +391,7 @@ def run(
     print "overlaps: {}, {}: {} / {}".format(len(qoverlap), len(aoverlap), len(overlap), len(amatstrings[600:]))
     #embed()
     maskid = 0
+    typdic = None
     print "{} is preproc".format(preproc)
     if preproc != "none":
         oqmat = qmat.copy()
@@ -357,6 +406,8 @@ def run(
                 print wordids2string(qmat[i], rqdic, 0)
                 print wordids2string(amat[i], radic, 0)
             embed()
+        elif preproc == "gensample":
+            typdic = gentypdic(qdic, adic)
 
     if charlevel:
         qmat = wordmat2charmat(qmat, qdic, maxlen=1000, maskid=maskid)
@@ -437,7 +488,6 @@ def run(
                     decinp = self._corruptseq(decinp, self.corruptdecoder)
             return encinp, decinp, gold
 
-
         def _corruptseq(self, seq, range):
             if self.p > 0:
                 corrupt = np.random.randint(range[0], range[1], seq.shape, dtype="int32")
@@ -450,6 +500,61 @@ def run(
                 outp = seq
             return outp
 
+    class GenSample(object):
+        def __init__(self, td, reversed=True):
+            self.typdic = td
+            self.reversed = reversed
+
+        def __call__(self, encinp, decinp, gold, phase=None):
+            if phase == "TRAIN" and self.typdic is not None:    # replace a type id with entity id in all inputs
+                encacc = []
+                decacc = []
+                goldacc = []
+                for i in range(encinp.shape[0]):
+                    encinprow = list(encinp[i])
+                    decinprow = list(decinp[i])
+                    goldrow = list(gold[i])
+                    holdersleft = True
+                    while holdersleft:
+                        j = 0
+                        while encinprow[j] not in self.typdic:
+                            j += 1
+                            if j == len(encinprow):    # at the end
+                                holdersleft = False
+                                break
+                        if not holdersleft:
+                            continue
+                        k = 1
+                        while decinprow[k] != self.typdic[encinprow[j]][0]:
+                            k += 1
+                            if k == len(decinprow):
+                                raise Exception("not found")
+                        fl = random.choice(self.typdic[encinprow[j]][1].keys())     # choose random filling
+                        wids = random.choice(self.typdic[encinprow[j]][1][fl])      # choose random verbalization of filling
+                        if self.reversed:
+                            wids.reverse()
+                        decinprow[k] = fl
+                        goldrow[k-1] = fl
+                        encinphead = list(encinprow[:j])
+                        encinptail = list(encinprow[j+1:])
+                        encinprow = encinphead + wids + encinptail
+                    encacc.append(encinprow)
+                    decacc.append(decinprow)
+                    goldacc.append(goldrow)
+                encmaxlen = reduce(max, map(len, encacc), 0)
+                decmaxlen = reduce(max, map(len, decacc), 0)
+                goldmaxlen = reduce(max, map(len, goldacc), 0)
+                encout = np.zeros((encinp.shape[0], encmaxlen))
+                decout = np.zeros((decinp.shape[0], decmaxlen))
+                goldout = np.zeros((gold.shape[0], goldmaxlen))
+                for i, (e, d, g) in enumerate(zip(encacc, decacc, goldacc)):
+                    encout[i, :len(e)] = e
+                    decout[i, :len(d)] = d
+                    goldout[i, :len(g)] = g
+                #embed()
+                return encout, decout, goldout
+            else:
+                return encinp, decinp, gold
 
     if posemb:
         qposmat = np.arange(0, qmat.shape[1])[None, :]
@@ -475,11 +580,12 @@ def run(
     xamati = amati[:279]
     """
 
-    embed()
+    #embed()
     print "{} training examples".format(tqmat.shape[0])
 
     encdec.train([tqmat, tamati[:, :-1]], tamat[:, 1:])\
-        .sampletransform(RandomCorrupt(corruptdecoder=(2, max(adic.values()) + 1),
+        .sampletransform(GenSample(typdic),
+                         RandomCorrupt(corruptdecoder=(2, max(adic.values()) + 1),
                                        corruptencoder=(2, max(qdic.values()) + 1),
                                        maskid=maskid, p=corruptnoise))\
         .cross_entropy().rmsprop(lr=lr/numbats).grad_total_norm(1.) \

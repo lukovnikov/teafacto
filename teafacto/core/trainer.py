@@ -51,7 +51,7 @@ class ModelTrainer(object):
         self.traindata = None
         self.traingold = None
         self.gradconstraints = []
-        self._sampletransformer = None
+        self._sampletransformers = []
         # validation settings
         self._validinter = 1
         self.trainstrategy = self._train_full
@@ -600,13 +600,15 @@ class ModelTrainer(object):
 
     def _transformsamples(self, *s, **kw):
         phase = kw["phase"] if "phase" in kw else None
-        if self._sampletransformer is None:
+        if len(self._sampletransformers) == 0:
             return s
         else:
-            return self._sampletransformer(*s, phase=phase)
+            for sampletransformer in self._sampletransformers:
+                s = sampletransformer(*s, phase=phase)
+            return s
 
-    def sampletransform(self, f):
-        self._sampletransformer = f
+    def sampletransform(self, *f):
+        self._sampletransformers = f
         return self
     #endregion
     #endregion
