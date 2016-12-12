@@ -432,7 +432,8 @@ def run(
         charlevel=False,
         preproc="abstract",     # "none" or "generate" or "abstract" or "gensample"
         bidir=False,
-        corruptnoise=0.0):
+        corruptnoise=0.0,
+        inspectdata=False):
 
     #TODO: with generation, max length is smaller than without generation
     # ===> TODO: SUM TING WONG!!!
@@ -592,7 +593,8 @@ def run(
     def xpp(i):
         print wordids2string(xqmat[i], rqdic, 0)
         print wordids2string(xamat[i], radic, 0)
-    embed()
+    if inspectdata:
+        embed()
     print "{} training examples".format(tqmat.shape[0])
 
     encdec.train([tqmat, tamati[:, :-1]], tamat[:, 1:])\
