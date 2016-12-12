@@ -433,7 +433,8 @@ def run(
         preproc="abstract",     # "none" or "generate" or "abstract" or "gensample"
         bidir=False,
         corruptnoise=0.0,
-        inspectdata=False):
+        inspectdata=False,
+        frodooverfittins=False):
 
     #TODO: with generation, max length is smaller than without generation
     # ===> TODO: SUM TING WONG!!!
@@ -575,6 +576,10 @@ def run(
         xqmat = oqmat[-279:]
         xamat = oamat[-279:]
         xamati = oamati[-279:]
+        if frodooverfittins:
+            xqmat = oqmat[:279]
+            xamat = oamat[:279]
+            xamati = oamati[:279]
     """
     tqmat = qmat[279:]
     tamat = amat[279:]
