@@ -457,8 +457,6 @@ def run(
         if preproc == "generate":
             print "generating"
             qmat, amat = generate(qmat, amat, qdic, adic, oqmat, oamat, reversed=not charlevel)
-            rqdic = {v: k for k, v in qdic.items()}
-            radic = {v: k for k, v in adic.items()}
             #embed()
         elif preproc == "gensample":
             typdic = gentypdic(qdic, adic)
@@ -584,6 +582,9 @@ def run(
     xamat = amat[:279]
     xamati = amati[:279]
     """
+
+    rqdic = {v: k for k, v in qdic.items()}
+    radic = {v: k for k, v in adic.items()}
 
     def tpp(i):
         print wordids2string(tqmat[i], rqdic, 0)
