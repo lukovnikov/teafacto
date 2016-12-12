@@ -404,9 +404,9 @@ class GenSample(object):
             encmaxlen = reduce(max, map(len, encacc), 0)
             decmaxlen = reduce(max, map(len, decacc), 0)
             goldmaxlen = reduce(max, map(len, goldacc), 0)
-            encout = np.zeros((encinp.shape[0], encmaxlen))
-            decout = np.zeros((decinp.shape[0], decmaxlen))
-            goldout = np.zeros((gold.shape[0], goldmaxlen))
+            encout = np.zeros((encinp.shape[0], encmaxlen), dtype="int32")
+            decout = np.zeros((decinp.shape[0], decmaxlen), dtype="int32")
+            goldout = np.zeros((gold.shape[0], goldmaxlen), dtype="int32")
             for i, (e, d, g) in enumerate(zip(encacc, decacc, goldacc)):
                 encout[i, :len(e)] = e
                 decout[i, :len(d)] = d
