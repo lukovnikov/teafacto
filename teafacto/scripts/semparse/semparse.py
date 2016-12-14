@@ -446,7 +446,7 @@ def run(
     srctransformer = None
     if relinearize:
         lambdaparser = LambdaParser()
-        srctransformer = lambda x: lambdaparser.parse(x).greedy_linearize()
+        srctransformer = lambda x: lambdaparser.parse(x).greedy_linearize(deeppref=True)
     qmat, amat, qdic, adic, qwc, awc = loadgeo(customemb=customemb, reverse=not charlevel, transformer=srctransformer)
     qmatstrings = np.apply_along_axis(lambda x: " ".join([str(xe) for xe in list(x)]), 1, qmat)
     amatstrings = np.apply_along_axis(lambda x: " ".join([str(xe) for xe in list(x)]), 1, amat)
