@@ -9,6 +9,7 @@ from teafacto.blocks.seq.encdec import SimpleSeqEncDecAtt
 from teafacto.blocks.basic import VectorEmbed, Linear, MatDot
 from teafacto.blocks.activations import Softmax, Tanh
 from teafacto.blocks.lang.wordvec import WordEmb, Glove
+from teafacto.query.lbd2tree import LambdaParser
 
 
 def loadgeopl(p="../../../data/semparse/geoquery.txt", customemb=False, reverse=True):
@@ -56,7 +57,8 @@ def loadgeopl(p="../../../data/semparse/geoquery.txt", customemb=False, reverse=
 def loadgeo(trainp="../../../data/semparse/geoquery.lbd.dev",
             testp="../../../data/semparse/geoquery.lbd.test",
             customemb=False,
-            reverse=True):
+            reverse=True,
+            transformer=None):
 
     d = []
 
@@ -71,7 +73,7 @@ def loadgeo(trainp="../../../data/semparse/geoquery.lbd.dev",
             ret += m.group(3)
         return ret
 
-    def addlines(p, d):
+    def addlines(p, d, transformer=None):
         curline = ""
         for line in open(p):
             if len(curline) == 0:
@@ -90,10 +92,12 @@ def loadgeo(trainp="../../../data/semparse/geoquery.lbd.dev",
                         line = re.sub("([^\s]?)([()])([^\s]?)",
                                          fixbrackets,
                                          line)
+                    if transformer is not None:
+                        line = transformer(line)
                     curline = "{}\t{}".format(curline, line)
 
-    addlines(trainp, d)
-    addlines(testp, d)
+    addlines(trainp, d, transformer=transformer)
+    addlines(testp, d, transformer=transformer)
 
     return loadgeopl(p=d, customemb=customemb, reverse=reverse)
 
@@ -434,13 +438,16 @@ def run(
         bidir=False,
         corruptnoise=0.0,
         inspectdata=False,
-        frodooverfittins=False):
+        frodooverfittins=False,
+        relinearize=False):
 
-    #TODO: with generation, max length is smaller than without generation
-    # ===> TODO: SUM TING WONG!!!
     #TODO: bi-encoder and other beasts
     # loaddata
-    qmat, amat, qdic, adic, qwc, awc = loadgeo(customemb=customemb, reverse=not charlevel)
+    srctransformer = None
+    if relinearize:
+        lambdaparser = LambdaParser()
+        srctransformer = lambda x: lambdaparser.parse(x).greedy_linearize()
+    qmat, amat, qdic, adic, qwc, awc = loadgeo(customemb=customemb, reverse=not charlevel, transformer=srctransformer)
     qmatstrings = np.apply_along_axis(lambda x: " ".join([str(xe) for xe in list(x)]), 1, qmat)
     amatstrings = np.apply_along_axis(lambda x: " ".join([str(xe) for xe in list(x)]), 1, amat)
     matstrings = [x + y for x, y in zip(qmatstrings, amatstrings)]
