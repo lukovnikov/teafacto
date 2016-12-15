@@ -439,23 +439,21 @@ def run(
         corruptnoise=0.0,
         inspectdata=False,
         frodooverfittins=False,
-        relinearize=False):
+        relinearize="none"):
 
     #TODO: bi-encoder and other beasts
     # loaddata
     srctransformer = None
-    if relinearize:
+    if relinearize != "none":
         lambdaparser = LambdaParser()
-        srctransformer = lambda x: lambdaparser.parse(x).greedy_linearize(deeppref=True)
+        if relinearize == "greedy":
+            def srctransformer(x): return lambdaparser.parse(x).greedy_linearize(deeppref=True)
+        elif relinearize == "deep":
+            def srctransformer(x): return lambdaparser.parse(x).deep_linearize()
+        else:
+            raise Exception("unknown linearization")
     qmat, amat, qdic, adic, qwc, awc = loadgeo(customemb=customemb, reverse=not charlevel, transformer=srctransformer)
-    qmatstrings = np.apply_along_axis(lambda x: " ".join([str(xe) for xe in list(x)]), 1, qmat)
-    amatstrings = np.apply_along_axis(lambda x: " ".join([str(xe) for xe in list(x)]), 1, amat)
-    matstrings = [x + y for x, y in zip(qmatstrings, amatstrings)]
-    qoverlap = set(qmatstrings[:600]).intersection(set(qmatstrings[600:]))
-    aoverlap = set(amatstrings[:600]).intersection(set(amatstrings[600:]))
-    overlap = set(matstrings[:600]).intersection(set(matstrings[600:]))
-    print "overlaps: {}, {}: {} / {}".format(len(qoverlap), len(aoverlap), len(overlap), len(amatstrings[600:]))
-    #embed()
+
     maskid = 0
     typdic = None
     oqmat = qmat.copy()
@@ -469,7 +467,18 @@ def run(
             #embed()
         elif preproc == "gensample":
             typdic = gentypdic(qdic, adic)
-
+    qmatfs = np.insert(qmat, [0], np.max(qmat) * np.ones_like(qmat[0]), axis=0)
+    amatfs = np.insert(amat, [0], np.max(amat) * np.ones_like(amat[0]), axis=0)
+    qmatstrings = np.apply_along_axis(lambda x: " ".join([str(xe) for xe in list(x)]), 1, qmatfs)
+    amatstrings = np.apply_along_axis(lambda x: " ".join([str(xe) for xe in list(x)]), 1, amatfs)
+    qmatstrings = qmatstrings[1:]
+    amatstrings = amatstrings[1:]
+    matstrings = [x + y for x, y in zip(qmatstrings, amatstrings)]
+    qoverlap = set(qmatstrings[:600]).intersection(set(qmatstrings[600:]))
+    aoverlap = set(amatstrings[:600]).intersection(set(amatstrings[600:]))
+    overlap = set(matstrings[:600]).intersection(set(matstrings[600:]))
+    print "overlaps: {}, {}: {} / {}".format(len(qoverlap), len(aoverlap), len(overlap), len(amatstrings[600:]))
+    embed()
     if charlevel:
         qmat = wordmat2charmat(qmat, qdic, maxlen=1000, maskid=maskid)
         amat = wordmat2charmat(amat, adic, maxlen=1000, maskid=maskid)

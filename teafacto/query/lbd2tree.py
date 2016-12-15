@@ -218,53 +218,58 @@ class ParseNode(object):
 
     def linearize(self, mode="greedy"):     # "deep" or "greedy"
         if mode == "greedy":
-            return self.greedy_linearize_rec()
+            return self.greedy_linearize()
         elif mode == "deep":
             return self.deep_linearize()
 
     def deep_linearize(self):
+        ret = self.deep_linearize_rec()[0]
+        ret = self.rename_vars(ret)
+        return ret
+
+    def deep_linearize_rec(self):
         if len(self.children) == 0:
             return self.name, 0
         elif len(self.children) == 1:
-            cl, d = self.children[0].deep_linearize()
-            return "{} {} red-2".format(cl, self.name), d + 1
+            cl, d = self.children[0].deep_linearize_rec()
+            return "{} {} +red-2".format(cl, self.name), d + 1
         elif self.name == "lambda":
             assert(len(self.children) == 3)
-            fc, d = self.children[2].deep_linearize()
-            return "{} {} {} red-3".format(fc,
-                                     self.children[0].deep_linearize()[0],
+            fc, d = self.children[2].deep_linearize_rec()
+            return "{} {} {} +red-3".format(fc,
+                                     self.children[0].deep_linearize_rec()[0],
                                      self.name), d + 1
         elif self.name == "exists" or self.name == "count":
             assert(len(self.children) == 2)
-            fc, d = self.children[1].deep_linearize()
-            return "{} {} {} red-3".format(fc,
-                                  self.children[0].deep_linearize()[0],
+            fc, d = self.children[1].deep_linearize_rec()
+            return "{} {} {} +red-3".format(fc,
+                                  self.children[0].deep_linearize_rec()[0],
                                   self.name), d + 1
         elif self.name == "argmax" or self.name == "argmin":
             assert(len(self.children) == 3)
-            fc1, d1 = self.children[1].deep_linearize()
-            fc2, d2 = self.children[2].deep_linearize()
+            fc1, d1 = self.children[1].deep_linearize_rec()
+            fc2, d2 = self.children[2].deep_linearize_rec()
             sign, f1, f2 = "+", fc1, fc2
             if d1 < d2:
                 sign, f1, f2 = "-", fc2, fc1
-            return "{} {} {} {}{} red-4".format(f1, fc2,
-                                                self.children[0].deep_linearize()[0],
-                                                sign, self.name), max(d1, d2) + 1
+            return "{} {} {} {} {}red-4".format(f1, fc2,
+                                                self.children[0].deep_linearize_rec()[0],
+                                                self.name, sign), max(d1, d2) + 1
         elif self.name == "and":
             assert(len(self.children) == 2)
-            fc1, d1 = self.children[0].deep_linearize()
-            fc2, d2 = self.children[1].deep_linearize()
+            fc1, d1 = self.children[0].deep_linearize_rec()
+            fc2, d2 = self.children[1].deep_linearize_rec()
             lc, rc = fc1, fc2
             if d1 < d2:
                 lc, rc = fc2, fc1
-            return "{} {} {} red-3".format(lc, rc, self.name), max(d1, d2) + 1
+            return "{} {} {} +red-3".format(lc, rc, self.name), max(d1, d2) + 1
         elif len(self.children) == 2:
-            fc1, d1 = self.children[0].deep_linearize()
-            fc2, d2 = self.children[1].deep_linearize()
+            fc1, d1 = self.children[0].deep_linearize_rec()
+            fc2, d2 = self.children[1].deep_linearize_rec()
             sign, lc, rc = "+", fc1, fc2
             if d1 < d2:
                 sign, lc, rc = "-", fc2, fc1
-            return "{} {} {}{} red-3".format(lc, rc, sign, self.name), max(d1, d2) + 1
+            return "{} {} {} {}red-3".format(lc, rc, self.name, sign), max(d1, d2) + 1
         else:
             raise Exception("too many arguments")
 
@@ -425,10 +430,11 @@ if __name__ == "__main__":
     #s = "(population:i (capital:t florida:s))"
     #s = "(lambda $0 e (and (river:t $0) (exists $1 (and (state:t $1) (next_to:t $1 new_mexico:s) (loc:t $0 $1)))))"
     #s = "(lambda $0 e (exists $1 (and (state:t $1) (next_to:t $1 mississippi:s) (high_point:t $1 $0))))"
+    s = "(lambda $0 e (and (place:t $0) (exists $1 (and (state:t $1) (equals:t $0 (argmax $2 (and (place:t $2) (loc:t $2 $1)) (elevation:i $2)))))))"
     tree = LambdaParser().parse(s)
     print tree
     print tree.depth
-    #print tree.deep_linearize()[0]
+    print tree.deep_linearize()
     gl = tree.greedy_linearize(deeppref=True)
     print gl
     tree = GreedyLinParser().parse(gl)
