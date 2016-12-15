@@ -245,7 +245,7 @@ class ParseNode(object):
             return "{} {} {} +red-3".format(fc,
                                   self.children[0].deep_linearize_rec()[0],
                                   self.name), d + 1
-        elif self.name == "argmax" or self.name == "argmin":
+        elif self.name == "argmax" or self.name == "argmin" or self.name == "sum":
             assert(len(self.children) == 3)
             fc1, d1 = self.children[1].deep_linearize_rec()
             fc2, d2 = self.children[2].deep_linearize_rec()
