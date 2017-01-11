@@ -12,7 +12,7 @@ from teafacto.blocks.lang.wordvec import WordEmb, Glove
 from teafacto.query.lbd2tree import LambdaParser
 
 
-def loadgeopl(p="../../../data/semparse/geoquery.txt", customemb=False, reverse=True):
+def loadgeopl(p="../../../data/semparse/geoquery.txt", customemb=False, reverse=True, splitre=None):
     qss, ass = [], []
     maxqlen, maxalen = 0, 0
     qwords, awords = {"<RARE>": 1}, {}
@@ -21,7 +21,7 @@ def loadgeopl(p="../../../data/semparse/geoquery.txt", customemb=False, reverse=
         p = open(p)
 
     for line in p:
-        splitre = "[\s-]" if customemb else "\s"
+        splitre = ("[\s-]" if customemb else "\s") if splitre is None else splitre
         q, a = [re.split(splitre, x) for x in line.split("\t")]
         q = ["<s>"] + q + ["</s>"]
         a = ["<s>"] + a + ["</s>"]
@@ -62,44 +62,53 @@ def loadgeo(trainp="../../../data/semparse/geoquery.lbd.dev",
 
     d = []
 
-    def fixbrackets(m):
-        ret = ""
-        if len(m.group(1)) > 0:
-            ret += m.group(1)
-            ret += " "
-        ret += m.group(2)
-        if len(m.group(3)) > 0:
-            ret += " "
-            ret += m.group(3)
-        return ret
-
-    def addlines(p, d, transformer=None):
-        curline = ""
-        for line in open(p):
-            if len(curline) == 0:
-                curline = line
-            else:
-                if line == "\n":
-                    d.append(""+curline)
-                    curline = ""
-                elif line[:2] == "//":
-                    pass
-                else:
-                    oldline = line
-                    line = line[:-1]
-                    while oldline != line:
-                        oldline = line
-                        line = re.sub("([^\s]?)([()])([^\s]?)",
-                                         fixbrackets,
-                                         line)
-                    if transformer is not None:
-                        line = transformer(line)
-                    curline = "{}\t{}".format(curline, line)
-
     addlines(trainp, d, transformer=transformer)
     addlines(testp, d, transformer=transformer)
 
     return loadgeopl(p=d, customemb=customemb, reverse=reverse)
+
+
+def fixbrackets(m):
+    ret = ""
+    if len(m.group(1)) > 0:
+        ret += m.group(1)
+        ret += " "
+    ret += m.group(2)
+    if len(m.group(3)) > 0:
+        ret += " "
+        ret += m.group(3)
+    return ret
+
+
+def addlines(p, d, transformer=None):
+    curline = ""
+    for line in open(p):
+        if len(curline) == 0:
+            curline = line
+        else:
+            if line == "\n":
+                d.append("" + curline)
+                curline = ""
+            elif line[:2] == "//":
+                pass
+            else:
+                oldline = line
+                line = line[:-1]
+                while oldline != line:
+                    oldline = line
+                    line = re.sub("([^\s]?)([()])([^\s]?)",
+                                  fixbrackets,
+                                  line)
+                if transformer is not None:
+                    line = transformer(line)
+                curline = "{}\t{}".format(curline, line)
+
+
+def loadgeoauto(p="../../../data/semparse/geoquery.lbd.autogen",
+                reverse=True, transformer=None):
+    d = []
+    addlines(p, d, transformer=transformer)
+    return loadgeopl(p=d, customemb=False, reverse=reverse, splitre="\s")
 
 
 class VectorPosEmb(Block):
@@ -439,9 +448,11 @@ def run(
         corruptnoise=0.0,
         inspectdata=False,
         frodooverfittins=False,
-        relinearize="none"):
+        relinearize="none",
+        pretrain=True):
 
     #TODO: bi-encoder and other beasts
+    #TODO: make sure gensample results NOT IN test data
     # loaddata
     srctransformer = None
     if relinearize != "none":
@@ -452,6 +463,14 @@ def run(
             def srctransformer(x): return lambdaparser.parse(x).deep_linearize()
         else:
             raise Exception("unknown linearization")
+    if pretrain:
+        qmatauto, amatauto, qdicauto, adicauto, qwcauto, awcauto = \
+            loadgeoauto(reverse=not charlevel, transformer=srctransformer)
+        def pp(i):
+            print wordids2string(qmatauto[i], {v: k for k, v in qdicauto.items()}, 0)
+            print wordids2string(amatauto[i], {v: k for k, v in adicauto.items()}, 0)
+        if inspectdata:
+            embed()
     qmat, amat, qdic, adic, qwc, awc = loadgeo(customemb=customemb, reverse=not charlevel, transformer=srctransformer)
 
     maskid = 0
@@ -467,6 +486,8 @@ def run(
             #embed()
         elif preproc == "gensample":
             typdic = gentypdic(qdic, adic)
+
+    # overlap computing
     qmatfs = np.insert(qmat, [0], np.max(qmat) * np.ones_like(qmat[0]), axis=0)
     amatfs = np.insert(amat, [0], np.max(amat) * np.ones_like(amat[0]), axis=0)
     qmatstrings = np.apply_along_axis(lambda x: " ".join([str(xe) for xe in list(x)]), 1, qmatfs)
@@ -497,7 +518,6 @@ def run(
 
     encdimi = [encdim/2 if bidir else encdim] * layers
     decdimi = [encdim] * layers
-
 
     inpemb = WordEmb(worddic=qdic, maskid=maskid, dim=embdim)
     outemb = WordEmb(worddic=adic, maskid=maskid, dim=embdim)
@@ -540,6 +560,9 @@ def run(
                                 vecout=smo,
                                 bidir=bidir,
                                 )
+
+    encdec.dec.set_lr(0.1)
+    encdec.enc.init(inpvocsize=1, inpembdim=2, inpemb=None, encdim=100)
 
     amati = amat
     oamati = oamat
@@ -657,8 +680,8 @@ def run(
                     raw_input()
         else:
             raise Exception("invalid argument to play")
-
     embed()
+
 
 if __name__ == "__main__":
     argprun(run)

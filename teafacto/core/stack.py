@@ -20,6 +20,9 @@ class BlockStack(Block):
         super(BlockStack, self).__init__(**kw)
         self.layers = layers
 
+    def apply_argspec(self):
+        return self.layers[0].apply_argspec()
+
     def apply(self, *vars):
         ret = vars
         for layer in self.layers:

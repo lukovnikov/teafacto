@@ -72,6 +72,11 @@ class TestLinearDistance(TestCase):
         pred = b.predict(l, r)
         self.assertEqual(pred.shape, (batsize,))
 
+    def test_get_params(self):
+        d = LinearDistance(10, 10, 10)
+        params = {d.lin.W, d.lin.b, d.lin2.W, d.lin2.b, d.agg}
+        self.assertEqual(params, d.get_params())
+
     def test_seq(self):
         batsize = 1
         ldim = 3

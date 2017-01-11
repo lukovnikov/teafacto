@@ -43,6 +43,9 @@ class LinearDistance(Block):
         self.lin2 = Linear(indim=rdim, dim=aggdim)
         self.agg = param((aggdim,), name="attention_agg").uniform()
 
+    def apply_argspec(self):
+        return ((2, "float"), (2, "float"))
+
     def apply(self, l, r):      # (batsize, dim)
         a = self.lin(l)     # (batsize, dim)
         b = self.lin2(r)    # (batsize, dim) or (batsize, seqlen, dim)

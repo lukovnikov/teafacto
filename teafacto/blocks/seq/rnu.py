@@ -19,6 +19,9 @@ class RecurrentBlock(Block):     # ancestor class for everything that consumes s
     def numstates(self):
         raise NotImplementedError("use subclass")
 
+    def apply_argspec(self):
+        return ((3, "float"),)
+
     # FWD API
     def apply(self, x, mask=None, initstates=None):
         final, output, states = self.innerapply(x, mask, initstates)

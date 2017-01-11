@@ -14,6 +14,10 @@ class SeqEncDec(Block):
         super(SeqEncDec, self).__init__(**kw)
         self.enc = enc
         self.dec = dec
+        self.statetrans = None
+        self.set_statetrans(statetrans)
+
+    def set_statetrans(self, statetrans):
         if isinstance(statetrans, Block):
             self.statetrans = asblock(lambda x, y: statetrans(x))
         elif statetrans is True:
@@ -76,10 +80,10 @@ class SimpleSeqEncDecAtt(SeqEncDec):
             enc = self._getencoder(indim=inpvocsize, inpembdim=inpembdim, inpemb=inpemb,
                                 innerdim=encinnerdim, bidir=bidir, maskid=maskid,
                                 dropout_in=dropout, dropout_h=dropout, rnu=rnu)
-        lastencinnerdim = enc.outdim
+        self.lastencinnerdim = enc.outdim
 
         # attention
-        lastdecinnerdim = decinnerdim[-1]
+        self.lastdecinnerdim = decinnerdim[-1]
         attgen = AttGen(attdist)
         attcon = WeightedSumAttCon()
         attention = Attention(attgen, attcon, separate=sepatt)
@@ -87,20 +91,25 @@ class SimpleSeqEncDecAtt(SeqEncDec):
         # decoder
         dec = SeqDecoder.RNN(
             emb=outemb, embdim=outembdim, embsize=outvocsize, maskid=maskid,
-            ctxdim=lastencinnerdim, attention=attention,
+            ctxdim=self.lastencinnerdim, attention=attention,
             innerdim=decinnerdim, inconcat=inconcat,
             softmaxoutblock=vecout, outconcat=outconcat,
             dropout=dropout, rnu=rnu, dropout_h=dropout,
         )
+        self.statetrans_setting = statetrans
 
-        # initial decoder state
-        if statetrans is True:
-            if lastencinnerdim != lastdecinnerdim:  # state shape mismatch
-                statetrans = MatDot(lastencinnerdim, lastdecinnerdim)
-        elif statetrans == "matdot":
-            statetrans = MatDot(lastencinnerdim, lastdecinnerdim)
+        statetrans = self._build_state_trans(self.statetrans_setting, self.lastencinnerdim, self.lastdecinnerdim)
 
         super(SimpleSeqEncDecAtt, self).__init__(enc, dec, statetrans=statetrans, **kw)
+
+    def _build_state_trans(self, statetrans, encdim, decdim):
+        # initial decoder state
+        if statetrans is True:
+            if encdim != decdim:  # state shape mismatch
+                statetrans = MatDot(encdim, decdim)
+        elif statetrans == "matdot":
+            statetrans = MatDot(encdim, decdim)
+        return statetrans
 
     def _getencoder(self, indim=None, inpembdim=None, inpemb=None, innerdim=None,
                     bidir=False, maskid=-1, dropout_in=False, dropout_h=False, rnu=GRU):
@@ -122,6 +131,24 @@ class SimpleSeqEncDecAtt(SeqEncDec):
                              dropout_in=dropout_in, dropout_h=dropout_h, rnu=rnu) \
             .with_outputs().maskoptions(MaskSetMode.ZERO)
         return SepAttEncoders(enc_a, enc_c)
+
+    def remake_encoder(self, inpvocsize=None, inpembdim=None, inpemb=None, innerdim=None,
+                       bidir=False, maskid=-1, dropout_in=False, dropout_h=False, rnu=GRU,
+                       sepatt=False):
+        innerdim = [innerdim] if not issequence(innerdim) else innerdim
+        if sepatt:
+            enc = self._getencoder_sepatt(indim=inpvocsize, inpembdim=inpembdim, inpemb=inpemb,
+                                    innerdim=innerdim, bidir=bidir, maskid=maskid,
+                                    dropout_in=dropout_in, dropout_h=dropout_h, rnu=rnu)
+        else:
+            enc = self._getencoder(indim=inpvocsize, inpembdim=inpembdim, inpemb=inpemb,
+                             innerdim=innerdim, bidir=bidir, maskid=maskid,
+                             dropout_in=dropout_in, dropout_h=dropout_h, rnu=rnu)
+        lastencinnerdim = enc.outdim
+        lastdecinnerdim = self.lastdecinnerdim
+        statetrans = self._build_state_trans(self.statetrans_setting, lastencinnerdim, lastdecinnerdim)
+        self.set_statetrans(statetrans)
+        self.enc = enc
 
 
 class SepAttEncoders(Block):

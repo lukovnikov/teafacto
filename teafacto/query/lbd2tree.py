@@ -184,6 +184,9 @@ class CountNode(PropertyNode):
 class ParseNode(object):
     def __init__(self, name, *children):
         self.children = children
+        for child in self.children:
+            child.parent = self
+        self.parent = None
         self.name = name
 
     @classmethod
@@ -426,11 +429,11 @@ if __name__ == "__main__":
     #s = "(count $0 ( state:t $0 ))"
     #s = "(lambda $0 (capital:t hawaii:s $0))"
     #s = "hawaii:s "
-    #s = "(count $0 (and (state:t $0) (exists $1 (and (city:t $1) (named:t $1 rochester:n) (loc:t $1 $0)))))"
+    s = "(count $0 (and (state:t $0) (exists $1 (and (city:t $1) (named:t $1 rochester:n) (loc:t $1 $0)))))"
     #s = "(population:i (capital:t florida:s))"
     #s = "(lambda $0 e (and (river:t $0) (exists $1 (and (state:t $1) (next_to:t $1 new_mexico:s) (loc:t $0 $1)))))"
     #s = "(lambda $0 e (exists $1 (and (state:t $1) (next_to:t $1 mississippi:s) (high_point:t $1 $0))))"
-    s = "(lambda $0 e (and (place:t $0) (exists $1 (and (state:t $1) (equals:t $0 (argmax $2 (and (place:t $2) (loc:t $2 $1)) (elevation:i $2)))))))"
+    #s = "(lambda $0 e (and (place:t $0) (exists $1 (and (state:t $1) (equals:t $0 (argmax $2 (and (place:t $2) (loc:t $2 $1)) (elevation:i $2)))))))"
     tree = LambdaParser().parse(s)
     print tree
     print tree.depth

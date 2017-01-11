@@ -5,6 +5,7 @@ import numpy as np
 from teafacto.blocks.seq.rnn import SeqDecoder
 from teafacto.blocks.seq.rnu import GRU
 from teafacto.blocks.basic import IdxToOneHot
+from teafacto.core.base import Val
 
 
 class TestSeqDecoder(TestCase):
@@ -24,3 +25,4 @@ class TestSeqDecoder(TestCase):
         dec = SeqDecoder([outemb]+decrnus, innerdim=decdim*2, softmaxoutblock=False, outconcat=True, inconcat=False)
         pred = dec.predict(ctxdata, seqdata)
         self.assertEqual(pred.shape, (2, 3, decdim*2))
+

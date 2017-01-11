@@ -219,6 +219,9 @@ class SeqEncoder(AttentionConsumer, Block):
         else:
             self.block = None
 
+    def apply_argspec(self):
+        return ((2, "int"),) if self.embedder is not None else ((3, "float"),)
+
     def apply(self, seq, weights=None, mask=None): # seq: (batsize, seqlen, dim), weights: (batsize, seqlen) OR (batsize, seqlen, seqlen*, dim) ==> reduce the innermost seqlen
         mask = seq.mask if mask is None else mask
         # embed
@@ -516,6 +519,9 @@ class SeqDecoder(Block):
     @property
     def numstates(self):
         return self.block.numstates
+
+    def apply_argspec(self):
+        return ((3, "float"), (2, "int"))
 
     def apply(self, ctx, seq, initstates=None, mask=None, ctxmask=None, **kw):  # context: (batsize, enc.innerdim), seq: idxs-(batsize, seqlen)
         batsize = seq.dshape[0]

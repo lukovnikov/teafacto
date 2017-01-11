@@ -256,6 +256,10 @@ class Parameter(TensorWrapped):
     def d(self):
         return self.value
 
+    @property
+    def v(self):
+        return self.value.get_value()
+
     def __repr__(self):
         return "param::'%s':%s%s" % (str(self.name), str(self.value.dtype), str(self.value.get_value().shape))
 
@@ -336,6 +340,7 @@ class Elem(object):    # carries name
     def __init__(self, name=None, **kw):
         super(Elem, self).__init__()
         self._name = name
+        self._settings_toprop = {}
 
 
 class Masked(object):
@@ -388,6 +393,10 @@ class Val(Elem, TensorWrapped, Masked):
     @property
     def v(self):
         return self.value.get_value()
+
+    @property
+    def dshape(self):
+        return Var(self.d.shape)
 
 
 class RVal(Elem, TensorWrapped, Masked):    # random value
@@ -519,8 +528,9 @@ class Input(Var): # generates feed + creates symbolic vars for input
 class Block(Elem, Saveable): # block with parameters
     def __init__(self, **kw):
         super(Block, self).__init__(**kw)
-        self._ownparams = set()
-        self._pristine = True
+        self._ownparams = set()     # TODO factor out
+        self._pristine = True       # TODO what is this?
+        self._param_settings_toprop = {}  # settings are propagated from block to its parts through vars
 
     @property
     def param(self):
@@ -539,6 +549,48 @@ class Block(Elem, Saveable): # block with parameters
         self.inputs = []
         self.outputs = []
         super(Block, self).reset()
+
+    def prop_param_setting(self, key, value):     # settings will be applied on next apply call
+        """ Applies only on params uniquely contained within this block.
+            Params that have been used before and are reused in this block (e.g. shared embedding)
+            are not affected by this parameter setting """
+        self._param_settings_toprop[key] = value
+
+    def clear_prop_param_settings(self):
+        self._param_settings_toprop = {}
+
+    def set_lr(self, lr):
+        """ Only applies to params uniquely contained within this block only. """
+        #self.prop_param_setting("lrmul", lr)
+        self._probe_set_lr(lr)
+
+    def _probe_set_lr(self, lr):
+        params = self.get_params()
+        for param in params:
+            param.lrmul = lr
+
+    def get_params(self):
+        probeargs, probekwargs = self.get_probe()
+        o = self(*probeargs, **probekwargs)
+        params = set()
+        o = recurfilter(lambda x: isinstance(x, (Var, Val)), o)
+        for ox in o:
+            params = params.union(ox.allparams)
+        return params
+
+    def get_probe(self):
+        argspec = self.apply_argspec()
+        probe = [Val(np.random.randn(*([1]*x[0])).astype(x[1]+"32")) for x in argspec]
+        return tuple(probe), {}
+
+    def apply_argspec(self):
+        args = inspect.getargspec(self.apply)
+        numprobes = len(args.args) - (len(args.defaults) if args.defaults is not None else 0)
+        numprobes = numprobes - (1 if args.args[0] == "self" else 0)
+        if args.varargs is not None:
+            numprobes += 1
+        argspec = tuple([(2, "int")] * numprobes)
+        return argspec
 
     def apply(self, *vars, **kwargs):
         trueargs = recurmap(lambda x: x.d if hasattr(x, "d") else x, vars)
@@ -595,16 +647,18 @@ class Block(Elem, Saveable): # block with parameters
             batsize = kwargs.pop("_batsize")
         if "_trainmode" in inspect.getargspec(self.apply)[0]:
             kwargs["_trainmode"] = _TRAINMODE
+        # param pushing
         paramstopush = set()        # params to transfer from input vars to output vars
         for var in recurfilter(lambda x: isinstance(x, Var), kwargs) + recurfilter(lambda x: isinstance(x, Var), args):
             paramstopush.update(var._params)
-        if transform is not None and isfunction(transform):
-            args, kwargs = transform(*args, **kwargs)
         updatestopush = _get_updates_from([args, kwargs])
         # extra outs pushing
         extraoutstopush = {}
         for var in recurfilter(lambda x: isinstance(x, Var), kwargs) + recurfilter(lambda x: isinstance(x, Var), args):
             extraoutstopush.update(var._extra_outs)
+
+        if transform is not None and isfunction(transform):
+            args, kwargs = transform(*args, **kwargs)
 
         ret = self.apply(*args, **kwargs)   # ret carries params of its own --> these params have been added in this block
         possiblechildren = recurfilter(lambda x: isinstance(x, Var), ret)
@@ -613,6 +667,10 @@ class Block(Elem, Saveable): # block with parameters
             p.push_params(self.ownparams)
             p.push_updates(updatestopush)
             p.push_extra_outs(extraoutstopush)
+            for k, v in self._param_settings_toprop.items():
+                for param in p.allparams.difference(paramstopush):
+                    if hasattr(param, k):
+                        setattr(param, k, v)
         if oldtrainmode is not None:    # this was where we changed the global _TRAINMODE
             _TRAINMODE = oldtrainmode   # put it back
         return ret
@@ -756,14 +814,25 @@ class OpBlock(Block):
         ownparams = set(params + kwparams)
         if self.root is not None and isinstance(self.root, Parameter):
             ownparams.add(self.root)
-        self.add_params(ownparams)
+        self.add_params(ownparams)      # TODO factor out
+        # prop settings
+        settingstoprop = {}
+        for var in recurfilter(lambda x: isinstance(x, (Var, Val)), [args, kwargs, self.root]):
+            settingstoprop.update(var._settings_toprop)
+
+        # apply propagated settings
+        if "lr" in settingstoprop:
+            for param in ownparams:
+                param.lrmul = settingstoprop["lr"]
+
         # get theano vars for all args
         trueargs = recurmap(lambda x: x.d if hasattr(x, "d") else x, args)
         truekwargs = recurmap(lambda x: x.d if hasattr(x, "d") else x, kwargs)
+
         # apply theano-space Op
         result = self.f(*trueargs, **truekwargs)
         # wrap result in Var and return
-        ret = Var(result)  # , parent=self)
+        ret = Var(result) if not isinstance(result, tuple) else tuple([Var(x) for x in result]) # , parent=self)  # TODO: what if theano op returns multiple outputs
         # do push params to output var
         possiblechildren = recurfilter(lambda x: isinstance(x, (Var, Val)), ret)
         for p in possiblechildren:
@@ -771,6 +840,7 @@ class OpBlock(Block):
             p.push_params(ownparams)
             p.push_updates(updatestopush)
             p.push_extra_outs(extraoutstopush)
+            p._settings_toprop.update(settingstoprop)
         return ret
 
 

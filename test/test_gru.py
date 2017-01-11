@@ -18,6 +18,11 @@ class TestGRUBasic(TestCase):
         grupred = gru.predict(data)
         self.assertEqual(grupred.shape, (batsize, seqlen, innerdim))
 
+    def test_get_params(self):
+        gru = GRU(innerdim=100, dim=20)
+        params = {gru.um, gru.wm, gru.uhf, gru.whf, gru.u, gru.w, gru.bm, gru.bhf, gru.b}
+        self.assertEqual(params, gru.get_params())
+
     def test_gru_with_mask(self):
         indim = 2
         innerdim = 5
