@@ -624,12 +624,12 @@ def run(
 
     if pretrain == True:
         inpemb_auto = WordEmb(worddic=qdic_auto, maskid=maskid, dim=embdim)
-        outemb_auto = WordEmb(worddic=adic_auto, maskid=maskid, dim=embdim)
+        outemb = WordEmb(worddic=adic_auto, maskid=maskid, dim=embdim)
 
     if customemb:
         inpemb, outemb = do_custom_emb(inpemb, outemb, awc, embdim)
         if pretrain:
-            inpemb_auto, outemb_auto = do_custom_emb(inpemb_auto, outemb_auto, awc_auto, embdim)
+            inpemb_auto, outemb = do_custom_emb(inpemb_auto, outemb, awc_auto, embdim)
 
     if posemb:  # use custom emb layers, with positional embeddings
         posembdim = 50
@@ -637,7 +637,7 @@ def run(
         outemb = VectorPosEmb(outemb, amat_t.shape[1], posembdim)
         if pretrain:
             inpemb_auto = VectorPosEmb(inpemb_auto, qmat_auto.shape[1], posembdim)
-            #outemb_auto = VectorPosEmb(outemb_auto, amat_auto.shape[1], posembdim)
+            outemb = VectorPosEmb(outemb, amat_auto.shape[1], posembdim)
 
     smodim = embdim
     smo = SoftMaxOut(indim=encdim + encdim, innerdim=smodim,
