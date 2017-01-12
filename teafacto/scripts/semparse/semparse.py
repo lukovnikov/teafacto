@@ -529,7 +529,8 @@ def run(
         inspectdata=False,
         relinearize="none",
         pretrain=True,
-        pretrainepochs=-1):
+        pretrainepochs=-1,
+        wreg=1e-6):
 
     #TODO: bi-encoder and other beasts
     #TODO: make sure gensample results NOT IN test data
@@ -677,9 +678,11 @@ def run(
         #embed()
         encdec.train([qmat_auto, amat_auto[:, :-1]], amati_auto[:, 1:])\
             .cross_entropy().rmsprop(lr=lr/numbats).grad_total_norm(1.) \
+            .l2(wreg) \
+            .split_validate(splits=10, random=True).cross_entropy().seq_accuracy() \
             .train(numbats_pretrain, pretrainepochs)
 
-        # .split_validate(splits=10, random=True).cross_entropy().seq_accuracy()\
+        # TODO NaN somewhere at 75% in training, in one of RNU's?
 
         encdec.remake_encoder(inpvocsize=max(qdic.values()) + 1,
                               inpembdim=embdim,
