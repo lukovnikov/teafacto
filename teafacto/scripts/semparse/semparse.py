@@ -637,7 +637,7 @@ def run(
         outemb = VectorPosEmb(outemb, amat_t.shape[1], posembdim)
         if pretrain:
             inpemb_auto = VectorPosEmb(inpemb_auto, qmat_auto.shape[1], posembdim)
-            outemb = VectorPosEmb(outemb, amat_auto.shape[1], posembdim)
+            outemb = VectorPosEmb(outemb, max(amat_auto.shape[1], amat_t.shape[1]), posembdim)
 
     smodim = embdim
     smo = SoftMaxOut(indim=encdim + encdim, innerdim=smodim,
@@ -677,8 +677,9 @@ def run(
         #embed()
         encdec.train([qmat_auto, amat_auto[:, :-1]], amati_auto[:, 1:])\
             .cross_entropy().rmsprop(lr=lr/numbats).grad_total_norm(1.) \
-            .split_validate(splits=10, random=True).cross_entropy().seq_accuracy()\
             .train(numbats_pretrain, pretrainepochs)
+
+        # .split_validate(splits=10, random=True).cross_entropy().seq_accuracy()\
 
         encdec.remake_encoder(inpvocsize=max(qdic.values()) + 1,
                               inpembdim=embdim,
