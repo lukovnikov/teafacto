@@ -3,6 +3,7 @@ from teafacto.core.base import tensorops as T
 from teafacto.util import getnumargs
 from teafacto.util import issequence
 from teafacto.blocks.basic import Dropout
+from IPython import embed
 
 
 class RecurrentBlock(Block):     # ancestor class for everything that consumes sequences f32~(batsize, seqlen, ...)
@@ -169,6 +170,7 @@ class RNU(RNUBase):
         acc = []
         for initstate in initstates:
             if isinstance(initstate, int) or initstate.ndim == 0:
+                #embed()
                 acc.append(T.zeros((initstate, self.innerdim)))
             else:
                 acc.append(initstate)

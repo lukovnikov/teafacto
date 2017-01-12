@@ -6,6 +6,7 @@ from teafacto.blocks.seq.rnu import GRU, ReccableBlock, RecurrentBlock, RNUBase
 from teafacto.blocks.basic import IdxToOneHot, Softmax, MatDot, Eye, VectorEmbed, Linear
 from teafacto.core.base import Block, tensorops as T, asblock
 from teafacto.util import issequence, isnumber
+from IPython import embed
 
 
 class RecStack(ReccableBlock):
@@ -242,6 +243,7 @@ class SeqEncoder(AttentionConsumer, Block):
             fullmask = mask
         if weights is not None:
             fullmask = weights if fullmask is None else weights * fullmask
+        #embed()
         final, outputs, states = self.block.innerapply(seqemb, mask=fullmask)
         if mask is not None:
             outputs.mask = mask

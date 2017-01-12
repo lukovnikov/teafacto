@@ -430,6 +430,87 @@ class GenSample(object):
             return encinp, decinp, gold
 
 
+def add_pos_indexes(qmat, oqmat, amat, oamat):
+    qposmat = np.arange(0, qmat.shape[1])[None, :]
+    qposmat = np.repeat(qposmat, qmat.shape[0], axis=0)
+    qmat = np.concatenate([qmat[:, :, None], qposmat[:, :, None]], axis=2)
+    oqmat = np.concatenate([oqmat[:, :, None], qposmat[:, :, None]], axis=2)
+    aposmat = np.arange(0, amat.shape[1])[None, :]
+    aposmat = np.repeat(aposmat, amat.shape[0], axis=0)
+    amati = np.concatenate([amat[:, :, None], aposmat[:, :, None]], axis=2)
+    oamati = np.concatenate([oamat[:, :, None], aposmat[:, :, None]], axis=2)
+    return qmat, oqmat, amat, oamat
+
+
+class RandomCorrupt(object):
+    def __init__(self, p=0.1, corruptdecoder=None, corruptencoder=None, maskid=0):
+        self.corruptdecoder = corruptdecoder  # decoder corrupt range
+        self.corruptencoder = corruptencoder  # encoder corrupt range
+        self.p = p
+        self.maskid = maskid
+
+    def __call__(self, encinp, decinp, gold, phase=None):
+        if phase == "TRAIN":
+            if self.corruptencoder is not None:
+                encinp = self._corruptseq(encinp, self.corruptencoder)
+            if self.corruptdecoder is not None:
+                decinp = self._corruptseq(decinp, self.corruptdecoder)
+        return encinp, decinp, gold
+
+    def _corruptseq(self, seq, range):
+        if self.p > 0:
+            corrupt = np.random.randint(range[0], range[1], seq.shape, dtype="int32")
+            mask = np.random.random(seq.shape) < self.p
+            seqmask = seq != self.maskid
+            mask = np.logical_and(mask, seqmask)
+            outp = ((1 - mask) * seq + mask * corrupt).astype("int32")
+            # embed()
+        else:
+            outp = seq
+        return outp
+
+
+def to_char_level(qmat, amat, qdic, adic, maskid):
+    qmat = wordmat2charmat(qmat, qdic, maxlen=1000, maskid=maskid)
+    amat = wordmat2charmat(amat, adic, maxlen=1000, maskid=maskid)
+    qmat[qmat > 0] += 2
+    amat[amat > 0] += 2
+    qdic = dict([(chr(x), x + 2) for x in range(np.max(qmat))])
+    adic = dict([(chr(x), x + 2) for x in range(np.max(amat))])
+    qdic.update({"<RARE>": 1})
+    adic.update({"<RARE>": 1})
+    print wordids2string(qmat[0], {v: k for k, v in qdic.items()})
+    print wordids2string(amat[0], {v: k for k, v in adic.items()})
+    return qmat, amat, qdic, adic
+
+
+def compute_overlap(qmat_t, amat_t, qmat_x, amat_x):
+    def to_mat_strings(mat):
+        matfs = np.insert(mat, [0], np.max(mat) * np.ones_like(mat[0]), axis=0)
+        return np.apply_along_axis(lambda x: " ".join([str(xe) for xe in list(x)])[1:], 1, matfs)
+    qmatstrings_t, qmatstrings_x, amatstrings_t, amatstrings_x = \
+        map(to_mat_strings, [qmat_t, qmat_x, amat_t, amat_x])
+    matstrings_t, matstrings_x = map(lambda a: map(lambda (x, y): x + y, a), [zip(qmatstrings_t, amatstrings_t), zip(qmatstrings_x, amatstrings_x)])
+    qoverlap = set(qmatstrings_t).intersection(set(qmatstrings_x))
+    aoverlap = set(amatstrings_t).intersection(set(amatstrings_x))
+    overlap = set(matstrings_t).intersection(set(matstrings_x))
+    return qoverlap, aoverlap, overlap
+
+
+def do_custom_emb(inpemb, outemb, awc, embdim):
+    thresh = 10
+    sawc = sorted(awc.items(), key=lambda (k, v): v, reverse=True)
+    rarewords = {k for (k, v) in sawc if v < thresh}
+    g = Glove(embdim)
+    inpemb = inpemb.override(g)
+    outemb = outemb.override(g, which=rarewords)
+    return inpemb, outemb
+
+
+def split_train_test(mat, sep=-279):
+    return mat[:sep], mat[sep:]
+
+
 def run(
         numbats=50,
         epochs=10,
@@ -442,18 +523,22 @@ def run(
         outconcat=True,
         posemb=False,
         customemb=False,
-        charlevel=False,
-        preproc="abstract",     # "none" or "generate" or "abstract" or "gensample"
+        preproc="none",     # "none" or "generate" or "abstract" or "gensample"
         bidir=False,
         corruptnoise=0.0,
         inspectdata=False,
-        frodooverfittins=False,
         relinearize="none",
-        pretrain=True):
+        pretrain=True,
+        pretrainepochs=-1):
 
     #TODO: bi-encoder and other beasts
     #TODO: make sure gensample results NOT IN test data
-    # loaddata
+
+    if pretrain == True:
+        assert(preproc == "none" or preproc == "gensample")
+        pretrainepochs = epochs if pretrainepochs == -1 else pretrainepochs
+
+    ######### DATA LOADING AND TRANSFORMATIONS ###########
     srctransformer = None
     if relinearize != "none":
         lambdaparser = LambdaParser()
@@ -463,15 +548,16 @@ def run(
             def srctransformer(x): return lambdaparser.parse(x).deep_linearize()
         else:
             raise Exception("unknown linearization")
-    if pretrain:
-        qmatauto, amatauto, qdicauto, adicauto, qwcauto, awcauto = \
-            loadgeoauto(reverse=not charlevel, transformer=srctransformer)
+
+    if pretrain:        ### PRETRAIN DATA LOAD ###
+        qmat_auto, amat_auto, qdic_auto, adic_auto, qwc_auto, awc_auto = \
+            loadgeoauto(reverse=True, transformer=srctransformer)
         def pp(i):
-            print wordids2string(qmatauto[i], {v: k for k, v in qdicauto.items()}, 0)
-            print wordids2string(amatauto[i], {v: k for k, v in adicauto.items()}, 0)
+            print wordids2string(qmat_auto[i], {v: k for k, v in qdic_auto.items()}, 0)
+            print wordids2string(amat_auto[i], {v: k for k, v in adic_auto.items()}, 0)
         if inspectdata:
             embed()
-    qmat, amat, qdic, adic, qwc, awc = loadgeo(customemb=customemb, reverse=not charlevel, transformer=srctransformer)
+    qmat, amat, qdic, adic, qwc, awc = loadgeo(customemb=customemb, reverse=True, transformer=srctransformer)
 
     maskid = 0
     typdic = None
@@ -479,70 +565,88 @@ def run(
     oamat = amat.copy()
     print "{} is preproc".format(preproc)
     if preproc != "none":
-        qmat, amat, qdic, adic, qwc, awc = preprocess(qmat, amat, qdic, adic, qwc, awc, maskid, qreversed=not charlevel, dorare=preproc != "generate")
-        if preproc == "generate":
+        qmat, amat, qdic, adic, qwc, awc = preprocess(qmat, amat, qdic, adic, qwc, awc, maskid, qreversed=True, dorare=preproc != "generate")
+        if preproc == "generate":   # alters size
             print "generating"
-            qmat, amat = generate(qmat, amat, qdic, adic, oqmat, oamat, reversed=not charlevel)
+            qmat, amat = generate(qmat, amat, qdic, adic, oqmat, oamat, reversed=True)
             #embed()
         elif preproc == "gensample":
             typdic = gentypdic(qdic, adic)
 
-    # overlap computing
-    qmatfs = np.insert(qmat, [0], np.max(qmat) * np.ones_like(qmat[0]), axis=0)
-    amatfs = np.insert(amat, [0], np.max(amat) * np.ones_like(amat[0]), axis=0)
-    qmatstrings = np.apply_along_axis(lambda x: " ".join([str(xe) for xe in list(x)]), 1, qmatfs)
-    amatstrings = np.apply_along_axis(lambda x: " ".join([str(xe) for xe in list(x)]), 1, amatfs)
-    qmatstrings = qmatstrings[1:]
-    amatstrings = amatstrings[1:]
-    matstrings = [x + y for x, y in zip(qmatstrings, amatstrings)]
-    qoverlap = set(qmatstrings[:600]).intersection(set(qmatstrings[600:]))
-    aoverlap = set(amatstrings[:600]).intersection(set(amatstrings[600:]))
-    overlap = set(matstrings[:600]).intersection(set(matstrings[600:]))
-    print "overlaps: {}, {}: {} / {}".format(len(qoverlap), len(aoverlap), len(overlap), len(amatstrings[600:]))
-    embed()
-    if charlevel:
-        qmat = wordmat2charmat(qmat, qdic, maxlen=1000, maskid=maskid)
-        amat = wordmat2charmat(amat, adic, maxlen=1000, maskid=maskid)
-        qmat[qmat > 0] += 2
-        amat[amat > 0] += 2
-        qdic = dict([(chr(x), x + 2) for x in range(np.max(qmat))])
-        adic = dict([(chr(x), x + 2) for x in range(np.max(amat))])
-        qdic.update({"<RARE>": 1})
-        adic.update({"<RARE>": 1})
-        print wordids2string(qmat[0], {v: k for k, v in qdic.items()})
-        print wordids2string(amat[0], {v: k for k, v in adic.items()})
+    ######### train/test split from here #########
+    qmat_t, qmat_x = split_train_test(qmat)
+    amat_t, amat_x = split_train_test(amat)
+    oqmat_t, oqmat_x = split_train_test(oqmat)
+    oamat_t, oamat_x = split_train_test(oamat)
+
+    qoverlap, aoverlap, overlap = compute_overlap(qmat_t, amat_t, qmat_x, amat_x)
+    print "overlaps: {}, {}: {}".format(len(qoverlap), len(aoverlap), len(overlap))
+
+    if inspectdata:
+        embed()
 
     np.random.seed(12345)
-
-    #embed()
 
     encdimi = [encdim/2 if bidir else encdim] * layers
     decdimi = [encdim] * layers
 
+    amati_t, amati_x = amat_t, amat_x
+    oamati_t, oamati_x = oamat_t, oamat_x
+    if pretrain:
+        amati_auto = amat_auto
+
+    if posemb:      # add positional indexes to datamatrices
+        qmat_t, oqmat_t, amat_t, oamat_t = add_pos_indexes(qmat_t, oqmat_t, amat_t, oamat_t)
+        qmat_x, oqmat_x, amat_x, oamat_x = add_pos_indexes(qmat_x, oqmat_x, amat_x, oamat_x)
+
+    if preproc == "gensample":
+        qmat_x, amat_x, amati_x = oqmat_x, oamat_x, oamati_x
+
+    rqdic = {v: k for k, v in qdic.items()}
+    radic = {v: k for k, v in adic.items()}
+
+    def tpp(i):
+        print wordids2string(qmat_t[i], rqdic, 0)
+        print wordids2string(amat_t[i], radic, 0)
+
+    def xpp(i):
+        print wordids2string(qmat_x[i], rqdic, 0)
+        print wordids2string(amat_x[i], radic, 0)
+
+    if inspectdata:
+        embed()
+    print "{} training examples".format(qmat_t.shape[0])
+
+    ################## MODEL DEFINITION ##################
+    # encdec prerequisites
     inpemb = WordEmb(worddic=qdic, maskid=maskid, dim=embdim)
     outemb = WordEmb(worddic=adic, maskid=maskid, dim=embdim)
 
-    if customemb:
-        thresh = 10
-        sawc = sorted(awc.items(), key=lambda (k, v): v, reverse=True)
-        rarewords = {k for (k, v) in sawc if v < thresh}
-        g = Glove(embdim)
-        inpemb = inpemb.override(g)
-        outemb = outemb.override(g, which=rarewords)
+    if pretrain == True:
+        inpemb_auto = WordEmb(worddic=qdic_auto, maskid=maskid, dim=embdim)
+        outemb_auto = WordEmb(worddic=adic_auto, maskid=maskid, dim=embdim)
 
-    if posemb:      # custom emb layers, with positional embeddings
+    if customemb:
+        inpemb, outemb = do_custom_emb(inpemb, outemb, awc, embdim)
+        if pretrain:
+            inpemb_auto, outemb_auto = do_custom_emb(inpemb_auto, outemb_auto, awc_auto, embdim)
+
+    if posemb:  # use custom emb layers, with positional embeddings
         posembdim = 50
-        inpemb = VectorPosEmb(inpemb, qmat.shape[1], posembdim)
-        outemb = VectorPosEmb(outemb, amat.shape[1], posembdim)
+        inpemb = VectorPosEmb(inpemb, qmat_t.shape[1], posembdim)
+        outemb = VectorPosEmb(outemb, amat_t.shape[1], posembdim)
+        if pretrain:
+            inpemb_auto = VectorPosEmb(inpemb_auto, qmat_auto.shape[1], posembdim)
+            #outemb_auto = VectorPosEmb(outemb_auto, amat_auto.shape[1], posembdim)
 
     smodim = embdim
-    smo = SoftMaxOut(indim=encdim+encdim, innerdim=smodim,
-                     outvocsize=len(adic)+1, dropout=dropout)
+    smo = SoftMaxOut(indim=encdim + encdim, innerdim=smodim,
+                     outvocsize=len(adic) + 1, dropout=dropout)
 
     if customemb:
         smo.setlin2(outemb.baseemb.W.T)
 
-    # make seq/dec+att
+    # encdec model
     encdec = SimpleSeqEncDecAtt(inpvocsize=max(qdic.values()) + 1,
                                 inpembdim=embdim,
                                 inpemb=inpemb,
@@ -561,97 +665,36 @@ def run(
                                 bidir=bidir,
                                 )
 
-    encdec.dec.set_lr(0.1)
-    encdec.enc.init(inpvocsize=1, inpembdim=2, inpemb=None, encdim=100)
+    ################## TRAINING ##################
+    if pretrain == True:
+        encdec.remake_encoder(inpvocsize=max(qdic_auto.values()) + 1,
+                              inpembdim=embdim,
+                              inpemb=inpemb_auto)
+        import math
+        batsize = int(math.ceil(qmat_t.shape[0] * 1.0 / numbats))
+        numbats_pretrain = int(math.ceil(qmat_auto.shape[0] * 1.0 / batsize))
 
-    amati = amat
-    oamati = oamat
+        #embed()
+        encdec.train([qmat_auto, amat_auto[:, :-1]], amati_auto[:, 1:])\
+            .cross_entropy().rmsprop(lr=lr/numbats).grad_total_norm(1.) \
+            .split_validate(splits=10, random=True).cross_entropy().seq_accuracy()\
+            .train(numbats_pretrain, pretrainepochs)
 
-    class RandomCorrupt(object):
-        def __init__(self, p = 0.1, corruptdecoder=None, corruptencoder=None, maskid=0):
-            self.corruptdecoder = corruptdecoder    # decoder corrupt range
-            self.corruptencoder = corruptencoder    # encoder corrupt range
-            self.p = p
-            self.maskid = maskid
+        encdec.remake_encoder(inpvocsize=max(qdic.values()) + 1,
+                              inpembdim=embdim,
+                              inpemb=inpemb)
+        encdec.dec.set_lr(0.0)
 
-        def __call__(self, encinp, decinp, gold, phase=None):
-            if phase == "TRAIN":
-                if self.corruptencoder is not None:
-                    encinp = self._corruptseq(encinp, self.corruptencoder)
-                if self.corruptdecoder is not None:
-                    decinp = self._corruptseq(decinp, self.corruptdecoder)
-            return encinp, decinp, gold
-
-        def _corruptseq(self, seq, range):
-            if self.p > 0:
-                corrupt = np.random.randint(range[0], range[1], seq.shape, dtype="int32")
-                mask = np.random.random(seq.shape) < self.p
-                seqmask = seq != self.maskid
-                mask = np.logical_and(mask, seqmask)
-                outp = ((1 - mask) * seq + mask * corrupt).astype("int32")
-                #embed()
-            else:
-                outp = seq
-            return outp
-
-    if posemb:
-        qposmat = np.arange(0, qmat.shape[1])[None, :]
-        qposmat = np.repeat(qposmat, qmat.shape[0], axis=0)
-        qmat = np.concatenate([qmat[:, :, None], qposmat[:, :, None]], axis=2)
-        oqmat = np.concatenate([oqmat[:, :, None], qposmat[:, :, None]], axis=2)
-        aposmat = np.arange(0, amat.shape[1])[None, :]
-        aposmat = np.repeat(aposmat, amat.shape[0], axis=0)
-        amati = np.concatenate([amat[:, :, None], aposmat[:, :, None]], axis=2)
-        oamati = np.concatenate([oamat[:, :, None], aposmat[:, :, None]], axis=2)
-
-    #"""
-    tqmat = qmat[:-279]
-    tamat = amat[:-279]
-    tamati = amati[:-279]
-    xqmat = qmat[-279:]
-    xamat = amat[-279:]
-    xamati = amati[-279:]
-    if preproc == "gensample":
-        xqmat = oqmat[-279:]
-        xamat = oamat[-279:]
-        xamati = oamati[-279:]
-        if frodooverfittins:
-            xqmat = oqmat[:279]
-            xamat = oamat[:279]
-            xamati = oamati[:279]
-    """
-    tqmat = qmat[279:]
-    tamat = amat[279:]
-    tamati = amati[279:]
-    xqmat = qmat[:279]
-    xamat = amat[:279]
-    xamati = amati[:279]
-    """
-
-    rqdic = {v: k for k, v in qdic.items()}
-    radic = {v: k for k, v in adic.items()}
-
-    def tpp(i):
-        print wordids2string(tqmat[i], rqdic, 0)
-        print wordids2string(tamat[i], radic, 0)
-    def xpp(i):
-        print wordids2string(xqmat[i], rqdic, 0)
-        print wordids2string(xamat[i], radic, 0)
-    if inspectdata:
-        embed()
-    print "{} training examples".format(tqmat.shape[0])
-
-    encdec.train([tqmat, tamati[:, :-1]], tamat[:, 1:])\
+    encdec.train([qmat_t, amat_t[:, :-1]], amati_t[:, 1:])\
         .sampletransform(GenSample(typdic),
                          RandomCorrupt(corruptdecoder=(2, max(adic.values()) + 1),
                                        corruptencoder=(2, max(qdic.values()) + 1),
                                        maskid=maskid, p=corruptnoise))\
         .cross_entropy().rmsprop(lr=lr/numbats).grad_total_norm(1.) \
-        .validate_on([xqmat, xamati[:, :-1]], xamat[:, 1:]) \
+        .validate_on([qmat_x, amati_x[:, :-1]], amat_x[:, 1:]) \
         .cross_entropy().seq_accuracy()\
         .train(numbats, epochs)
     #.split_validate(splits=10, random=True)\
-
 
     qrwd = {v: k for k, v in qdic.items()}
     arwd = {v: k for k, v in adic.items()}
@@ -662,9 +705,9 @@ def run(
             hidecorrect = kw["hidecorrect"]
         if len(x) == 1:
             x = x[0]
-            q = wordids2string(xqmat[x], rwd=qrwd, maskid=maskid, reverse=True)
-            ga = wordids2string(xamat[x, 1:], rwd=arwd, maskid=maskid)
-            pred = encdec.predict(xqmat[x:x+1], xamati[x:x+1, :-1])
+            q = wordids2string(qmat_x[x], rwd=qrwd, maskid=maskid, reverse=True)
+            ga = wordids2string(amat_x[x, 1:], rwd=arwd, maskid=maskid)
+            pred = encdec.predict(qmat_x[x:x+1], amati_x[x:x+1, :-1])
             pa = wordids2string(np.argmax(pred[0], axis=1), rwd=arwd, maskid=maskid)
             if hidecorrect and ga == pa[:len(ga)]:  # correct
                 return False
@@ -674,7 +717,7 @@ def run(
                 print pa
                 return True
         elif len(x) == 0:
-            for i in range(0, xqmat.shape[0]):
+            for i in range(0, qmat_x.shape[0]):
                 r = play(i)
                 if r:
                     raw_input()

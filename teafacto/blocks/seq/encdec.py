@@ -5,6 +5,7 @@ from teafacto.blocks.seq.attention import Attention, WeightedSumAttCon, AttGen
 from teafacto.blocks.basic import MatDot
 from teafacto.blocks.match import CosineDistance, DotDistance
 from teafacto.use.recsearch import SeqEncDecWrapper
+from IPython import embed
 
 
 class SeqEncDec(Block):
@@ -68,22 +69,22 @@ class SimpleSeqEncDecAtt(SeqEncDec):
                  attdist=CosineDistance(),
                  sepatt=False,
                  **kw):
-        encinnerdim = [encdim] if not issequence(encdim) else encdim
-        decinnerdim = [decdim] if not issequence(decdim) else decdim
+        self.encinnerdim = [encdim] if not issequence(encdim) else encdim
+        self.decinnerdim = [decdim] if not issequence(decdim) else decdim
 
         # encoder
         if sepatt:
             enc = self._getencoder_sepatt(indim=inpvocsize, inpembdim=inpembdim, inpemb=inpemb,
-                            innerdim=encinnerdim, bidir=bidir, maskid=maskid,
+                            innerdim=self.encinnerdim, bidir=bidir, maskid=maskid,
                             dropout_in=dropout, dropout_h=dropout, rnu=rnu)
         else:
             enc = self._getencoder(indim=inpvocsize, inpembdim=inpembdim, inpemb=inpemb,
-                                innerdim=encinnerdim, bidir=bidir, maskid=maskid,
+                                innerdim=self.encinnerdim, bidir=bidir, maskid=maskid,
                                 dropout_in=dropout, dropout_h=dropout, rnu=rnu)
         self.lastencinnerdim = enc.outdim
 
         # attention
-        self.lastdecinnerdim = decinnerdim[-1]
+        self.lastdecinnerdim = self.decinnerdim[-1]
         attgen = AttGen(attdist)
         attcon = WeightedSumAttCon()
         attention = Attention(attgen, attcon, separate=sepatt)
@@ -92,7 +93,7 @@ class SimpleSeqEncDecAtt(SeqEncDec):
         dec = SeqDecoder.RNN(
             emb=outemb, embdim=outembdim, embsize=outvocsize, maskid=maskid,
             ctxdim=self.lastencinnerdim, attention=attention,
-            innerdim=decinnerdim, inconcat=inconcat,
+            innerdim=self.decinnerdim, inconcat=inconcat,
             softmaxoutblock=vecout, outconcat=outconcat,
             dropout=dropout, rnu=rnu, dropout_h=dropout,
         )
@@ -135,7 +136,7 @@ class SimpleSeqEncDecAtt(SeqEncDec):
     def remake_encoder(self, inpvocsize=None, inpembdim=None, inpemb=None, innerdim=None,
                        bidir=False, maskid=-1, dropout_in=False, dropout_h=False, rnu=GRU,
                        sepatt=False):
-        innerdim = [innerdim] if not issequence(innerdim) else innerdim
+        innerdim = ([innerdim] if not issequence(innerdim) else innerdim) if innerdim is not None else self.encinnerdim
         if sepatt:
             enc = self._getencoder_sepatt(indim=inpvocsize, inpembdim=inpembdim, inpemb=inpemb,
                                     innerdim=innerdim, bidir=bidir, maskid=maskid,
