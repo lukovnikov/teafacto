@@ -677,7 +677,7 @@ def run(
 
         #embed()
         encdec.train([qmat_auto, amat_auto[:, :-1]], amati_auto[:, 1:])\
-            .cross_entropy().rmsprop(lr=lr/numbats).grad_total_norm(1.) \
+            .cross_entropy().adadelta(lr=lr/numbats).grad_total_norm(1.) \
             .l2(wreg) \
             .split_validate(splits=10, random=True).cross_entropy().seq_accuracy() \
             .train(numbats_pretrain, pretrainepochs)
@@ -695,6 +695,7 @@ def run(
                                        corruptencoder=(2, max(qdic.values()) + 1),
                                        maskid=maskid, p=corruptnoise))\
         .cross_entropy().rmsprop(lr=lr/numbats).grad_total_norm(1.) \
+        .l2(wreg) \
         .validate_on([qmat_x, amati_x[:, :-1]], amat_x[:, 1:]) \
         .cross_entropy().seq_accuracy()\
         .train(numbats, epochs)
