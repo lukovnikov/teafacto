@@ -678,7 +678,7 @@ def run(
         #embed()
         encdec.train([qmat_auto, amat_auto[:, :-1]], amati_auto[:, 1:])\
             .cross_entropy().adadelta(lr=lr/numbats_pretrain).grad_total_norm(1.) \
-            .l2(wreg) \
+            .l2(wreg).exp_mov_avg(0.95) \
             .split_validate(splits=10, random=True).cross_entropy().seq_accuracy() \
             .train(numbats_pretrain, pretrainepochs)
 
