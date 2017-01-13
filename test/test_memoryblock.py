@@ -57,7 +57,7 @@ class TestMemoryBlock(TestCase):
         p = memb.predict
         memory_element = p(idxs)
         self.assertEqual(memory_element.shape, (len(idxs), encdim))
-        gruparams = set([getattr(gru, pname) for pname in gru.paramnames])
+        gruparams = set([getattr(gru, pname) for pname in "u w b uhf whf bhf um wm bm".split()])
         allparams = set(p.outs[0].allparams)
         self.assertEqual(gruparams.intersection(allparams), allparams)
 
@@ -77,7 +77,7 @@ class TestMemoryBlock(TestCase):
         p = dynmemb.predict
         memory_element = p(idxs, data)
         self.assertEqual(memory_element.shape, (len(idxs), encdim))
-        gruparams = set([getattr(gru, pname) for pname in gru.paramnames])
+        gruparams = set([getattr(gru, pname) for pname in "u w b uhf whf bhf um wm bm".split()])
         allparams = set(p.outs[0].allparams)
         self.assertEqual(gruparams.intersection(allparams), allparams)
 

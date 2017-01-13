@@ -1,8 +1,9 @@
 from unittest import TestCase
-from teafacto.blocks.basic import IdxToOneHot, MatDot, Linear, Softmax, Switch
+from teafacto.blocks.basic import IdxToOneHot, MatDot, Linear, Softmax, Switch, ForwardHighway
 from teafacto.core.base import Val
 from teafacto.core.stack import stack
 import numpy as np
+
 
 class TestBasic(TestCase):
     def test_idx_to_one_hot(self):
@@ -60,6 +61,52 @@ class TestLinear(TestCase):
         l1 = Linear(10, 11)
         l2 = Linear(11, 12)
         l3 = Linear(12, 13)
+        s = stack(l1, l2, l3)
+        s[1].set_lr(0.5)
+        s[2].set_lr(0.1)
+        o = s(Val(0))
+        l1o = s[0](Val(0))
+        l2o = s[1](Val(0))
+        l3o = s[2](Val(0))
+        print ["{}: {}".format(x, x.lrmul) for x in o.allparams]
+        for x in o.allparams:
+            if x in l1o.allparams:
+                self.assertEqual(x.lrmul, 1.0)
+            elif x in l2o.allparams:
+                self.assertEqual(x.lrmul, 0.5)
+            elif x in l3o.allparams:
+                self.assertEqual(x.lrmul, 0.1)
+        s.set_lr(0.21)
+        o = s(Val(0))
+        print ["{}: {}".format(x, x.lrmul) for x in o.allparams]
+        for x in o.allparams:
+            self.assertEqual(x.lrmul, 0.21)
+
+
+class TestForwardHighway(TestCase):
+    def setUp(self):
+        self.m = ForwardHighway(indim=10, dim=15)
+        self.data = np.random.random((100, 10))
+        self.out = self.m.predict(self.data)
+
+    def test_shapes(self):
+        self.assertEqual(self.out.shape, (100, 15))
+
+    def test_set_lr(self):
+        self.m.set_lr(0.123)
+        o = self.m(Val(0))
+        # print ["{}: {}".format(x, x.lrmul) for x in o.allparams]
+        for x in o.allparams:
+            self.assertEqual(x.lrmul, 0.123)
+
+    def test_get_params(self):
+        params = {self.m.W, self.m.b, self.m.W_t, self.m.W_c, self.m.b_c}
+        self.assertEqual(params, self.m.get_params())
+
+    def test_multilevel_set_lr(self):
+        l1 = ForwardHighway(10, 11)
+        l2 = ForwardHighway(11, 12)
+        l3 = ForwardHighway(12, 13)
         s = stack(l1, l2, l3)
         s[1].set_lr(0.5)
         s[2].set_lr(0.1)

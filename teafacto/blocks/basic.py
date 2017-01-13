@@ -2,6 +2,7 @@ from teafacto.core.base import Block, tensorops as T, param, Val, Var, RVal, Par
 from teafacto.util import issequence, isfunction
 import numpy as np
 
+default_carry_bias = 1
 
 class ConcatBlock(Block):
     def __init__(self, *blocks, **lw):
@@ -59,10 +60,12 @@ class MatDot(Block):
 
 
 class Linear(Block):
-    def __init__(self, indim, dim, w_init="uniform", b_init="uniform", dropout=False, **kw):
+    def __init__(self, indim, dim, w_init="glorotuniform", b_init="uniform", dropout=False, **kw):
         super(Linear, self).__init__(**kw)
         self.indim = indim
         self.dim = dim
+        self.w_init = w_init
+        self.b_init = b_init
         self.W = param((self.indim, self.dim), name="linear_W").init(w_init)
         self.b = param((self.dim,), name="linear_b").init(b_init)
         self.dropout = Dropout(dropout)
@@ -70,6 +73,42 @@ class Linear(Block):
     def apply(self, inp):
         inp = self.dropout(inp)
         return T.dot(inp, self.W) + self.b
+
+
+class Forward(Linear):
+    def __init__(self, indim, dim, activation=T.tanh, w_init="glorotuniform",
+                 b_init="uniform", dropout=False, **kw):
+        super(Forward, self).__init__(indim, dim, w_init=w_init, b_init=b_init, dropout=dropout, **kw)
+        self.activation = activation
+
+    def apply(self, inp):
+        inp = super(Forward, self).apply(inp)
+        return self.activation(inp)
+
+
+class ForwardHighway(Forward):
+    def __init__(self, indim, dim, w_init="glorotuniform", b_init="uniform",
+                 init_carry_bias=True, dropout=False, carry_activation=T.nnet.sigmoid, **kw):
+        """ init_carry_bias sets carry gate bias to negative value to encourage carry behavior (see Highway Networks paper) """
+        super(ForwardHighway, self).__init__(indim, dim, w_init=w_init, b_init=b_init, dropout=dropout, **kw)
+        self.carry_activation = carry_activation
+        self.W_t = None
+        if indim != dim:
+            self.W_t = param((indim, dim), name="W_t").init(self.w_init)
+        self.W_c = param((self.indim, self.dim), name="carry_W").init(self.w_init)
+        if init_carry_bias > 0:
+            amnt = default_carry_bias if init_carry_bias is True else init_carry_bias
+            self.b_c = param((self.dim,), name="carry_b").constant(-amnt)
+        else:
+            self.b_c = param((self.dim,), name="carry_b").init(self.b_init)
+
+    def apply(self, inp):
+        carry = self.carry_activation(T.dot(inp, self.W_c) + self.b_c)
+        pre = super(ForwardHighway, self).apply(inp)
+        if self.W_t is not None:
+            inp = T.dot(inp, self.W_t)
+        ret = pre * carry + (1 - carry) * inp
+        return ret
 
 
 class Embedder(Block):

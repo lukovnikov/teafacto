@@ -5,6 +5,7 @@ from teafacto.util import issequence
 from teafacto.blocks.basic import Dropout
 from IPython import embed
 
+default_init_carry_gate_bias = 1
 
 class RecurrentBlock(Block):     # ancestor class for everything that consumes sequences f32~(batsize, seqlen, ...)
     def __init__(self, reverse=False, **kw):
@@ -85,11 +86,9 @@ class ReccableBlock(RecurrentBlock):    # exposes a rec function
 
 
 class RNUBase(ReccableBlock):
-    paramnames = []
-    _waitforit = False
 
     def __init__(self, dim=20, innerdim=20, wreg=0.0001,
-                 initmult=0.1, nobias=False, paraminit="glorotuniform",
+                 initmult=0.1, nobias=False, paraminit="glorotuniform", biasinit="uniform",
                  dropout_in=False, dropout_h=False, **kw): #layernormalize=False): # dim is input dimensions, innerdim = dimension of internal elements
         super(RNUBase, self).__init__(**kw)
         self.indim = dim
@@ -98,14 +97,13 @@ class RNUBase(ReccableBlock):
         self.initmult = initmult
         self.nobias = nobias
         self.paraminit = paraminit
+        self.biasinit = biasinit
         '''self.layernormalize = layernormalize
         if self.layernormalize:
             self.layernorm_gain = param((innerdim,), name="layer_norm_gain").uniform()
             self.layernorm_bias = param((innerdim,), name="layer_norm_bias").uniform()
             #self.nobias = True'''
         self.rnuparams = {}
-        if not self._waitforit:
-            self.initparams()
         self.dropout_in = Dropout(dropout_in)
         self.dropout_h = Dropout(dropout_h)
     '''
@@ -129,40 +127,21 @@ class RNUBase(ReccableBlock):
         outs = self.rec(*(inps + mystates))
         return outs[0], outs[1:], tail
 
-    def initparams(self):
-        for n, _ in self.rnuparams.items():        # delete existing params
-            if hasattr(self, n):
-                delattr(self, n)
-        self.rnuparams = {}
-        for paramname in self.paramnames:
-            shape = None
-            if isinstance(paramname, tuple):
-                shape = paramname[1]
-                paramname = paramname[0]
-            if paramname[0] == "b" and self.nobias is True:
-                setattr(self, paramname, 0)
-                continue
-            if shape is None:
-                startname = paramname[0]
-                namesuffix = paramname[-2:] if len(paramname) > 1 else paramname
-                rdim = self.indim if namesuffix == "_x" else self.innerdim
-                if startname == "b" or startname == "p":
-                    shape = (rdim,)
-                    self.paraminit = "uniform"
-                elif startname == "w":
-                    shape = (self.indim, rdim)
-                else:
-                    shape = (self.innerdim, rdim)
-            self.rnuparams[paramname] = param(shape, name=paramname).init(self.paraminit)
-            setattr(self, paramname, self.rnuparams[paramname])
-
 
 class RNU(RNUBase):
-    paramnames = ["u", "w", "b"]
 
     def __init__(self, outpactivation=T.tanh, **kw):
         self.outpactivation = outpactivation
         super(RNU, self).__init__(**kw)
+        self.makeparams()
+
+    def makeparams(self):
+        self.w = param((self.indim, self.innerdim), name="w").init(self.paraminit)
+        self.u = param((self.innerdim, self.innerdim), name="u").init(self.paraminit)
+        if self.nobias is False:
+            self.b = param((self.innerdim,), name="b").init(self.biasinit)
+        else:
+            self.b = 0
 
     def get_init_info(self, initstates):    # either a list of init states or the batsize
         if not issequence(initstates):
@@ -188,8 +167,9 @@ class RNU(RNUBase):
 
 
 class GatedRNU(RNU):
-    def __init__(self, gateactivation=T.nnet.sigmoid, **kw):
+    def __init__(self, gateactivation=T.nnet.sigmoid, init_carry_bias=True, **kw):
         self.gateactivation = gateactivation
+        self._init_carry_bias = init_carry_bias
         super(GatedRNU, self).__init__(**kw)
 
     def rec(self, *args):
@@ -197,7 +177,25 @@ class GatedRNU(RNU):
 
 
 class GRU(GatedRNU):
-    paramnames = ["um", "wm", "uhf", "whf", "u", "w", "bm", "bhf", "b"]
+
+    def makeparams(self):
+        self.w = param((self.indim, self.innerdim), name="w").init(self.paraminit)
+        self.wm = param((self.indim, self.innerdim), name="wm").init(self.paraminit)
+        self.whf = param((self.indim, self.innerdim), name="whf").init(self.paraminit)
+        self.u = param((self.innerdim, self.innerdim), name="u").init(self.paraminit)
+        self.um = param((self.innerdim, self.innerdim), name="um").init(self.paraminit)
+        self.uhf = param((self.innerdim, self.innerdim), name="uhf").init(self.paraminit)
+        if not self.nobias:
+            self.b = param((self.innerdim,), name="b").init(self.biasinit)
+            if self._init_carry_bias > 0:
+                amnt = default_init_carry_gate_bias\
+                    if self._init_carry_bias is True else self._init_carry_bias
+                self.bm = param((self.innerdim,), name="bm").constant(amnt)
+            else:
+                self.bm = param((self.innerdim,), name="bm").init(self.biasinit)
+            self.bhf = param((self.innerdim,), name="bhf").init(self.biasinit)
+        else:
+            self.b, self.bm, self.bhf = 0, 0, 0
 
     def rec(self, x_t, h_tm1):
         '''
@@ -222,14 +220,13 @@ class RHN(GatedRNU):
             # TODO maybe move one abstraction layer higher
 
 
-class IFGRU(GatedRNU):      # input-modulating GRU
-    def __init__(self, **kw):
-        self._waitforit = True
-        super(IFGRU, self).__init__(**kw)
-        self.paramnames = ["um", "wm", "uhf", "whf",
-                           ("uif", (self.innerdim, self.indim)), ("wif", (self.indim, self.indim)),
-                           "u", "w", "bm", "bhf", ("bif", (self.indim,)), "b"]
-        self.initparams()
+class IFGRU(GRU):      # input-modulating GRU
+
+    def makeparams(self):
+        super(IFGRU, self).makeparams()
+        self.uif = param((self.innerdim, self.indim), name="uif").init(self.paraminit)
+        self.wif = param((self.indim, self.innerdim), name="wif").init(self.paraminit)
+        self.bif = param((self.indim,), name="bif").init(self.biasinit)
 
     def rec(self, x_t, h_tm1):
         '''
@@ -248,7 +245,32 @@ class IFGRU(GatedRNU):      # input-modulating GRU
 
 
 class LSTM(GatedRNU):
-    paramnames = ["wf", "rf", "bf", "wi", "ri", "bi", "wo", "ro", "bo", "w", "r", "b", "pf", "pi", "po"]
+    def makeparams(self):
+        self.w = param((self.indim, self.innerdim), name="w").init(self.paraminit)
+        self.wf = param((self.indim, self.innerdim), name="wf").init(self.paraminit)
+        self.wi = param((self.indim, self.innerdim), name="wi").init(self.paraminit)
+        self.wo = param((self.indim, self.innerdim), name="wo").init(self.paraminit)
+        self.r = param((self.innerdim, self.innerdim), name="r").init(self.paraminit)
+        self.rf = param((self.innerdim, self.innerdim), name="rf").init(self.paraminit)
+        self.ri = param((self.innerdim, self.innerdim), name="ri").init(self.paraminit)
+        self.ro = param((self.innerdim, self.innerdim), name="ro").init(self.paraminit)
+        if not self.nobias:
+            self.b = param((self.innerdim,), name="b").init(self.biasinit)
+            if self._init_carry_bias > 0:
+                amnt = default_init_carry_gate_bias\
+                    if self._init_carry_bias is True else self._init_carry_bias
+                self.bf = param((self.innerdim,), name="bf").constant(amnt)
+                self.bi = param((self.innerdim,), name="bi").constant(-amnt)
+            else:
+                self.bf = param((self.innerdim,), name="bf").init(self.biasinit)
+                self.bi = param((self.innerdim,), name="bi").init(self.biasinit)
+            self.bo = param((self.innerdim,), name="bo").init(self.biasinit)
+        else:
+            self.b, self.bf, self.bi, self.bo = 0, 0, 0, 0
+        self.p = param((self.innerdim,), name="p").init(self.biasinit)
+        self.pf = param((self.innerdim,), name="pf").init(self.biasinit)
+        self.pi = param((self.innerdim,), name="pi").init(self.biasinit)
+        self.po = param((self.innerdim,), name="po").init(self.biasinit)
 
     def rec(self, x_t, y_tm1, c_tm1):
         x_t = self.dropout_in(x_t)
