@@ -205,6 +205,7 @@ class Parameter(TensorWrapped):
     def __init__(self, value, name=None, lrmul=1., regmul=1., shape=None):
         self.initializer = None
         this = self
+        self.value = None
         self.name = str(name) if name is not None else "auto" + str(np.random.randint(0, 10000))
         if isinstance(value, theano.compile.sharedvalue.SharedVariable):
             self.value = value
@@ -219,7 +220,7 @@ class Parameter(TensorWrapped):
                 self.shape = shape
                 self.oncompleteshape(shape)
         elif isinstance(value, Val):
-            self.value = value.d.astype(theano.config.floatX)
+            self.value = theano.shared(value.d.astype(theano.config.floatX))
             self.shape = value.d.get_value().shape
             self.initializer = lambda: value.d.get_value()
             self.value.name = self.name
@@ -231,6 +232,7 @@ class Parameter(TensorWrapped):
         self.lrmul = lrmul
         self.regmul = regmul
         self.constraints = []
+        self.ema_value = None
 
     def oncompleteshape(self, shape):
         self.shape = shape
@@ -254,6 +256,14 @@ class Parameter(TensorWrapped):
 
     @property
     def d(self):
+        global _TRAINMODE
+        if _TRAINMODE is True:
+            return self.value
+        elif _TRAINMODE is False:
+            if self.ema_value is not None:
+                return self.ema_value
+            else:
+                return self.value
         return self.value
 
     @property

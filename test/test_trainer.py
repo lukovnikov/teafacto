@@ -7,7 +7,7 @@ from teafacto.core.trainer import ModelTrainer
 
 from teafacto.core.base import Block
 from teafacto.blocks.match import MatchScore, DotDistance, CosineDistance, EuclideanDistance
-from teafacto.blocks.basic import VectorEmbed
+from teafacto.blocks.basic import VectorEmbed, MatDot
 from teafacto.blocks.lang.wordvec import Glove
 
 '''
@@ -79,6 +79,41 @@ class TestModelTrainer(TestCase):
         for i in range(len(sameerrs)):
             for j in range(len(sameerrs)):
                 self.assertTrue(np.allclose(sameerrs[i], sameerrs[j]))
+
+
+class TestModelTrainerEMAWeights(TestCase):
+    def test_model_trainer_ema_weights(self):
+        m = Dummy(indim=10, dim=5)
+        data = np.random.randint(0, 10, (60,))
+        m.train([data], data).adadelta(lr=0.5).cross_entropy()\
+            .exp_mov_avg(0.9)\
+            .split_validate(splits=6).cross_entropy()\
+            .train(numbats=5, epochs=50)
+        pred = m.predict(data)
+        def softmax(x): # 2D
+            e_x = np.exp(x - np.max(x, axis=-1, keepdims=True))
+            return e_x / np.sum(e_x, axis=-1, keepdims=True)
+        pred_np = softmax(np.dot(m.W.W.value.get_value()[data], m.O.value.get_value()))
+        self.assertEqual(pred.shape, (60, 10))
+        self.assertEqual(pred_np.shape, (60, 10))
+        self.assertIsNotNone(m.W.W.ema_value)
+        self.assertIsNotNone(m.O.ema_value)
+        pred_np_ema = softmax(np.dot(m.W.W.ema_value.get_value()[data], m.O.ema_value.get_value()))
+        self.assertEqual(pred_np_ema.shape, (60, 10))
+        self.assertTrue(np.allclose(pred, pred_np_ema))
+        self.assertFalse(np.allclose(pred, pred_np))
+
+        m = Dummy(indim=10, dim=5)
+        m.train([data], data).adadelta(lr=0.5).cross_entropy() \
+            .split_validate(splits=6).cross_entropy() \
+            .train(numbats=5, epochs=50)
+        pred = m.predict(data)
+        pred_np = softmax(np.dot(m.W.W.value.get_value()[data], m.O.value.get_value()))
+        self.assertEqual(pred.shape, (60, 10))
+        self.assertEqual(pred_np.shape, (60, 10))
+        self.assertIsNone(m.W.W.ema_value)
+        self.assertIsNone(m.O.ema_value)
+        self.assertTrue(np.allclose(pred, pred_np))
 
 
 class TestModelTrainerNovalidate(TestModelTrainer):

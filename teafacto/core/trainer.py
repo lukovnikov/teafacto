@@ -47,6 +47,7 @@ class ModelTrainer(object):
         self.dynamic_lr = None
         self.objective = None
         self.regularizer = None
+        self._exp_mov_avg_decay = 0.0
         self.optimizer = None
         self.traindata = None
         self.traingold = None
@@ -217,6 +218,10 @@ class ModelTrainer(object):
 
     def l1(self, amount):
         self.regularizer = lambda x: self._regul(l1, amount, x)
+        return self
+
+    def exp_mov_avg(self, decay=0.0):
+        self._exp_mov_avg_decay = decay
         return self
     #endregion
 
@@ -392,16 +397,25 @@ class ModelTrainer(object):
         self.tt.msg("computed gradients")
         grads = self._gradconstrain(grads)
         for param, grad in zip(params, grads):
-            upds = self.optimizer([grad], [param.d], self.get_learning_rate()*param.lrmul)
+            upds = self.optimizer([grad], [param.d], self.get_learning_rate() * param.lrmul)
+            newparamval = None
+
             for upd in upds:
                 broken = False
                 for para in params:
                     if para.d == upd:
-                        updates.append((upd, para.constraintf()(upds[upd])))
+                        newparamval = upds[upd]
+                        newparamval = para.constraintf()(newparamval)
+                        updates.append((upd, newparamval))
                         broken = True
                         break
                 if not broken:
                     updates.append((upd, upds[upd]))
+            if self._exp_mov_avg_decay > 0:
+                # initialize ema_value in params and add EMA updates
+                    param.ema_value = theano.shared(param.value.get_value())
+                    updates.append((param.ema_value,
+                        param.ema_value * self._exp_mov_avg_decay + newparamval * (1 - self._exp_mov_avg_decay)))
         #print updates
         #embed()
         finputs = [x.d for x in inputs] + [self.goldvar]
@@ -442,7 +456,7 @@ class ModelTrainer(object):
         if len(metrics) > 0:
             ret = theano.function(inputs=[x.d for x in inputs] + [self.goldvar],
                                   outputs=metrics,
-                                  mode=NanGuardMode(nan_is_error=True, inf_is_error=False, big_is_error=False)
+                                  mode=NanGuardMode(nan_is_error=True, inf_is_error=False, big_is_error=True)
                                   )
         else:
             self.tt.msg("NO VALIDATION METRICS DEFINED, RETURNS NONE")

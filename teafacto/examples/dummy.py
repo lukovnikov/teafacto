@@ -11,7 +11,7 @@ class Dummy(Block):
         self.dim = dim
         self.indim = indim
         self.W = VectorEmbed(indim=indim, dim=dim, normalize=normalize)
-        self.O = param((dim, indim), lrmul=1.).uniform()
+        self.O = param((dim, indim), lrmul=1.).glorotuniform()
 
     def apply(self, inptensor):
         emb = self.W(inptensor)

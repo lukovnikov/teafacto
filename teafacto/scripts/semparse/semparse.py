@@ -682,7 +682,7 @@ def run(
             .split_validate(splits=10, random=True).cross_entropy().seq_accuracy() \
             .train(numbats_pretrain, pretrainepochs)
 
-        # TODO NaN somewhere at 75% in training, in one of RNU's?
+        # NaN somewhere at 75% in training, in one of RNU's? --> with rmsprop
 
         encdec.remake_encoder(inpvocsize=max(qdic.values()) + 1,
                               inpembdim=embdim,
