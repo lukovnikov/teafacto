@@ -558,15 +558,16 @@ class SeqDecoder(Block):
         x_t_emb = self.embedder(x_t)
         return self.inner_rec(x_t_emb, *args)
 
-    def inner_rec(self, x_t_emb, *args):  # x_t_emb: (batsize, embdim), context: (batsize, enc.innerdim)
+    def inner_rec(self, x_t_emb, *args):  # x_t_emb: (batsize, embdim)
         states_tm1 = args[:-2]
-        ctx = args[-1]
+        ctx = args[-1]                    # (batsize, inseqlen, inencdim)
         encmask = args[-2]
         # x_t_emb = self.embedder(x_t)  # i_t: (batsize, embdim)
         # compute current context
         ctx_t = self._get_ctx_t(ctx, states_tm1[-1], encmask)     # TODO: might not work with LSTM
         # do inconcat
         i_t = T.concatenate([x_t_emb, ctx_t], axis=1) if self.inconcat else x_t_emb
+        i_t.push_extra_outs({"i_t": i_t})
         rnuret = self.block.rec(i_t, *states_tm1)
         h_t = rnuret[0]
         states_t = rnuret[1:]

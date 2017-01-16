@@ -58,17 +58,19 @@ class Attention(Block):
 
     def apply(self, criterion, data, mask=None):
         if not self.separate:
-            return self._apply_normal(criterion, data, mask=mask)
+            ret = self._apply_normal(criterion, data, mask=mask)
         else:
-            return self._apply_separate(criterion, data, mask=mask)
+            ret = self._apply_separate(criterion, data, mask=mask)
+        return ret
 
     def _apply_normal(self, criterion, data, mask=None):
-        attention = self.attentiongenerator(criterion, data, mask=mask)
-        return self.attentionconsumer(data, attention)
+        weights = self.attentiongenerator(criterion, data, mask=mask)
+        weights.output_as("attention_weights")
+        ret = self.attentionconsumer(data, weights)
+        return ret
 
     def _apply_separate(self, criterion, data, mask=None):    # data: (batsize, seqlen, 2, dim)
         weights = self.attentiongenerator(criterion, data[:, :, 1, :], mask=mask)
+        weights.output_as("attention_weights")
         ret = self.attentionconsumer(data[:, :, 0, :], weights)
         return ret
-
-

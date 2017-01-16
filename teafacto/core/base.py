@@ -498,6 +498,10 @@ class Var(Elem, TensorWrapped, Masked): # result of applying a block on theano v
     def push_extra_outs(self, dictofvars):
         self._extra_outs.update(dictofvars)
 
+    def output_as(self, name):      # adds itself to the extra outputs
+        self.push_extra_outs({name: self})
+        return self
+
     @property
     def all_extra_outs(self):
         return self._extra_outs
@@ -1076,6 +1080,7 @@ class BlockPredictor(object):
         self.block = block
         self.inps = []
         self.outs = []
+        self.extra_outs = None
 
     def transform(self, f):
         if f is not None:
@@ -1083,14 +1088,14 @@ class BlockPredictor(object):
             self.transf = f if f is not None and isfunction(f) else self.transf
         return self
 
-    def select_extra_outs(self, outp, extra_outs=False):
+    def _select_extra_outs(self, outp, extra_outs=False):
         allextraouts = {}
         if issequence(outp):
             for outpe in outp:
                 allextraouts.update(outpe.all_extra_outs)
         else:
             allextraouts.update(outp.all_extra_outs)
-        if extra_outs is False:
+        if extra_outs is False or extra_outs is None:
             extra_outs = set()
         elif extra_outs is True:
             extra_outs = allextraouts.keys()
@@ -1099,10 +1104,14 @@ class BlockPredictor(object):
             ret[extra_out] = allextraouts[extra_out]
         return ret
 
+    def return_extra_outs(self, extraouts=False):
+        self.extra_outs = extraouts
+        return self
+
     def __call__(self, *inputdata, **kwinputdata):  # do predict, take into account prediction settings set
         if self._predictf is None:  # or block._predictf._transform != self.transfZ:
             # if False or len(self.inputs) == 0 or self.output is None:
-            extra_outs = False
+            extra_outs = self.extra_outs
             if "_extra_outs" in kwinputdata:
                 extra_outs = kwinputdata["_extra_outs"]
                 del kwinputdata["_extra_outs"]
@@ -1111,7 +1120,7 @@ class BlockPredictor(object):
                 kwinpl.append(("transform", self.transf))
             inps, outp = self.block.autobuild(*inputdata, **dict(kwinpl))
             self.inps, self.outs = inps, outp
-            extra_out_vars = self.select_extra_outs(outp, extra_outs)
+            extra_out_vars = self._select_extra_outs(outp, extra_outs)
             if hasattr(self.block, "_predict_postapply"):
                 outp = self.block._predict_postapply(outp)
             numouts = len(outp)
