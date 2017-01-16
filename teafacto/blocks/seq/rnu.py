@@ -225,8 +225,11 @@ class IFGRU(GRU):      # input-modulating GRU
     def makeparams(self):
         super(IFGRU, self).makeparams()
         self.uif = param((self.innerdim, self.indim), name="uif").init(self.paraminit)
-        self.wif = param((self.indim, self.innerdim), name="wif").init(self.paraminit)
-        self.bif = param((self.indim,), name="bif").init(self.biasinit)
+        self.wif = param((self.indim, self.indim), name="wif").init(self.paraminit)
+        if not self.nobias:
+            self.bif = param((self.indim,), name="bif").init(self.biasinit)
+        else:
+            self.bif = 0
 
     def rec(self, x_t, h_tm1):
         '''

@@ -1,31 +1,56 @@
 from teafacto.blocks.seq.attention import WeightedSumAttCon, AttGen
 from teafacto.blocks.match import DotDistance
 from teafacto.blocks.seq.rnu import GatedRNU
-from teafacto.core.base import tensorops as T
+from teafacto.core.base import param, tensorops as T
 from teafacto.util import issequence
 
 
 class XLTM(GatedRNU):
     def __init__(self, discrete=True, memsize=50, **kw):
-        self._waitforit = True
         super(XLTM, self).__init__(**kw)
-        self.paramnames = ["usf", "wsf", "msf", "bsf",      # state filter gate
-                           "umf", "wmf", "mmf", "bmf",      # memory filter gate
-                           "u",   "w",   "m",   "b",        # candidate state generation
-                           "uug", "wug", "mug", "bug",      # update gate
-                           "uwf", "wwf", "mwf", "bwf",      # memory writing filter
-                           "uma", "wma", "mma", "bma",      # memory addressing gate
-                           "uma2","wma2","mma2","bma2",     # memory addressing gate 2
-                           ("uif", (self.innerdim, self.indim)),
-                           ("wif", (self.indim, self.indim)),
-                           ("mif", (self.innerdim, self.indim)),
-                           ("bif", (self.indim,)),      # input filter gate
-                           ]
         self.discrete = discrete
         self.memsize = memsize
         self.attgen = AttGen(DotDistance())
         self.attcon = WeightedSumAttCon() if self.discrete else WeightedSumAttCon()
-        self.initparams()
+
+    def makeparams(self):
+        self.usf = param((self.innerdim, self.innerdim), name="usf").init(self.paraminit)
+        self.umf = param((self.innerdim, self.innerdim), name="umf").init(self.paraminit)
+        self.u = param((self.innerdim, self.innerdim), name="u").init(self.paraminit)
+        self.uug = param((self.innerdim, self.innerdim), name="uug").init(self.paraminit)
+        self.uwf = param((self.innerdim, self.innerdim), name="uwf").init(self.paraminit)
+        self.uma = param((self.innerdim, self.innerdim), name="uma").init(self.paraminit)
+        self.uma2 = param((self.innerdim, self.innerdim), name="uma2").init(self.paraminit)
+        self.uif = param((self.innerdim, self.indim), name="uif").init(self.paraminit)
+        self.w = param((self.indim, self.innerdim), name="w").init(self.paraminit)
+        self.wsf = param((self.indim, self.innerdim), name="wsf").init(self.paraminit)
+        self.wmf = param((self.indim, self.innerdim), name="wmf").init(self.paraminit)
+        self.wug = param((self.indim, self.innerdim), name="wug").init(self.paraminit)
+        self.wwf = param((self.indim, self.innerdim), name="wwf").init(self.paraminit)
+        self.wma = param((self.indim, self.innerdim), name="wma").init(self.paraminit)
+        self.wma2 = param((self.indim, self.innerdim), name="wma2").init(self.paraminit)
+        self.wif = param((self.indim, self.indim), name="wif").init(self.paraminit)
+        self.m = param((self.innerdim, self.innerdim), name="m").init(self.paraminit)
+        self.msf = param((self.innerdim, self.innerdim), name="msf").init(self.paraminit)
+        self.mmf = param((self.innerdim, self.innerdim), name="mmf").init(self.paraminit)
+        self.mug = param((self.innerdim, self.innerdim), name="mug").init(self.paraminit)
+        self.mwf = param((self.innerdim, self.innerdim), name="mwf").init(self.paraminit)
+        self.mma = param((self.innerdim, self.innerdim), name="mma").init(self.paraminit)
+        self.mma2 = param((self.innerdim, self.innerdim), name="mma2").init(self.paraminit)
+        self.mif = param((self.innerdim, self.indim), name="mif").init(self.paraminit)
+        if not self.nobias:
+            self.b = param((self.innerdim,), name="b").init(self.biasinit)
+            self.bsf = param((self.innerdim,), name="bsf").init(self.biasinit)
+            self.bmf = param((self.innerdim,), name="bmf").init(self.biasinit)
+            self.bug = param((self.innerdim,), name="bug").init(self.biasinit)
+            self.bwf = param((self.innerdim,), name="bwf").init(self.biasinit)
+            self.bma = param((self.innerdim,), name="bma").init(self.biasinit)
+            self.bma2 = param((self.innerdim,), name="bma2").init(self.biasinit)
+            self.bif = param((self.indim,), name="bif").init(self.biasinit)
+        else:
+            self.b, self.bsf, self.bmf, self.bug, self.bwf, self.bma, self.bma2, self.bif = \
+                0, 0, 0, 0, 0, 0, 0, 0
+
 
     def do_get_init_info(self, initstates):
         if issequence(initstates):

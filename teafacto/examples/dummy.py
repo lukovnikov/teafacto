@@ -38,7 +38,7 @@ def run(
     pembs = ae.W.predict(pdata)
     #print np.linalg.norm(pembs, axis=1)
     pred = ae.predict(pdata)
-    #print pred.shape
+    print pred.shape
     #print np.argmax(pred, axis=1)
     #print err, verr
     return pred

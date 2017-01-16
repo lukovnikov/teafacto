@@ -674,7 +674,7 @@ def run(
         import math
         batsize = int(math.ceil(qmat_t.shape[0] * 1.0 / numbats))
         numbats_pretrain = int(math.ceil(qmat_auto.shape[0] * 1.0 / batsize))
-
+        print "{} batches".format(numbats_pretrain)
         #embed()
         encdec.train([qmat_auto, amat_auto[:, :-1]], amati_auto[:, 1:])\
             .cross_entropy().adadelta(lr=lr).grad_total_norm(1.) \

@@ -26,11 +26,11 @@ class TestSimpleSeqEncDecAtt(TestCase):
         enclayers = encdec.enc.block.layers
         params = set()
         for layer in enclayers:
-            for paramname in layer.paramnames:
+            for paramname in "w wm whf u um uhf b bm bhf".split():      # GRU params
                 params.add(getattr(layer, paramname))
         declayers = encdec.dec.block.layers
         for layer in declayers:
-            for paramname in layer.paramnames:
+            for paramname in "w wm whf u um uhf b bm bhf".split():      # GRU params
                 params.add(getattr(layer, paramname))
         params.update({encdec.dec.lin.W, encdec.dec.lin.b})
 
