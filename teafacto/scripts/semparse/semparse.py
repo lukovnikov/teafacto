@@ -514,7 +514,7 @@ def split_train_test(mat, sep=-279):
 def run(
         numbats=50,
         epochs=10,
-        lr=1.,
+        lr=0.5,
         embdim=50,
         encdim=400,
         dropout=0.2,
@@ -530,7 +530,7 @@ def run(
         relinearize="none",
         pretrain=True,
         pretrainepochs=-1,
-        wreg=1e-6):
+        wreg=0.0):
 
     #TODO: bi-encoder and other beasts
     #TODO: make sure gensample results NOT IN test data
@@ -677,7 +677,7 @@ def run(
 
         #embed()
         encdec.train([qmat_auto, amat_auto[:, :-1]], amati_auto[:, 1:])\
-            .cross_entropy().adadelta(lr=lr/numbats_pretrain).grad_total_norm(1.) \
+            .cross_entropy().adadelta(lr=lr).grad_total_norm(1.) \
             .l2(wreg).exp_mov_avg(0.95) \
             .split_validate(splits=10, random=True).cross_entropy().seq_accuracy() \
             .train(numbats_pretrain, pretrainepochs)
