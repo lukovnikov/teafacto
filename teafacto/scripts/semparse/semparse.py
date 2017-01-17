@@ -530,6 +530,7 @@ def run(
         relinearize="none",
         pretrain=False,
         pretrainepochs=-1,
+        loadpretrained="none",
         wreg=0.0):
 
     #TODO: bi-encoder and other beasts
@@ -667,20 +668,27 @@ def run(
                                 )
 
     ################## TRAINING ##################
-    if pretrain == True:
-        encdec.remake_encoder(inpvocsize=max(qdic_auto.values()) + 1,
-                              inpembdim=embdim,
-                              inpemb=inpemb_auto)
-        import math
-        batsize = int(math.ceil(qmat_t.shape[0] * 1.0 / numbats))
-        numbats_pretrain = int(math.ceil(qmat_auto.shape[0] * 1.0 / batsize))
-        print "{} batches".format(numbats_pretrain)
-        #embed()
-        encdec.train([qmat_auto, amat_auto[:, :-1]], amati_auto[:, 1:])\
-            .cross_entropy().adadelta(lr=lr).grad_total_norm(1.) \
-            .l2(wreg).exp_mov_avg(0.95) \
-            .split_validate(splits=10, random=True).cross_entropy().seq_accuracy() \
-            .train(numbats_pretrain, pretrainepochs)
+    if pretrain == True or loadpretrained != "none":
+        if loadpretrained != "none":
+            encdec = encdec.load(loadpretrained+".pre.sp.model")
+        if pretrain == True:
+            encdec.remake_encoder(inpvocsize=max(qdic_auto.values()) + 1,
+                                  inpembdim=embdim,
+                                  inpemb=inpemb_auto)
+            import math
+            batsize = int(math.ceil(qmat_t.shape[0] * 1.0 / numbats))
+            numbats_pretrain = int(math.ceil(qmat_auto.shape[0] * 1.0 / batsize))
+            print "{} batches".format(numbats_pretrain)
+            #embed()
+            encdec.train([qmat_auto, amat_auto[:, :-1]], amati_auto[:, 1:])\
+                .cross_entropy().adadelta(lr=lr).grad_total_norm(1.) \
+                .l2(wreg).exp_mov_avg(0.95) \
+                .split_validate(splits=10, random=True).cross_entropy().seq_accuracy() \
+                .train(numbats_pretrain, pretrainepochs)
+
+            savepath = "{}.pre.sp.model".format(random.randint(1000, 9999))
+            encdec.save(savepath)
+
 
         # NaN somewhere at 75% in training, in one of RNU's? --> with rmsprop
 
