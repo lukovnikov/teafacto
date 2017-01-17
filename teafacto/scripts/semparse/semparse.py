@@ -669,13 +669,14 @@ def run(
 
     ################## TRAINING ##################
     if pretrain == True or loadpretrained != "none":
-        if loadpretrained != "none":
-            encdec = encdec.load(loadpretrained+".pre.sp.model")
-            print "MODEL LOADED: {}".format(loadpretrained)
         if pretrain == True:
             encdec.remake_encoder(inpvocsize=max(qdic_auto.values()) + 1,
                                   inpembdim=embdim,
                                   inpemb=inpemb_auto)
+        if loadpretrained != "none":
+            encdec = encdec.load(loadpretrained+".pre.sp.model")
+            print "MODEL LOADED: {}".format(loadpretrained)
+        if pretrain == True:
             import math
             batsize = int(math.ceil(qmat_t.shape[0] * 1.0 / numbats))
             numbats_pretrain = int(math.ceil(qmat_auto.shape[0] * 1.0 / batsize))
