@@ -167,7 +167,7 @@ class RNU(RNUBase):
 
 
 class GatedRNU(RNU):
-    def __init__(self, gateactivation=T.nnet.sigmoid, init_carry_bias=True, **kw):
+    def __init__(self, gateactivation=T.nnet.sigmoid, init_carry_bias=False, **kw):
         self.gateactivation = gateactivation
         self._init_carry_bias = init_carry_bias
         super(GatedRNU, self).__init__(**kw)
