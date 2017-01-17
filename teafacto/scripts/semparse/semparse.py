@@ -671,6 +671,7 @@ def run(
     if pretrain == True or loadpretrained != "none":
         if loadpretrained != "none":
             encdec = encdec.load(loadpretrained+".pre.sp.model")
+            print "MODEL LOADED: {}".format(loadpretrained)
         if pretrain == True:
             encdec.remake_encoder(inpvocsize=max(qdic_auto.values()) + 1,
                                   inpembdim=embdim,
@@ -687,6 +688,7 @@ def run(
                 .train(numbats_pretrain, pretrainepochs)
 
             savepath = "{}.pre.sp.model".format(random.randint(1000, 9999))
+            print "PRETRAIN SAVEPATH: {}".format(savepath)
             encdec.save(savepath)
 
 
