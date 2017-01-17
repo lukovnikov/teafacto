@@ -694,7 +694,7 @@ def run(
                          RandomCorrupt(corruptdecoder=(2, max(adic.values()) + 1),
                                        corruptencoder=(2, max(qdic.values()) + 1),
                                        maskid=maskid, p=corruptnoise))\
-        .cross_entropy().rmsprop(lr=lr).grad_total_norm(1.) \
+        .cross_entropy().adadelta(lr=lr).grad_total_norm(1.) \
         .l2(wreg).exp_mov_avg(0.95) \
         .validate_on([qmat_x, amati_x[:, :-1]], amat_x[:, 1:]) \
         .cross_entropy().seq_accuracy()\
