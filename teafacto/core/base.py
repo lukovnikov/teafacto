@@ -548,7 +548,7 @@ class Input(Var): # generates feed + creates symbolic vars for input
         self._shape = shape
 
 
-class BlockContextManagerTrainMode(object):
+class TrainModeContext(object):
     def __init__(self, x, b):
         self.p = x
         self.newtrainmode = b
@@ -587,7 +587,7 @@ class Block(Elem, Saveable): # block with parameters
         self._ownparams = x if isinstance(x, set) else set(x)
 
     def trainmode(self, b):
-        return BlockContextManagerTrainMode(self, b)
+        return TrainModeContext(self, b)
 
     def reset(self): # clear all non-param info in whole expression structure that ends in this block
         print "resetting block"

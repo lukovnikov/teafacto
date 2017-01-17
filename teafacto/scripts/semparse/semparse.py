@@ -532,7 +532,7 @@ def run(
         pretrainepochs=-1,
         loadpretrained="none",
         wreg=0.0,
-        testmode=True):
+        testmode=False):
 
     #TODO: bi-encoder and other beasts
     #TODO: make sure gensample results NOT IN test data
