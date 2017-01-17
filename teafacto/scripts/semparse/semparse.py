@@ -528,7 +528,7 @@ def run(
         corruptnoise=0.0,
         inspectdata=False,
         relinearize="none",
-        pretrain=True,
+        pretrain=False,
         pretrainepochs=-1,
         wreg=0.0):
 
@@ -694,7 +694,7 @@ def run(
                          RandomCorrupt(corruptdecoder=(2, max(adic.values()) + 1),
                                        corruptencoder=(2, max(qdic.values()) + 1),
                                        maskid=maskid, p=corruptnoise))\
-        .cross_entropy().rmsprop(lr=lr/numbats).grad_total_norm(1.) \
+        .cross_entropy().rmsprop(lr=lr).grad_total_norm(1.) \
         .l2(wreg) \
         .validate_on([qmat_x, amati_x[:, :-1]], amat_x[:, 1:]) \
         .cross_entropy().seq_accuracy()\
