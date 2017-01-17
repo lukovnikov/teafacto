@@ -266,12 +266,21 @@ class Parameter(TensorWrapped):
                 return self.value
         return self.value
 
+    def get_value(self, train=False):
+        if train:
+            return self.value
+        else:
+            if self.ema_value is not None:
+                return self.ema_value
+            else:
+                return self.value
+
     @property
     def v(self):
         return self.value.get_value()
 
     def __repr__(self):
-        return "param::'%s':%s%s" % (str(self.name), str(self.value.dtype), str(self.value.get_value().shape))
+        return "param::'%s':%s%s~%s" % (str(self.name), str(self.value.dtype), str(self.value.get_value().shape), str(self.lrmul))
 
     ############## VALUE CONSTRAINTS ############### --> applied in the order that the were added
     def clip(self, a, b):
@@ -539,6 +548,25 @@ class Input(Var): # generates feed + creates symbolic vars for input
         self._shape = shape
 
 
+class BlockContextManagerTrainMode(object):
+    def __init__(self, x, b):
+        self.p = x
+        self.newtrainmode = b
+        self.oldtrainmode = None
+
+    def __enter__(self):
+        global _TRAINMODE
+        self.oldtrainmode = _TRAINMODE
+        _TRAINMODE = self.newtrainmode
+        return self.p
+
+    def __exit__(self, e_type, e_value, traceback):
+        global _TRAINMODE
+        _TRAINMODE = self.oldtrainmode
+
+
+
+
 class Block(Elem, Saveable): # block with parameters
     def __init__(self, **kw):
         super(Block, self).__init__(**kw)
@@ -557,6 +585,9 @@ class Block(Elem, Saveable): # block with parameters
     @ownparams.setter
     def ownparams(self, x):
         self._ownparams = x if isinstance(x, set) else set(x)
+
+    def trainmode(self, b):
+        return BlockContextManagerTrainMode(self, b)
 
     def reset(self): # clear all non-param info in whole expression structure that ends in this block
         print "resetting block"
@@ -661,6 +692,7 @@ class Block(Elem, Saveable): # block with parameters
             batsize = kwargs.pop("_batsize")
         if "_trainmode" in inspect.getargspec(self.apply)[0]:
             kwargs["_trainmode"] = _TRAINMODE
+
         # param pushing
         paramstopush = set()        # params to transfer from input vars to output vars
         for var in recurfilter(lambda x: isinstance(x, Var), kwargs) + recurfilter(lambda x: isinstance(x, Var), args):
@@ -734,7 +766,8 @@ class Block(Elem, Saveable): # block with parameters
         if transform is not None:
             kwinputl.append(("transform", transform))
         kwinputl.append(("_trainmode", trainmode))
-        output = self.wrapply(*inputs, **dict(kwinputl))
+        kwinputl = dict(kwinputl)
+        output = self.wrapply(*inputs, **kwinputl)
 
         kwn = []
         for k in sorted(kwinputs.keys()):

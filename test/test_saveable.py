@@ -29,6 +29,7 @@ class TestSaveable(TestCase):
         print "\n".join(map(str, a))
         for i in range(0, len(a) - 1):
             self.assertTrue(a[i+1] < a[i])
+        m.get_params()
         m.save("/tmp/testmodelsave")
         m = m.load("/tmp/testmodelsave")
         r = m.train([data, data[:, :-1]], data[:, 1:]).cross_entropy().adadelta().train(5, 10, returnerrors=True)

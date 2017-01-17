@@ -531,7 +531,8 @@ def run(
         pretrain=False,
         pretrainepochs=-1,
         loadpretrained="none",
-        wreg=0.0):
+        wreg=0.0,
+        testmode=True):
 
     #TODO: bi-encoder and other beasts
     #TODO: make sure gensample results NOT IN test data
@@ -669,7 +670,7 @@ def run(
 
     ################## TRAINING ##################
     if pretrain == True or loadpretrained != "none":
-        if pretrain == True:
+        if pretrain == True and loadpretrained == "none":
             encdec.remake_encoder(inpvocsize=max(qdic_auto.values()) + 1,
                                   inpembdim=embdim,
                                   inpemb=inpemb_auto)
@@ -681,6 +682,12 @@ def run(
             batsize = int(math.ceil(qmat_t.shape[0] * 1.0 / numbats))
             numbats_pretrain = int(math.ceil(qmat_auto.shape[0] * 1.0 / batsize))
             print "{} batches".format(numbats_pretrain)
+            if testmode:
+                oldparamvals = {p: p.v for p in encdec.get_params()}
+                qmat_auto = qmat_auto[:100]
+                amat_auto = amat_auto[:100]
+                amati_auto = amati_auto[:100]
+                numbats_pretrain = 10
             #embed()
             encdec.train([qmat_auto, amat_auto[:, :-1]], amati_auto[:, 1:])\
                 .cross_entropy().adadelta(lr=lr).grad_total_norm(1.) \
@@ -688,6 +695,9 @@ def run(
                 .split_validate(splits=10, random=True).cross_entropy().seq_accuracy() \
                 .train(numbats_pretrain, pretrainepochs)
 
+            if testmode:
+                for p in encdec.get_params():
+                    print np.linalg.norm(p.v - oldparamvals[p], ord=1)
             savepath = "{}.pre.sp.model".format(random.randint(1000, 9999))
             print "PRETRAIN SAVEPATH: {}".format(savepath)
             encdec.save(savepath)

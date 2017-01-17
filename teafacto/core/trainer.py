@@ -364,70 +364,71 @@ class ModelTrainer(object):
 
     def buildtrainfun(self, model, batsize):
         self.tt.tick("training - autobuilding")
-        inps, outps = self.autobuild_model(model, *self.traindata, _trainmode=True, _batsize=batsize)
-        assert(len(outps) == 1)
-        outp = outps[0]
-        self.tt.tock("training - autobuilt")
-        self.tt.tick("compiling training function")
-        params = outp.allparams
-        scanupdates = outp.allupdates
-        inputs = inps
-        loss, newinp = self.buildlosses(outp, [self.objective])
-        loss = loss[0]
-        if newinp is not None:
-            inputs = newinp
-        if self.regularizer is not None:
-            reg = self.regularizer(params)
-            cost = loss+reg
-        else:
-            cost = loss
-        # theano.printing.debugprint(cost)
-        # theano.printing.pydotprint(cost, outfile="pics/debug.png")
-        updates = []
-        print "params:\n " + "".join(
-            map(lambda x: "\t%s\n" % str(x),
-                sorted(params, key=lambda x: str(x)))) \
-              + "\n\t\t (in Block, base.py)\n"
-        self.tt.msg("computing gradients")
-        #grads = []
-        #for x in params:
-        #    self.tt.msg("computing gradient for %s" % str(x))
-        #    grads.append(tensor.grad(cost, x.d))
-        grads = tensor.grad(cost, [x.d for x in params])  # compute gradient
-        self.tt.msg("computed gradients")
-        grads = self._gradconstrain(grads)
-        for param, grad in zip(params, grads):
-            upds = self.optimizer([grad], [param.d], self.get_learning_rate() * param.lrmul)
-            newparamval = None
+        with model.trainmode(True):
+            inps, outps = self.autobuild_model(model, *self.traindata, _trainmode=True, _batsize=batsize)
+            assert(len(outps) == 1)
+            outp = outps[0]
+            self.tt.tock("training - autobuilt")
+            self.tt.tick("compiling training function")
+            params = outp.allparams
+            scanupdates = outp.allupdates
+            inputs = inps
+            loss, newinp = self.buildlosses(outp, [self.objective])
+            loss = loss[0]
+            if newinp is not None:
+                inputs = newinp
+            if self.regularizer is not None:
+                reg = self.regularizer(params)
+                cost = loss+reg
+            else:
+                cost = loss
+            # theano.printing.debugprint(cost)
+            # theano.printing.pydotprint(cost, outfile="pics/debug.png")
+            updates = []
+            print "params:\n " + "".join(
+                map(lambda x: "\t%s\n" % str(x),
+                    sorted(params, key=lambda x: str(x)))) \
+                  + "\n\t\t (in Block, base.py)\n"
+            self.tt.msg("computing gradients")
+            #grads = []
+            #for x in params:
+            #    self.tt.msg("computing gradient for %s" % str(x))
+            #    grads.append(tensor.grad(cost, x.d))
+            grads = tensor.grad(cost, [x.d for x in params])  # compute gradient
+            self.tt.msg("computed gradients")
+            grads = self._gradconstrain(grads)
+            for param, grad in zip(params, grads):
+                upds = self.optimizer([grad], [param.d], self.get_learning_rate() * param.lrmul)
+                newparamval = None
 
-            for upd in upds:
-                broken = False
-                for para in params:
-                    if para.d == upd:
-                        newparamval = upds[upd]
-                        newparamval = para.constraintf()(newparamval)
-                        updates.append((upd, newparamval))
-                        broken = True
-                        break
-                if not broken:
-                    updates.append((upd, upds[upd]))
-            if self._exp_mov_avg_decay > 0:
-                # initialize ema_value in params and add EMA updates
-                    param.ema_value = theano.shared(param.value.get_value())
-                    updates.append((param.ema_value,
-                        param.ema_value * self._exp_mov_avg_decay + newparamval * (1 - self._exp_mov_avg_decay)))
-        #print updates
-        #embed()
-        finputs = [x.d for x in inputs] + [self.goldvar]
-        allupdates = updates + scanupdates.items()
-        trainf = theano.function(
-            inputs=finputs,
-            outputs=[cost],
-            updates=allupdates,
-            #mode=NanGuardMode(nan_is_error=True, inf_is_error=False, big_is_error=False)
-            # TODO: enabling NanGuard with Dropout doesn't work --> see Theano.git/issues/4823
-        )
-        self.tt.tock("training function compiled")
+                for upd in upds:
+                    broken = False
+                    for para in params:
+                        if para.d == upd:
+                            newparamval = upds[upd]
+                            newparamval = para.constraintf()(newparamval)
+                            updates.append((upd, newparamval))
+                            broken = True
+                            break
+                    if not broken:
+                        updates.append((upd, upds[upd]))
+                if self._exp_mov_avg_decay > 0:
+                    # initialize ema_value in params and add EMA updates
+                        param.ema_value = theano.shared(param.value.get_value())
+                        updates.append((param.ema_value,
+                            param.ema_value * self._exp_mov_avg_decay + newparamval * (1 - self._exp_mov_avg_decay)))
+            #print updates
+            #embed()
+            finputs = [x.d for x in inputs] + [self.goldvar]
+            allupdates = updates + scanupdates.items()
+            trainf = theano.function(
+                inputs=finputs,
+                outputs=[cost],
+                updates=allupdates,
+                #mode=NanGuardMode(nan_is_error=True, inf_is_error=False, big_is_error=False)
+                # TODO: enabling NanGuard with Dropout doesn't work --> see Theano.git/issues/4823
+            )
+            self.tt.tock("training function compiled")
         return trainf
 
     def buildlosses(self, output, objs):
