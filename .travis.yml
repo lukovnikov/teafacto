@@ -10,6 +10,8 @@ addons:
       - gfortran
 before_install:
   - pip install -U pip
+env:
+  - THEANO_FLAGS="optimizer=None"
 install:
   - travis_wait travis_retry pip install -r requirements.txt
   - travis_wait pip install -U git+git://github.com/lukovnikov/Theano.git
