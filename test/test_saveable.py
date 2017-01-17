@@ -1,4 +1,4 @@
-from unittest import TestCase
+from unittest import TestCase, main
 from teafacto.examples.dummy import Dummy
 from teafacto.blocks.seq.encdec import SimpleSeqEncDecAtt
 import numpy as np
@@ -37,3 +37,7 @@ class TestSaveable(TestCase):
         for i in range(0, len(b) - 1):
             self.assertTrue(b[i+1] < b[i])
         self.assertTrue(b[0] < a[-1])
+
+
+if __name__ == "__main__":
+    main()
