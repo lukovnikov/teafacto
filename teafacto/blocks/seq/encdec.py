@@ -83,6 +83,7 @@ class SimpleSeqEncDecAtt(SeqEncDec):
                                 dropout_in=dropout, dropout_h=dropout, rnu=rnu)
         self.lastencinnerdim = enc.outdim
 
+        self.dropout = dropout
         # attention
         self.lastdecinnerdim = self.decinnerdim[-1]
         attgen = AttGen(attdist)

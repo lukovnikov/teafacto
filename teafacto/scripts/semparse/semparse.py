@@ -676,7 +676,10 @@ def run(
         if pretrain == True and loadpretrained == "none":
             encdec.remake_encoder(inpvocsize=max(qdic_auto.values()) + 1,
                                   inpembdim=embdim,
-                                  inpemb=inpemb_auto)
+                                  inpemb=inpemb_auto,
+                                  maskid=maskid,
+                                  dropout_h=dropout,
+                                  dropout_in=dropout)
         if loadpretrained != "none":
             encdec = encdec.load(loadpretrained+".pre.sp.model")
             print "MODEL LOADED: {}".format(loadpretrained)
