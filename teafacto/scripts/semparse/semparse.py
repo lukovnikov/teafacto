@@ -561,6 +561,7 @@ def run(
             print wordids2string(qmat_auto[i], {v: k for k, v in qdic_auto.items()}, 0)
             print wordids2string(amat_auto[i], {v: k for k, v in adic_auto.items()}, 0)
         if inspectdata:
+            print "pretrain inspect"
             embed()
     qmat, amat, qdic, adic, qwc, awc = loadgeo(customemb=customemb, reverse=True, transformer=srctransformer)
 

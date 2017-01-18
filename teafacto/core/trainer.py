@@ -371,8 +371,8 @@ class ModelTrainer(object):
             self.tt.tock("training - autobuilt")
             self.tt.tick("compiling training function")
             params = outp.allparams
+            nonparams = [p for p in params if not p.lrmul > 0]
             params = [p for p in params if p.lrmul > 0]
-            nonparams = [p for p in params if p.lrmul <= 0.0]
             scanupdates = outp.allupdates
             inputs = inps
             loss, newinp = self.buildlosses(outp, [self.objective])
@@ -394,7 +394,7 @@ class ModelTrainer(object):
                 print "non-params:\n " + "".join(
                     map(lambda x: "\t%s\n" % str(x),
                         sorted(nonparams, key=lambda x: str(x))))
-            print "\n\t\t (in buildtrainfun(), trainer.py)"
+            print "\n\t\t (in buildtrainfun(), trainer.py) \n"
             self.tt.msg("computing gradients")
             #grads = []
             #for x in params:
