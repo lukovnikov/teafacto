@@ -530,6 +530,8 @@ def run(
         relinearize="none",
         pretrain=False,
         pretrainepochs=-1,
+        pretrainnumbats=-1,
+        pretrainlr=-0.1,
         loadpretrained="none",
         wreg=0.0,
         testmode=False):
@@ -678,22 +680,25 @@ def run(
             encdec = encdec.load(loadpretrained+".pre.sp.model")
             print "MODEL LOADED: {}".format(loadpretrained)
         if pretrain == True:
-            import math
-            batsize = int(math.ceil(qmat_t.shape[0] * 1.0 / numbats))
-            numbats_pretrain = int(math.ceil(qmat_auto.shape[0] * 1.0 / batsize))
-            print "{} batches".format(numbats_pretrain)
+            if pretrainnumbats < 0:
+                import math
+                batsize = int(math.ceil(qmat_t.shape[0] * 1.0 / numbats))
+                pretrainnumbats = int(math.ceil(qmat_auto.shape[0] * 1.0 / batsize))
+                print "{} batches".format(pretrainnumbats)
+            if pretrainlr < 0:
+                pretrainlr = lr
             if testmode:
                 oldparamvals = {p: p.v for p in encdec.get_params()}
                 qmat_auto = qmat_auto[:100]
                 amat_auto = amat_auto[:100]
                 amati_auto = amati_auto[:100]
-                numbats_pretrain = 10
+                pretrainnumbats = 10
             #embed()
             encdec.train([qmat_auto, amat_auto[:, :-1]], amati_auto[:, 1:])\
-                .cross_entropy().adadelta(lr=lr).grad_total_norm(1.) \
+                .cross_entropy().adadelta(lr=pretrainlr).grad_total_norm(1.) \
                 .l2(wreg).exp_mov_avg(0.95) \
                 .split_validate(splits=10, random=True).cross_entropy().seq_accuracy() \
-                .train(numbats_pretrain, pretrainepochs)
+                .train(pretrainnumbats, pretrainepochs)
 
             if testmode:
                 for p in encdec.get_params():
