@@ -699,7 +699,7 @@ def run(
                 pretrainnumbats = 10
             #embed()
             encdec.train([qmat_auto, amat_auto[:, :-1]], amati_auto[:, 1:])\
-                .cross_entropy().adadelta(lr=pretrainlr).grad_total_norm(1.) \
+                .cross_entropy().adadelta(lr=pretrainlr).grad_total_norm(5.) \
                 .l2(wreg).exp_mov_avg(0.95) \
                 .split_validate(splits=10, random=True).cross_entropy().seq_accuracy() \
                 .train(pretrainnumbats, pretrainepochs)
@@ -716,7 +716,10 @@ def run(
 
         encdec.remake_encoder(inpvocsize=max(qdic.values()) + 1,
                               inpembdim=embdim,
-                              inpemb=inpemb)
+                              inpemb=inpemb,
+                              maskid=maskid,
+                              dropout_h=dropout,
+                              dropout_in=dropout)
         encdec.dec.set_lr(0.0)
 
     encdec.train([qmat_t, amat_t[:, :-1]], amati_t[:, 1:])\
@@ -724,8 +727,8 @@ def run(
                          RandomCorrupt(corruptdecoder=(2, max(adic.values()) + 1),
                                        corruptencoder=(2, max(qdic.values()) + 1),
                                        maskid=maskid, p=corruptnoise))\
-        .cross_entropy().adadelta(lr=lr).grad_total_norm(1.) \
-        .l2(wreg).exp_mov_avg(0.95) \
+        .cross_entropy().adadelta(lr=lr).grad_total_norm(5.) \
+        .l2(wreg).exp_mov_avg(0.8) \
         .validate_on([qmat_x, amati_x[:, :-1]], amat_x[:, 1:]) \
         .cross_entropy().seq_accuracy()\
         .train(numbats, epochs)
