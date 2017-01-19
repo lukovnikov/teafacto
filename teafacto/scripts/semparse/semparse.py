@@ -42,7 +42,7 @@ def loadgeopl(p="../../../data/semparse/geoquery.txt", customemb=False,
     amat = np.zeros((len(ass), maxalen), dtype="int32")
     qdic = dict(zip([x for x, y in sorted(qwords.items(), reverse=True, key=lambda (x, y): y)],
                     range(2, len(qwords) + 2)))
-    maxadic = max(0, max(adic.values()))
+    maxadic = max(adic.values()) if len(adic) > 0 else 0
     for x, y in sorted(awords.items(), reverse=True, key=lambda (x, y): y):
         if x not in adic:
             adic[x] = maxadic + 1
