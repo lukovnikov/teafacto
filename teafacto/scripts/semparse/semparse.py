@@ -540,6 +540,7 @@ def run(
         pretrainnumbats=-1,
         pretrainlr=-0.1,
         loadpretrained="none",
+        pretrainfixdecoder=False,
         wreg=0.0,
         testmode=False):
 
@@ -682,14 +683,15 @@ def run(
     ################## TRAINING ##################
     if pretrain == True or loadpretrained != "none":
         if pretrain == True and loadpretrained == "none":
-            '''encdec.remake_encoder(inpvocsize=max(qdic_auto.values()) + 1,
+            if pretrainfixdecoder:
+                encdec.remake_encoder(inpvocsize=max(qdic_auto.values()) + 1,
                                   inpembdim=embdim,
                                   inpemb=inpemb_auto,
                                   maskid=maskid,
                                   dropout_h=dropout,
                                   dropout_in=dropout)
-                                  '''
-            encdec.enc.embedder = inpemb_auto
+            else:
+                encdec.enc.embedder = inpemb_auto
         if loadpretrained != "none":
             encdec = encdec.load(loadpretrained+".pre.sp.model")
             print "MODEL LOADED: {}".format(loadpretrained)
@@ -723,17 +725,17 @@ def run(
 
 
         # NaN somewhere at 75% in training, in one of RNU's? --> with rmsprop
-
-        '''encdec.remake_encoder(inpvocsize=max(qdic.values()) + 1,
+        if pretrainfixdecoder:
+            encdec.remake_encoder(inpvocsize=max(qdic.values()) + 1,
                               inpembdim=embdim,
                               inpemb=inpemb,
                               maskid=maskid,
                               dropout_h=dropout,
                               dropout_in=dropout)
-        encdec.dec.set_lr(0.0)
-        '''
-        encdec.dec.embedder.set_lr(0.0)
-        encdec.enc.embedder = inpemb
+            encdec.dec.set_lr(0.0)
+        else:
+            encdec.dec.embedder.set_lr(0.0)
+            encdec.enc.embedder = inpemb
 
     encdec.train([qmat_t, amat_t[:, :-1]], amati_t[:, 1:])\
         .sampletransform(GenSample(typdic),
