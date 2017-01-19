@@ -681,8 +681,8 @@ class ProtoTrainer(object):
         self.batprop = batprop
         self.original = trainer
 
-    def interleave(self, otherprototrainer):
-        return InterleavedTrainer(self, otherprototrainer)
+    def interleave(self, *otherprototrainers):
+        return InterleavedTrainer(self, *otherprototrainers)
 
 
 class InterleavedTrainer(object):

@@ -230,15 +230,20 @@ class TestInterleavedTrainer(TestCase):
     def test_interleaved_trainer(self):
         main = Dummy(20, 5)
         seco = Dummy(30, 7)
+        thir = Dummy(40, 8)
         maindata = np.random.randint(0, 20, (50,))
         secodata = np.random.randint(0, 30, (70,))
+        thirdata = np.random.randint(0, 40, (80,))
         maintrainer = main.train([maindata], maindata).cross_entropy().adadelta(lr=0.1)\
             .split_validate(splits=10).cross_entropy().accuracy()\
             .train_lambda(2)
         secotrainer = seco.train([secodata], secodata).cross_entropy().adadelta(lr=0.1)\
-            .train_lambda(2)
+            .split_validate(splits=10).cross_entropy()\
+            .train_lambda(3)
+        thirtrainer = thir.train([thirdata], thirdata).cross_entropy().adadelta(lr=0.1)\
+            .train_lambda(4)
 
-        maintrainer.interleave(secotrainer).train(50)
+        maintrainer.interleave(secotrainer, thirtrainer).train(50)
 
 
 
