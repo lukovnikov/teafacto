@@ -12,7 +12,8 @@ from teafacto.blocks.lang.wordvec import WordEmb, Glove
 from teafacto.query.lbd2tree import LambdaParser
 
 
-def loadgeopl(p="../../../data/semparse/geoquery.txt", customemb=False, reverse=True, splitre=None):
+def loadgeopl(p="../../../data/semparse/geoquery.txt", customemb=False,
+              reverse=True, splitre=None, adic={}):
     qss, ass = [], []
     maxqlen, maxalen = 0, 0
     qwords, awords = {"<RARE>": 1}, {}
@@ -41,8 +42,13 @@ def loadgeopl(p="../../../data/semparse/geoquery.txt", customemb=False, reverse=
     amat = np.zeros((len(ass), maxalen), dtype="int32")
     qdic = dict(zip([x for x, y in sorted(qwords.items(), reverse=True, key=lambda (x, y): y)],
                     range(2, len(qwords) + 2)))
-    adic = dict(zip([x for x, y in sorted(awords.items(), reverse=True, key=lambda (x, y): y)],
-                    range(1, len(awords) + 1)))
+    maxadic = max(0, max(adic.values()))
+    for x, y in sorted(awords.items(), reverse=True, key=lambda (x, y): y):
+        if x not in adic:
+            adic[x] = maxadic + 1
+            maxadic += 1
+    '''adic = dict(zip([x for x, y in sorted(awords.items(), reverse=True, key=lambda (x, y): y)],
+                    range(1, len(awords) + 1)))'''
     for i in range(len(qss)):
         q = qss[i]
         a = ass[i]
@@ -58,14 +64,15 @@ def loadgeo(trainp="../../../data/semparse/geoquery.lbd.dev",
             testp="../../../data/semparse/geoquery.lbd.test",
             customemb=False,
             reverse=True,
-            transformer=None):
+            transformer=None,
+            adic={}):
 
     d = []
 
     addlines(trainp, d, transformer=transformer)
     addlines(testp, d, transformer=transformer)
 
-    return loadgeopl(p=d, customemb=customemb, reverse=reverse)
+    return loadgeopl(p=d, customemb=customemb, reverse=reverse, adic=adic)
 
 
 def fixbrackets(m):
@@ -554,16 +561,17 @@ def run(
         else:
             raise Exception("unknown linearization")
 
+    adic = {}
     if pretrain:        ### PRETRAIN DATA LOAD ###
-        qmat_auto, amat_auto, qdic_auto, adic_auto, qwc_auto, awc_auto = \
+        qmat_auto, amat_auto, qdic_auto, adic, qwc_auto, awc_auto = \
             loadgeoauto(reverse=True, transformer=srctransformer)
         def pp(i):
             print wordids2string(qmat_auto[i], {v: k for k, v in qdic_auto.items()}, 0)
-            print wordids2string(amat_auto[i], {v: k for k, v in adic_auto.items()}, 0)
+            print wordids2string(amat_auto[i], {v: k for k, v in adic.items()}, 0)
         if inspectdata:
             print "pretrain inspect"
             embed()
-    qmat, amat, qdic, adic, qwc, awc = loadgeo(customemb=customemb, reverse=True, transformer=srctransformer)
+    qmat, amat, qdic, adic, qwc, awc = loadgeo(customemb=customemb, reverse=True, transformer=srctransformer, adic=adic)
 
     maskid = 0
     typdic = None
@@ -630,7 +638,7 @@ def run(
 
     if pretrain == True:
         inpemb_auto = WordEmb(worddic=qdic_auto, maskid=maskid, dim=embdim)
-        outemb = WordEmb(worddic=adic_auto, maskid=maskid, dim=embdim)
+        #outemb = WordEmb(worddic=adic, maskid=maskid, dim=embdim)
 
     if customemb:
         inpemb, outemb = do_custom_emb(inpemb, outemb, awc, embdim)
@@ -724,6 +732,7 @@ def run(
                               dropout_in=dropout)
         encdec.dec.set_lr(0.0)
         '''
+        encdec.dec.embedder.set_lr(0.0)
         encdec.enc.embedder = inpemb
 
     encdec.train([qmat_t, amat_t[:, :-1]], amati_t[:, 1:])\
