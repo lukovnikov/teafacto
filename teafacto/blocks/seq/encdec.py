@@ -153,6 +153,7 @@ class SimpleSeqEncDecAtt(SeqEncDec):
         self.enc = enc
 
 
+
 class SepAttEncoders(Block):
     def __init__(self, enc_a, enc_c, **kw):
         super(SepAttEncoders, self).__init__(**kw)
