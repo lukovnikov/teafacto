@@ -43,6 +43,7 @@ class ModelTrainer(object):
         self._autosavepath = None
         self._autosaveblock = None
         # training settings
+        self.numbats = None
         self.learning_rate = None
         self.dynamic_lr = None
         self.objective = None
@@ -69,6 +70,10 @@ class ModelTrainer(object):
 
 
     #region ====================== settings =============================
+    #region ################### GENERAL ###################
+    def numbats(self, s):
+        self.numbats = s
+        return self
 
     #region ################### LOSSES ##########################
 
@@ -356,6 +361,14 @@ class ModelTrainer(object):
             ret = (ret,) + errors
         return ret
 
+    def train_lambda(self, numbats, batprop=1):
+        self.traincheck()
+        self.numbats = numbats
+        if self.trainstrategy == self._train_cross_valid:
+            raise NotImplementedError("CV training not supported with lambda training yet")
+        trainf, validf, traind, validd = self.trainstrategy(_lambda=True)
+        return ProtoTrainer(trainf, validf, traind, validd, batprop, self)
+
     def get_learning_rate(self):
         return self.learning_rate
 
@@ -472,14 +485,17 @@ class ModelTrainer(object):
     #endregion
 
     #region ################## TRAINING STRATEGIES ############
-    def _train_full(self): # on all data, no validation
+    def _train_full(self, _lambda=False): # on all data, no validation
         df = DataFeeder(*(self.traindata + [self.traingold])).numbats(self.numbats)
         trainf = self.buildtrainfun(self.model, df.batsize)
-        err, _ = self.trainloop(
-                trainf=self.getbatchloop(trainf, df, phase="TRAIN"))
-        return err, None, None, None
+        if _lambda:
+            return trainf, None, df, None
+        else:
+            err, _ = self.trainloop(
+                    trainf=self.getbatchloop(trainf, df, phase="TRAIN"))
+            return err, None, None, None
 
-    def _train_validdata(self):
+    def _train_validdata(self, _lambda=False):
         df = DataFeeder(*(self.traindata + [self.traingold])).numbats(self.numbats)
         vdf = DataFeeder(*(self.validdata + [self.validgold]))
         vdf.batsize = df.batsize
@@ -487,22 +503,28 @@ class ModelTrainer(object):
         validf = self.buildvalidfun(self.model, vdf.batsize)
         #embed()
         #dfvalid = df.osplit(split=self.validsplits, random=self.validrandom)
-        err, verr = self.trainloop(
-                trainf=self.getbatchloop(trainf, df, phase="TRAIN"),
-                validf=self.getbatchloop(validf, vdf, phase="VALID"))
-        return err, verr, None, None
+        if _lambda:
+            return trainf, validf, df, vdf
+        else:
+            err, verr = self.trainloop(
+                    trainf=self.getbatchloop(trainf, df, phase="TRAIN"),
+                    validf=self.getbatchloop(validf, vdf, phase="VALID"))
+            return err, verr, None, None
 
-    def _train_split(self):
+    def _train_split(self, _lambda=False):
         df = DataFeeder(*(self.traindata + [self.traingold]))
         dftrain, dfvalid = df.split(self.validsplits, self.validrandom)
         dftrain.numbats(self.numbats)
         dfvalid.batsize = dftrain.batsize
         trainf = self.buildtrainfun(self.model, dftrain.batsize)
         validf = self.buildvalidfun(self.model, dfvalid.batsize)
-        err, verr = self.trainloop(
-                trainf=self.getbatchloop(trainf, dftrain, phase="TRAIN"),
-                validf=self.getbatchloop(validf, dfvalid, phase="VALID"))
-        return err, verr, None, None
+        if _lambda:
+            return trainf, validf, dftrain, dfvalid
+        else:
+            err, verr = self.trainloop(
+                    trainf=self.getbatchloop(trainf, dftrain, phase="TRAIN"),
+                    validf=self.getbatchloop(validf, dfvalid, phase="VALID"))
+            return err, verr, None, None
 
     def _train_cross_valid(self):
         df = DataFeeder(*(self.traindata + [self.traingold]))
@@ -651,6 +673,144 @@ class ModelTrainer(object):
                 self._autosaveblock
         filepath = filepath if filepath is not None else self._autosavepath
         model.save(filepath=filepath)
+
+
+class ProtoTrainer(object):
+    def __init__(self, trainf, validf, traind, validd, batprop, trainer):
+        self.trainf, self.validf, self.traind, self.validd = trainf, validf, traind, validd
+        self.batprop = batprop
+        self.original = trainer
+
+    def interleave(self, otherprototrainer):
+        return InterleavedTrainer(self, otherprototrainer)
+
+
+class InterleavedTrainer(object):
+    def __init__(self, maintrainer, *othertrainers):
+        self.spts = [maintrainer] + list(othertrainers)
+        self.tt = TT("InterleavedTrainer")
+        self.currentiter = 0
+        self._validinter = self.spts[0].original._validinter
+
+    def train(self, epochs=10, verbose=True):
+        self.maxiter = epochs
+        tf = self.getbatchloop([spt.trainf for spt in self.spts],
+                               [spt.traind for spt in self.spts],
+                               verbose=verbose, phase="TRAIN")
+        subvfs = []
+        for spt in self.spts:
+            if spt.validf is not None and spt.validd is not None:
+                subvf = spt.original.getbatchloop(spt.validf, spt.validd, verbose=verbose, phase="TEST")
+                subvfs.append(subvf)
+            else:
+                subvfs.append(None)
+        def vf():
+            return [subvf() if subvf is not None else None for subvf in subvfs]
+        return self.trainloop(tf, vf)
+
+    # region ############# TRAINING LOOPS ##################
+    def trainloop(self, tf, vf):
+        self.tt.tick("training")
+        stop = self.maxiter == 0
+        self.currentiter = 1
+        evalinter = self._validinter
+        evalcount = evalinter
+        tt = TT("iter")
+        err = []
+        verr = []
+        prevverre = [[float("inf")] * len(subt.original.validators)
+                     for subt in self.spts]
+        while not stop:
+            tt.tick("%d/%d" % (self.currentiter, int(self.maxiter)))
+            erre = tf()
+            if self.currentiter == self.maxiter:
+                stop = True
+            self.currentiter += 1
+            err.append(erre)
+            # print "done training"
+            verre = prevverre
+            if self.currentiter % evalinter == 0:  # validate and print
+                verre = vf()
+                prevverre = verre
+                verr.append(verre)
+                #embed()     # TODO
+            # retaining the best of main trainer
+            if self.spts[0].original.besttaker is not None:
+                modelscore = self.spts[0].original.besttaker(([erre[0]] + verre[0] + [self.currentiter]))
+                if modelscore < self.spts[0].original.bestmodel[1]:
+                    # tt.tock("freezing best with score %.3f (prev: %.3f)" % (modelscore, self.bestmodel[1]), prefix="-").tick()
+                    self.spts[0].original.bestmodel = (self.spts[0].original.model.freeze(), modelscore)
+
+            ttlines = []
+            for i in range(len(erre)):
+                if verre[i] is not None:
+                    ttlines.append("\t%s:\ttraining error: %s \t validation error: %s" \
+                            % (i+1, "%.4f" % erre[i][0],
+                               " - ".join(map(lambda x: "%.4f" % x, verre[i]))))
+                else:
+                    ttlines.append("\t%s:\ttraining error: %s"
+                            % (i+1, " - ".join(map(lambda x: "%.4f" % x, erre[i]))))
+            tt.tock("\n".join(ttlines) + "\n", prefix="-")
+            for i, subt in enumerate(self.spts):
+                subt.original._update_lr(self.currentiter, self.maxiter,
+                                         [errx[i] for errx in err],
+                                         [verrx[i] for verrx in verr])
+            evalcount += 1
+            # embed()
+            for subt in self.spts:
+                if subt.original._autosave:
+                    subt.original.save()
+        self.tt.tock("trained").tick()
+        return err, verr
+
+    def getbatchloop(self, trainfs, datafeeders, verbose=True, phase="TEST"):
+        '''
+        returns the batch loop, loaded with the provided trainf training function and samplegen sample generator
+        '''
+        sampletransfs = [spt.original._transformsamples for spt in self.spts]
+        this = self
+
+        def batchloop():
+            c = 0
+            prevperc = -1.
+            terrs = [[0.0] if tf is not None else None for tf in trainfs]
+            numdigs = 2
+            tt = TT("iter progress", verbose=verbose)
+            tt.tick()
+            for dataf in datafeeders:
+                if dataf is not None:
+                    dataf.reset()
+            while datafeeders[0].hasnextbatch():
+                perc = round(c * 100. * (10 ** numdigs) / datafeeders[0].getnumbats()) / (10 ** numdigs)
+                if perc > prevperc:
+                    s = ("%." + str(numdigs) + "f%% \t error: %s") \
+                        % (perc, " - ".join(map(lambda x: "%.3f" % x[0], terrs)))
+                    tt.live(s)
+                    prevperc = perc
+                for df in datafeeders:
+                    if not df.hasnextbatch():
+                        df.reset()
+                sampleinps = [df.nextbatch() for df in datafeeders]
+                # embed()
+                sampleinps = [stf(*si, phase=phase) for (stf, si) in zip(sampletransfs, sampleinps)]
+                try:
+                    eterrs = [tf(*si) for (tf, si) in zip(trainfs, sampleinps)]
+                    for i in range(len(terrs)):
+                        if len(terrs[i]) != len(eterrs[i]) and terrs[i].count(0.0) == len(terrs[i]):
+                            terrs[i] = [0.0] * len(eterrs[i])
+                except Exception, e:
+                    raise e
+                for i, subt in enumerate(this.spts):
+                    if subt.original.average_err is True:
+                        terrs[i] = [xterr * (1.0 * (c) / (c + 1)) + xeterr * (1.0 / (c + 1))
+                                for xterr, xeterr in zip(terrs[i], eterrs[i])]
+                    else:
+                        terrs[i] = [xterr + xeterr for xterr, xeterr in zip(terrs[i], eterrs[i])]
+                c += 1
+            tt.stoplive()
+            return terrs
+
+        return batchloop
 
 
 class NSModelTrainer(ModelTrainer):

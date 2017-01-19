@@ -226,6 +226,22 @@ class TestNSModelTrainer(TestCase):
         self.assertGreater(recat10, 0.9)
 
 
+class TestInterleavedTrainer(TestCase):
+    def test_interleaved_trainer(self):
+        main = Dummy(20, 5)
+        seco = Dummy(30, 7)
+        maindata = np.random.randint(0, 20, (50,))
+        secodata = np.random.randint(0, 30, (70,))
+        maintrainer = main.train([maindata], maindata).cross_entropy().adadelta(lr=0.1)\
+            .split_validate(splits=10).cross_entropy().accuracy()\
+            .train_lambda(2)
+        secotrainer = seco.train([secodata], secodata).cross_entropy().adadelta(lr=0.1)\
+            .train_lambda(2)
+
+        maintrainer.interleave(secotrainer).train(50)
+
+
+
 
 
 

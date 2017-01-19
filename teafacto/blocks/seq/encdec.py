@@ -68,41 +68,50 @@ class SimpleSeqEncDecAtt(SeqEncDec):
                  dropout=False,
                  attdist=CosineDistance(),
                  sepatt=False,
+                 encoder=None,
+                 decoder=None,
+                 attention=None,
                  **kw):
         self.encinnerdim = [encdim] if not issequence(encdim) else encdim
         self.decinnerdim = [decdim] if not issequence(decdim) else decdim
+        self.dropout = dropout
 
         # encoder
-        if sepatt:
-            enc = self._getencoder_sepatt(indim=inpvocsize, inpembdim=inpembdim, inpemb=inpemb,
-                            innerdim=self.encinnerdim, bidir=bidir, maskid=maskid,
-                            dropout_in=dropout, dropout_h=dropout, rnu=rnu)
-        else:
-            enc = self._getencoder(indim=inpvocsize, inpembdim=inpembdim, inpemb=inpemb,
+        if encoder is None:
+            if sepatt:
+                enc = self._getencoder_sepatt(indim=inpvocsize, inpembdim=inpembdim, inpemb=inpemb,
                                 innerdim=self.encinnerdim, bidir=bidir, maskid=maskid,
                                 dropout_in=dropout, dropout_h=dropout, rnu=rnu)
+            else:
+                enc = self._getencoder(indim=inpvocsize, inpembdim=inpembdim, inpemb=inpemb,
+                                    innerdim=self.encinnerdim, bidir=bidir, maskid=maskid,
+                                    dropout_in=dropout, dropout_h=dropout, rnu=rnu)
+        else:
+            enc = encoder
+
+        if attention is None:
+            attention = self._getattention(attdist, sepatt=sepatt)
+
         self.lastencinnerdim = enc.outdim
+        if decoder is None:
+            dec = self._getdecoder(outvocsize=outvocsize, outembdim=outembdim, outemb=outemb,
+                                   maskid=maskid, attention=attention, lastencinnerdim=self.lastencinnerdim,
+                                   decinnerdim=self.decinnerdim, inconcat=inconcat, outconcat=outconcat,
+                                   softmaxout=vecout, dropout=dropout, rnu=rnu)
+        else:
+            dec = decoder
 
-        self.dropout = dropout
-        # attention
         self.lastdecinnerdim = self.decinnerdim[-1]
-        attgen = AttGen(attdist)
-        attcon = WeightedSumAttCon()
-        attention = Attention(attgen, attcon, separate=sepatt)
-
-        # decoder
-        dec = SeqDecoder.RNN(
-            emb=outemb, embdim=outembdim, embsize=outvocsize, maskid=maskid,
-            ctxdim=self.lastencinnerdim, attention=attention,
-            innerdim=self.decinnerdim, inconcat=inconcat,
-            softmaxoutblock=vecout, outconcat=outconcat,
-            dropout=dropout, rnu=rnu, dropout_h=dropout,
-        )
         self.statetrans_setting = statetrans
-
         statetrans = self._build_state_trans(self.statetrans_setting, self.lastencinnerdim, self.lastdecinnerdim)
 
         super(SimpleSeqEncDecAtt, self).__init__(enc, dec, statetrans=statetrans, **kw)
+
+    def _getattention(self, attdist, sepatt=False):
+        attgen = AttGen(attdist)
+        attcon = WeightedSumAttCon()
+        attention = Attention(attgen, attcon, separate=sepatt)
+        return attention
 
     def _build_state_trans(self, statetrans, encdim, decdim):
         # initial decoder state
@@ -133,6 +142,21 @@ class SimpleSeqEncDecAtt(SeqEncDec):
                              dropout_in=dropout_in, dropout_h=dropout_h, rnu=rnu) \
             .with_outputs().maskoptions(MaskSetMode.ZERO)
         return SepAttEncoders(enc_a, enc_c)
+
+    def _getdecoder(self, outvocsize=None, outembdim=None, outemb=None, maskid=-1,
+                    attention=None, lastencinnerdim=None, decinnerdim=None, inconcat=False,
+                    outconcat=True, softmaxout=None, dropout=None, rnu=None):
+        lastencinnerdim = self.lastencinnerdim if lastencinnerdim is None else lastencinnerdim
+        decinnerdim = self.decinnerdim if decinnerdim is None else decinnerdim
+        rnu = GRU if rnu is None else rnu
+        dec = SeqDecoder.RNN(
+            emb=outemb, embdim=outembdim, embsize=outvocsize, maskid=maskid,
+            ctxdim=lastencinnerdim, attention=attention,
+            innerdim=decinnerdim, inconcat=inconcat,
+            softmaxoutblock=softmaxout, outconcat=outconcat,
+            dropout=dropout, rnu=rnu, dropout_h=dropout,
+        )
+        return dec
 
     def remake_encoder(self, inpvocsize=None, inpembdim=None, inpemb=None, innerdim=None,
                        bidir=False, maskid=-1, dropout_in=False, dropout_h=False, rnu=GRU,

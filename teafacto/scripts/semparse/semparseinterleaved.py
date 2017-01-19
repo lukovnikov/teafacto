@@ -34,7 +34,10 @@ def run(
         inspectdata=False,
         relinearize="none",
         wreg=0.0,
-        testmode=False):
+        testmode=False,
+        autolr=0.5,
+        autonumbats=500,
+        **kw):
 
     ######### DATA LOADING AND TRANSFORMATIONS ###########
     srctransformer = None
@@ -60,7 +63,6 @@ def run(
     ### TRAIN DATA LOAD ###
     qmat, amat, qdic, adic, qwc, awc = loadgeo(customemb=customemb, reverse=True,
                                                transformer=srctransformer, adic=adic)
-    embed()
 
     maskid = 0
     typdic = None
@@ -120,12 +122,10 @@ def run(
     print "{} training examples".format(qmat_t.shape[0])
 
     ################## MODEL DEFINITION ##################
-    # encdec prerequisites
     inpemb = WordEmb(worddic=qdic, maskid=maskid, dim=embdim)
     outemb = WordEmb(worddic=adic, maskid=maskid, dim=embdim)
 
     inpemb_auto = WordEmb(worddic=qdic_auto, maskid=maskid, dim=embdim)
-    #outemb = WordEmb(worddic=adic_auto, maskid=maskid, dim=embdim)
 
     if customemb:
         inpemb, outemb = do_custom_emb(inpemb, outemb, awc, embdim)
@@ -146,7 +146,7 @@ def run(
     if customemb:
         smo.setlin2(outemb.baseemb.W.T)
 
-    # encdec model
+    # main encdec model
     encdec = SimpleSeqEncDecAtt(inpvocsize=max(qdic.values()) + 1,
                                 inpembdim=embdim,
                                 inpemb=inpemb,
@@ -165,63 +165,23 @@ def run(
                                 bidir=bidir,
                                 )
 
-    ################## TRAINING ##################
-    if pretrain == True or loadpretrained != "none":
-        if pretrain == True and loadpretrained == "none":
-            '''encdec.remake_encoder(inpvocsize=max(qdic_auto.values()) + 1,
-                                  inpembdim=embdim,
-                                  inpemb=inpemb_auto,
-                                  maskid=maskid,
-                                  dropout_h=dropout,
-                                  dropout_in=dropout)
-                                  '''
-            encdec.enc.embedder = inpemb_auto
-        if loadpretrained != "none":
-            encdec = encdec.load(loadpretrained+".pre.sp.model")
-            print "MODEL LOADED: {}".format(loadpretrained)
-        if pretrain == True:
-            if pretrainnumbats < 0:
-                import math
-                batsize = int(math.ceil(qmat_t.shape[0] * 1.0 / numbats))
-                pretrainnumbats = int(math.ceil(qmat_auto.shape[0] * 1.0 / batsize))
-                print "{} batches".format(pretrainnumbats)
-            if pretrainlr < 0:
-                pretrainlr = lr
-            if testmode:
-                oldparamvals = {p: p.v for p in encdec.get_params()}
-                qmat_auto = qmat_auto[:100]
-                amat_auto = amat_auto[:100]
-                amati_auto = amati_auto[:100]
-                pretrainnumbats = 10
-            #embed()
-            encdec.train([qmat_auto, amat_auto[:, :-1]], amati_auto[:, 1:])\
-                .cross_entropy().adadelta(lr=pretrainlr).grad_total_norm(5.) \
-                .l2(wreg).exp_mov_avg(0.95) \
-                .split_validate(splits=10, random=True).cross_entropy().seq_accuracy() \
-                .train(pretrainnumbats, pretrainepochs)
+    encdec_auto = SimpleSeqEncDecAtt(inpvocsize=max(qdic_auto.values())+1,
+                                     inpembdim=embdim,
+                                     inpemb=inpemb_auto,
+                                     encdim=encdimi,
+                                     decdim=decdimi,
+                                     maskid=maskid,
+                                     statetrans=True,
+                                     dropout=dropout,
+                                     inconcat=inconcat,
+                                     outconcat=outconcat,
+                                     rnu=GRU,
+                                     bidir=bidir,
+                                     decoder=encdec.dec)
 
-            if testmode:
-                for p in encdec.get_params():
-                    print np.linalg.norm(p.v - oldparamvals[p], ord=1)
-            savepath = "{}.pre.sp.model".format(random.randint(1000, 9999))
-            print "PRETRAIN SAVEPATH: {}".format(savepath)
-            encdec.save(savepath)
+    ################## INTERLEAVED TRAINING ##################
 
-
-        # NaN somewhere at 75% in training, in one of RNU's? --> with rmsprop
-
-        '''encdec.remake_encoder(inpvocsize=max(qdic.values()) + 1,
-                              inpembdim=embdim,
-                              inpemb=inpemb,
-                              maskid=maskid,
-                              dropout_h=dropout,
-                              dropout_in=dropout)
-        encdec.dec.set_lr(0.0)
-        '''
-        encdec.dec.embedder.set_lr(0.0)
-        encdec.enc.embedder = inpemb
-
-    encdec.train([qmat_t, amat_t[:, :-1]], amati_t[:, 1:])\
+    main_trainer = encdec.train([qmat_t, amat_t[:, :-1]], amati_t[:, 1:])\
         .sampletransform(GenSample(typdic),
                          RandomCorrupt(corruptdecoder=(2, max(adic.values()) + 1),
                                        corruptencoder=(2, max(qdic.values()) + 1),
@@ -230,8 +190,17 @@ def run(
         .l2(wreg).exp_mov_avg(0.8) \
         .validate_on([qmat_x, amati_x[:, :-1]], amat_x[:, 1:]) \
         .cross_entropy().seq_accuracy()\
-        .train(numbats, epochs)
-    #.split_validate(splits=10, random=True)\
+        .train_lambda(numbats, 1)
+
+    auto_trainer = encdec_auto.train([qmat_auto, amat_auto[:, :-1]], amati_auto[:, 1:]) \
+        .cross_entropy().adadelta(lr=autolr).grad_total_norm(5.) \
+        .l2(wreg).exp_mov_avg(0.95) \
+        .split_validate(splits=10, random=True).cross_entropy().seq_accuracy()\
+        .train_lambda(autonumbats, 1)
+
+    #embed()
+
+    main_trainer.interleave(auto_trainer).train(epochs=100)
 
     qrwd = {v: k for k, v in qdic.items()}
     arwd = {v: k for k, v in adic.items()}
