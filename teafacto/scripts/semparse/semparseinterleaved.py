@@ -36,7 +36,7 @@ def run(
         wreg=0.0,
         testmode=False,
         autolr=0.5,
-        autonumbats=2000,
+        autonumbats=500,
         **kw):
 
     ######### DATA LOADING AND TRANSFORMATIONS ###########
@@ -207,7 +207,7 @@ def run(
 
     #embed()
 
-    main_trainer.interleave(auto_trainer).train(epochs=100)
+    main_trainer.interleave(auto_trainer).train(epochs=epochs)
 
     qrwd = {v: k for k, v in qdic.items()}
     arwd = {v: k for k, v in adic.items()}
