@@ -563,7 +563,7 @@ def run(
             raise Exception("unknown linearization")
 
     adic = {}
-    if pretrain:        ### PRETRAIN DATA LOAD ###
+    if pretrain or loadpretrained != "none":        ### PRETRAIN DATA LOAD ###
         qmat_auto, amat_auto, qdic_auto, adic, qwc_auto, awc_auto = \
             loadgeoauto(reverse=True, transformer=srctransformer)
         def pp(i):
