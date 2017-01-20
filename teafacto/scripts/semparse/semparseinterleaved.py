@@ -36,7 +36,7 @@ def run(
         wreg=0.0,
         testmode=False,
         autolr=0.5,
-        autonumbats=500,
+        autonumbats=2000,
         **kw):
 
     ######### DATA LOADING AND TRANSFORMATIONS ###########
@@ -195,7 +195,7 @@ def run(
     auto_trainer = encdec_auto.train([qmat_auto, amat_auto[:, :-1]], amati_auto[:, 1:]) \
         .cross_entropy().adadelta(lr=autolr).grad_total_norm(5.) \
         .l2(wreg).exp_mov_avg(0.95) \
-        .split_validate(splits=10, random=True).cross_entropy().seq_accuracy()\
+        .split_validate(splits=50, random=True).cross_entropy().seq_accuracy()\
         .train_lambda(autonumbats, 1)
 
     #embed()
