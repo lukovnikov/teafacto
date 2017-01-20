@@ -179,6 +179,11 @@ def run(
                                      bidir=bidir,
                                      decoder=encdec.dec)
 
+    encdec_params = encdec.get_params()
+    encdec_auto_params = encdec_auto.get_params()
+    dec_params = encdec.dec.get_params()
+    assert(len(encdec_params.intersection(encdec_auto_params).difference(dec_params)) == 0)
+
     ################## INTERLEAVED TRAINING ##################
 
     main_trainer = encdec.train([qmat_t, amat_t[:, :-1]], amati_t[:, 1:])\
