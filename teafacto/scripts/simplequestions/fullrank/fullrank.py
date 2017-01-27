@@ -858,7 +858,8 @@ def run(negsammode="closest",   # "close" or "random"
                 i += 1
             inp()
 
-    embed()
+    print "##### DONE #####"
+    #embed()
 
 
 
