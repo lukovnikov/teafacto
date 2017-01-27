@@ -751,7 +751,6 @@ def run(negsammode="closest",   # "close" or "random"
 
     if loadmodel != "no":
         tt.tick("loading model")
-        loadmodel = loadmodel.replace(",", ".")
         m = SeqMatchScore.load("fullrank{}.model".format(loadmodel))
         #embed()
         question_encoder = m.l.inner

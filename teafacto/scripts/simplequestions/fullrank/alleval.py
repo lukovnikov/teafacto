@@ -14,12 +14,9 @@ def main(scriptname="testrunscript.py",
     griddict = OrderedDict({x: loc[x].split(",") for x in "numtestcans multiprune mode".split()})
     #print griddict
     for filename in os.listdir("."):
-        m = re.match("^{}$".format(modelfilepattern.format("(\d{0,4})\.?(\d{0,3}ep)?")), filename)
+        m = re.match("^{}$".format(modelfilepattern.format("(\d{0,4}\.?(\d{0,3}ep)?)")), filename)
         if m:
-            #print m.groups()
             modelname = m.group(1)
-            if m.group(2) is not None:
-                modelname += ",{}".format(m.group(2))
             for i in range(reduce(lambda x, y: x * y, map(len, griddict.values()))):
                 indexes = OrderedDict()
                 for k, v in griddict.items():
