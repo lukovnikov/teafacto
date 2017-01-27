@@ -3,6 +3,7 @@ from textwrap import dedent
 from teafacto.util import argprun
 from collections import OrderedDict
 
+
 def main(scriptname="testrunscript.py",
          modelfilepattern="testmodelfile{}.txt",
          numtestcans="5,10,400",
@@ -13,6 +14,12 @@ def main(scriptname="testrunscript.py",
     loc = locals()
     griddict = OrderedDict({x: loc[x].split(",") for x in "numtestcans multiprune mode".split()})
     #print griddict
+
+    for filename in os.listdir("."):
+        m = re.match("^{}$".format(modelfilepattern.format("(\d{0,4}\.?(\d{0,3}ep)?)")), filename)
+        if m:
+            modelname = m.group(1)
+            print filename, modelname
     for filename in os.listdir("."):
         m = re.match("^{}$".format(modelfilepattern.format("(\d{0,4}\.?(\d{0,3}ep)?)")), filename)
         if m:
