@@ -538,7 +538,11 @@ class NegIdxGen(object):
             ret = np.expand_dims(ret, axis=1)
             return ret.astype("int32")
 
-
+# python fullrank.py -numtestcans 400 -loadmodel ? -multiprune ?(1) -mode ?
+# margin is still default (0.5), no need to specify
+# mode must be matching mode of model --> will fail
+# actual model hyperparams and training hyperparams need not specified for eval
+# forcesubjincl must be false !!!
 def run(negsammode="closest",   # "close" or "random"
         usetypes=True,
         mode="concat",      # "seq" or "concat" or "multi" or "multic"
@@ -559,12 +563,12 @@ def run(negsammode="closest",   # "close" or "random"
         debug=False,
         debugtest=False,
         forcesubjincl=False,
-        randsameval=0,
+        randsameval=0,          # random sampling experiment, not using the candidates pregenerated
         numtestcans=5,
         multiprune=-1,
         checkdata=False,
         testnegsam=False,
-        testmodel=False,
+        testmodel=False,        # just embed
         ):
     tt = ticktock("script")
     tt.tick("loading data")
