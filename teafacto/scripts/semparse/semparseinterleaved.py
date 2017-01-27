@@ -58,7 +58,7 @@ def run(
         print wordids2string(amat_auto[i], {v: k for k, v in adic.items()}, 0)
     if inspectdata:
         print "auto data inspect"
-        embed()
+        #embed()
 
     ### TRAIN DATA LOAD ###
     qmat, amat, qdic, adic, qwc, awc = loadgeo(customemb=customemb, reverse=True,

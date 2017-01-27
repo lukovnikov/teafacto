@@ -396,6 +396,7 @@ if __name__ == "__main__":
         population:i <= country:t | state:t | city:t -> int ;
         city:t < place:t ;
     """
+    abstractent = True
     g = LambdaGrammar()
     g.parse_rules(lbdrules)
     p = "../../data/semparse/geoquery.lbd.dev"
@@ -424,7 +425,7 @@ if __name__ == "__main__":
     tt = TT()
     tt.tick()
     k = 50000
-    outp = "../../data/semparse/geoquery.lbd.autogen"
+    outp = "../../data/semparse/geoquery.lbd.abstr.autogen"
     with open(outp, "w") as f:
         parser = LambdaParser()
         for i in range(k):

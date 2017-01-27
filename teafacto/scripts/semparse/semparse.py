@@ -688,6 +688,7 @@ def run(
                                   inpembdim=embdim,
                                   inpemb=inpemb_auto,
                                   maskid=maskid,
+                                  bidir=bidir,
                                   dropout_h=dropout,
                                   dropout_in=dropout)
             else:
@@ -729,6 +730,7 @@ def run(
             encdec.remake_encoder(inpvocsize=max(qdic.values()) + 1,
                               inpembdim=embdim,
                               inpemb=inpemb,
+                              bidir=bidir,
                               maskid=maskid,
                               dropout_h=dropout,
                               dropout_in=dropout)
