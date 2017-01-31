@@ -32,6 +32,8 @@ class ConcatBlock(Block):
 class Softmax(Block):
     def apply(self, inptensor, mask=None): # matrix
         if mask is None:
+            mask = inptensor.mask
+        if mask is None:
             return T.nnet.softmax(inptensor)
         else:   # our own custom stable masked softmax
             o_exp = T.exp(inptensor - T.max(inptensor, axis=1).dimshuffle(0, 'x'))
