@@ -65,6 +65,8 @@ class ModelTrainer(object):
         # taking best
         self.besttaker = None
         self.bestmodel = None
+        # writing
+        self._writeresultspath = None
 
 
     #region ====================== settings =============================
@@ -500,6 +502,11 @@ class ModelTrainer(object):
         evalcount = evalinter
         tt = TT("iter")
         prevverre = [float("inf")] * len(self.validators)
+
+        writeresf = None
+        if self._writeresultspath is not None:
+            writeresf = open(self._writeresultspath, "w", 1)
+
         while not stop:     # loop over epochs
             tt.tick("%d/%d" % (self.currentiter, int(self.maxiter)))
             erre = trainf()
@@ -509,6 +516,7 @@ class ModelTrainer(object):
             err.append(erre)
             #print "done training"
             verre = prevverre
+            restowrite = ""
             if validf is not None and self.currentiter % evalinter == 0: # validate and print
                 verre = validf()
                 prevverre = verre
@@ -516,8 +524,12 @@ class ModelTrainer(object):
                 ttmsg = "training error: %s \t validation error: %s" \
                        % ("%.4f" % erre[0],
                           " - ".join(map(lambda x: "%.4f" % x, verre)))
+                restowrite = "\t".join(map(str, erre[0:1] + verre))
             else:
                 ttmsg = "training error: %s" % " - ".join(map(lambda x: "%.4f" % x, erre))
+                restowrite = str(erre[0])
+            if writeresf is not None:
+                writeresf.write(restowrite + "\n")
             # retaining the best
             if self.besttaker is not None:
                 modelscore = self.besttaker(([erre]+verre+[self.currentiter]))
@@ -530,6 +542,8 @@ class ModelTrainer(object):
             #embed()
             if self._autosave:
                 self.save()
+        if writeresf is not None:
+            writeresf.close()
         self.tt.tock("trained").tick()
         return err, verr
 
@@ -588,6 +602,10 @@ class ModelTrainer(object):
         self._autosave = True
         self._autosaveblock = block
         self._autosavepath = p
+        return self
+
+    def writeresultstofile(self, p):
+        self._writeresultspath = p
         return self
 
     def save(self, model=None, filepath=None):

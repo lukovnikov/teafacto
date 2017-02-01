@@ -745,7 +745,7 @@ def run(negsammode="closest",   # "close" or "random"
                                     relsperent=nsrelsperent)) \
             .objective(obj).adagrad(lr=lr).l2(wreg).grad_total_norm(gradnorm) \
             .validate_on([validdata, validgold]) \
-            .autosavethis(scorer, savep) \
+            .autosavethis(scorer, savep).writeresultstofile(savep+".progress.tsv") \
             .train(numbats=numbats, epochs=epochs)
         tt.tock("trained").tick()
 

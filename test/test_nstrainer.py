@@ -34,6 +34,7 @@ class TestNSModelTrainer(TestCase):
             .adagrad(lr=0.1) \
             .validate_on([vdata, vdata]).extvalid(geteval(m.predict, num, negrate)).validinter(30) \
             .train(numbats=50, epochs=29, returnerrors=True)
+        #.writeresultstofile("testingresultswriter.tsv") \
 
         tdata = np.arange(num)
         tt = ticktock("eval")
