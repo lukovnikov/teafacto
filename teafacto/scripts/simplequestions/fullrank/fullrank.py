@@ -732,8 +732,12 @@ def run(negsammode="closest",   # "close" or "random"
 
     if epochs > 0 and loadmodel == "no":
         tt.tick("training")
-        saveid = "".join([str(np.random.randint(0, 10)) for i in range(4)])
-        print("CHECKPOINTING AS: {}".format(saveid))
+        pathexists = True
+        while pathexists:
+            saveid = "".join([str(np.random.randint(0, 10)) for i in range(4)])
+            print("CHECKPOINTING AS: {}".format(saveid))
+            savep = "fullrank{}.model".format(saveid)
+            pathexists = os.path.isfile(savep)
         nscorer = scorer.nstrain([traindata, traingold]).transform(transf) \
             .negsamplegen(NegIdxGen(numsubjs-1, numrels-1,
                                     relclose=relsamplespace,
@@ -741,7 +745,7 @@ def run(negsammode="closest",   # "close" or "random"
                                     relsperent=nsrelsperent)) \
             .objective(obj).adagrad(lr=lr).l2(wreg).grad_total_norm(gradnorm) \
             .validate_on([validdata, validgold]) \
-            .autosavethis(scorer, "fullrank{}.model".format(saveid)) \
+            .autosavethis(scorer, savep) \
             .train(numbats=numbats, epochs=epochs)
         tt.tock("trained").tick()
 
