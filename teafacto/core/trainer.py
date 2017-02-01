@@ -529,7 +529,7 @@ class ModelTrainer(object):
                 ttmsg = "training error: %s" % " - ".join(map(lambda x: "%.4f" % x, erre))
                 restowrite = str(erre[0])
             if writeresf is not None:
-                writeresf.write(restowrite + "\n")
+                writeresf.write("{}\t{}\n".format(self.currentiter - 1, restowrite))
             # retaining the best
             if self.besttaker is not None:
                 modelscore = self.besttaker(([erre]+verre+[self.currentiter]))

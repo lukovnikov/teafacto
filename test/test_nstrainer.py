@@ -33,6 +33,7 @@ class TestNSModelTrainer(TestCase):
         m, err, verr, _, _ = m.nstrain([idxs, idxs]).negsamplegen(NegIdxGen(num+1)).negrate(negrate)\
             .adagrad(lr=0.1) \
             .validate_on([vdata, vdata]).extvalid(geteval(m.predict, num, negrate)).validinter(30) \
+            .writeresultstofile("testingresultswriter.tsv") \
             .train(numbats=50, epochs=29, returnerrors=True)
         #.writeresultstofile("testingresultswriter.tsv") \
 
