@@ -13,7 +13,7 @@ from theano.compile.nanguardmode import NanGuardMode
 
 #from core import Input
 from teafacto.core.datafeed import DataFeeder, SplitIdxIterator
-from teafacto.util import ticktock as TT
+from teafacto.util import ticktock as TT, issequence
 
 
 class DynamicLearningParam(object):
@@ -60,6 +60,7 @@ class ModelTrainer(object):
         self.validgold = None
         self.validation = None
         self.validators = []
+        self.external_validators = []
         self.tt = TT("FluentTrainer")
         # taking best
         self.besttaker = None
@@ -298,6 +299,11 @@ class ModelTrainer(object):
         self.validrandom = random
         self.validsetmode = True
         return self
+
+    def extvalid(self, evaluator):  # adds external, non-symbolic validator
+        self.external_validators.append(evaluator)
+        return self
+
     #endregion
 
     #region ######################### SELECTING THE BEST ######################
@@ -383,6 +389,25 @@ class ModelTrainer(object):
     def buildlosses(self, model, objs):
         return [aggregate(obj(model.output.d, self.goldvar), mode='mean' if self.average_err is True else 'sum') for obj in objs], None
 
+    def getvalidfun(self, model):
+        symbolic_validfun = self.buildvalidfun(model)
+        if len(self.external_validators) == 0:
+            return symbolic_validfun
+        else:
+            extravalid = self.external_validators
+            def validfun(*sampleinps):
+                ret = symbolic_validfun(*sampleinps)
+                for ev in extravalid:
+                    a = ev(*sampleinps)
+                    if not issequence(a):
+                        a = [a]
+                    else:
+                        if isinstance(a, tuple):
+                            a = list(a)
+                    ret += a
+                return ret
+            return validfun
+
     def buildvalidfun(self, model):
         self.tt.tick("compiling validation function")
         metrics, newinp = self.buildlosses(model, self.validators)
@@ -408,24 +433,27 @@ class ModelTrainer(object):
         return err, None, None, None
 
     def _train_validdata(self):
-        validf = self.buildvalidfun(self.model)
+        validf = self.getvalidfun(self.model)
         trainf = self.buildtrainfun(self.model)
-        df = DataFeeder(*(self.traindata + [self.traingold]))
+        df = DataFeeder(*(self.traindata + [self.traingold])).numbats(self.numbats)
         vdf = DataFeeder(*(self.validdata + [self.validgold]))
+        vdf.batsize = df.batsize
         #embed()
         #dfvalid = df.osplit(split=self.validsplits, random=self.validrandom)
         err, verr = self.trainloop(
-                trainf=self.getbatchloop(trainf, df.numbats(self.numbats)),
+                trainf=self.getbatchloop(trainf, df),
                 validf=self.getbatchloop(validf, vdf))
         return err, verr, None, None
 
     def _train_split(self):
         trainf = self.buildtrainfun(self.model)
-        validf = self.buildvalidfun(self.model)
+        validf = self.getvalidfun(self.model)
         df = DataFeeder(*(self.traindata + [self.traingold]))
         dftrain, dfvalid = df.split(self.validsplits, self.validrandom)
+        dftrain.numbats(self.numbats)
+        dfvalid.batsize = dftrain.batsize
         err, verr = self.trainloop(
-                trainf=self.getbatchloop(trainf, dftrain.numbats(self.numbats)),
+                trainf=self.getbatchloop(trainf, dftrain),
                 validf=self.getbatchloop(validf, dfvalid))
         return err, verr, None, None
 
@@ -437,10 +465,12 @@ class ModelTrainer(object):
         c = 0
         for splitidxs in splitter:
             trainf = self.buildtrainfun(self.model)
-            validf = self.buildvalidfun(self.model)
+            validf = self.getvalidfun(self.model)
             tf, vf = df.isplit(splitidxs)
+            tf.numbats(self.numbats)
+            vf.batsize = tf.batsize
             serr, sverr = self.trainloop(
-                trainf=self.getbatchloop(trainf, tf.numbats(self.numbats)),
+                trainf=self.getbatchloop(trainf, tf),
                 validf=self.getbatchloop(validf, vf))
             err.append(serr)
             verr.append(sverr)
@@ -470,7 +500,7 @@ class ModelTrainer(object):
         evalcount = evalinter
         tt = TT("iter")
         prevverre = [float("inf")] * len(self.validators)
-        while not stop:
+        while not stop:     # loop over epochs
             tt.tick("%d/%d" % (self.currentiter, int(self.maxiter)))
             erre = trainf()
             if self.currentiter == self.maxiter:
@@ -511,6 +541,7 @@ class ModelTrainer(object):
 
         def batchloop():
             c = 0
+            numex = 0
             prevperc = -1.
             terr = [0.0]
             numdigs = 2
@@ -519,23 +550,27 @@ class ModelTrainer(object):
             while datafeeder.hasnextbatch():
                 perc = round(c*100.*(10**numdigs)/datafeeder._numbats)/(10**numdigs)
                 if perc > prevperc:
-                    s = ("%."+str(numdigs)+"f%% \t error: %.3f") % (perc, terr[0])
+                    terr0 = terr[0] * 1.0 / numex if numex > 0 else 0.0
+                    s = ("%."+str(numdigs)+"f%% \t error: %.3f") % (perc, terr0)
                     tt.live(s)
                     prevperc = perc
-                sampleinps = datafeeder.nextbatch()
+                sampleinps, batsize = datafeeder.nextbatch(withbatchsize=True)
+                numex += batsize
                 sampleinps = sampletransf(*sampleinps)
                 try:
                     eterr = trainf(*sampleinps)
                     if len(terr) != len(eterr) and terr.count(0.0) == len(terr):
-                        terr = [0.0]*len(eterr)
+                        terr = [0.0]*len(eterr)     # ensure compatible size of terr (number of output scores)
                 except Exception, e:
                     raise e
                 if self.average_err is True:
-                    terr = [xterr*(1.0*(c)/(c+1)) + xeterr*(1.0/(c + 1)) for xterr, xeterr in zip(terr, eterr)]
+                    terr = [xterr + xeterr * batsize for xterr, xeterr in zip(terr, eterr)]
                 else:
                     terr = [xterr + xeterr for xterr, xeterr in zip(terr, eterr)]
                 c += 1
             tt.stoplive()
+            if self.average_err is True:
+                terr = [xterr * 1.0 / numex for xterr in terr]
             return terr
         return batchloop
 
@@ -565,9 +600,10 @@ class ModelTrainer(object):
 
 class NSModelTrainer(ModelTrainer):
     """ Model trainer using negative sampling """
-    def __init__(self, model, gold, nrate, nsamgen):
+    def __init__(self, model, gold, nrate, nsamgen, nrate_valid=None):
         super(NSModelTrainer, self).__init__(model, gold)
         self.ns_nrate = nrate
+        self.ns_nrate_valid = nrate if nrate_valid is None else nrate_valid
         self.ns_nsamgen = nsamgen
 
     def _transformsamples(self, *s):

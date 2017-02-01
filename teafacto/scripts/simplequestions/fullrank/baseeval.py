@@ -47,7 +47,7 @@ def randgen(entcans, relsperent):
     return mat
 
 
-def main(numtestcans=400, numruns=100):
+def main(numtestcans=10, numruns=100):
     testgold, testsubjcans, relspersubj = loaddata(numtestcans=numtestcans)
     totalaccs = []
     subjaccs = []

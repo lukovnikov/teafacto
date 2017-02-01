@@ -5,7 +5,7 @@ from math import ceil
 class DataFeeder(object): # contains data feeds
     def __init__(self, *feeds): # feeds or numpy arrays
         self.feeds = feeds
-        self.batsize= None
+        self.batsize = None
         feedlens = [x.shape[0] for x in self.feeds]
         assert(feedlens.count(feedlens[0]) == len(feedlens)) # all data feeds must have equal number of examples (axis zero)
         self.size = feedlens[0]
@@ -15,13 +15,18 @@ class DataFeeder(object): # contains data feeds
         self.offset = 0
         self.reset()
         self.autoreset = True
-        self._numbats = 1
 
     # fluent settings
     def numbats(self, numbats):
-        self._numbats = numbats
-        self.batsize = int(ceil(self.size*1./numbats))
+        self.batsize = int(ceil(self.size * 1. / numbats))
         return self
+
+    @property
+    def _numbats(self):
+        return self.getnumbats()
+
+    def getnumbats(self):
+        return int(ceil(self.size * 1. / self.batsize))
 
     def random(self, random):
         self.random = random
@@ -39,7 +44,7 @@ class DataFeeder(object): # contains data feeds
             self.reset()
         return ret
 
-    def nextbatch(self):
+    def nextbatch(self, withbatchsize=False):
         if self.batsize is None:
             self.offset = self.size # ensure stop
             return [x[:] for x in self.feeds]
@@ -47,7 +52,10 @@ class DataFeeder(object): # contains data feeds
         end = min(self.offset+self.batsize, self.size)
         sampleidxs = self.iteridxs[start:end]
         self.offset = end
-        return [x[sampleidxs] for x in self.feeds]
+        if withbatchsize:
+            return [x[sampleidxs] for x in self.feeds], sampleidxs.shape[0]
+        else:
+            return [x[sampleidxs] for x in self.feeds]
 
     def split(self, split=2, random=False): # creates two new datafeeders with disjoint splits
         splitidxs = np.arange(0, self.size)

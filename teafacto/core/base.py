@@ -709,6 +709,8 @@ class NSTrainConfig():
         self.nsamgen = None
         self.trainerargs = []
         self.linear_objective()     # will be stored <-- default trainer loss for NS training
+        self._validmodeflag = False
+        self.nrate_valid = 1
 
     #region =========== OWN SETTINGS ===============
     def objective(self, f):
@@ -721,7 +723,10 @@ class NSTrainConfig():
         return self.getret()
 
     def negrate(self, n):
-        self.nrate = n
+        if not self._validmodeflag:
+            self.nrate = n
+        else:
+            self.nrate_valid = n
         return self.getret()
 
     def negsamplegen(self, f):
@@ -775,6 +780,7 @@ class NSTrainConfig():
         gold = np.ones((data[-1].shape[0],), dtype="float32")
         self._trainerconfigstorer("validate_on", data, gold, splits=splits, random=random)
         self.linear_objective()
+        self._validmodeflag = True
         return self
 
     def getret(self):
