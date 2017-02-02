@@ -779,7 +779,7 @@ def run(negsammode="closest",   # "close" or "random"
             return totalacc, subjacc, predacc
         return validate_acc
 
-
+    savep = None
     if epochs > 0 and loadmodel == "no":
         tt.tick("training")
         pathexists = True
@@ -797,26 +797,31 @@ def run(negsammode="closest",   # "close" or "random"
             .objective(obj).adagrad(lr=lr).l2(wreg).grad_total_norm(gradnorm) \
             .validate_on([validdata, validgold]).extvalid(extvalidf) \
             .autosavethis(scorer, savep).writeresultstofile(savep+".progress.tsv") \
-            .takebest(lambda x: x[2]) \
+            .takebest(lambda x: x[2], save=True) \
             .train(numbats=numbats, epochs=epochs, _skiptrain=debugvalid)
         tt.tock("trained").tick()
 
         # saving
         #scorer.save("fullrank{}.model".format(saveid))
         embed()
-        nscorer.block.save(savep)
         print("SAVED AS: {}".format(saveid))
 
+    # LOAD MODEL FOR EVAL
+    loadp = savep
     if loadmodel != "no":
-        tt.tick("loading model")
-        m = SeqMatchScore.load("fullrank{}.model".format(loadmodel))
-        #embed()
-        question_encoder = m.l.inner
-        subjemb = m.r.subjenc
-        predemb = m.r.predenc
-        tt.tock("loaded model")
+        loadp = "fullrank{}.model".format(loadmodel)
+    if os.path.isfile(loadp + ".best"):
+        loadp = loadp + ".best"
 
-    # evaluation
+    tt.tick("loading model")
+    m = SeqMatchScore.load(loadp)
+    #embed()
+    question_encoder = m.l.inner
+    subjemb = m.r.subjenc
+    predemb = m.r.predenc
+    tt.tock("loaded model")
+
+    # EVALUATION
     predictor = CustomPredictor(questionencoder=question_encoder,
                                 entityencoder=subjemb,
                                 relationencoder=predemb,
@@ -839,10 +844,11 @@ def run(negsammode="closest",   # "close" or "random"
         testrelcans = np.concatenate([testgold[:, 1:2], testrelcans], axis=1)
         testsubjcans = testsubjcans.tolist()
         testrelcans = testrelcans.tolist()
-        prediction = predictor.predict(testdata, entcans=testsubjcans, relcans=testrelcans)
+        prediction = predictor.predict(testdata, entcans=testsubjcans,
+                                       relcans=testrelcans)
     else:
         prediction = predictor.predict(testdata, entcans=testsubjcans,
-                                       relsperent=relsperent, multiprune=multiprune)
+                            relsperent=relsperent, multiprune=multiprune)
     tt.tock("predicted")
     tt.tick("evaluating")
     evalmat = prediction == testgold
