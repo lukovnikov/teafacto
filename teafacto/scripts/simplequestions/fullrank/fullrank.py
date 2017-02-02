@@ -804,7 +804,7 @@ def run(negsammode="closest",   # "close" or "random"
 
         # saving
         #scorer.save("fullrank{}.model".format(saveid))
-        embed()
+        #embed()
         print("SAVED AS: {}".format(saveid))
 
     # LOAD MODEL FOR EVAL
