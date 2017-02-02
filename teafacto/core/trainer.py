@@ -525,6 +525,8 @@ class ModelTrainer(object):
             #print "done training"
             verre = prevverre
             restowrite = ""
+            if self._autosave:
+                self.save()
             if validf is not None and self.currentiter % evalinter == 0: # validate and print
                 verre = validf()
                 prevverre = verre
@@ -548,8 +550,6 @@ class ModelTrainer(object):
             self._update_lr(self.currentiter, self.maxiter, err, verr)
             evalcount += 1
             #embed()
-            if self._autosave:
-                self.save()
         if writeresf is not None:
             writeresf.close()
         self.tt.tock("trained").tick()

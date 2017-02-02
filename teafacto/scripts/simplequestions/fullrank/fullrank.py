@@ -737,47 +737,43 @@ def run(negsammode="closest",   # "close" or "random"
         numvalidcans = 10
         validsubjcans = pickle.load(open("../../../../data/simplequestions/clean/validcans{}c.pkl".format(numvalidcans), "r"))
         def validate_acc(*sampleinps):
-            if os.path.isfile(savepath):
+            if os.path.isfile(savepath):    # reload model for a whole iter
                 m = SeqMatchScore.load("fullrank{}.model".format(loadmodel))
-                #embed()
-                question_encoder = m.l.inner
-                subjemb = m.r.subjenc
-                predemb = m.r.predenc
-                predictor = CustomPredictor(questionencoder=question_encoder,
-                                            entityencoder=subjemb,
-                                            relationencoder=predemb,
+                predictor = CustomPredictor(questionencoder=m.l.inner,
+                                            entityencoder=m.r.subjenc,
+                                            relationencoder=m.r.predenc,
                                             mode=mode,
                                             enttrans=transf.ef,
                                             reltrans=transf.rf,
                                             debug=debugtest,
                                             subjinfo=subjinfo,
                                             silent=True)
-                multipru = multiprune
-                relspere = relsperent
-                vdata = validdata
-                #tt = ticktock("External Accuracy Validator")
-                qmat = sampleinps[0]
-                cans = validsubjcans[offset[0]: offset[0] + qmat.shape[0]]
-                amat = sampleinps[1]
-                #tt.tick("predicting")
-                pred = predictor.predict(qmat, entcans=cans, relsperent=relspere, multiprune=multipru)
-                #tt.tock("predicted")
-                #tt.tick("evaluating")
-                evalmat = amat == pred
-                subjacc = np.sum(evalmat[:, 0]) * 1. / evalmat.shape[0]
-                predacc = np.sum(evalmat[:, 1]) * 1. / evalmat.shape[0]
-                totalacc = np.sum(np.sum(evalmat, axis=1) == 2) * 1. / evalmat.shape[0]
-                #tt.tock("evaluated")
-                if offset[0] == 0:
-                    #embed()
-                    pass
-                offset[0] += qmat.shape[0]
-                if offset[0] == vdata.shape[0]:
-                    #embed()
-                    offset[0] = 0
-                return totalacc, subjacc, predacc
             else:
-                return 0., 0., 0.
+                raise Exception("could not load model")
+            multipru = multiprune
+            relspere = relsperent
+            vdata = validdata
+            #tt = ticktock("External Accuracy Validator")
+            qmat = sampleinps[0]
+            cans = validsubjcans[offset[0]: offset[0] + qmat.shape[0]]
+            amat = sampleinps[1]
+            #tt.tick("predicting")
+            pred = predictor.predict(qmat, entcans=cans, relsperent=relspere, multiprune=multipru)
+            #tt.tock("predicted")
+            #tt.tick("evaluating")
+            evalmat = amat == pred
+            subjacc = np.sum(evalmat[:, 0]) * 1. / evalmat.shape[0]
+            predacc = np.sum(evalmat[:, 1]) * 1. / evalmat.shape[0]
+            totalacc = np.sum(np.sum(evalmat, axis=1) == 2) * 1. / evalmat.shape[0]
+            #tt.tock("evaluated")
+            if offset[0] == 0:
+                #embed()
+                pass
+            offset[0] += qmat.shape[0]
+            if offset[0] == vdata.shape[0]:
+                #embed()
+                offset[0] = 0
+            return totalacc, subjacc, predacc
         return validate_acc
 
 
