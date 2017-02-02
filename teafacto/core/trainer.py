@@ -439,6 +439,7 @@ class ModelTrainer(object):
         trainf = self.buildtrainfun(self.model)
         df = DataFeeder(*(self.traindata + [self.traingold])).numbats(self.numbats)
         vdf = DataFeeder(*(self.validdata + [self.validgold]))
+        vdf.random(False)
         vdf.batsize = df.batsize
         #embed()
         #dfvalid = df.osplit(split=self.validsplits, random=self.validrandom)
@@ -454,6 +455,7 @@ class ModelTrainer(object):
         dftrain, dfvalid = df.split(self.validsplits, self.validrandom)
         dftrain.numbats(self.numbats)
         dfvalid.batsize = dftrain.batsize
+        dfvalid.random(False)
         err, verr = self.trainloop(
                 trainf=self.getbatchloop(trainf, dftrain),
                 validf=self.getbatchloop(validf, dfvalid))
@@ -471,6 +473,7 @@ class ModelTrainer(object):
             tf, vf = df.isplit(splitidxs)
             tf.numbats(self.numbats)
             vf.batsize = tf.batsize
+            vf.random(False)
             serr, sverr = self.trainloop(
                 trainf=self.getbatchloop(trainf, tf),
                 validf=self.getbatchloop(validf, vf))

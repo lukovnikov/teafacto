@@ -9,7 +9,7 @@ class DataFeeder(object): # contains data feeds
         feedlens = [x.shape[0] for x in self.feeds]
         assert(feedlens.count(feedlens[0]) == len(feedlens)) # all data feeds must have equal number of examples (axis zero)
         self.size = feedlens[0]
-        self.random = True # or False or number
+        self._random = True # or False or number
         # iter state
         self.iteridxs = np.arange(self.size)
         self.offset = 0
@@ -29,12 +29,12 @@ class DataFeeder(object): # contains data feeds
         return int(ceil(self.size * 1. / self.batsize))
 
     def random(self, random):
-        self.random = random
+        self._random = random
         return self
 
     # batching
     def reset(self):
-        if self.random is not False:
+        if self._random is not False:
             np.random.shuffle(self.iteridxs)
         self.offset = 0
 

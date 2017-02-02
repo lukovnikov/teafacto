@@ -809,7 +809,6 @@ def run(negsammode="closest",   # "close" or "random"
                for x, y in subjrank]
         return ret
 
-
     def inspectsubjs(hidecorrect=False, hidenotincan=False, shownotincan=False):
         rwd = {v: k for k, v in worddic.items()}
         for i in range(len(predictor.subjranks)):
@@ -864,8 +863,6 @@ def run(negsammode="closest",   # "close" or "random"
 
     print "##### DONE #####"
     #embed()
-
-
 
 
 if __name__ == "__main__":
