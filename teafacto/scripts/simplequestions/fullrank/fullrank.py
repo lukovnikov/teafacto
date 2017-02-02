@@ -768,7 +768,7 @@ def run(negsammode="closest",   # "close" or "random"
                 pass
             offset[0] += qmat.shape[0]
             if offset[0] == vdata.shape[0]:
-                embed()
+                #embed()
                 offset[0] = 0
             return totalacc, subjacc, predacc
         return validate_acc
