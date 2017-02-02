@@ -65,6 +65,7 @@ class ModelTrainer(object):
         # taking best
         self.besttaker = None
         self.bestmodel = None
+        self.savebest = None
         # writing
         self._writeresultspath = None
 
@@ -309,11 +310,12 @@ class ModelTrainer(object):
     #endregion
 
     #region ######################### SELECTING THE BEST ######################
-    def takebest(self, f=None):
+    def takebest(self, f=None, save=False):
         if f is None:
             f = lambda x: x[1]   # pick the model with the best first validation score
         self.besttaker = f
         self.bestmodel = (None, float("inf"))
+        self.savebest = save
         return self
     #endregion
     #endregion
@@ -544,11 +546,11 @@ class ModelTrainer(object):
             if self.besttaker is not None:
                 modelscore = self.besttaker(([erre]+verre+[self.currentiter]))
                 if modelscore < self.bestmodel[1]:
-                    #tt.tock("freezing best with score %.3f (prev: %.3f)" % (modelscore, self.bestmodel[1]), prefix="-").tick()
-                    try:
-                        self.bestmodel = (self.model.freeze(), modelscore)
-                    except RuntimeError, e:
-                        print "could not freeze model"
+                    if self.savebest:
+                        self.save(suffix=".best")
+                    else:
+                        #tt.tock("freezing best with score %.3f (prev: %.3f)" % (modelscore, self.bestmodel[1]), prefix="-").tick()
+                        self.bestmodel = (self.save(freeze=True, filepath=False), modelscore)
             tt.tock(ttmsg + "\t", prefix="-")
             self._update_lr(self.currentiter, self.maxiter, err, verr)
             evalcount += 1
@@ -619,12 +621,15 @@ class ModelTrainer(object):
         self._writeresultspath = p
         return self
 
-    def save(self, model=None, filepath=None):
+    def save(self, model=None, filepath=None, suffix="", freeze=False):
         model = model if model is not None else \
             self.model if self._autosaveblock is None else \
                 self._autosaveblock
-        filepath = filepath if filepath is not None else self._autosavepath
-        model.save(filepath=filepath)
+        if filepath is not False:
+            filepath = filepath if filepath is not None else self._autosavepath
+            model.save(filepath=filepath + suffix)
+        if freeze:
+            return model.freeze()
 
 
 class NSModelTrainer(ModelTrainer):
