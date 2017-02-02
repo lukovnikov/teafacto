@@ -732,45 +732,52 @@ def run(negsammode="closest",   # "close" or "random"
     if debug:
         embed()
 
-    def get_validate_acc():
-        predictor_o = CustomPredictor(questionencoder=question_encoder,
-                                    entityencoder=subjemb,
-                                    relationencoder=predemb,
-                                    mode=mode,
-                                    enttrans=transf.ef,
-                                    reltrans=transf.rf,
-                                    debug=debugtest,
-                                    subjinfo=subjinfo,
-                                    silent=True)
+    def get_validate_acc(savepath):
         offset = {0: 0}
         numvalidcans = 10
         validsubjcans = pickle.load(open("../../../../data/simplequestions/clean/validcans{}c.pkl".format(numvalidcans), "r"))
         def validate_acc(*sampleinps):
-            predictor = predictor_o
-            multipru = multiprune
-            relspere = relsperent
-            vdata = validdata
-            #tt = ticktock("External Accuracy Validator")
-            qmat = sampleinps[0]
-            cans = validsubjcans[offset[0]: offset[0] + qmat.shape[0]]
-            amat = sampleinps[1]
-            #tt.tick("predicting")
-            pred = predictor.predict(qmat, entcans=cans, relsperent=relspere, multiprune=multipru)
-            #tt.tock("predicted")
-            #tt.tick("evaluating")
-            evalmat = amat == pred
-            subjacc = np.sum(evalmat[:, 0]) * 1. / evalmat.shape[0]
-            predacc = np.sum(evalmat[:, 1]) * 1. / evalmat.shape[0]
-            totalacc = np.sum(np.sum(evalmat, axis=1) == 2) * 1. / evalmat.shape[0]
-            #tt.tock("evaluated")
-            if offset[0] == 0:
+            if os.path.isfile(savepath):
+                m = SeqMatchScore.load("fullrank{}.model".format(loadmodel))
                 #embed()
-                pass
-            offset[0] += qmat.shape[0]
-            if offset[0] == vdata.shape[0]:
-                #embed()
-                offset[0] = 0
-            return totalacc, subjacc, predacc
+                question_encoder = m.l.inner
+                subjemb = m.r.subjenc
+                predemb = m.r.predenc
+                predictor = CustomPredictor(questionencoder=question_encoder,
+                                            entityencoder=subjemb,
+                                            relationencoder=predemb,
+                                            mode=mode,
+                                            enttrans=transf.ef,
+                                            reltrans=transf.rf,
+                                            debug=debugtest,
+                                            subjinfo=subjinfo,
+                                            silent=True)
+                multipru = multiprune
+                relspere = relsperent
+                vdata = validdata
+                #tt = ticktock("External Accuracy Validator")
+                qmat = sampleinps[0]
+                cans = validsubjcans[offset[0]: offset[0] + qmat.shape[0]]
+                amat = sampleinps[1]
+                #tt.tick("predicting")
+                pred = predictor.predict(qmat, entcans=cans, relsperent=relspere, multiprune=multipru)
+                #tt.tock("predicted")
+                #tt.tick("evaluating")
+                evalmat = amat == pred
+                subjacc = np.sum(evalmat[:, 0]) * 1. / evalmat.shape[0]
+                predacc = np.sum(evalmat[:, 1]) * 1. / evalmat.shape[0]
+                totalacc = np.sum(np.sum(evalmat, axis=1) == 2) * 1. / evalmat.shape[0]
+                #tt.tock("evaluated")
+                if offset[0] == 0:
+                    #embed()
+                    pass
+                offset[0] += qmat.shape[0]
+                if offset[0] == vdata.shape[0]:
+                    #embed()
+                    offset[0] = 0
+                return totalacc, subjacc, predacc
+            else:
+                return 0., 0., 0.
         return validate_acc
 
 
@@ -782,13 +789,14 @@ def run(negsammode="closest",   # "close" or "random"
             print("CHECKPOINTING AS: {}".format(saveid))
             savep = "fullrank{}.model".format(saveid)
             pathexists = os.path.isfile(savep)
+        extvalidf = get_validate_acc(savep)
         nscorer = scorer.nstrain([traindata, traingold]).transform(transf) \
             .negsamplegen(NegIdxGen(numsubjs-1, numrels-1,
                                     relclose=relsamplespace,
                                     subjclose=subjsamplespace,
                                     relsperent=nsrelsperent)) \
             .objective(obj).adagrad(lr=lr).l2(wreg).grad_total_norm(gradnorm) \
-            .validate_on([validdata, validgold]).extvalid(get_validate_acc()) \
+            .validate_on([validdata, validgold]).extvalid(extvalidf) \
             .autosavethis(scorer, savep).writeresultstofile(savep+".progress.tsv") \
             .train(numbats=numbats, epochs=epochs, _skiptrain=debugvalid)
         tt.tock("trained").tick()
