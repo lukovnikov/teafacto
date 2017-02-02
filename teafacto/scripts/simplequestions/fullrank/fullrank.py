@@ -730,6 +730,8 @@ def run(negsammode="closest",   # "close" or "random"
     if debug:
         embed()
 
+
+
     if epochs > 0 and loadmodel == "no":
         tt.tick("training")
         pathexists = True
@@ -744,9 +746,9 @@ def run(negsammode="closest",   # "close" or "random"
                                     subjclose=subjsamplespace,
                                     relsperent=nsrelsperent)) \
             .objective(obj).adagrad(lr=lr).l2(wreg).grad_total_norm(gradnorm) \
-            .validate_on([validdata, validgold]) \
+            .validate_on([validdata, validgold]).extvalid(TODO) \
             .autosavethis(scorer, savep).writeresultstofile(savep+".progress.tsv") \
-            .train(numbats=numbats, epochs=epochs)
+            .train(numbats=numbats, epochs=epochs, skiptrain=True)
         tt.tock("trained").tick()
 
         # saving

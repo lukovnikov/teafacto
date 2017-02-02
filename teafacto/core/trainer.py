@@ -327,11 +327,11 @@ class ModelTrainer(object):
         assert(self.traindata is not None)
         assert(self.traingold is not None)
 
-    def train(self, numbats, epochs, returnerrors=False):
+    def train(self, numbats, epochs, returnerrors=False, _skiptrain=False):
         self.traincheck()
         self.numbats = numbats
         self.maxiter = epochs
-        errors = self.trainstrategy()       # trains according to chosen training strategy, returns errors
+        errors = self.trainstrategy(_skiptrain=_skiptrain)       # trains according to chosen training strategy, returns errors
         if self.besttaker is not None:      # unfreezes best model if best choosing was chosen
             self.model = self.model.__class__.unfreeze(self.bestmodel[0])
             self.tt.tock("unfroze best model (%.3f) - " % self.bestmodel[1]).tick()
@@ -427,14 +427,15 @@ class ModelTrainer(object):
     #endregion
 
     #region ################## TRAINING STRATEGIES ############
-    def _train_full(self): # train on all data, no validation
+    def _train_full(self, _skiptrain=False): # train on all data, no validation
         trainf = self.buildtrainfun(self.model)
         err, _ = self.trainloop(
                 trainf=self.getbatchloop(trainf,
-                DataFeeder(*(self.traindata + [self.traingold])).numbats(self.numbats)))
+                DataFeeder(*(self.traindata + [self.traingold])).numbats(self.numbats)),
+                _skiptrain=_skiptrain)
         return err, None, None, None
 
-    def _train_validdata(self):
+    def _train_validdata(self, _skiptrain=False):
         validf = self.getvalidfun(self.model)
         trainf = self.buildtrainfun(self.model)
         df = DataFeeder(*(self.traindata + [self.traingold])).numbats(self.numbats)
@@ -445,10 +446,11 @@ class ModelTrainer(object):
         #dfvalid = df.osplit(split=self.validsplits, random=self.validrandom)
         err, verr = self.trainloop(
                 trainf=self.getbatchloop(trainf, df),
-                validf=self.getbatchloop(validf, vdf))
+                validf=self.getbatchloop(validf, vdf),
+                _skiptrain=_skiptrain)
         return err, verr, None, None
 
-    def _train_split(self):
+    def _train_split(self, _skiptrain=False):
         trainf = self.buildtrainfun(self.model)
         validf = self.getvalidfun(self.model)
         df = DataFeeder(*(self.traindata + [self.traingold]))
@@ -458,10 +460,11 @@ class ModelTrainer(object):
         dfvalid.random(False)
         err, verr = self.trainloop(
                 trainf=self.getbatchloop(trainf, dftrain),
-                validf=self.getbatchloop(validf, dfvalid))
+                validf=self.getbatchloop(validf, dfvalid),
+                _skiptrain=_skiptrain)
         return err, verr, None, None
 
-    def _train_cross_valid(self):
+    def _train_cross_valid(self, _skiptrain=False):
         df = DataFeeder(*(self.traindata + [self.traingold]))
         splitter = SplitIdxIterator(df.size, split=self.validsplits, random=self.validrandom, folds=self.validsplits)
         err = []
@@ -476,7 +479,8 @@ class ModelTrainer(object):
             vf.random(False)
             serr, sverr = self.trainloop(
                 trainf=self.getbatchloop(trainf, tf),
-                validf=self.getbatchloop(validf, vf))
+                validf=self.getbatchloop(validf, vf),
+                _skiptrain=_skiptrain)
             err.append(serr)
             verr.append(sverr)
             self.resetmodel(self.model)
@@ -495,7 +499,7 @@ class ModelTrainer(object):
             param.reset()
 
     #region ############# TRAINING LOOPS ##################
-    def trainloop(self, trainf, validf=None):
+    def trainloop(self, trainf, validf=None, _skiptrain=False):
         self.tt.tick("training")
         err = []
         verr = []
@@ -512,7 +516,11 @@ class ModelTrainer(object):
 
         while not stop:     # loop over epochs
             tt.tick("%d/%d" % (self.currentiter, int(self.maxiter)))
-            erre = trainf()
+            if _skiptrain:
+                tt.msg("skipping training")
+                erre = [0.]
+            else:
+                erre = trainf()
             if self.currentiter == self.maxiter:
                 stop = True
             self.currentiter += 1
