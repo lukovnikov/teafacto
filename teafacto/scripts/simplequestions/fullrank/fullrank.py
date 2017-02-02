@@ -569,6 +569,7 @@ def run(negsammode="closest",   # "close" or "random"
         checkdata=False,
         testnegsam=False,
         testmodel=False,        # just embed
+        debugvalid=False,
         ):
     tt = ticktock("script")
     tt.tick("loading data")
@@ -730,6 +731,8 @@ def run(negsammode="closest",   # "close" or "random"
     if debug:
         embed()
 
+    def validate_acc(*sampleinps):
+        embed()
 
 
     if epochs > 0 and loadmodel == "no":
@@ -746,9 +749,9 @@ def run(negsammode="closest",   # "close" or "random"
                                     subjclose=subjsamplespace,
                                     relsperent=nsrelsperent)) \
             .objective(obj).adagrad(lr=lr).l2(wreg).grad_total_norm(gradnorm) \
-            .validate_on([validdata, validgold]).extvalid(TODO) \
+            .validate_on([validdata, validgold]).extvalid(validate_acc) \
             .autosavethis(scorer, savep).writeresultstofile(savep+".progress.tsv") \
-            .train(numbats=numbats, epochs=epochs, skiptrain=True)
+            .train(numbats=numbats, epochs=epochs, skiptrain=debugvalid)
         tt.tock("trained").tick()
 
         # saving
