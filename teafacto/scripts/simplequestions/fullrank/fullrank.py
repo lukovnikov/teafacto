@@ -754,10 +754,10 @@ def run(negsammode="closest",   # "close" or "random"
             cans = validsubjcans[offset[0]: offset[0] + qmat.shape[0]]
             amat = sampleinps[1]
             tt.tick("predicting")
-            #prediction = predictor.predict(qmat, entcans=cans, relsperent=relspere, multiprune=multipru)
+            pred = predictor.predict(qmat, entcans=cans, relsperent=relspere, multiprune=multipru)
             tt.tock("predicted")
             tt.tick("evaluating")
-            evalmat = amat == amat
+            evalmat = amat == pred
             subjacc = np.sum(evalmat[:, 0]) * 1. / evalmat.shape[0]
             predacc = np.sum(evalmat[:, 1]) * 1. / evalmat.shape[0]
             totalacc = np.sum(np.sum(evalmat, axis=1) == 2) * 1. / evalmat.shape[0]
