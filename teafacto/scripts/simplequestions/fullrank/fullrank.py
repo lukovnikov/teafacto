@@ -739,7 +739,7 @@ def run(negsammode="closest",   # "close" or "random"
         validsubjcans = pickle.load(open("../../../../data/simplequestions/clean/validcans{}c.pkl".format(numvalidcans), "r"))
         def validate_acc(*sampleinps):
             if os.path.isfile(savepath) and predictor[0] is None:    # reload model for a whole iter
-                m = SeqMatchScore.load("fullrank{}.model".format(loadmodel))
+                m = SeqMatchScore.load(savepath)
                 predictor[0] = CustomPredictor(questionencoder=m.l.inner,
                                             entityencoder=m.r.subjenc,
                                             relationencoder=m.r.predenc,
