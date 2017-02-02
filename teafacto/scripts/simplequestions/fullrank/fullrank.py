@@ -763,7 +763,8 @@ def run(negsammode="closest",   # "close" or "random"
             totalacc = np.sum(np.sum(evalmat, axis=1) == 2) * 1. / evalmat.shape[0]
             tt.tock("evaluated")
             if offset[0] == 0:
-                embed()
+                #embed()
+                pass
             offset[0] += qmat.shape[0]
             if offset[0] == vdata.shape[0]:
                 embed()
