@@ -545,7 +545,10 @@ class ModelTrainer(object):
                 modelscore = self.besttaker(([erre]+verre+[self.currentiter]))
                 if modelscore < self.bestmodel[1]:
                     #tt.tock("freezing best with score %.3f (prev: %.3f)" % (modelscore, self.bestmodel[1]), prefix="-").tick()
-                    self.bestmodel = (self.model.freeze(), modelscore)
+                    try:
+                        self.bestmodel = (self.model.freeze(), modelscore)
+                    except RuntimeError, e:
+                        print "could not freeze model"
             tt.tock(ttmsg + "\t", prefix="-")
             self._update_lr(self.currentiter, self.maxiter, err, verr)
             evalcount += 1
