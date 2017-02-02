@@ -745,17 +745,16 @@ def run(negsammode="closest",   # "close" or "random"
         offset = 0
         vdata = validdata
         numvalidcans = 10
-        validsubjcans = pickle.load(open("validcans{}c.pkl".format(numvalidcans), "r"))
+        validsubjcans = pickle.load(open("../../../../data/simplequestions/clean/validcans{}c.pkl".format(numvalidcans), "r"))
         def validate_acc(*sampleinps):
             tt = ticktock("External Accuracy Validator")
             qmat = sampleinps[0]
             amat = sampleinps[1]
             tt.tick("predicting")
-            prediction = predictor.predict(qmat, entcans=validsubjcans,
-                                           relsperent=relsperent, multiprune=multiprune)
+            #prediction = predictor.predict(qmat, entcans=validsubjcans, relsperent=relsperent, multiprune=multiprune)
             tt.tock("predicted")
             tt.tick("evaluating")
-            evalmat = prediction == amat
+            evalmat = amat == amat
             subjacc = np.sum(evalmat[:, 0]) * 1. / evalmat.shape[0]
             predacc = np.sum(evalmat[:, 1]) * 1. / evalmat.shape[0]
             totalacc = np.sum(np.sum(evalmat, axis=1) == 2) * 1. / evalmat.shape[0]
