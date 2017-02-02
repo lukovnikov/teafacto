@@ -3,13 +3,13 @@ from math import ceil
 
 
 class DataFeeder(object): # contains data feeds
-    def __init__(self, *feeds): # feeds or numpy arrays
+    def __init__(self, *feeds, **kw): # feeds or numpy arrays
         self.feeds = feeds
         self.batsize = None
         feedlens = [x.shape[0] for x in self.feeds]
         assert(feedlens.count(feedlens[0]) == len(feedlens)) # all data feeds must have equal number of examples (axis zero)
         self.size = feedlens[0]
-        self._random = True     # or False or number
+        self._random = kw["random"] if "random" in kw else True     # or False or number
         # iter state
         self.iteridxs = np.arange(self.size)
         self.offset = 0
@@ -57,15 +57,15 @@ class DataFeeder(object): # contains data feeds
         else:
             return [x[sampleidxs] for x in self.feeds]
 
-    def split(self, split=2, random=False): # creates two new datafeeders with disjoint splits
+    def split(self, split=2, random=False, df_randoms=(True, True)): # creates two new datafeeders with disjoint splits
         splitidxs = np.arange(0, self.size)
         if random is not False:
             np.random.shuffle(splitidxs)
         start = 0
         middle = int(ceil(1.*self.size / split))
         end = self.size
-        dfvalid = DataFeeder(*[self.splitfeed(feed, splitidxs[start:middle]) for feed in self.feeds])
-        dftrain = DataFeeder(*[self.splitfeed(feed, splitidxs[middle:end])   for feed in self.feeds])
+        dfvalid = DataFeeder(*[self.splitfeed(feed, splitidxs[start:middle]) for feed in self.feeds], random=df_randoms[1])
+        dftrain = DataFeeder(*[self.splitfeed(feed, splitidxs[middle:end])   for feed in self.feeds], random=df_randoms[0])
         return dftrain, dfvalid
 
     def osplit(self, split=2, random=False):
@@ -77,10 +77,10 @@ class DataFeeder(object): # contains data feeds
 
         return DataFeeder(*[self.splitfeed(feed, splitidxs[start:end]) for feed in self.feeds])
 
-    def isplit(self, splitidxs):
+    def isplit(self, splitidxs, df_randoms=(True, True)):
         nsplitidxs = np.setdiff1d(np.arange(0, self.size), splitidxs)
-        dfvalid = DataFeeder(*[self.splitfeed(feed, splitidxs)  for feed in self.feeds])
-        dftrain = DataFeeder(*[self.splitfeed(feed, nsplitidxs) for feed in self.feeds])
+        dfvalid = DataFeeder(*[self.splitfeed(feed, splitidxs)  for feed in self.feeds], random=df_randoms[1])
+        dftrain = DataFeeder(*[self.splitfeed(feed, nsplitidxs) for feed in self.feeds], random=df_randoms[0])
         return dftrain, dfvalid
 
     def splitfeed(self, feed, idxs):

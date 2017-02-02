@@ -733,6 +733,7 @@ def run(negsammode="closest",   # "close" or "random"
 
     def get_validate_acc():
         offset = 0
+        vdata = validdata
         def validate_acc(*sampleinps):
             localvaliddata = sampleinps
             embed()
