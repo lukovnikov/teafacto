@@ -9,7 +9,7 @@ class DataFeeder(object): # contains data feeds
         feedlens = [x.shape[0] for x in self.feeds]
         assert(feedlens.count(feedlens[0]) == len(feedlens)) # all data feeds must have equal number of examples (axis zero)
         self.size = feedlens[0]
-        self._random = True # or False or number
+        self._random = True     # or False or number
         # iter state
         self.iteridxs = np.arange(self.size)
         self.offset = 0
