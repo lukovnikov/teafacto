@@ -733,13 +733,14 @@ def run(negsammode="closest",   # "close" or "random"
         embed()
 
     def get_validate_acc(savepath):
+        predictor = {0: None}
         offset = {0: 0}
         numvalidcans = 10
         validsubjcans = pickle.load(open("../../../../data/simplequestions/clean/validcans{}c.pkl".format(numvalidcans), "r"))
         def validate_acc(*sampleinps):
-            if os.path.isfile(savepath):    # reload model for a whole iter
+            if os.path.isfile(savepath) and predictor[0] is None:    # reload model for a whole iter
                 m = SeqMatchScore.load("fullrank{}.model".format(loadmodel))
-                predictor = CustomPredictor(questionencoder=m.l.inner,
+                predictor[0] = CustomPredictor(questionencoder=m.l.inner,
                                             entityencoder=m.r.subjenc,
                                             relationencoder=m.r.predenc,
                                             mode=mode,
@@ -758,7 +759,7 @@ def run(negsammode="closest",   # "close" or "random"
             cans = validsubjcans[offset[0]: offset[0] + qmat.shape[0]]
             amat = sampleinps[1]
             #tt.tick("predicting")
-            pred = predictor.predict(qmat, entcans=cans, relsperent=relspere, multiprune=multipru)
+            pred = predictor[0].predict(qmat, entcans=cans, relsperent=relspere, multiprune=multipru)
             #tt.tock("predicted")
             #tt.tick("evaluating")
             evalmat = amat == pred
@@ -773,6 +774,7 @@ def run(negsammode="closest",   # "close" or "random"
             if offset[0] == vdata.shape[0]:
                 #embed()
                 offset[0] = 0
+                predictor[0] = None
             return totalacc, subjacc, predacc
         return validate_acc
 
