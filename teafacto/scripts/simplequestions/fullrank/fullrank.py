@@ -267,7 +267,7 @@ class CustomPredictor(object):
     def __init__(self, questionencoder=None, entityencoder=None,
                  relationencoder=None, mode=None,
                  enttrans=None, reltrans=None, debug=False,
-                 subjinfo=None):
+                 subjinfo=None, silent=False):
         self.qenc = questionencoder
         self.eenc = entityencoder
         self.renc = relationencoder
@@ -277,7 +277,7 @@ class CustomPredictor(object):
         self.debug = debug
         self.subjinfo = subjinfo
         self.qencodings = None
-        self.tt = ticktock("predictor")
+        self.tt = ticktock("predictor", verbose=not silent)
 
     # stateful API
     def encodequestions(self, data):
@@ -740,7 +740,8 @@ def run(negsammode="closest",   # "close" or "random"
                                     enttrans=transf.ef,
                                     reltrans=transf.rf,
                                     debug=debugtest,
-                                    subjinfo=subjinfo)
+                                    subjinfo=subjinfo,
+                                    silent=True)
         offset = {0: 0}
         numvalidcans = 10
         validsubjcans = pickle.load(open("../../../../data/simplequestions/clean/validcans{}c.pkl".format(numvalidcans), "r"))
@@ -749,19 +750,19 @@ def run(negsammode="closest",   # "close" or "random"
             multipru = multiprune
             relspere = relsperent
             vdata = validdata
-            tt = ticktock("External Accuracy Validator")
+            #tt = ticktock("External Accuracy Validator")
             qmat = sampleinps[0]
             cans = validsubjcans[offset[0]: offset[0] + qmat.shape[0]]
             amat = sampleinps[1]
-            tt.tick("predicting")
+            #tt.tick("predicting")
             pred = predictor.predict(qmat, entcans=cans, relsperent=relspere, multiprune=multipru)
-            tt.tock("predicted")
-            tt.tick("evaluating")
+            #tt.tock("predicted")
+            #tt.tick("evaluating")
             evalmat = amat == pred
             subjacc = np.sum(evalmat[:, 0]) * 1. / evalmat.shape[0]
             predacc = np.sum(evalmat[:, 1]) * 1. / evalmat.shape[0]
             totalacc = np.sum(np.sum(evalmat, axis=1) == 2) * 1. / evalmat.shape[0]
-            tt.tock("evaluated")
+            #tt.tock("evaluated")
             if offset[0] == 0:
                 #embed()
                 pass
