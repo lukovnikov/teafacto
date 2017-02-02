@@ -732,6 +732,7 @@ def run(negsammode="closest",   # "close" or "random"
     if debug:
         embed()
 
+    # BEWARE BELOW: extremely ugly
     def get_validate_acc(savepath):
         predictor = {0: None}
         offset = {0: 0}
