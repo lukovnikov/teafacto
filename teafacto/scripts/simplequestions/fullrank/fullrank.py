@@ -353,7 +353,7 @@ class CustomPredictor(object):
         return self.rankrelations(relcans)
 
     def predict(self, data, entcans=None, relsperent=None, relcans=None, multiprune=-1):
-        print multiprune
+        #print multiprune
         assert(relsperent is None or relcans is None)
         assert(relsperent is not None or relcans is not None)
         assert(entcans is not None)
