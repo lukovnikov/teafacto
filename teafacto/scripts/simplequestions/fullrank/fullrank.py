@@ -731,13 +731,37 @@ def run(negsammode="closest",   # "close" or "random"
     if debug:
         embed()
 
+    embed()
+
     def get_validate_acc():
+        predictor = CustomPredictor(questionencoder=question_encoder,
+                                    entityencoder=subjemb,
+                                    relationencoder=predemb,
+                                    mode=mode,
+                                    enttrans=transf.ef,
+                                    reltrans=transf.rf,
+                                    debug=debugtest,
+                                    subjinfo=subjinfo)
         offset = 0
         vdata = validdata
+        numvalidcans = 10
+        validsubjcans = pickle.load(open("validcans{}c.pkl".format(numvalidcans), "r"))
         def validate_acc(*sampleinps):
-            localvaliddata = sampleinps
+            tt = ticktock("External Accuracy Validator")
+            qmat = sampleinps[0]
+            amat = sampleinps[1]
+            tt.tick("predicting")
+            prediction = predictor.predict(qmat, entcans=validsubjcans,
+                                           relsperent=relsperent, multiprune=multiprune)
+            tt.tock("predicted")
+            tt.tick("evaluating")
+            evalmat = prediction == amat
+            subjacc = np.sum(evalmat[:, 0]) * 1. / evalmat.shape[0]
+            predacc = np.sum(evalmat[:, 1]) * 1. / evalmat.shape[0]
+            totalacc = np.sum(np.sum(evalmat, axis=1) == 2) * 1. / evalmat.shape[0]
+            tt.tock("evaluated")
             embed()
-            return 0
+            return totalacc, subjacc, predacc
         return validate_acc
 
 
