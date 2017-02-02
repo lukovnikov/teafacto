@@ -731,8 +731,12 @@ def run(negsammode="closest",   # "close" or "random"
     if debug:
         embed()
 
-    def validate_acc(*sampleinps):
-        embed()
+    def get_validate_acc(*sampleinps):
+        offset = 0
+        def validate_acc(*sampleinps):
+            validdata = sampleinps
+            embed()
+        return validate_acc
 
 
     if epochs > 0 and loadmodel == "no":
@@ -749,9 +753,9 @@ def run(negsammode="closest",   # "close" or "random"
                                     subjclose=subjsamplespace,
                                     relsperent=nsrelsperent)) \
             .objective(obj).adagrad(lr=lr).l2(wreg).grad_total_norm(gradnorm) \
-            .validate_on([validdata, validgold]).extvalid(validate_acc) \
+            .validate_on([validdata, validgold]).extvalid(get_validate_acc()) \
             .autosavethis(scorer, savep).writeresultstofile(savep+".progress.tsv") \
-            .train(numbats=numbats, epochs=epochs, skiptrain=debugvalid)
+            .train(numbats=numbats, epochs=epochs, _skiptrain=debugvalid)
         tt.tock("trained").tick()
 
         # saving
