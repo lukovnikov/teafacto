@@ -762,9 +762,11 @@ def run(negsammode="closest",   # "close" or "random"
             predacc = np.sum(evalmat[:, 1]) * 1. / evalmat.shape[0]
             totalacc = np.sum(np.sum(evalmat, axis=1) == 2) * 1. / evalmat.shape[0]
             tt.tock("evaluated")
-            embed()
+            if offset[0] == 0:
+                embed()
             offset[0] += qmat.shape[0]
             if offset[0] == vdata.shape[0]:
+                embed()
                 offset[0] = 0
             return totalacc, subjacc, predacc
         return validate_acc
