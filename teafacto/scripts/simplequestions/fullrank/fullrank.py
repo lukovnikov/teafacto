@@ -571,6 +571,7 @@ def run(negsammode="closest",   # "close" or "random"
         testmodel=False,        # just embed
         debugvalid=False,
         ):
+
     tt = ticktock("script")
     tt.tick("loading data")
     (traindata, traingold), (validdata, validgold), (testdata, testgold), \
@@ -731,10 +732,8 @@ def run(negsammode="closest",   # "close" or "random"
     if debug:
         embed()
 
-    embed()
-
     def get_validate_acc():
-        predictor = CustomPredictor(questionencoder=question_encoder,
+        predictor_o = CustomPredictor(questionencoder=question_encoder,
                                     entityencoder=subjemb,
                                     relationencoder=predemb,
                                     mode=mode,
@@ -742,16 +741,20 @@ def run(negsammode="closest",   # "close" or "random"
                                     reltrans=transf.rf,
                                     debug=debugtest,
                                     subjinfo=subjinfo)
-        offset = 0
-        vdata = validdata
+        offset = {0: 0}
         numvalidcans = 10
         validsubjcans = pickle.load(open("../../../../data/simplequestions/clean/validcans{}c.pkl".format(numvalidcans), "r"))
         def validate_acc(*sampleinps):
+            predictor = predictor_o
+            multipru = multiprune
+            relspere = relsperent
+            vdata = validdata
             tt = ticktock("External Accuracy Validator")
             qmat = sampleinps[0]
+            cans = validsubjcans[offset[0]: offset[0] + qmat.shape[0]]
             amat = sampleinps[1]
             tt.tick("predicting")
-            #prediction = predictor.predict(qmat, entcans=validsubjcans, relsperent=relsperent, multiprune=multiprune)
+            #prediction = predictor.predict(qmat, entcans=cans, relsperent=relspere, multiprune=multipru)
             tt.tock("predicted")
             tt.tick("evaluating")
             evalmat = amat == amat
@@ -760,6 +763,9 @@ def run(negsammode="closest",   # "close" or "random"
             totalacc = np.sum(np.sum(evalmat, axis=1) == 2) * 1. / evalmat.shape[0]
             tt.tock("evaluated")
             embed()
+            offset[0] += qmat.shape[0]
+            if offset[0] == vdata.shape[0]:
+                offset[0] = 0
             return totalacc, subjacc, predacc
         return validate_acc
 
