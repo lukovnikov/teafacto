@@ -738,19 +738,20 @@ def run(negsammode="closest",   # "close" or "random"
         numvalidcans = 10
         validsubjcans = pickle.load(open("../../../../data/simplequestions/clean/validcans{}c.pkl".format(numvalidcans), "r"))
         def validate_acc(*sampleinps):
-            if os.path.isfile(savepath) and predictor[0] is None:    # reload model for a whole iter
-                m = SeqMatchScore.load(savepath)
-                predictor[0] = CustomPredictor(questionencoder=m.l.inner,
-                                            entityencoder=m.r.subjenc,
-                                            relationencoder=m.r.predenc,
-                                            mode=mode,
-                                            enttrans=transf.ef,
-                                            reltrans=transf.rf,
-                                            debug=debugtest,
-                                            subjinfo=subjinfo,
-                                            silent=True)
-            else:
-                raise Exception("could not load model")
+            if predictor[0] is None:    # reload model for a whole iter
+                if os.path.isfile(savepath):
+                    m = SeqMatchScore.load(savepath)
+                    predictor[0] = CustomPredictor(questionencoder=m.l.inner,
+                                                entityencoder=m.r.subjenc,
+                                                relationencoder=m.r.predenc,
+                                                mode=mode,
+                                                enttrans=transf.ef,
+                                                reltrans=transf.rf,
+                                                debug=debugtest,
+                                                subjinfo=subjinfo,
+                                                silent=True)
+                else:
+                    raise Exception("could not load model")
             multipru = multiprune
             relspere = relsperent
             vdata = validdata
