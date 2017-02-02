@@ -334,7 +334,7 @@ class ModelTrainer(object):
         self.numbats = numbats
         self.maxiter = epochs
         errors = self.trainstrategy(_skiptrain=_skiptrain)       # trains according to chosen training strategy, returns errors
-        if self.besttaker is not None:      # unfreezes best model if best choosing was chosen
+        if self.besttaker is not None and self.savebest is None:      # unfreezes best model if best choosing was chosen
             self.model = self.model.__class__.unfreeze(self.bestmodel[0])
             self.tt.tock("unfroze best model (%.3f) - " % self.bestmodel[1]).tick()
         ret = self.model
