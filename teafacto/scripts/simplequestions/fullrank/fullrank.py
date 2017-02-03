@@ -716,7 +716,7 @@ def run(negsammode="closest",   # "close" or "random"
             pn = T.concatenate([p, n], axis=1)
             pns = T.nnet.softmax(pn)
             ret = pns[:, 0]
-            embed()
+            #embed()
             return ret
         obj = ce_loss
 
