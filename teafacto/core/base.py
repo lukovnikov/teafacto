@@ -1120,6 +1120,7 @@ class BlockPredictor(object):
         self.inps = []
         self.outs = []
         self.extra_outs = None
+        self._numouts = None
 
     def transform(self, f):
         if f is not None:
@@ -1162,7 +1163,7 @@ class BlockPredictor(object):
             extra_out_vars = self._select_extra_outs(outp, extra_outs)
             if hasattr(self.block, "_predict_postapply"):
                 outp = self.block._predict_postapply(outp)
-            numouts = len(outp)
+            self._numouts = len(outp)
             numextraouts = len(extra_out_vars)
             self._predictf = theano.function(outputs=[o.d for o in outp]
                                                      +[e.d for k, e in sorted(extra_out_vars.items(), key=lambda (a, b): a)],
@@ -1185,8 +1186,8 @@ class BlockPredictor(object):
         allinputdata = filter(lambda x: x is not None, allinputdata)
         args = map(_inner, allinputdata)
         valret = self._predictf(*args)
-        extra_ret = valret[numouts:]
-        valret = valret[:numouts]
+        extra_ret = valret[self._numouts:]
+        valret = valret[:self._numouts]
         ret = valret[0] if len(valret) == 1 else tuple(valret)
         if len(extra_ret) > 0:
             return ret, dict(zip(sorted(extra_out_vars.keys()), extra_ret))
