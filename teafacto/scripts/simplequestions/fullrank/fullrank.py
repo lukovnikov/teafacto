@@ -277,6 +277,7 @@ class CustomPredictor(object):
         self.debug = debug
         self.subjinfo = subjinfo
         self.qencodings = None
+        self.silent = silent
         self.tt = ticktock("predictor", verbose=not silent)
 
     # stateful API
@@ -369,7 +370,8 @@ class CustomPredictor(object):
                 rankedrels = self.rankrelations(relcans)
                 bestrels = [x[0][0] for x in rankedrels]
             else:
-                print "multipruning !!!!!!!!!!!!!!!!!"
+                if not self.silent:
+                    print "multipruning !!!!!!!!!!!!!!!!!"
                 topk = multiprune        # TOP K !!!!!!!!!!!!!!!!!!!!!!!!!!!!
                 # get relcans
                 relcans = []
@@ -736,7 +738,6 @@ def run(negsammode="closest",   # "close" or "random"
     def get_validate_acc(savepath):
         predictor = {0: None}
         offset = {0: 0}
-        numvalidcans = 10
         validsubjcans = pickle.load(open("../../../../data/simplequestions/clean/validcans{}c.pkl".format(numtestcans), "r"))
         def validate_acc(*sampleinps):
             if predictor[0] is None:    # reload model for a whole iter
