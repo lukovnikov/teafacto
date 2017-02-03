@@ -717,7 +717,8 @@ def run(negsammode="closest",   # "close" or "random"
             px = T.concatenate([p[:, 1:2], n[:, 1:2]], axis=1)
             sxsm = T.nnet.softmax(sx)
             pxsm = T.nnet.softmax(px)
-            ret = -T.log(sxsm[:, 0]+1e-6) - T.log(pxsm[:, 0]+1e-6)
+            #ret = -T.log(sxsm[:, 0]+1e-6) - T.log(pxsm[:, 0]+1e-6)
+            ret = sxsm[:, 0] * pxsm[:, 0]
             #embed()
             return ret
         obj = ce_loss
