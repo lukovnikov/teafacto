@@ -11,7 +11,7 @@ from teafacto.blocks.seq.enc import SimpleSeq2Vec, SimpleSeq2MultiVec
 from teafacto.blocks.cnn import CNNSeqEncoder
 from teafacto.blocks.basic import VectorEmbed
 from teafacto.blocks.memory import MemVec
-from teafacto.blocks.match import SeqMatchScore, CosineDistance, MatchScore
+from teafacto.blocks.match import SeqMatchScore, CosineDistance, DotDistance, GenDotDistance, MatchScore
 
 from teafacto.core.base import Block, tensorops as T, Val
 
@@ -572,6 +572,7 @@ def run(negsammode="closest",   # "close" or "random"
         testnegsam=False,
         testmodel=False,        # just embed
         debugvalid=False,
+        loss="margin",          # or "ce"
         ):
 
     tt = ticktock("script")
@@ -697,10 +698,27 @@ def run(negsammode="closest",   # "close" or "random"
         rb = RightBlock(subjemb, predemb)
     else:
         raise Exception("unrecognized mode")
-    scorer = SeqMatchScore(lb, rb, scorer=CosineDistance(),
-                           aggregator=lambda x: x, argproc=lambda x, y, z: ((x,), (y, z)))
 
-    obj = lambda p, n: T.sum((n - p + margin).clip(0, np.infty), axis=1)
+    if loss == "margin":
+        scoref = CosineDistance()
+    elif loss == "ce":
+        scoref = DotDistance()      # GenDotDistance() ??
+    else:
+        raise Exception("unknown option for loss argument")
+    scorer = SeqMatchScore(lb, rb, scorer=scoref,
+                           aggregator=lambda x: x,
+                           argproc=lambda x, y, z: ((x,), (y, z)))
+
+    if loss == "margin":
+        obj = lambda p, n: T.sum((n - p + margin).clip(0, np.infty), axis=1)
+    elif loss == "ce":
+        def ce_loss(p, n):
+            pn = T.concatenate([p, n], axis=1)
+            pns = T.nnet.softmax(pn)
+            ret = pns[:, 0]
+            embed()
+            return ret
+        obj = ce_loss
 
     class PreProc(object):
         def __init__(self, subjmat, relmat):
