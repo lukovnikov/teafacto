@@ -799,7 +799,7 @@ def run(negsammode="closest",   # "close" or "random"
             .objective(obj).adagrad(lr=lr).l2(wreg).grad_total_norm(gradnorm) \
             .validate_on([validdata, validgold]).extvalid(extvalidf) \
             .autosavethis(scorer, savep).writeresultstofile(savep+".progress.tsv") \
-            .takebest(lambda x: x[2], save=True) \
+            .takebest(lambda x: x[2], save=True, smallerbetter=False) \
             .train(numbats=numbats, epochs=epochs, _skiptrain=debugvalid)
         tt.tock("trained").tick()
 

@@ -66,6 +66,7 @@ class ModelTrainer(object):
         self.besttaker = None
         self.bestmodel = None
         self.savebest = None
+        self.smallerbetter = True
         # writing
         self._writeresultspath = None
 
@@ -310,12 +311,13 @@ class ModelTrainer(object):
     #endregion
 
     #region ######################### SELECTING THE BEST ######################
-    def takebest(self, f=None, save=False):
+    def takebest(self, f=None, save=False, smallerbetter=True):
         if f is None:
             f = lambda x: x[1]   # pick the model with the best first validation score
         self.besttaker = f
         self.bestmodel = (None, float("inf"))
         self.savebest = save
+        self.smallerbetter = smallerbetter
         return self
     #endregion
     #endregion
@@ -545,9 +547,11 @@ class ModelTrainer(object):
             # retaining the best
             if self.besttaker is not None:
                 modelscore = self.besttaker(([erre]+verre+[self.currentiter]))
-                if modelscore < self.bestmodel[1]:
+                smallerbettermult = 1 if self.smallerbetter else -1
+                if smallerbettermult * modelscore < smallerbettermult * self.bestmodel[1]:
                     if self.savebest:
                         self.save(suffix=".best")
+                        self.bestmodel = (None, modelscore)
                     else:
                         #tt.tock("freezing best with score %.3f (prev: %.3f)" % (modelscore, self.bestmodel[1]), prefix="-").tick()
                         self.bestmodel = (self.save(freeze=True, filepath=False), modelscore)
