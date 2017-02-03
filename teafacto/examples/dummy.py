@@ -6,12 +6,13 @@ from teafacto.util import argparsify
 
 
 class Dummy(Block):
-    def __init__(self, indim=1000, dim=50, normalize=False, **kw):
+    def __init__(self, indim=1000, dim=50, outdim=None, normalize=False, **kw):
         super(Dummy, self).__init__(**kw)
         self.dim = dim
         self.indim = indim
         self.W = VectorEmbed(indim=indim, dim=dim, normalize=normalize)
-        self.O = param((dim, indim), lrmul=1.).glorotuniform()
+        self.outdim = indim if outdim is None else outdim
+        self.O = param((dim, self.outdim), lrmul=1.).glorotuniform()
 
     def apply(self, inptensor):
         emb = self.W(inptensor)

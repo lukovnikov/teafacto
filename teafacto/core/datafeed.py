@@ -3,13 +3,13 @@ from math import ceil
 
 
 class DataFeeder(object): # contains data feeds
-    def __init__(self, *feeds): # feeds or numpy arrays
+    def __init__(self, *feeds, **kw): # feeds or numpy arrays
         self.feeds = feeds
         self.batsize = None
         feedlens = [x.shape[0] for x in self.feeds]
         assert(feedlens.count(feedlens[0]) == len(feedlens)) # all data feeds must have equal number of examples (axis zero)
         self.size = feedlens[0]
-        self.random = True # or False or number
+        self._random = kw["random"] if "random" in kw else True   # or False or number
         # iter state
         self.iteridxs = np.arange(self.size)
         self.offset = 0
@@ -21,16 +21,20 @@ class DataFeeder(object): # contains data feeds
         self.batsize = int(ceil(self.size * 1. / numbats))
         return self
 
+    @property
+    def _numbats(self):
+        return self.getnumbats()
+
     def getnumbats(self):
         return int(ceil(self.size * 1. / self.batsize))
 
     def random(self, random):
-        self.random = random
+        self._random = random
         return self
 
     # batching
     def reset(self):
-        if self.random is not False:
+        if self._random is not False:
             np.random.shuffle(self.iteridxs)
         self.offset = 0
 
@@ -40,7 +44,7 @@ class DataFeeder(object): # contains data feeds
             self.reset()
         return ret
 
-    def nextbatch(self):
+    def nextbatch(self, withbatchsize=False):
         if self.batsize is None:
             self.offset = self.size # ensure stop
             return [x[:] for x in self.feeds]
@@ -48,17 +52,21 @@ class DataFeeder(object): # contains data feeds
         end = min(self.offset+self.batsize, self.size)
         sampleidxs = self.iteridxs[start:end]
         self.offset = end
-        return [x[sampleidxs] for x in self.feeds]
+        ret = [x[sampleidxs] for x in self.feeds]
+        if withbatchsize:
+            return ret, sampleidxs.shape[0]
+        else:
+            return ret
 
-    def split(self, split=2, random=False): # creates two new datafeeders with disjoint splits
+    def split(self, split=2, random=False, df_randoms=(True, True)): # creates two new datafeeders with disjoint splits
         splitidxs = np.arange(0, self.size)
         if random is not False:
             np.random.shuffle(splitidxs)
         start = 0
         middle = int(ceil(1.*self.size / split))
         end = self.size
-        dfvalid = DataFeeder(*[self.splitfeed(feed, splitidxs[start:middle]) for feed in self.feeds])
-        dftrain = DataFeeder(*[self.splitfeed(feed, splitidxs[middle:end])   for feed in self.feeds])
+        dfvalid = DataFeeder(*[self.splitfeed(feed, splitidxs[start:middle]) for feed in self.feeds], random=df_randoms[1])
+        dftrain = DataFeeder(*[self.splitfeed(feed, splitidxs[middle:end])   for feed in self.feeds], random=df_randoms[0])
         return dftrain, dfvalid
 
     def osplit(self, split=2, random=False):
@@ -70,10 +78,10 @@ class DataFeeder(object): # contains data feeds
 
         return DataFeeder(*[self.splitfeed(feed, splitidxs[start:end]) for feed in self.feeds])
 
-    def isplit(self, splitidxs):
+    def isplit(self, splitidxs, df_randoms=(True, True)):
         nsplitidxs = np.setdiff1d(np.arange(0, self.size), splitidxs)
-        dfvalid = DataFeeder(*[self.splitfeed(feed, splitidxs)  for feed in self.feeds])
-        dftrain = DataFeeder(*[self.splitfeed(feed, nsplitidxs) for feed in self.feeds])
+        dfvalid = DataFeeder(*[self.splitfeed(feed, splitidxs)  for feed in self.feeds], random=df_randoms[1])
+        dftrain = DataFeeder(*[self.splitfeed(feed, nsplitidxs) for feed in self.feeds], random=df_randoms[0])
         return dftrain, dfvalid
 
     def splitfeed(self, feed, idxs):
