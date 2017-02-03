@@ -30,8 +30,10 @@ class TestNSModelTrainer(TestCase):
 
         vdata = np.arange(num)
         negrate = 5
+        def obj(p, n):
+            return n - p
         m, err, verr, _, _ = m.nstrain([idxs, idxs]).negsamplegen(NegIdxGen(num+1)).negrate(negrate)\
-            .adagrad(lr=0.1) \
+            .adagrad(lr=0.1).objective(obj) \
             .validate_on([vdata, vdata]).extvalid(geteval(m.predict, num, negrate)).validinter(30) \
             .train(numbats=50, epochs=29, returnerrors=True)
         #.writeresultstofile("testingresultswriter.tsv") \

@@ -713,9 +713,11 @@ def run(negsammode="closest",   # "close" or "random"
         obj = lambda p, n: T.sum((n - p + margin).clip(0, np.infty), axis=1)
     elif loss == "ce":
         def ce_loss(p, n):
-            pn = T.concatenate([p, n], axis=1)
-            pns = T.nnet.softmax(pn)
-            ret = pns[:, 0]
+            sx = T.concatenate([p[:, 0:1], n[:, 0:1]], axis=1)
+            px = T.concatenate([p[:, 1:2], n[:, 1:2]], axis=1)
+            sxsm = T.nnet.softmax(sx)
+            pxsm = T.nnet.softmax(px)
+            ret = sxsm[:, 0] * pxsm[:, 0]
             #embed()
             return ret
         obj = ce_loss
