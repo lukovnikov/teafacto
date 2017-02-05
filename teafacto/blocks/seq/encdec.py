@@ -172,12 +172,12 @@ class SimpleSeqEncDecAtt(SeqEncDec):
         enc_a = SeqEncoder.RNN(indim=indim, inpembdim=inpembdim, inpemb=inpemb,
                              innerdim=innerdim, bidir=bidir, maskid=maskid,
                              dropout_in=dropout_in, dropout_h=dropout_h, rnu=rnu) \
-            .with_outputs().maskoptions(MaskSetMode.ZERO)
+            .with_outputs().with_states().maskoptions(MaskSetMode.ZERO)
 
         enc_c = SeqEncoder.RNN(indim=indim, inpembdim=inpembdim, inpemb=inpemb,
                              innerdim=innerdim, bidir=bidir, maskid=maskid,
                              dropout_in=dropout_in, dropout_h=dropout_h, rnu=rnu) \
-            .with_outputs().maskoptions(MaskSetMode.ZERO)
+            .with_outputs().with_states().maskoptions(MaskSetMode.ZERO)
         return SepAttEncoders(enc_a, enc_c)
 
     def _getdecoder(self, outvocsize=None, outembdim=None, outemb=None, maskid=-1,
@@ -225,11 +225,11 @@ class SepAttEncoders(Block):
         return getattr(self.enc_c, item)
 
     def apply(self, seq, weights=None, mask=None):
-        att_enc_final, att_enc_all = self.enc_a(seq, weights=weights, mask=mask)
-        con_enc_final, con_enc_all = self.enc_c(seq, weights=weights, mask=mask)
+        att_enc_final, att_enc_all, att_enc_states = self.enc_a(seq, weights=weights, mask=mask)
+        con_enc_final, con_enc_all, con_enc_states = self.enc_c(seq, weights=weights, mask=mask)
         encmask = con_enc_all.mask
         att_enc_all = att_enc_all.dimshuffle(0, 1, "x", 2)
         con_enc_all = con_enc_all.dimshuffle(0, 1, "x", 2)
         ret = T.concatenate([con_enc_all, att_enc_all], axis=2)
         ret.mask = encmask
-        return con_enc_final, ret
+        return con_enc_final, ret, con_enc_states

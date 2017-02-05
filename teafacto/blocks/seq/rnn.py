@@ -63,7 +63,12 @@ class RecStack(ReccableBlock):
         if issequence(initstates):  # fill up init state args so that layers for which no init state is specified get default arguments that lets them specify a default init state
                                     # if is a sequence, expecting a value, not batsize
             if len(initstates) < self.numstates:    # top layers are being given the given init states, bottoms make their own default
-                initstates = [initstates.shape[0]] * (self.numstates - len(initstates)) + initstates
+                initstates = [None] * (self.numstates - len(initstates)) + initstates
+            batsize = 0
+            for initstate in initstates:
+                if initstate is not None:
+                    batsize = initstate.shape[0]
+            initstates = [batsize if initstate is None else initstate for initstate in initstates]
         else:   # expecting a batsize as initstate arg
             initstates = [initstates] * self.numstates
         init_infos = []

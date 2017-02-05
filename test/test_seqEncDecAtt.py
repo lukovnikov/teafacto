@@ -15,8 +15,8 @@ class TestSimpleSeqEncDecAtt(TestCase):
     def test_sepatt_shapes(self):
         self.do_test_shapes(False, True)
 
-    def test_with_lstm(self):
-        self.do_test_shapes(rnu=LSTM)
+    def test_bidir_with_lstm(self):
+        self.do_test_shapes(bidir=True, rnu=LSTM)
 
     def do_test_shapes(self, bidir=False, sepatt=False, rnu=GRU):
         inpvocsize = 100
@@ -48,16 +48,15 @@ class TestSimpleSeqEncDecAtt(TestCase):
         outseq = np.random.randint(0, outvocsize, (batsize, outseqlen)).astype("int32")
 
         predenco, enco, states = m.enc.predict(inpseq)
-        if not bidir:
-            self.assertEqual(predenco.shape, (batsize, encdim[-1] if not bidir else encdim[-1] * 2))
-            if rnu == GRU:
-                self.assertEqual(len(states), 2)
-                for state, encdime in zip(states, encdim):
-                    self.assertEqual(state.shape, (batsize, inpseqlen, encdime))
-            elif rnu == LSTM:
-                self.assertEqual(len(states), 4)
-                for state, encdime in zip(states, [encdim[0], encdim[0], encdim[1], encdim[1]]):
-                    self.assertEqual(state.shape, (batsize, inpseqlen, encdime))
+        self.assertEqual(predenco.shape, (batsize, encdim[-1] if not bidir else encdim[-1] * 2))
+        if rnu == GRU:
+            self.assertEqual(len(states), 2)
+            for state, encdime in zip(states, encdim):
+                self.assertEqual(state.shape, (batsize, inpseqlen, encdime if not bidir else encdime * 2))
+        elif rnu == LSTM:
+            self.assertEqual(len(states), 4)
+            for state, encdime in zip(states, [encdim[0], encdim[0], encdim[1], encdim[1]]):
+                self.assertEqual(state.shape, (batsize, inpseqlen, encdime if not bidir else encdime * 2))
 
         if sepatt:
             self.assertEqual(enco.shape, (batsize, inpseqlen, 2, encdim[-1] if not bidir else encdim[-1] * 2))
