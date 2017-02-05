@@ -207,10 +207,7 @@ class SimpleSeqEncDecAtt(SeqEncDec):
             enc = self._getencoder(indim=inpvocsize, inpembdim=inpembdim, inpemb=inpemb,
                              innerdim=innerdim, bidir=bidir, maskid=maskid,
                              dropout_in=dropout_in, dropout_h=dropout_h, rnu=rnu)
-        lastencinnerdim = enc.outdim
-        lastdecinnerdim = self.lastdecinnerdim
-        statetrans = self._build_state_trans(self.statetrans_setting, lastencinnerdim, lastdecinnerdim)
-        self.set_statetrans(statetrans)
+        self.statetrans = self._build_state_trans(self.statetrans_setting)
         self.enc = enc
 
 

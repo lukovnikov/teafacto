@@ -4,7 +4,8 @@ import numpy as np
 
 from teafacto.blocks.seq.rnn import SeqEncoder
 from teafacto.blocks.seq.rnu import GRU
-from teafacto.util import issequence
+from teafacto.core.base import Val, Var
+from teafacto.util import issequence, unstructurize
 
 
 class SimpleRNNEncoderTest(TestCase):
@@ -23,7 +24,10 @@ class SimpleRNNEncoderTest(TestCase):
         self.out = self.p(self.data)
 
     def test_output_shape(self):
-        self.assertEqual(self.out.shape, self.expectshape(self.data.shape, self.outdim))
+        out = self.out
+        if isinstance(self.out, tuple):
+            out = self.out[0]
+        self.assertEqual(out.shape, self.expectshape(self.data.shape, self.outdim))
 
     def expectshape(self, datashape, outdim):
         return (datashape[0], outdim)
@@ -31,7 +35,7 @@ class SimpleRNNEncoderTest(TestCase):
     def test_all_output_parameters(self):
         outputs = self.enc.wrapply(*self.p.inps)
         if issequence(outputs) and len(outputs) > 1:
-            outputparamsets = [x.allparams for x in outputs]
+            outputparamsets = [x.allparams for x in outputs if isinstance(x, (Var, Val))]
             for i in range(len(outputparamsets)):
                 for j in range(i, len(outputparamsets)):
                     self.assertSetEqual(outputparamsets[i], outputparamsets[j])
