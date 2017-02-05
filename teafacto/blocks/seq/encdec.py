@@ -15,16 +15,7 @@ class SeqEncDec(Block):
         super(SeqEncDec, self).__init__(**kw)
         self.enc = enc
         self.dec = dec
-        self.statetrans = None
-        self.set_statetrans(statetrans)
-
-    def set_statetrans(self, statetrans):
-        if isinstance(statetrans, Block):
-            self.statetrans = asblock(lambda x, y: statetrans(x))
-        elif statetrans is True:
-            self.statetrans = asblock(lambda x, y: x)
-        else:
-            self.statetrans = statetrans
+        self.statetrans = statetrans
 
     def apply(self, inpseq, outseq, inmask=None, outmask=None):
         initstates, allenco = self.preapply(inpseq, inmask)
@@ -32,12 +23,16 @@ class SeqEncDec(Block):
         return deco
 
     def preapply(self, inpseq, inmask=None):
-        enco, allenco = self.enc(inpseq, mask=inmask)
-        initstates = None
-        if self.statetrans is not None:
-            topstate = self.statetrans(enco, allenco)
-            initstates = [topstate]
+        enco, allenco, states = self.enc(inpseq, mask=inmask)   # bottom states first
+        states = [state[:, -1, :] for state in states]
+        initstates = self.make_initstates(states)
         return initstates, allenco
+
+    def make_initstates(self, encstates):
+        if self.statetrans != None:
+            return self.statetrans(encstates, self.enc.get_statespec(), self.dec.get_statespec())
+        else:
+            return None
 
     def get_inits(self, inpseq, batsize, maskseq=None):
         initstates, allenco = self.preapply(inpseq, inmask=maskseq)
@@ -45,6 +40,27 @@ class SeqEncDec(Block):
 
     def rec(self, x_t, *states):
         return self.dec.rec(x_t, *states)
+
+
+class SimpleSeqEncDec(SeqEncDec):
+    def __init__(self, inpvocsize=400,
+                 inpembdim=None,
+                 inpemb=None,
+                 outvocsize=100,
+                 outembdim=None,
+                 outemb=None,
+                 encdim=100,
+                 decdim=100,
+                 bidir=False,
+                 rnu=GRU,
+                 statetrans=None,
+                 vecout=None,
+                 maskid=-1,
+                 dropout=False,
+                 encoder=None,
+                 decoder=None,
+                 **kw):
+        pass
 
 
 class SimpleSeqEncDecAtt(SeqEncDec):
@@ -103,7 +119,7 @@ class SimpleSeqEncDecAtt(SeqEncDec):
 
         self.lastdecinnerdim = self.decinnerdim[-1]
         self.statetrans_setting = statetrans
-        statetrans = self._build_state_trans(self.statetrans_setting, self.lastencinnerdim, self.lastdecinnerdim)
+        statetrans = self._build_state_trans(self.statetrans_setting)
 
         super(SimpleSeqEncDecAtt, self).__init__(enc, dec, statetrans=statetrans, **kw)
 
@@ -113,21 +129,42 @@ class SimpleSeqEncDecAtt(SeqEncDec):
         attention = Attention(attgen, attcon, separate=sepatt)
         return attention
 
-    def _build_state_trans(self, statetrans, encdim, decdim):
-        # initial decoder state
-        if statetrans is True:
-            if encdim != decdim:  # state shape mismatch
-                statetrans = MatDot(encdim, decdim)
-        elif statetrans == "matdot":
-            statetrans = MatDot(encdim, decdim)
-        return statetrans
+    def _build_state_trans(self, statetrans):
+        if statetrans is None:
+            return None
+
+        def innerf(encstates, encspec, decspec):
+            decspec = reduce(lambda x, y: list(x) + list(y), decspec, [])
+            encspec = reduce(lambda x, y: list(x) + list(y), encspec, [])
+            assert(len(decspec) == len(encspec))
+            ret = []
+            for i in range(len(encspec)):
+                if encspec[i][0] == "state" and decspec[i][0] == "state":
+                    if decspec[i][1][0] != encspec[i][1][0] or statetrans == "matdot":
+                        t = MatDot(encspec[i][1][0], decspec[i][1][0])
+                    else:
+                        t = asblock(lambda x: x)
+                elif encspec[i][0] == decspec[i][0]:
+                    t = None
+                else:
+                    raise Exception()
+                ret.append(t)
+            assert(len(encstates) == len(ret))
+            out = []
+            for encstate, rete in zip(encstates, ret):
+                if rete is None:
+                    out.append(None)
+                else:
+                    out.append(rete(encstate))
+            return out
+        return innerf
 
     def _getencoder(self, indim=None, inpembdim=None, inpemb=None, innerdim=None,
                     bidir=False, maskid=-1, dropout_in=False, dropout_h=False, rnu=GRU):
         enc = SeqEncoder.RNN(indim=indim, inpembdim=inpembdim, inpemb=inpemb,
                              innerdim=innerdim, bidir=bidir, maskid=maskid,
                              dropout_in=dropout_in, dropout_h=dropout_h, rnu=rnu) \
-            .with_outputs().maskoptions(MaskSetMode.ZERO)
+            .with_outputs().with_states().maskoptions(MaskSetMode.ZERO)
         return enc
 
     def _getencoder_sepatt(self, indim=None, inpembdim=None, inpemb=None, innerdim=None,

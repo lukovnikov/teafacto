@@ -1,5 +1,6 @@
 from unittest import TestCase
 from teafacto.blocks.seq.encdec import SimpleSeqEncDecAtt
+from teafacto.blocks.seq.rnu import LSTM, GRU
 from teafacto.blocks.match import LinearDistance
 import numpy as np
 
@@ -14,7 +15,10 @@ class TestSimpleSeqEncDecAtt(TestCase):
     def test_sepatt_shapes(self):
         self.do_test_shapes(False, True)
 
-    def do_test_shapes(self, bidir=False, sepatt=False):
+    def test_with_lstm(self):
+        self.do_test_shapes(rnu=LSTM)
+
+    def do_test_shapes(self, bidir=False, sepatt=False, rnu=GRU):
         inpvocsize = 100
         outvocsize = 13
         inpembdim = 10
@@ -37,13 +41,23 @@ class TestSimpleSeqEncDecAtt(TestCase):
                                bidir=bidir,
                                statetrans=True,
                                attdist=LinearDistance(15, 14, 17),
-                               sepatt=sepatt)
+                               sepatt=sepatt,
+                               rnu=rnu)
 
         inpseq = np.random.randint(0, inpvocsize, (batsize, inpseqlen)).astype("int32")
         outseq = np.random.randint(0, outvocsize, (batsize, outseqlen)).astype("int32")
 
-        predenco, enco = m.enc.predict(inpseq)
-        self.assertEqual(predenco.shape, (batsize, encdim[-1] if not bidir else encdim[-1] * 2))
+        predenco, enco, states = m.enc.predict(inpseq)
+        if not bidir:
+            self.assertEqual(predenco.shape, (batsize, encdim[-1] if not bidir else encdim[-1] * 2))
+            if rnu == GRU:
+                self.assertEqual(len(states), 2)
+                for state, encdime in zip(states, encdim):
+                    self.assertEqual(state.shape, (batsize, inpseqlen, encdime))
+            elif rnu == LSTM:
+                self.assertEqual(len(states), 4)
+                for state, encdime in zip(states, [encdim[0], encdim[0], encdim[1], encdim[1]]):
+                    self.assertEqual(state.shape, (batsize, inpseqlen, encdime))
 
         if sepatt:
             self.assertEqual(enco.shape, (batsize, inpseqlen, 2, encdim[-1] if not bidir else encdim[-1] * 2))

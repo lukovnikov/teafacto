@@ -3,7 +3,7 @@ from unittest import TestCase
 import numpy as np
 
 from teafacto.blocks.seq.rnn import SeqEncoder, MaskSetMode, RNNSeqEncoder
-from teafacto.blocks.seq.rnu import GRU
+from teafacto.blocks.seq.rnu import GRU, LSTM
 from teafacto.blocks.basic import IdxToOneHot, VectorEmbed
 from teafacto.core.base import Val
 
@@ -18,6 +18,29 @@ class TestSeqEncoder(TestCase):
         data = np.random.randint(0, indim, (batsize, seqlen)).astype("int32")
         mpred = m.predict(data)
         self.assertEqual(mpred.shape, (batsize, dim))
+
+    def test_output_shape_LSTM(self):
+        batsize = 100
+        seqlen = 5
+        dim = 50
+        indim = 13
+        m = SeqEncoder(IdxToOneHot(13), LSTM(dim=indim, innerdim=dim))
+        data = np.random.randint(0, indim, (batsize, seqlen)).astype("int32")
+        mpred = m.predict(data)
+        self.assertEqual(mpred.shape, (batsize, dim))
+
+    def test_output_shape_LSTM_2layer(self):
+        batsize = 100
+        seqlen = 5
+        dim = 50
+        indim = 13
+        dim2 = 40
+        m = SeqEncoder(IdxToOneHot(13),
+                       LSTM(dim=indim, innerdim=dim),
+                       LSTM(dim=dim, innerdim=dim2))
+        data = np.random.randint(0, indim, (batsize, seqlen)).astype("int32")
+        mpred = m.predict(data)
+        self.assertEqual(mpred.shape, (batsize, dim2))
 
     def test_output_shape_w_mask(self):
         batsize = 2

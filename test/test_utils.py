@@ -1,6 +1,7 @@
 from unittest import TestCase
 
-from teafacto.util import ticktock as TT, argparsify, loadlexidtsv
+from teafacto.util import ticktock as TT, argparsify, loadlexidtsv, \
+    unstructurize, restructurize
 import os
 
 class TestUtils(TestCase):
@@ -43,4 +44,14 @@ class TestIDTSVLoader(TestCase):
         self.assertEqual(gids.shape, (10000, 10))
         self.assertEqual(charten.shape, (10000, 10, 30))
         self.assertEqual(fbids.shape, (10000,))
+
+
+class TestFlatNestF(TestCase):
+    def test_f(self):
+        s = ["a", "b", ["c", "d"], {"e": ["f", ("g", "h")]}]
+        n, f = unstructurize(s)
+        self.assertEqual(f, "a b c d f g h".split())
+        rs = restructurize(n, f)
+        self.assertEqual(rs, s)
+
 

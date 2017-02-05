@@ -1129,12 +1129,10 @@ class BlockPredictor(object):
         return self
 
     def _select_extra_outs(self, outp, extra_outs=False):
+        alloutvars = recurfilter(lambda x: isinstance(x, (Val, Var)), outp)
         allextraouts = {}
-        if issequence(outp):
-            for outpe in outp:
-                allextraouts.update(outpe.all_extra_outs)
-        else:
-            allextraouts.update(outp.all_extra_outs)
+        for outpe in alloutvars:
+            allextraouts.update(outpe.all_extra_outs)
         if extra_outs is False or extra_outs is None:
             extra_outs = set()
         elif extra_outs is True:
@@ -1150,6 +1148,7 @@ class BlockPredictor(object):
 
     def __call__(self, *inputdata, **kwinputdata):  # do predict, take into account prediction settings set
         if self._predictf is None:  # or block._predictf._transform != self.transfZ:
+            from teafacto.util import unstructurize, restructurize
             # if False or len(self.inputs) == 0 or self.output is None:
             extra_outs = self.extra_outs
             if "_extra_outs" in kwinputdata:
@@ -1163,12 +1162,19 @@ class BlockPredictor(object):
             extra_out_vars = self._select_extra_outs(outp, extra_outs)
             if hasattr(self.block, "_predict_postapply"):
                 outp = self.block._predict_postapply(outp)
-            self._numouts = len(outp)
+            #self._numouts = len(outp)
             numextraouts = len(extra_out_vars)
-            self._predictf = theano.function(outputs=[o.d for o in outp]
-                                                     +[e.d for k, e in sorted(extra_out_vars.items(), key=lambda (a, b): a)],
+            out = {"ret": outp, "extra": extra_out_vars}
+            outstruct, flatouts = unstructurize(out)
+            _predictf_sym = theano.function(outputs=[x.d for x in flatouts],
                                              inputs=[x.d for x in inps],
                                              on_unused_input="warn")
+            self._predictf = lambda *largs: \
+                restructurize(outstruct, _predictf_sym(*largs))
+            """self._predictf = theano.function(outputs=[o.d for o in outp]
+                                                     +[e.d for k, e in sorted(extra_out_vars.items(), key=lambda (a, b): a)],
+                                             inputs=[x.d for x in inps],
+                                             on_unused_input="warn")"""
         args = []
 
         def _inner(x):
@@ -1185,10 +1191,14 @@ class BlockPredictor(object):
         allinputdata = inputdata + tuple(kwn)
         allinputdata = filter(lambda x: x is not None, allinputdata)
         args = map(_inner, allinputdata)
-        valret = self._predictf(*args)
-        extra_ret = valret[self._numouts:]
-        valret = valret[:self._numouts]
+        ret = self._predictf(*args)
+        extra_ret = ret["extra"]    #
+        valret = ret["ret"]         #
+        #extra_ret = valret[self._numouts:]
+        #valret = valret[:self._numouts]
         ret = valret[0] if len(valret) == 1 else tuple(valret)
-        if len(extra_ret) > 0:
-            return ret, dict(zip(sorted(extra_out_vars.keys()), extra_ret))
+        if len(extra_ret) > 0:          #
+            return ret, extra_ret       #
+#        if len(extra_ret) > 0:
+#            return ret, dict(zip(sorted(extra_out_vars.keys()), extra_ret))
         return ret

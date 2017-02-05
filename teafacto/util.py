@@ -63,6 +63,50 @@ def makenpfrom(tomat, toten, tovec, dtype="int32", numwords=15, numchars=30):
     return np.asarray(tomat, dtype=dtype), np.asarray(toten, dtype=dtype), np.asarray(tovec, dtype=dtype)
 
 
+def unstructurize(x, i=None):
+    if i is None:
+        i = []
+    if isinstance(x, dict):
+        out = {}
+        for key in x.keys():
+            ret, i = unstructurize(x[key], i)
+            out[key] = ret
+    elif isinstance(x, (list, tuple)):
+        out = []
+        for elem in x:
+            ret, i = unstructurize(elem, i)
+            out.append(ret)
+        if isinstance(x, tuple):
+            out = tuple(out)
+    elif isinstance(x, set):
+        raise Exception("sets not supported")
+    else:
+        out = len(i)
+        i.append(x)
+    return out, i
+
+
+def restructurize(n, f):
+    if isinstance(n, dict):
+        out = {}
+        for key in n.keys():
+            out[key] = restructurize(n[key], f)
+    elif isinstance(n, (list, tuple)):
+        out = []
+        for elem in n:
+            out.append(restructurize(elem, f))
+        if isinstance(n, tuple):
+            out = tuple(out)
+    elif isinstance(n, set):
+        raise Exception("sets not supported")
+    else:
+        out = f[n]
+    return out
+
+
+
+
+
 class ticktock(object):
     def __init__(self, prefix="-", verbose=True):
         self.prefix = prefix

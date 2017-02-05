@@ -21,6 +21,9 @@ class RecurrentBlock(Block):     # ancestor class for everything that consumes s
     def numstates(self):
         raise NotImplementedError("use subclass")
 
+    def get_statespec(self):
+        raise NotImplementedError("use subclass")
+
     def apply_argspec(self):
         return ((3, "float"),)
 
@@ -40,6 +43,9 @@ class ReccableBlock(RecurrentBlock):    # exposes a rec function
     @property
     def numstates(self):
         return getnumargs(self.rec) - 2
+
+    def get_statespec(self):
+        raise NotImplementedError("use subclass")
 
     # REC API
     def rec(self, *args):
@@ -83,6 +89,23 @@ class ReccableBlock(RecurrentBlock):    # exposes a rec function
         y_t_out = (y_t.T * m_t + y_tm1.T * (1 - m_t)).T
         states_out = [(a.T * m_t + b.T * (1 - m_t)).T for a, b in zip(newstates, states)]   # TODO: try replace with switch expression
         return [y_t_out] + states_out
+
+
+class ReccableWrapper(ReccableBlock):
+    """ wraps a non-recurrent block to be reccable """
+    def __init__(self, block, **kw):
+        super(ReccableWrapper, self).__init__(**kw)
+        self.block = block
+
+    @property
+    def numstates(self):
+        return 0
+
+    def get_statespec(self):
+        return tuple()
+
+    def rec(self, x_t):
+        return self.block(x_t)
 
 
 class RNUBase(ReccableBlock):
@@ -142,6 +165,9 @@ class RNU(RNUBase):
             self.b = param((self.innerdim,), name="b").init(self.biasinit)
         else:
             self.b = 0
+
+    def get_statespec(self):
+        return (("state", (self.innerdim,)),)
 
     def get_init_info(self, initstates):    # either a list of init states or the batsize
         if not issequence(initstates):
@@ -286,6 +312,9 @@ class LSTM(GatedRNU):
         ogate = self.gateactivation(c_t*self.po + self.bo + T.dot(x_t, self.wo) + T.dot(y_tm1, self.ro))
         y_t = ogate * self.outpactivation(c_t)
         return [y_t, y_t, c_t]
+
+    def get_statespec(self):
+        return (("output", (self.innerdim,)), ("state", (self.innerdim,)))
 
 '''
 class XRU(RNU):
