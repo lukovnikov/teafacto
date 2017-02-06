@@ -11,13 +11,16 @@ class Distance(Block):
     def apply(self, l, r):
         raise NotImplementedError("use subclass")
 
+    def apply_argspec(self):
+        return ((2, "float"), (2, "float"))
 
-class DotDistance(Block):
+
+class DotDistance(Distance):
     def apply(self, l, r):  # l: f32^(batsize, dim), r: f32^(batsize, dim)
         return T.batched_dot(r, l)
 
 
-class CosineDistance(Block):
+class CosineDistance(Distance):
     def apply(self, l, r):  # l: f32^(batsize, dim), r:f32^(batsize, dim)
         dots = T.batched_dot(r, l)
         lnorms = T.sqrt(T.maximum(T.sum(l ** 2, axis=-1), 1e-6))
@@ -31,20 +34,17 @@ class CosineDistance(Block):
         return ret
 
 
-class EuclideanDistance(Block):
+class EuclideanDistance(Distance):
     def apply(self, l, r):
         return T.sqrt(T.maximum(T.sum((l-r)**2, axis=1), 1e-6))
 
 
-class LinearDistance(Block):
+class LinearDistance(Distance):
     def __init__(self, ldim, rdim, aggdim, **kw):
         super(LinearDistance, self).__init__(**kw)
         self.lin = Linear(indim=ldim, dim=aggdim)
         self.lin2 = Linear(indim=rdim, dim=aggdim)
         self.agg = param((aggdim,), name="attention_agg").uniform()
-
-    def apply_argspec(self):
-        return ((2, "float"), (2, "float"))
 
     def apply(self, l, r):      # (batsize, dim)
         a = self.lin(l)     # (batsize, dim)
@@ -76,7 +76,7 @@ class LinearGateDistance(LinearDistance):
         return self.activation(x)
 
 
-class BilinearDistance(Block):
+class BilinearDistance(Distance):
     def __init__(self, ldim, rdim, **kw):
         super(BilinearDistance, self).__init__(**kw)
         self.W = param((rdim, ldim), name="gendotdist").glorotuniform()

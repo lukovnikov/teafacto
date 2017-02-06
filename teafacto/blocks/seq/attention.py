@@ -47,7 +47,7 @@ class WeightedSumAttCon(AttentionConsumer):    # applies attention to sequence w
 # ATTENTIONS
 
 class Attention(Block):
-    def __init__(self, attentiongenerator, attentionconsumer=WeightedSumAttCon, separate=False, **kw):
+    def __init__(self, attentiongenerator, attentionconsumer=WeightedSumAttCon(), separate=False, **kw):
         super(Attention, self).__init__(**kw)
         if isinstance(attentiongenerator, AttGen):
             self.attentiongenerator = attentiongenerator

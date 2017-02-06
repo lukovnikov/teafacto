@@ -1,5 +1,5 @@
 from base import Block
-from teafacto.blocks.seq.rnn import RecStack
+from teafacto.blocks.seq.recstack import RecStack
 from teafacto.blocks.seq.rnu import RNUBase
 
 

@@ -61,6 +61,16 @@ class TWrapper(type):
                       truncate_gradient=truncate_gradient, go_backwards=go_backwards,mode=mode, name=name, profile=profile,
                       allow_gc=allow_gc, strict=strict)
 
+    def softmax(cls, x):
+        if x.ndim <= 2:
+            return tensorops.nnet.softmax(x)
+        elif x.ndim > 2:
+            s = x.shape
+            y = x.dimmove(x.ndim - 1, 0).flatten(2).T
+            z = tensorops.nnet.softmax(y)
+            ret = z.reshape(s)
+            return ret
+
     def until(cls, expr):
         return until(expr)
 
@@ -160,6 +170,14 @@ class TensorWrapped(object):
             dims[b] = a
             return v.dimshuffle(*dims)
         return OpBlock(tinner, name="dimswap")(self, a, b)
+
+    def dimmove(self, dim, index):
+        def tinner(v, val, idx):
+            dims = range(v.ndim)
+            del dims[val]
+            dims.insert(idx, val)
+            return v.dimshuffle(*dims)
+        return OpBlock(tinner, name="dimmove")(self, dim, index)
 
     def reverse(self, *axes):
         """ axis can be an *int* or a sequence of *int*s"""
@@ -1071,6 +1089,7 @@ class scan(Block):
 
     def getnumberofextraargs(self, fn, **kwargs):
         seqs = kwargs["sequences"]
+        seqs = [] if seqs is None else seqs
         seqs = [seqs] if not issequence(seqs) else seqs
         seqs = [seq[0] for seq in seqs]
         nonseqs = kwargs["non_sequences"] if "non_sequences" in kwargs else None

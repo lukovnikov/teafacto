@@ -1,5 +1,6 @@
 from teafacto.core.base import Block, tensorops as T, param, Val, Var, RVal, Parameter
 from teafacto.util import issequence, isfunction
+from teafacto.core.stack import stack
 import numpy as np
 
 default_carry_bias = 1
@@ -46,7 +47,7 @@ class Softmax(Block):
 
 
 class MatDot(Block):
-    def __init__(self, indim, dim, value=None, init="uniform", dropout=False, **kw):
+    def __init__(self, indim, dim, value=None, init="glorotuniform", dropout=False, **kw):
         super(MatDot, self).__init__(**kw)
         self.indim = indim
         self.dim = dim
@@ -62,7 +63,8 @@ class MatDot(Block):
 
 
 class Linear(Block):
-    def __init__(self, indim, dim, w_init="glorotuniform", b_init="uniform", dropout=False, **kw):
+    def __init__(self, indim, dim, w_init="glorotuniform",
+                 b_init="uniform", dropout=False, **kw):
         super(Linear, self).__init__(**kw)
         self.indim = indim
         self.dim = dim
