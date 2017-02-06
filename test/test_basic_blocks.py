@@ -29,14 +29,6 @@ class TestMatDot(TestCase):
     def test_set_lr(self):
         self.matdot = MatDot(indim=10, dim=15)
 
-    def test_stackable(self):
-        matdot = MatDot(indim=10, dim=(5, 7, 8))
-        data = np.random.random((100, 10))
-        pred = matdot.predict(data)
-        print pred.shape
-
-
-
 
 class TestLinear(TestCase):
     def setUp(self):

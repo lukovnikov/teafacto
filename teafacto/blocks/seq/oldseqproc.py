@@ -2,8 +2,7 @@ from teafacto.blocks.basic import Linear as Lin, Softmax
 from teafacto.blocks.basic import VectorEmbed, IdxToOneHot, MatDot
 from teafacto.blocks.memory import MemoryStack, MemoryBlock, DotMemAddr
 from teafacto.blocks.seq.rnn import MakeRNU
-from teafacto.blocks.seq.rnn import SeqDecoder, BiRNU, SeqEncoder, MaskSetMode, MaskMode
-from teafacto.blocks.seq.recstack import RecStack
+from teafacto.blocks.seq.rnn import SeqDecoder, BiRNU, SeqEncoder, MaskSetMode, MaskMode, RecStack
 from teafacto.blocks.seq.rnu import GRU
 from teafacto.core.base import Block, tensorops as T, Val, asblock
 from teafacto.core.stack import stack

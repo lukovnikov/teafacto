@@ -1,8 +1,9 @@
-##### MEMORY ENABLED RNN's #####
-import numpy as np
 from teafacto.core.base import Block, Var, Val, param, tensorops as T
 
+
 # TODO: INPUT MASK !!!!!!!! and attention etc
+# TODO: what about memory mask?
+# TODO: MEMORY POSITION EMBEDDINGS/ENCODINGS
 
 
 # SYMBOLIC OUTPUT MEMORY ENABLED SEQ2SEQ
@@ -17,8 +18,8 @@ class BulkNN(Block):
                 posembdim=None,
                 inp_attention=None, mem_attention=None,
                 inp_addr_extractor=None, mem_addr_extractor=None,
-                write_addr_extractor=None, write_addr_attention=None,
-                write_value_generator=None,
+                write_addr_extractor=None, write_addr_generator=None,
+                write_value_generator=None, write_value_extractor=None,
                 mem_erase_generator=None, mem_change_generator=None,
                 nsteps=100, core=None, **kw):
         super(BulkNN, self).__init__(**kw)
@@ -38,7 +39,8 @@ class BulkNN(Block):
         self._inp_addr_extractor = inp_addr_extractor
         self._mem_addr_extractor = mem_addr_extractor
         self._write_addr_extractor = write_addr_extractor
-        self._write_addr_attention = write_addr_attention
+        self._write_addr_generator = write_addr_generator
+        self._write_value_extractor = write_value_extractor
         self._write_value_generator = write_value_generator
         self._mem_change_generator = mem_change_generator
         self._mem_erase_generator = mem_erase_generator
@@ -131,7 +133,8 @@ class BulkNN(Block):
         return self._write_addr_generator(crit, mem)
 
     def _get_write_weights(self, h):
-        return self._write_value_generator(h)  # generate categorical write distr
+        crit = self._write_value_extractor(h)
+        return self._write_value_generator(crit)  # generate categorical write distr
 
     def _get_erase(self, h):
         return self._mem_erase_generator(h)
@@ -141,22 +144,35 @@ class BulkNN(Block):
 
 
 from teafacto.blocks.seq.rnn import SeqEncoder, MakeRNU
-from blocks.seq.recstack import RecStack
+from blocks.seq.rnn import RecStack
 from teafacto.blocks.seq.rnu import GRU
 from teafacto.blocks.match import CosineDistance
 from teafacto.blocks.seq.attention import Attention, AttGen
+from teafacto.blocks.basic import MatDot, Linear, Forward, SMO
+from teafacto.core.base import asblock
+from teafacto.util import issequence
 
 
 class SimpleBulkNN(BulkNN):
     """ Parameterized simple interface for BulkNN that builds defaults for subcomponents """
     def __init__(self, inpvocsize=None, inpembdim=None, inpemb=None,
                         inpencinnerdim=None, bidir=False, maskid=None,
-                        dropout=False, rnu=GRU, inpencoder=None,
+                        dropout=False, rnu=GRU,
+                 inpencoder=None,
                        memvocsize=None, memembdim=None, memembmat=None,
-                        memencinnerdim=None, memencoder=None,
+                        memencinnerdim=None,
+                 memencoder=None,
                        inp_att_dist=CosineDistance(), mem_att_dist=CosineDistance(),
                         inp_attention=None, mem_attention=None,
-                       coredims=None, corernu=GRU, core=None,
+                       coredims=None, corernu=GRU,
+                 core=None, explicit_interface=False, scalaraggdim=None,
+                                        write_value_dim=None,
+                     inp_addr_extractor=None, mem_addr_extractor=None,
+                     write_addr_extractor=None, write_addr_generator=None,
+                     write_addr_dist=CosineDistance(),
+                     write_value_generator=None, write_value_extractor=None,
+                     mem_erase_generator=None, mem_change_generator=None,
+                     memsampler=None,
                  **kw):
         # INPUT ENCODING
         if inpencoder is None:
@@ -164,6 +180,9 @@ class SimpleBulkNN(BulkNN):
                         inpemb=inpemb, innerdim=inpencinnerdim, bidir=bidir,
                         maskid=maskid, dropout_in=dropout, dropout_h=dropout,
                         rnu=rnu).all_outputs()
+            lastinpdim = inpencinnerdim if not issequence(inpencinnerdim) else inpencinnerdim[-1]
+        else:
+            lastinpdim = inpencoder.block.layers[-1].innerdim
         # MEMORY ENCODING
         if memembmat is None:
             memembmat = param((memvocsize, memembdim), name="memembmat").glorotuniform()
@@ -171,25 +190,109 @@ class SimpleBulkNN(BulkNN):
             memencoder = SeqEncoder.RNN(inpemb=False, innerdim=memencinnerdim,
                         bidir=bidir, dropout_in=dropout, dropout_h=dropout,
                         rnu=rnu).all_outputs()
-        # TWO READ ATTENTIONS
-        if inp_attention is None:
-            inp_attention = Attention(inp_att_dist)
-        if mem_attention is None:
-            mem_attention = Attention(mem_att_dist)
+            lastmemdim = memencinnerdim if not issequence(memencinnerdim) else memencinnerdim[-1]
+        else:
+            lastmemdim = memencoder.block.layers[-1].innerdim
 
         # CORE RNN - THE THINKER
         if core is None:
-            corelayers, _ = MakeRNU.fromdims([inpencinnerdim+memencinnerdim] + coredims,
+            corelayers, _ = MakeRNU.fromdims([lastinpdim+lastmemdim] + coredims,
                                     rnu=corernu, dropout_in=dropout, dropout_h=dropout)
             core = RecStack(*corelayers)
 
-        # WRITE INTERFACE
+        lastcoredim = core.get_statespec()[-1][1]
 
-        # MEM UPDATE INTERFACE
+        # ATTENTIONS
+        if mem_attention is not None:
+            mem_attention = Attention(mem_att_dist)
+        if inp_attention is not None:
+            inp_attention = Attention(inp_att_dist)
+        if write_addr_generator is not None:
+            write_addr_generator = AttGen(write_addr_dist)
+
+        ################ STATE INTERFACES #################
+
+        if not explicit_interface:
+            if inp_addr_extractor is None:
+                inp_addr_extractor = Forward(lastcoredim, lastinpdim, dropout=dropout)
+            if mem_addr_extractor is None:
+                inp_addr_extractor = Forward(lastcoredim, lastmemdim, dropout=dropout)
+
+            # WRITE INTERFACE
+            if write_addr_extractor is None:
+                write_addr_extractor = Forward(lastcoredim, lastmemdim, dropout=dropout)
+            if write_value_extractor is None:
+                write_value_extractor = Forward(lastcoredim, write_value_dim, dropout=dropout)
+            if write_value_generator is None:
+                write_value_generator = WriteValGenerator(write_value_dim, memvocsize, dropout=dropout)
+
+            # MEM UPDATE INTERFACE
+            if mem_erase_generator is None:
+                mem_erase_generator = StateToScalar(lastcoredim, scalaraggdim)
+            if mem_change_generator is None:
+                mem_change_generator = StateToScalar(lastcoredim, scalaraggdim)
+        else:
+            inp_addr_extractor, mem_addr_extractor, write_addr_extractor, \
+            write_value_extractor, mem_erase_generator, mem_change_generator = \
+                make_vector_slicers(0, inpencinnerdim, memencinnerdim,
+                                    memencinnerdim, write_value_dim, 1, 1)
 
         super(SimpleBulkNN, self).__init__(inpencoder=inpencoder,
             memembmat=memembmat, memencoder=memencoder,
             inp_attention=inp_attention, mem_attention=mem_attention,
-            core=core,
+            core=core, memsampler=memsampler,
+            inp_addr_extractor=inp_addr_extractor, mem_addr_extractor=mem_addr_extractor,
+            write_addr_extractor=write_addr_extractor, write_addr_generator=write_addr_generator,
+            mem_erase_generator=mem_erase_generator, mem_change_generator=mem_change_generator,
+            write_value_generator=write_value_generator, write_value_extractor=write_value_extractor,
             **kw)
 
+
+class WriteValGenerator(Block):
+    def __init__(self, dim, vocsize, interdims=tuple(), dropout=False, **kw):
+        super(WriteValGenerator, self).__init__(**kw)
+        self.dims = (dim,) + interdims
+        self.vocsize = vocsize
+
+        self.layers = []
+        for i in range(len(self.dims)-1):
+            layer = Forward(self.dims[i], self.dims[i+1], dropout=dropout)
+            self.layers.append(layer)
+        self.smo = SMO(self.dims[-1], outdim=self.vocsize)
+
+    def apply(self, x):
+        for layer in self.layers:
+            x = layer(x)
+        ret = self.smo(x)
+        return ret
+
+
+class StateToScalar(Block):
+    def __init__(self, dim, outdim, **kw):
+        super(StateToScalar, self).__init__(**kw)
+        self.block = Forward(dim, outdim)
+        self.agg = param((outdim,), name="scalartostate_agg").uniform()
+
+    def apply(self, x):
+        y = T.dot(x, self.block)
+        z = T.dot(y, self.agg)      # (batsize,)
+        ret = T.nnet.sigmoid(z)
+        return ret
+
+
+def make_vector_slicers(*sizes):
+    sizes = list(sizes)
+    boundaries = [sizes[0]]
+    del sizes[0]
+    while len(sizes) > 0:
+        boundaries.append(sizes[0]+boundaries[-1])
+        del sizes[0]
+    rets = []
+    for i in range(len(boundaries) - 1):
+        a, b = boundaries[i], boundaries[i + 1]
+        if b - a == 1:
+            block = asblock(lambda x: x[:, a])
+        else:
+            block = asblock(lambda x: x[:, a:b])
+        rets.append(block)
+    return tuple(rets)

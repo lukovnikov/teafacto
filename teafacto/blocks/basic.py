@@ -1,6 +1,5 @@
 from teafacto.core.base import Block, tensorops as T, param, Val, Var, RVal, Parameter
 from teafacto.util import issequence, isfunction
-from teafacto.core.stack import stack
 import numpy as np
 
 default_carry_bias = 1
