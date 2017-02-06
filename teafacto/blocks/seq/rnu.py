@@ -77,6 +77,8 @@ class ReccableBlock(RecurrentBlock):    # exposes a rec function
                                 sequences=[inputs, mask.dimswap(1, 0)],
                                 outputs_info=[None] + init_info,
                                 go_backwards=self._reverse)
+        if not issequence(outputs):
+            outputs = [outputs]
         outputs = [x.dimswap(1, 0) for x in outputs]
         return outputs[0][:, -1, :], outputs[0], outputs[1:]
 
@@ -105,7 +107,10 @@ class ReccableWrapper(ReccableBlock):
         return tuple()
 
     def rec(self, x_t):
-        return self.block(x_t)
+        return [self.block(x_t)]
+
+    def get_init_info(self, arg):
+        return []
 
 
 class RNUBase(ReccableBlock):
