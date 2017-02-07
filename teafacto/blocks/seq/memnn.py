@@ -144,7 +144,7 @@ class BulkNN(Block):
 
 
 from teafacto.blocks.seq.rnn import SeqEncoder, MakeRNU
-from blocks.seq.rnn import RecStack
+from teafacto.blocks.seq.rnn import RecStack
 from teafacto.blocks.seq.rnu import GRU
 from teafacto.blocks.match import CosineDistance
 from teafacto.blocks.seq.attention import Attention, AttGen

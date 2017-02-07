@@ -312,8 +312,12 @@ class RNNSeqEncoder(SeqEncoder):
         #self.outdim = innerdim[-1] if not bidir else innerdim[-1] * 2
         layers, lastdim = MakeRNU.make(inpembdim, innerdim, bidir=bidir, rnu=rnu,
                                        dropout_in=dropout_in, dropout_h=dropout_h)
-        self.outdim = lastdim
+        self._lastdim = lastdim
         super(RNNSeqEncoder, self).__init__(inpemb, *layers, **kw)
+
+    @property
+    def outdim(self):
+        return self._lastdim
 
 
 class SeqDecoderOld(Block):
