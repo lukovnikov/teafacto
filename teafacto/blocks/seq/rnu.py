@@ -21,7 +21,7 @@ class RecurrentBlock(Block):     # ancestor class for everything that consumes s
     def numstates(self):
         raise NotImplementedError("use subclass")
 
-    def get_statespec(self):
+    def get_statespec(self, flat=False):
         raise NotImplementedError("use subclass")
 
     def apply_argspec(self):
@@ -43,9 +43,6 @@ class ReccableBlock(RecurrentBlock):    # exposes a rec function
     @property
     def numstates(self):
         return getnumargs(self.rec) - 2
-
-    def get_statespec(self):
-        raise NotImplementedError("use subclass")
 
     # REC API
     def rec(self, *args):
@@ -103,7 +100,7 @@ class ReccableWrapper(ReccableBlock):
     def numstates(self):
         return 0
 
-    def get_statespec(self):
+    def get_statespec(self, flat=False):
         return tuple()
 
     def rec(self, x_t):
@@ -115,7 +112,7 @@ class ReccableWrapper(ReccableBlock):
 
 class RNUBase(ReccableBlock):
 
-    def __init__(self, dim=20, innerdim=20, wreg=0.0001,
+    def __init__(self, dim=20, innerdim=20, wreg=0.0001, noinput=False,
                  initmult=0.1, nobias=False, paraminit="glorotuniform", biasinit="uniform",
                  dropout_in=False, dropout_h=False, **kw): #layernormalize=False): # dim is input dimensions, innerdim = dimension of internal elements
         super(RNUBase, self).__init__(**kw)
@@ -124,6 +121,7 @@ class RNUBase(ReccableBlock):
         self.wreg = wreg
         self.initmult = initmult
         self.nobias = nobias
+        self.noinput = noinput
         self.paraminit = paraminit
         self.biasinit = biasinit
         '''self.layernormalize = layernormalize
@@ -158,38 +156,59 @@ class RNUBase(ReccableBlock):
 
 class RNU(RNUBase):
 
-    def __init__(self, outpactivation=T.tanh, **kw):
+    def __init__(self, outpactivation=T.tanh, param_init_states=False, **kw):
         self.outpactivation = outpactivation
         super(RNU, self).__init__(**kw)
+        self.initstateparams = None
+        if param_init_states:
+            self.initstateparams = []
+            for spec in self.get_statespec():
+                if spec[0] == "state":
+                    initstateparam = param(spec[1], name="init_state").uniform()
+                    self.initstateparams.append(initstateparam)
+                else:
+                    self.initstateparams.append(None)
+        self.param_init_states = param_init_states
         self.makeparams()
 
     def makeparams(self):
-        self.w = param((self.indim, self.innerdim), name="w").init(self.paraminit)
+        if not self.noinput:
+            self.w = param((self.indim, self.innerdim), name="w").init(self.paraminit)
+        else:
+            self.w = 0
         self.u = param((self.innerdim, self.innerdim), name="u").init(self.paraminit)
         if self.nobias is False:
             self.b = param((self.innerdim,), name="b").init(self.biasinit)
         else:
             self.b = 0
 
-    def get_statespec(self):
+    def get_statespec(self, flat=False):
         return (("state", (self.innerdim,)),)
 
     def get_init_info(self, initstates):    # either a list of init states or the batsize
         if not issequence(initstates):
             initstates = [initstates] * self.numstates
         acc = []
-        for initstate in initstates:
+        if self.initstateparams is None:
+            initstateparams = [None] * self.numstates
+        else:
+            initstateparams = self.initstateparams
+        for initstate, initstateparam in zip(initstates, initstateparams):
             if isinstance(initstate, int) or initstate.ndim == 0:
                 #embed()
-                acc.append(T.zeros((initstate, self.innerdim)))
+                if initstateparam is not None:
+                    toapp = T.repeat(initstateparam.dimadd(0), initstate, axis=0)
+                    acc.append(toapp)
+                else:
+                    acc.append(T.zeros((initstate, self.innerdim)))
             else:
                 acc.append(initstate)
         return acc
 
     def rec(self, x_t, h_tm1):      # x_t: (batsize, dim), h_tm1: (batsize, innerdim)
-        x_t = self.dropout_in(x_t)
-        h_tm1 = self.dropout_h(h_tm1)
+        x_t = self.dropout_in(x_t) if not self.noinput else 0
         inp = T.dot(x_t, self.w)    # w: (dim, innerdim) ==> inp: (batsize, innerdim)
+        h_tm1 = self.dropout_h(h_tm1)
         rep = T.dot(h_tm1, self.u)  # u: (innerdim, innerdim) ==> rep: (batsize, innerdim)
         h = inp + rep + self.b               # h: (batsize, innerdim)
         '''h = self.normalize_layer(h)'''
@@ -210,9 +229,12 @@ class GatedRNU(RNU):
 class GRU(GatedRNU):
 
     def makeparams(self):
-        self.w = param((self.indim, self.innerdim), name="w").init(self.paraminit)
-        self.wm = param((self.indim, self.innerdim), name="wm").init(self.paraminit)
-        self.whf = param((self.indim, self.innerdim), name="whf").init(self.paraminit)
+        if not self.noinput:
+            self.w = param((self.indim, self.innerdim), name="w").init(self.paraminit)
+            self.wm = param((self.indim, self.innerdim), name="wm").init(self.paraminit)
+            self.whf = param((self.indim, self.innerdim), name="whf").init(self.paraminit)
+        else:
+            self.w , self.wm, self.whf = 0, 0, 0
         self.u = param((self.innerdim, self.innerdim), name="u").init(self.paraminit)
         self.um = param((self.innerdim, self.innerdim), name="um").init(self.paraminit)
         self.uhf = param((self.innerdim, self.innerdim), name="uhf").init(self.paraminit)
@@ -234,7 +256,7 @@ class GRU(GatedRNU):
         :param h_tm1: previous states (nb_samples, out_dim)
         :return: new state (nb_samples, out_dim)
         '''
-        x_t = self.dropout_in(x_t)
+        x_t = self.dropout_in(x_t) if not self.noinput else 0
         h_tm1_i = self.dropout_h(h_tm1)
         mgate =  self.gateactivation(T.dot(h_tm1_i, self.um)  + T.dot(x_t, self.wm)  + self.bm)
         hfgate = self.gateactivation(T.dot(h_tm1_i, self.uhf) + T.dot(x_t, self.whf) + self.bhf)
@@ -256,7 +278,10 @@ class IFGRU(GRU):      # input-modulating GRU
     def makeparams(self):
         super(IFGRU, self).makeparams()
         self.uif = param((self.innerdim, self.indim), name="uif").init(self.paraminit)
-        self.wif = param((self.indim, self.indim), name="wif").init(self.paraminit)
+        if not self.noinput:
+            self.wif = param((self.indim, self.indim), name="wif").init(self.paraminit)
+        else:
+            self.wif = 0
         if not self.nobias:
             self.bif = param((self.indim,), name="bif").init(self.biasinit)
         else:
@@ -268,7 +293,7 @@ class IFGRU(GRU):      # input-modulating GRU
         :param h_tm1: previous states (nb_samples, out_dim)
         :return: new state (nb_samples, out_dim)
         '''
-        x_t = self.dropout_in(x_t)
+        x_t = self.dropout_in(x_t) if not self.noinput else 0
         h_tm1 = self.dropout_h(h_tm1)
         mgate =  self.gateactivation(T.dot(h_tm1, self.um)  + T.dot(x_t, self.wm)  + self.bm)
         hfgate = self.gateactivation(T.dot(h_tm1, self.uhf) + T.dot(x_t, self.whf) + self.bhf)
@@ -280,10 +305,13 @@ class IFGRU(GRU):      # input-modulating GRU
 
 class LSTM(GatedRNU):
     def makeparams(self):
-        self.w = param((self.indim, self.innerdim), name="w").init(self.paraminit)
-        self.wf = param((self.indim, self.innerdim), name="wf").init(self.paraminit)
-        self.wi = param((self.indim, self.innerdim), name="wi").init(self.paraminit)
-        self.wo = param((self.indim, self.innerdim), name="wo").init(self.paraminit)
+        if not self.noinput:
+            self.w = param((self.indim, self.innerdim), name="w").init(self.paraminit)
+            self.wf = param((self.indim, self.innerdim), name="wf").init(self.paraminit)
+            self.wi = param((self.indim, self.innerdim), name="wi").init(self.paraminit)
+            self.wo = param((self.indim, self.innerdim), name="wo").init(self.paraminit)
+        else:
+            self.w, self.wf, self.wi, self.wo = 0, 0, 0, 0
         self.r = param((self.innerdim, self.innerdim), name="r").init(self.paraminit)
         self.rf = param((self.innerdim, self.innerdim), name="rf").init(self.paraminit)
         self.ri = param((self.innerdim, self.innerdim), name="ri").init(self.paraminit)
@@ -307,7 +335,7 @@ class LSTM(GatedRNU):
         self.po = param((self.innerdim,), name="po").init(self.biasinit)
 
     def rec(self, x_t, y_tm1, c_tm1):
-        x_t = self.dropout_in(x_t)
+        x_t = self.dropout_in(x_t) if not self.noinput else 0
         c_tm1 = self.dropout_h(c_tm1)
         fgate = self.gateactivation(c_tm1*self.pf + self.bf + T.dot(x_t, self.wf) + T.dot(y_tm1, self.rf))
         igate = self.gateactivation(c_tm1*self.pi + self.bi + T.dot(x_t, self.wi) + T.dot(y_tm1, self.ri))
@@ -318,7 +346,7 @@ class LSTM(GatedRNU):
         y_t = ogate * self.outpactivation(c_t)
         return [y_t, y_t, c_t]
 
-    def get_statespec(self):
+    def get_statespec(self, flat=False):
         return (("output", (self.innerdim,)), ("state", (self.innerdim,)))
 
 '''

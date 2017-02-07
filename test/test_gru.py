@@ -41,6 +41,9 @@ class TestGRUBasic(TestCase):
         self.assertTrue(np.all(abs(grupred[0, ...]) > 0))
         self.assertTrue(np.all(abs(grupred[:, 0, :]) > 0))
 
+    def test_gru_noinput(self):
+        gru = GRU(innerdim=50, dim=0)
+
 class TestGRU(TestCase):
 
     def test_if_prediction_is_equivalent_to_manually_constructed_theano_graph(self):

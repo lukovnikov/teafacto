@@ -1,7 +1,7 @@
 from teafacto.blocks.seq.enc import SimpleSeq2Bool, SimpleSeq2Vec, SimpleSeq2Idx
 from teafacto.blocks.lang.sentenc import WordCharSentEnc
 from teafacto.blocks.seq.rnn import EncLastDim
-from teafacto.blocks.basic import VectorEmbed, SMO
+from teafacto.blocks.basic import VectorEmbed, SMOWrap
 from teafacto.core.base import Val
 from teafacto.util import argprun, ticktock, tokenize
 from teafacto.procutil import wordmat2chartensor
@@ -126,7 +126,7 @@ def run(epochs=50,
     else:
         enc = SimpleSeq2Vec(inpemb=inpemb, innerdim=encdim, maskid=maskid, bidir=bidir)
 
-    m = SMO(enc, outdim=2, nobias=True)
+    m = SMOWrap(enc, outdim=2, nobias=True)
     #print enc.predict(traindata[:5, :])
     m = m.train([traindata], traingold)\
         .adadelta(lr=lr).grad_total_norm(1.0)\

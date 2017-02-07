@@ -14,8 +14,9 @@ class BulkNNTest(TestCase):
         memdim = [15]
         memlen = 17
         writedim = 19
+        posvecdim = 10
         lastcoredim = inpdim[-1] + memdim[-1] + memdim[-1] \
-                      + writedim + 1 + 1
+                      + writedim + 1 + 1 + posvecdim * 3
         coredims = [40, lastcoredim]     # last dim must match interface when explicit interface
 
         batsize = 13
@@ -30,13 +31,17 @@ class BulkNNTest(TestCase):
                          memlen=memlen,
                          coredims=coredims,
                          explicit_interface=True,
-                         write_value_dim=writedim)
+                         write_value_dim=writedim,
+                         posvecdim=posvecdim,
+                         nsteps=99)
 
         d = np.random.randint(0, inpvocsize, (batsize, seqlen))
-        '''
-        pred, extras = m.predict(d, _extra_outs=["mem_0", "h_0"])
+
+        preds, extras = m.predict(d, _extra_outs=["mem_0", "h_0"])
+        mem_last = preds[0]
+        mem_all = preds[0]
+
+        print mem_last.shape
         print extras["mem_0"].shape
-        print pred.shape
-        self.assertEqual(pred.shape, (batsize, memlen, outvocsize))
+        self.assertEqual(mem_last.shape, (batsize, memlen, outvocsize))
         self.assertEqual(extras["mem_0"].shape, (batsize, memlen, outvocsize))
-        '''

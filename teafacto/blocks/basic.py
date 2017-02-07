@@ -238,9 +238,22 @@ class VectorEmbed(Embedder):
         return self.W
 
 
-class SMO(Block):   # softmax output layer
-    def __init__(self, inner, outdim=2, nobias=False, **kw):
+class SMO(Block):
+    def __init__(self, indim, outdim, nobias=False, **kw):
         super(SMO, self).__init__(**kw)
+        self.indim = indim
+        self.outdim = outdim
+        self.l = Linear(indim, outdim) if not nobias else MatDot(indim, outdim)
+
+    def apply(self, x):
+        ret = self.l(x)
+        ret = Softmax()(ret)
+        return ret
+
+
+class SMOWrap(Block):   # softmax output layer
+    def __init__(self, inner, outdim=2, nobias=False, **kw):
+        super(SMOWrap, self).__init__(**kw)
         self.inner = inner
         self.outdim = outdim
         self.outl = Linear(inner.outdim, outdim) if not nobias else MatDot(inner.outdim, outdim)

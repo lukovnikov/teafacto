@@ -1,5 +1,5 @@
 from teafacto.core.base import Block, Var, Val, param, tensorops as T
-
+from IPython import embed
 
 # TODO: INPUT MASK !!!!!!!! and attention etc
 # TODO: what about memory mask?
@@ -15,7 +15,7 @@ from teafacto.core.base import Block, Var, Val, param, tensorops as T
 class BulkNN(Block):
     def __init__(self, inpencoder=None, memsampler=None,
                 memembmat=None, memencoder=None, memlen=None,
-                posembdim=None,
+                mem_pos_repr=None, inp_pos_repr=None,
                 inp_attention=None, mem_attention=None,
                 inp_addr_extractor=None, mem_addr_extractor=None,
                 write_addr_extractor=None, write_addr_generator=None,
@@ -23,9 +23,11 @@ class BulkNN(Block):
                 mem_erase_generator=None, mem_change_generator=None,
                 nsteps=100, core=None, **kw):
         super(BulkNN, self).__init__(**kw)
-        self._memposemb = None
-        if posembdim is not None:
-            self._memposemb = param((memlen, posembdim), name="outp_posemb").glorotuniform()
+        if mem_pos_repr is not None:
+            self._memposvecs = mem_pos_repr(memlen)
+        else:
+            self._memposvecs = None
+        self._inp_pos_repr = inp_pos_repr
         self._nsteps = nsteps
         self._memlen = memlen
         self._inpencoder = inpencoder
@@ -46,8 +48,8 @@ class BulkNN(Block):
         self._mem_erase_generator = mem_erase_generator
 
     def apply(self, inpseq):    # int-(batsize, seqlen)
-        inpenc = self._inpencoder(inpseq)    # may carry mask, based on encoder's embedder
-        batsize = inpenc.shape[0]
+        inpenco = self._inpencoder(inpseq)    # may carry mask, based on encoder's embedder
+        batsize = inpenco.shape[0]
         outvocsize = self._memembmat.shape[0]
         mem_0 = T.concatenate([
             T.ones((batsize, self._memlen, 1), dtype="float32") * 0.95,
@@ -55,24 +57,38 @@ class BulkNN(Block):
             ], axis=2)      # (batsize, outseqlen, outvocsize)
         mem_0 = T.softmax(mem_0)
         core_init_states = self._core.get_init_info(batsize)
-        core_state_spec = self._core.get_statespec()
+        core_state_spec = self._core.get_statespec(flat=False)
         assert(len(core_state_spec) == len(core_init_states))
         h_0 = None  # take last output of core states as initial state
-        for i in range(len(core_state_spec)):
-            ss = core_state_spec[i]
-            if ss[0] == "output":
-                h_0 = core_init_states[i]
+        c = 0
+        for ss in core_state_spec:
+            h_0_isout = False
+            for sss in ss:
+                if sss[0] == "output":
+                    h_0_isout = True
+                    h_0 = core_init_states[c]
+                if not h_0_isout:
+                    h_0 = core_init_states[c]
+                c += 1
+        if self._inp_pos_repr is not None:
+            inpposvecs = self._inp_pos_repr(inpseq.shape[1])
+            inpposvecs = T.repeat(inpposvecs.dimadd(0), batsize, axis=0)
+            inpenc = T.concatenate([inpenco, inpposvecs], axis=2)
+            inpenc.mask = inpenco.mask
+        else:
+            inpenc = inpenco
         outputs = T.scan(fn=self.rec,
                          outputs_info=[None, mem_0, h_0] + core_init_states,
                          n_steps=self._nsteps,
                          non_sequences=inpenc)
-        ret = outputs[0][-1]
+        ret = outputs[0]
         ret.push_extra_outs({"mem_0": mem_0, "h_0": h_0})   # DEBUGGING
-        return ret
+        return ret[-1], ret
 
     def rec(self, mem_tm1, h_tm1, *args):
         inpenc = args[-1]
         states_tm1 = args[:-1]
+        batsize = inpenc.shape[0]
         #return (mem_tm1, mem_tm1, h_tm1) + states_tm1   # DEBUG
         # mem_tm1: f(batsize, outseqlen, outvocsize)
         # h_tm1:   f(batsize, thinkerdim)
@@ -82,7 +98,10 @@ class BulkNN(Block):
         mem_tm1_sam = self._memsample(mem_tm1)               # sample from mem
         mem_tm1_embsum = T.dot(mem_tm1_sam, self._memembmat)  # f(batsize, outseqlen, memembdim)
         mem_tm1_sum = self._memencode(mem_tm1_embsum)     # f(batsize, outseqlen, memsumdim)
-        # TODO: append output position embeddings
+
+        if self._memposvecs is not None:
+            memposvecs = T.repeat(self._memposvecs.dimadd(0), batsize, axis=0)
+            mem_tm1_sum = T.concatenate([mem_tm1_sum, memposvecs], axis=2)
 
         # input and memory read attentions
         inp_ctx_t = self._get_inp_ctx(h_tm1, inpenc)   # (batsize, inpencdim)
@@ -106,7 +125,7 @@ class BulkNN(Block):
         mem_t = T.batched_dot(1 - c_t, mem_tm1) + T.batched_dot(c_t, can_mem_t)                 # interpolate between old and new value
 
         mem_t = T.softmax(mem_t)        # normalize to probabilities
-        return (mem_t, mem_t, h_t) + states_t
+        return (mem_t, mem_t, h_t) + tuple(states_t)
 
     def _memsample(self, mem):
         if self._memsampler is None:
@@ -143,8 +162,7 @@ class BulkNN(Block):
         return self._mem_change_generator(h)
 
 
-from teafacto.blocks.seq.rnn import SeqEncoder, MakeRNU
-from teafacto.blocks.seq.rnn import RecStack
+from teafacto.blocks.seq.rnn import SeqEncoder, MakeRNU, RecStack, RNNWithoutInput
 from teafacto.blocks.seq.rnu import GRU
 from teafacto.blocks.match import CosineDistance
 from teafacto.blocks.seq.attention import Attention, AttGen
@@ -166,7 +184,8 @@ class SimpleBulkNN(BulkNN):
                         inp_attention=None, mem_attention=None,
                        coredims=None, corernu=GRU,
                  core=None, explicit_interface=False, scalaraggdim=None,
-                                        write_value_dim=None,
+                                        write_value_dim=None, nsteps=100,
+                 posvecdim=None, mem_pos_repr=None, inp_pos_repr=None,
                      inp_addr_extractor=None, mem_addr_extractor=None,
                      write_addr_extractor=None, write_addr_generator=None,
                      write_addr_dist=CosineDistance(),
@@ -174,6 +193,7 @@ class SimpleBulkNN(BulkNN):
                      mem_erase_generator=None, mem_change_generator=None,
                      memsampler=None,
                  **kw):
+
         # INPUT ENCODING
         if inpencoder is None:
             inpencoder = SeqEncoder.RNN(indim=inpvocsize, inpembdim=inpembdim,
@@ -183,48 +203,59 @@ class SimpleBulkNN(BulkNN):
             lastinpdim = inpencinnerdim if not issequence(inpencinnerdim) else inpencinnerdim[-1]
         else:
             lastinpdim = inpencoder.block.layers[-1].innerdim
+
         # MEMORY ENCODING
         if memembmat is None:
             memembmat = param((memvocsize, memembdim), name="memembmat").glorotuniform()
         if memencoder is None:
             memencoder = SeqEncoder.RNN(inpemb=False, innerdim=memencinnerdim,
                         bidir=bidir, dropout_in=dropout, dropout_h=dropout,
-                        rnu=rnu).all_outputs()
+                        rnu=rnu, inpembdim=memembdim).all_outputs()
             lastmemdim = memencinnerdim if not issequence(memencinnerdim) else memencinnerdim[-1]
         else:
             lastmemdim = memencoder.block.layers[-1].innerdim
 
+        # POSITION VECTORS
+        if posvecdim is not None and inp_pos_repr is None:
+            inp_pos_repr = RNNWithoutInput(posvecdim, dropout=dropout)
+        if posvecdim is not None and mem_pos_repr is None:
+            mem_pos_repr = RNNWithoutInput(posvecdim, dropout=dropout)
+
+        xtra_dim = posvecdim if posvecdim is not None else 0
         # CORE RNN - THE THINKER
         if core is None:
-            corelayers, _ = MakeRNU.fromdims([lastinpdim+lastmemdim] + coredims,
-                                    rnu=corernu, dropout_in=dropout, dropout_h=dropout)
+            corelayers, _ = MakeRNU.fromdims([lastinpdim+lastmemdim+xtra_dim*2] + coredims,
+                                    rnu=corernu, dropout_in=dropout, dropout_h=dropout,
+                                    param_init_states=True)
             core = RecStack(*corelayers)
 
-        lastcoredim = core.get_statespec()[-1][1]
+        lastcoredim = core.get_statespec()[-1][0][1][0]
 
         # ATTENTIONS
-        if mem_attention is not None:
+        if mem_attention is None:
             mem_attention = Attention(mem_att_dist)
-        if inp_attention is not None:
+        if inp_attention is None:
             inp_attention = Attention(inp_att_dist)
-        if write_addr_generator is not None:
+        if write_addr_generator is None:
             write_addr_generator = AttGen(write_addr_dist)
+
+        # WRITE VALUE
+        if write_value_generator is None:
+            write_value_generator = WriteValGenerator(write_value_dim, memvocsize, dropout=dropout)
 
         ################ STATE INTERFACES #################
 
         if not explicit_interface:
             if inp_addr_extractor is None:
-                inp_addr_extractor = Forward(lastcoredim, lastinpdim, dropout=dropout)
+                inp_addr_extractor = Forward(lastcoredim, lastinpdim + xtra_dim, dropout=dropout)
             if mem_addr_extractor is None:
-                inp_addr_extractor = Forward(lastcoredim, lastmemdim, dropout=dropout)
+                inp_addr_extractor = Forward(lastcoredim, lastmemdim + xtra_dim, dropout=dropout)
 
             # WRITE INTERFACE
             if write_addr_extractor is None:
-                write_addr_extractor = Forward(lastcoredim, lastmemdim, dropout=dropout)
+                write_addr_extractor = Forward(lastcoredim, lastmemdim + xtra_dim, dropout=dropout)
             if write_value_extractor is None:
                 write_value_extractor = Forward(lastcoredim, write_value_dim, dropout=dropout)
-            if write_value_generator is None:
-                write_value_generator = WriteValGenerator(write_value_dim, memvocsize, dropout=dropout)
 
             # MEM UPDATE INTERFACE
             if mem_erase_generator is None:
@@ -234,17 +265,18 @@ class SimpleBulkNN(BulkNN):
         else:
             inp_addr_extractor, mem_addr_extractor, write_addr_extractor, \
             write_value_extractor, mem_erase_generator, mem_change_generator = \
-                make_vector_slicers(0, inpencinnerdim, memencinnerdim,
-                                    memencinnerdim, write_value_dim, 1, 1)
+                make_vector_slicers(0, lastinpdim + xtra_dim, lastmemdim + xtra_dim,
+                                    lastmemdim + xtra_dim, write_value_dim, 1, 1)
 
         super(SimpleBulkNN, self).__init__(inpencoder=inpencoder,
             memembmat=memembmat, memencoder=memencoder,
             inp_attention=inp_attention, mem_attention=mem_attention,
-            core=core, memsampler=memsampler,
+            core=core, memsampler=memsampler, nsteps=nsteps,
             inp_addr_extractor=inp_addr_extractor, mem_addr_extractor=mem_addr_extractor,
             write_addr_extractor=write_addr_extractor, write_addr_generator=write_addr_generator,
             mem_erase_generator=mem_erase_generator, mem_change_generator=mem_change_generator,
             write_value_generator=write_value_generator, write_value_extractor=write_value_extractor,
+            inp_pos_repr=inp_pos_repr, mem_pos_repr=mem_pos_repr,
             **kw)
 
 
@@ -290,9 +322,28 @@ def make_vector_slicers(*sizes):
     rets = []
     for i in range(len(boundaries) - 1):
         a, b = boundaries[i], boundaries[i + 1]
-        if b - a == 1:
-            block = asblock(lambda x: x[:, a])
+        yield Slicer(a, b)
+
+
+class Slicer(Block):
+    def __init__(self, a, b, **kw):
+        super(Slicer, self).__init__(**kw)
+        self.a = a
+        self.b = b
+
+    def apply(self, x):
+        attrs = [slice(None, None, None)] * x.ndim
+        if self.b - self.a == 1:
+            attrs[-1] = self.a
         else:
-            block = asblock(lambda x: x[:, a:b])
-        rets.append(block)
-    return tuple(rets)
+            attrs[-1] = slice(self.a, self.b, None)
+        ret = x[attrs]
+        return ret
+
+
+if __name__ == "__main__":
+    from teafacto.blocks.seq.rnn import RNNWithoutInput
+    m = RNNWithoutInput(3, 2)
+    out = m(5)
+    print out.eval().shape
+    print out.eval()

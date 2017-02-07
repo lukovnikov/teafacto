@@ -179,6 +179,13 @@ class TensorWrapped(object):
             return v.dimshuffle(*dims)
         return OpBlock(tinner, name="dimmove")(self, dim, index)
 
+    def dimadd(self, at):
+        def tinner(v, at):
+            dims = range(v.ndim)
+            dims.insert(at, 'x')
+            return v.dimshuffle(*dims)
+        return OpBlock(tinner, name="dimadd")(self, at)
+
     def reverse(self, *axes):
         """ axis can be an *int* or a sequence of *int*s"""
         if len(axes) == 0:
@@ -546,7 +553,7 @@ class Var(Elem, TensorWrapped, Masked): # result of applying a block on theano v
         return self.value
 
     def __repr__(self):
-        return "var::%s-%s:%s" % (self._name, self.value.dtype, str(self._shape))
+        return "var::%s-%s:%sD " % (self._name, self.value.dtype, self.d.ndim)
 
     @property
     def name(self):

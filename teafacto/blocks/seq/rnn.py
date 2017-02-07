@@ -8,53 +8,98 @@ from teafacto.core.base import Block, tensorops as T, asblock
 from teafacto.util import issequence
 
 
-class BiRNU(RecurrentBlock): # TODO: optimizer can't process this
-    def __init__(self, fwd=None, rew=None, **kw):
-        super(BiRNU, self).__init__(**kw)
-        assert(isinstance(fwd, RNUBase) and isinstance(rew, RNUBase))
-        assert(type(fwd) == type(rew))
-        self.fwd = fwd
-        self.rew = rew
-        assert(self.fwd.indim == self.rew.indim)
-
-    @classmethod
-    def fromrnu(cls, rnucls, *args, **kw):
-        assert(issubclass(rnucls, RNUBase))
-        kw["reverse"] = False
-        fwd = rnucls(*args, **kw)
-        kw["reverse"] = True
-        rew = rnucls(*args, **kw)
-        return cls(fwd=fwd, rew=rew)
+class RecStack(ReccableBlock):
+    # must handle RecurrentBlocks ==> can not recappl, if all ReccableBlocks ==> can do recappl
+    # must give access to final states of internal layers
+    # must give access to all outputs of top layer
+    # must handle masks
+    def __init__(self, *layers, **kw):
+        super(RecStack, self).__init__(**kw)
+        self.layers = []
+        for l in layers:
+            if isinstance(l, RecurrentBlock):
+                self.layers.append(l)
+            elif isinstance(l, Block):
+                self.layers.append(ReccableWrapper(l))
+            else:
+                raise Exception("cannot apply this layer")
 
     @property
     def numstates(self):
-        assert(self.fwd.numstates == self.rew.numstates)
-        return self.fwd.numstates
+        return reduce(lambda x, y: x + y, [x.numstates for x in self.layers if isinstance(x, RecurrentBlock)], 0)
 
-    def get_statespec(self):
-        ret = []
-        fwdspec = self.fwd.get_statespec()
-        rewspec = self.rew.get_statespec()
-        assert(len(fwdspec) == len(rewspec))
-        for fwdspece, rewspece in zip(fwdspec, rewspec):
-            assert(fwdspece[0] == rewspece[0])
-            ret.append((fwdspece[0], (fwdspece[1][0] + rewspece[1][0],)))
+    def get_statespec(self, flat=False):
+        ret = tuple([l.get_statespec(flat=flat) for l in self.layers])
+        if flat:
+            ret = reduce(lambda x, y: x + y, ret, tuple())
         return ret
 
+    @property
+    def outdim(self):
+        return self.layers[-1].outdim
+
+    # FWD API. initial states can be set, mask is accepted, everything is returned. Works for all RecurrentBlocks
+    # FWD API IMPLEMENTED USING FWD API
     def innerapply(self, seq, mask=None, initstates=None):
-        initstatesfwd = initstates[:self.fwd.numstates] if initstates is not None else initstates
-        initstates = initstates[self.fwd.numstates:] if initstates is not None else initstates
-        assert(initstates is None or len(initstates) == self.rew.numstates)
-        initstatesrew = initstates
-        fwdfinal, fwdout, fwdstates = self.fwd.innerapply(seq, mask=mask, initstates=initstatesfwd)   # (batsize, seqlen, innerdim)
-        rewfinal, rewout, rewstates = self.rew.innerapply(seq, mask=mask, initstates=initstatesrew) # TODO: reverse?
-        # concatenate: fwdout, rewout: (batsize, seqlen, feats) ==> (batsize, seqlen, feats_fwd+feats_rew)
-        finalout = T.concatenate([fwdfinal, rewfinal], axis=1)
-        out = T.concatenate([fwdout, rewout.reverse(1)], axis=2)
-        states = []
-        for fwdstate, rewstate in zip(fwdstates, rewstates):
-            states.append(T.concatenate([fwdstate, rewstate], axis=2))      # for taking both final states, we need not reverse
-        return finalout, out, states
+        states = []     # bottom states first
+        for layer in self.layers:
+            if initstates is not None:
+                layerinpstates = initstates[:layer.numstates]
+                initstates = initstates[layer.numstates:]
+            else:
+                layerinpstates = None
+            final, seq, layerstates = layer.innerapply(seq, mask=mask, initstates=layerinpstates)
+            states.extend(layerstates)
+        return final, seq, states           # full history of final output and all states (ordered from bottom layer to top)
+
+    @classmethod
+    def apply_mask(cls, xseq, maskseq=None):
+        if maskseq is None:
+            ret = xseq
+        else:
+            mask = T.tensordot(maskseq, T.ones((xseq.shape[2],)), 0)  # f32^(batsize, seqlen, outdim) -- maskseq stacked
+            ret = mask * xseq
+        return ret
+
+    # REC API: only works with ReccableBlocks
+    def get_init_info(self, initstates):
+        recurrentlayers = list(filter(lambda x: isinstance(x, ReccableBlock), self.layers))
+        assert (len(filter(lambda x: isinstance(x, RecurrentBlock) and not isinstance(x, ReccableBlock),
+                           self.layers)) == 0)  # no non-reccable blocks allowed
+        if issequence(initstates):  # fill up init state args so that layers for which no init state is specified get default arguments that lets them specify a default init state
+                                    # if is a sequence, expecting a value, not batsize
+            if len(initstates) < self.numstates:    # top layers are being given the given init states, bottoms make their own default
+                initstates = [None] * (self.numstates - len(initstates)) + initstates
+            batsize = 0
+            for initstate in initstates:
+                if initstate is not None:
+                    batsize = initstate.shape[0]
+            initstates = [batsize if initstate is None else initstate for initstate in initstates]
+        else:   # expecting a batsize as initstate arg
+            initstates = [initstates] * self.numstates
+        init_infos = []
+        for recurrentlayer in recurrentlayers:  # from bottom layers to top
+            arg = initstates[:recurrentlayer.numstates]
+            initstates = initstates[recurrentlayer.numstates:]
+            initinfo = recurrentlayer.get_init_info(arg)
+            init_infos.extend(initinfo)
+        return init_infos
+
+    def rec(self, x_t, *states):
+        # apply each block on x_t to get next-level input, consume states in the process
+        nextinp = x_t
+        nextstates = []
+        for block in self.layers:
+            if isinstance(block, ReccableBlock):
+                numstates = block.numstates
+                recstates = states[:numstates]
+                states = states[numstates:]
+                rnuret = block.rec(nextinp, *recstates)
+                nextstates.extend(rnuret[1:])
+                nextinp = rnuret[0]
+            elif isinstance(block, Block): # block is a function
+                nextinp = block(nextinp)
+        return [nextinp] + nextstates
 
 
 class MaskMode(Enum):
@@ -85,39 +130,6 @@ class MaskConfig(object):
             raise NotImplementedError("unrecognized mask configuration option")
 
 
-class EncLastDim(Block):
-    def __init__(self, enc, **kw):
-        super(EncLastDim, self).__init__(**kw)
-        self.enc = enc
-
-    def apply(self, x, mask=None):
-        if self.enc.embedder is None:
-            mindim = 3
-            maskdim = x.ndim - 1
-        else:
-            mindim = 2
-            maskdim = x.ndim
-        if mask is not None:
-            assert(mask.ndim == maskdim)
-        else:
-            mask = T.ones(x.shape[:maskdim])
-        if x.ndim == mindim:
-            return self.enc(x, mask=mask)
-        elif x.ndim > mindim:
-            ret = T.scan(fn=self.outerrec, sequences=[x, mask], outputs_info=None)
-            return ret
-        else:
-            raise Exception("cannot have less than {} dims".format(mindim))
-
-    def outerrec(self, xred, mask):  # x: ndim-1
-        ret = self.apply(xred, mask=mask)
-        return ret
-
-    @property
-    def outdim(self):
-        return self.enc.outdim
-
-
 class SeqEncoder(AttentionConsumer, Block):
     '''
     Encodes a sequence of vectors into a vector, input dims and output dims specified by the RNU unit
@@ -142,8 +154,8 @@ class SeqEncoder(AttentionConsumer, Block):
         else:
             self.block = None
 
-    def get_statespec(self):
-        return self.block.get_statespec()
+    def get_statespec(self, flat=False):
+        return self.block.get_statespec(flat=flat)
 
     @property
     def outdim(self):
@@ -456,8 +468,8 @@ class SeqDecoder(Block):
     def numstates(self):
         return self.block.numstates
 
-    def get_statespec(self):
-        return self.block.get_statespec()
+    def get_statespec(self, flat=False):
+        return self.block.get_statespec(flat=flat)
 
     def apply_argspec(self):
         return ((3, "float"), (2, "int"))
@@ -555,7 +567,9 @@ class SimpleRNNSeqDecoder(SeqDecoder):
 class MakeRNU(object):
     ''' generates a list of RNU's'''
     @staticmethod
-    def make(initdim, specs, rnu=GRU, bidir=False, dropout_in=False, dropout_h=False):
+    def make(initdim, specs, rnu=GRU, bidir=False,
+             dropout_in=False, dropout_h=False,
+             param_init_states=False):
         if not issequence(specs):
             specs = [specs]
         rnns = []
@@ -570,112 +584,135 @@ class MakeRNU(object):
                        set(spec.keys()).union(set(fspec.keys()))
                             == set(fspec.keys()))
                 fspec.update(spec)
+            noinput = prevdim == None
             if fspec["bidir"]:
+                assert(not noinput)
                 rnn = BiRNU.fromrnu(fspec["rnu"], dim=prevdim, innerdim=fspec["dim"],
-                                    dropout_in=dropout_in, dropout_h=dropout_h)
+                                    dropout_in=dropout_in, dropout_h=dropout_h,
+                                    param_init_states=param_init_states)
                 prevdim = fspec["dim"] * 2
             else:
-                rnn = fspec["rnu"](dim=prevdim, innerdim=fspec["dim"],
-                                   dropout_in=dropout_in, dropout_h=dropout_h)
+                rnn = fspec["rnu"](dim=prevdim, innerdim=fspec["dim"], noinput=noinput,
+                                   dropout_in=dropout_in, dropout_h=dropout_h,
+                                   param_init_states=param_init_states)
                 prevdim = fspec["dim"]
             rnns.append(rnn)
         return rnns, prevdim
 
     @staticmethod
-    def fromdims(innerdim, rnu=GRU, dropout_in=False, dropout_h=False):
+    def fromdims(innerdim, rnu=GRU,
+                 dropout_in=False, dropout_h=False,
+                 param_init_states=False):
         assert(len(innerdim) >= 2)
         initdim = innerdim[0]
         otherdim = innerdim[1:]
         return MakeRNU.make(initdim, otherdim, rnu=rnu,
-                            dropout_in=dropout_in, dropout_h=dropout_h)
+                            dropout_in=dropout_in, dropout_h=dropout_h,
+                            param_init_states=param_init_states)
 
 
-class RecStack(ReccableBlock):
-    # must handle RecurrentBlocks ==> can not recappl, if all ReccableBlocks ==> can do recappl
-    # must give access to final states of internal layers
-    # must give access to all outputs of top layer
-    # must handle masks
-    def __init__(self, *layers, **kw):
-        super(RecStack, self).__init__(**kw)
-        self.layers = []
-        for l in layers:
-            if isinstance(l, RecurrentBlock):
-                self.layers.append(l)
-            elif isinstance(l, Block):
-                self.layers.append(ReccableWrapper(l))
-            else:
-                raise Exception("cannot apply this layer")
+class BiRNU(RecurrentBlock): # TODO: optimizer can't process this
+    def __init__(self, fwd=None, rew=None, **kw):
+        super(BiRNU, self).__init__(**kw)
+        assert(isinstance(fwd, RNUBase) and isinstance(rew, RNUBase))
+        assert(type(fwd) == type(rew))
+        self.fwd = fwd
+        self.rew = rew
+        assert(self.fwd.indim == self.rew.indim)
+
+    @classmethod
+    def fromrnu(cls, rnucls, *args, **kw):
+        assert(issubclass(rnucls, RNUBase))
+        kw["reverse"] = False
+        fwd = rnucls(*args, **kw)
+        kw["reverse"] = True
+        rew = rnucls(*args, **kw)
+        return cls(fwd=fwd, rew=rew)
 
     @property
     def numstates(self):
-        return reduce(lambda x, y: x + y, [x.numstates for x in self.layers if isinstance(x, RecurrentBlock)], 0)
+        assert(self.fwd.numstates == self.rew.numstates)
+        return self.fwd.numstates
 
-    def get_statespec(self):
-        return [l.get_statespec() for l in self.layers]
+    def get_statespec(self, flat=False):
+        ret = []
+        fwdspec = self.fwd.get_statespec(flat=flat)
+        rewspec = self.rew.get_statespec(flat=flat)
+        assert(len(fwdspec) == len(rewspec))
+        for fwdspece, rewspece in zip(fwdspec, rewspec):
+            assert(fwdspece[0] == rewspece[0])
+            ret.append((fwdspece[0], (fwdspece[1][0] + rewspece[1][0],)))
+        return ret
+
+    def innerapply(self, seq, mask=None, initstates=None):
+        initstatesfwd = initstates[:self.fwd.numstates] if initstates is not None else initstates
+        initstates = initstates[self.fwd.numstates:] if initstates is not None else initstates
+        assert(initstates is None or len(initstates) == self.rew.numstates)
+        initstatesrew = initstates
+        fwdfinal, fwdout, fwdstates = self.fwd.innerapply(seq, mask=mask, initstates=initstatesfwd)   # (batsize, seqlen, innerdim)
+        rewfinal, rewout, rewstates = self.rew.innerapply(seq, mask=mask, initstates=initstatesrew) # TODO: reverse?
+        # concatenate: fwdout, rewout: (batsize, seqlen, feats) ==> (batsize, seqlen, feats_fwd+feats_rew)
+        finalout = T.concatenate([fwdfinal, rewfinal], axis=1)
+        out = T.concatenate([fwdout, rewout.reverse(1)], axis=2)
+        states = []
+        for fwdstate, rewstate in zip(fwdstates, rewstates):
+            states.append(T.concatenate([fwdstate, rewstate], axis=2))      # for taking both final states, we need not reverse
+        return finalout, out, states
+
+
+class EncLastDim(Block):
+    def __init__(self, enc, **kw):
+        super(EncLastDim, self).__init__(**kw)
+        self.enc = enc
+
+    def apply(self, x, mask=None):
+        if self.enc.embedder is None:
+            mindim = 3
+            maskdim = x.ndim - 1
+        else:
+            mindim = 2
+            maskdim = x.ndim
+        if mask is not None:
+            assert(mask.ndim == maskdim)
+        else:
+            mask = T.ones(x.shape[:maskdim])
+        if x.ndim == mindim:
+            return self.enc(x, mask=mask)
+        elif x.ndim > mindim:
+            ret = T.scan(fn=self.outerrec, sequences=[x, mask], outputs_info=None)
+            return ret
+        else:
+            raise Exception("cannot have less than {} dims".format(mindim))
+
+    def outerrec(self, xred, mask):  # x: ndim-1
+        ret = self.apply(xred, mask=mask)
+        return ret
 
     @property
     def outdim(self):
-        return self.layers[-1].outdim
+        return self.enc.outdim
 
-    # FWD API. initial states can be set, mask is accepted, everything is returned. Works for all RecurrentBlocks
-    # FWD API IMPLEMENTED USING FWD API
-    def innerapply(self, seq, mask=None, initstates=None):
-        states = []     # bottom states first
-        for layer in self.layers:
-            if initstates is not None:
-                layerinpstates = initstates[:layer.numstates]
-                initstates = initstates[layer.numstates:]
-            else:
-                layerinpstates = None
-            final, seq, layerstates = layer.innerapply(seq, mask=mask, initstates=layerinpstates)
-            states.extend(layerstates)
-        return final, seq, states           # full history of final output and all states (ordered from bottom layer to top)
 
-    @classmethod
-    def apply_mask(cls, xseq, maskseq=None):
-        if maskseq is None:
-            ret = xseq
+class RNNWithoutInput(Block):
+    def __init__(self, dims=None, layers=None, dropout=False, **kw):
+        super(RNNWithoutInput, self).__init__(**kw)
+        if issequence(dims):
+            assert(layers is None)
+            self.dims = dims
         else:
-            mask = T.tensordot(maskseq, T.ones((xseq.shape[2],)), 0)  # f32^(batsize, seqlen, outdim) -- maskseq stacked
-            ret = mask * xseq
-        return ret
+            if layers is None:
+                layers = 1
+            assert(dims is not None)
+            self.dims = [dims] * layers
+        self.layers, _ = MakeRNU.make(None, self.dims, bidir=False,
+                                   param_init_states=True,
+                                   dropout_h=dropout,
+                                   dropout_in=dropout)
+        self.block = RecStack(*self.layers)
 
-    # REC API: only works with ReccableBlocks
-    def get_init_info(self, initstates):
-        recurrentlayers = list(filter(lambda x: isinstance(x, ReccableBlock), self.layers))
-        assert (len(filter(lambda x: isinstance(x, RecurrentBlock) and not isinstance(x, ReccableBlock),
-                           self.layers)) == 0)  # no non-reccable blocks allowed
-        if issequence(initstates):  # fill up init state args so that layers for which no init state is specified get default arguments that lets them specify a default init state
-                                    # if is a sequence, expecting a value, not batsize
-            if len(initstates) < self.numstates:    # top layers are being given the given init states, bottoms make their own default
-                initstates = [None] * (self.numstates - len(initstates)) + initstates
-            batsize = 0
-            for initstate in initstates:
-                if initstate is not None:
-                    batsize = initstate.shape[0]
-            initstates = [batsize if initstate is None else initstate for initstate in initstates]
-        else:   # expecting a batsize as initstate arg
-            initstates = [initstates] * self.numstates
-        init_infos = []
-        for recurrentlayer in recurrentlayers:  # from bottom layers to top
-            arg = initstates[:recurrentlayer.numstates]
-            initstates = initstates[recurrentlayer.numstates:]
-            initinfo = recurrentlayer.get_init_info(arg)
-            init_infos.extend(initinfo)
-        return init_infos
+    def apply(self, steps):
+        initinfo = self.block.get_init_info(1)
+        seqs = T.zeros((steps, 1, 1))
+        outputs = T.scan(self.block.rec, sequences=seqs, outputs_info=[None] + initinfo)
+        return outputs[0][:, 0, :]
 
-    def rec(self, x_t, *states):
-        # apply each block on x_t to get next-level input, consume states in the process
-        nextinp = x_t
-        nextstates = []
-        for block in self.layers:
-            if isinstance(block, ReccableBlock):
-                numstates = block.numstates
-                recstates = states[:numstates]
-                states = states[numstates:]
-                rnuret = block.rec(nextinp, *recstates)
-                nextstates.extend(rnuret[1:])
-                nextinp = rnuret[0]
-            elif isinstance(block, Block): # block is a function
-                nextinp = block(nextinp)
-        return [nextinp] + nextstates
