@@ -97,3 +97,5 @@ class TestGumbelSoftmax(TestCase):
         self.assertEqual(d.shape, gsmpred.shape)
         self.assertTrue(np.allclose(np.zeros_like(gsmpred[:, :, 2]), gsmpred[:, :, 2]))
 
+
+

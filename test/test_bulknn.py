@@ -36,7 +36,10 @@ class BulkNNTest(TestCase):
                          write_value_dim=writedim,
                          posvecdim=posvecdim,
                          nsteps=99,
-                         maskid=maskid)
+                         maskid=maskid,
+                         memsamplemethod="gumbel",
+                         dropout=0.3,
+                         memsampletemp=0.3)
 
         d = np.random.randint(0, inpvocsize, (batsize, seqlen))
 

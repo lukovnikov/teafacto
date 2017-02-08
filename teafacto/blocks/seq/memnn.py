@@ -167,6 +167,7 @@ from teafacto.blocks.seq.rnu import GRU
 from teafacto.blocks.match import CosineDistance
 from teafacto.blocks.seq.attention import Attention, AttGen
 from teafacto.blocks.basic import MatDot, Linear, Forward, SMO
+from teafacto.blocks.activations import GumbelSoftmax
 from teafacto.core.base import asblock
 from teafacto.util import issequence
 
@@ -191,7 +192,7 @@ class SimpleBulkNN(BulkNN):
                      write_addr_dist=CosineDistance(),
                      write_value_generator=None, write_value_extractor=None,
                      mem_erase_generator=None, mem_change_generator=None,
-                     memsampler=None,
+                 memsampler=None, memsamplemethod=None, memsampletemp=0.3,
                  **kw):
 
         # INPUT ENCODING
@@ -242,6 +243,13 @@ class SimpleBulkNN(BulkNN):
         # WRITE VALUE
         if write_value_generator is None:
             write_value_generator = WriteValGenerator(write_value_dim, memvocsize, dropout=dropout)
+
+        # MEMORY SAMPLER
+        if memsampler is not None:
+            assert(memsamplemethod is None)
+        if memsamplemethod is not None:
+            assert(memsampler is None)
+            memsampler = GumbelSoftmax(temperature=memsampletemp)
 
         ################ STATE INTERFACES #################
 

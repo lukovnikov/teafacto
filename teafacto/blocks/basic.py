@@ -160,7 +160,7 @@ class Dropout(Block):
             rng = RVal(self.seed)
             rv = rng.binomial(x.shape, p=1-self.p, dtype=x.dtype)
             x = x * rv
-            #print "done dropouts"
+            print "done dropout"
             x.mask = xmask
             return x
         else:
