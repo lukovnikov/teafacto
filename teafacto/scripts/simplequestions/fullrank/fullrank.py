@@ -170,7 +170,7 @@ def buildrelsamplespace(entmat, wd, maskid=-1):
     samdicm = entmatm.dot(entmatm.T)
     for i in range(samdicm.shape[0]):
         samdic[i] = list(np.argwhere(samdicm[i, :])[:, 1])
-    tt.tock("made sample space")
+    tt.tock("made rel sample space")
     return samdic, entmatm.T
 
 
@@ -533,7 +533,8 @@ class NegIdxGen(object):
             ret = np.zeros_like(gold)
             for i in range(gold.shape[0]):
                 sampleset = closeset[gold[i]] if gold[i] in closeset else []
-                if np.random.random() < self.samprobf(len(sampleset)):
+                #if np.random.random() < self.samprobf(len(sampleset)):
+                if len(sampleset) >= 5:
                     ret[i] = random.sample(sampleset, 1)[0]
                 else:
                     ret[i] = np.random.randint(0, maxid + 1)
