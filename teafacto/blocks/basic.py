@@ -1,5 +1,6 @@
 from teafacto.core.base import Block, tensorops as T, param, Val, Var, RVal, Parameter
 from teafacto.util import issequence, isfunction
+from teafacto.blocks.activations import Softmax
 import numpy as np
 
 default_carry_bias = 1
@@ -27,22 +28,6 @@ class ConcatBlock(Block):
                 raise Exception("something wrong with concat's arguments: " + str(args))
             res.append(block(*arglist, **argdic))
         return T.concatenate(res, axis=self.axis)
-
-
-class Softmax(Block):
-    def apply(self, inptensor, mask=None): # matrix
-        if mask is None:
-            mask = inptensor.mask
-        if mask is None:
-            return T.nnet.softmax(inptensor)
-        else:   # our own custom stable masked softmax
-            o_exp = T.exp(inptensor - T.max(inptensor, axis=1).dimshuffle(0, 'x'))
-            if mask is not None:
-                o_exp *= mask
-            o_exp_sum = T.sum(o_exp, axis=1)
-            o_exp_sum = o_exp_sum.dimshuffle(0, 'x')
-            o_out = o_exp / o_exp_sum
-            return o_out
 
 
 class MatDot(Block):

@@ -61,15 +61,26 @@ class TWrapper(type):
                       truncate_gradient=truncate_gradient, go_backwards=go_backwards,mode=mode, name=name, profile=profile,
                       allow_gc=allow_gc, strict=strict)
 
-    def softmax(cls, x):
-        if x.ndim <= 2:
-            return tensorops.nnet.softmax(x)
-        elif x.ndim > 2:
-            s = x.shape
-            y = x.dimmove(x.ndim - 1, 0).flatten(2).T
-            z = tensorops.nnet.softmax(y)
-            ret = z.reshape(s)
-            return ret
+    def softmax(cls, x, mask=None):     # masked, multidim softmax
+        xndim = x.ndim
+        s = x.shape
+        if xndim > 2:
+            x = x.dimmove(xndim - 1, 0).flatten(2).T
+            if mask is not None:
+                mask = mask.dimmove(xndim - 1, 0).flatten(2).T
+        if mask is None:
+            z = tensorops.nnet.softmax(x)
+        else:
+            o_exp = tensorops.exp(x - tensorops.max(x, axis=1).dimshuffle(0, 'x'))
+            o_exp *= mask
+            o_exp_sum = tensorops.sum(o_exp, axis=1)
+            o_exp_sum = o_exp_sum.dimshuffle(0, 'x')
+            z = o_exp / o_exp_sum
+        if xndim > 2:
+            z = z.reshape(s)
+        return z
+
+
 
     def until(cls, expr):
         return until(expr)
@@ -472,6 +483,13 @@ class RVal(Elem, TensorWrapped, Masked):    # random value
             self.value = self.rng.multinomial(shape, n, pvals, ndim, dtype)
         return self
 
+    def gumbel(self, shape, eps=1e-10):
+        if isinstance(shape, Elem):
+            shape = shape.d
+        x = self.rng.uniform(shape, 0.0, 1.0)
+        self.value = -theano.tensor.log(-theano.tensor.log(x + eps) + eps)
+        return self
+
     @property
     def d(self):
         return self.value
@@ -495,18 +513,15 @@ class Var(Elem, TensorWrapped, Masked): # result of applying a block on theano v
 
     @property
     def shape(self):
+        return Var(self.d.shape)
         ret = self._shape
         if ret is None:
-            return self.d.shape
+            return Var(self.d.shape)
         return ret
 
     @shape.setter
     def shape(self, shape):
         self._shape = list(shape)
-
-    @property
-    def dshape(self):
-        return Var(self.d.shape)
 
     # params
     def push_params(self, setofparams):

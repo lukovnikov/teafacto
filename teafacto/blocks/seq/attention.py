@@ -16,8 +16,10 @@ class AttGen(Block):
         self.normalizer = normalizer
 
     def apply(self, criterion, data, mask=None):
+        mask = data.mask if mask is None else mask
         o = self.dist(criterion, data)
         o_out = self.normalizer(o, mask=mask)
+        o_out.mask = mask
         return o_out
 
 
