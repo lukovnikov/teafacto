@@ -62,15 +62,14 @@ class TWrapper(type):
                       truncate_gradient=truncate_gradient, go_backwards=go_backwards,mode=mode, name=name, profile=profile,
                       allow_gc=allow_gc, strict=strict)
 
-    def softmax(cls, x, mask=None, temperature=None):     # masked, multidim softmax
+    def softmax(cls, x, mask=None, temperature=1.):     # masked, multidim softmax
         xndim = x.ndim
         s = x.shape
         if xndim > 2:
             x = x.dimmove(xndim - 1, 0).flatten(2).T
             if mask is not None:
                 mask = mask.dimmove(xndim - 1, 0).flatten(2).T
-        if temperature is not None:
-            x = x * temperature
+        x = x / temperature
         if mask is None:
             z = tensorops.nnet.softmax(x)
         else:
@@ -1243,8 +1242,12 @@ class BlockPredictor(object):
             numextraouts = len(extra_out_vars)
             out = {"ret": outp, "extra": extra_out_vars}
             outstruct, flatouts = unstructurize(out)
+            allupdates = OrderedDict()
+            for x in flatouts:
+                allupdates.update(x.allupdates)
             _predictf_sym = theano.function(outputs=[x.d for x in flatouts],
                                              inputs=[x.d for x in inps],
+                                             updates=allupdates,
                                              on_unused_input="warn")
             self._predictf = lambda *largs: \
                 restructurize(outstruct, _predictf_sym(*largs))

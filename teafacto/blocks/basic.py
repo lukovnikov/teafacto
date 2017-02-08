@@ -143,16 +143,17 @@ class Masker(Block):
 
 
 class Dropout(Block):
-    def __init__(self, p=0.3, seed=None, rescale=True, **kw):
+    def __init__(self, p=0.3, seed=None, rescale=True, _alwaysrandom=False, **kw):
         super(Dropout, self).__init__(**kw)
         if seed is None:
             seed = np.random.randint(0, 1e6)
         self.p = 0.0 if (p is False or p is None) else 0.3 if p is True else p
         self.rescale = rescale
         self.seed = seed
+        self._debug = _alwaysrandom
 
     def apply(self, x, _trainmode=False):
-        if _trainmode and self.p > 0:
+        if (_trainmode or self._debug) and self.p > 0:
             xmask = x.mask
             if self.rescale:
                 one = T.constant(1)

@@ -40,7 +40,7 @@ class Softmax(Activation):
 
 
 class Softmax(Activation):
-    def __init__(self, temperature=None, **kwargs):
+    def __init__(self, temperature=1., **kwargs):
         super(Softmax, self).__init__(**kwargs)
         self.temp = temperature
 
@@ -51,7 +51,7 @@ class Softmax(Activation):
 
 
 class GumbelSoftmax(Activation):
-    def __init__(self, seed=None, temperature=0.3, _alwaysrandom=False, **kw):
+    def __init__(self, seed=None, shape=None, temperature=0.3, _alwaysrandom=False, **kw):
         super(GumbelSoftmax, self).__init__(**kw)
         if seed is None:
             seed = np.random.randint(0, 1e6)
@@ -59,12 +59,13 @@ class GumbelSoftmax(Activation):
         self.temp = temperature
         self._debug = _alwaysrandom
         self._det_sm_temp = 1e6
+        self._shape = shape
 
     def innerapply(self, x, _trainmode=False):        # x is probabilities??
         if _trainmode or self._debug:
-            # sample from gumbel
             rng = RVal(self.seed)
-            g = rng.gumbel(x.shape)
+            shap = self._shape if self._shape is not None else x.shape
+            g = rng.gumbel(shap)
             y = (T.log(x) + g) / self.temp
             ret = T.softmax(y, x.mask)
             ret.mask = x.mask

@@ -42,8 +42,8 @@ class TestSoftmax(TestCase):
         predsums = np.sum(pred, axis=-1)
         self.assertTrue(np.allclose(predsums, np.ones_like(predsums)))
 
-    def test_softmax_normal_temperature(self):
-        b = Softmax(temperature=1e6)
+    def test_softmax_normal_with_temperature(self):
+        b = Softmax(temperature=1e-6)
         d = np.random.random((5, 3))
         pred = b.predict(d)
         print pred
