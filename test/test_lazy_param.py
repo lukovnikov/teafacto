@@ -11,7 +11,7 @@ class TestLazyParam(TestCase):
                 self.W = param((None, 12), name="test_param").uniform()
 
             def apply(self, x):
-                self.W.shape[0] = x.shape[1]
+                self.W.shape[0] = x.kshape[1]
                 a = T.dot(x, self.W)
                 return a
         d = np.random.random((5, 4))
@@ -22,9 +22,9 @@ class TestLazyParam(TestCase):
     def test_other_lazy_param(self):
         class DummyBlock(Block):
             def apply(self, x):
-                self.W = param((x.shape[1], 2), name="test_param").uniform()
+                self.W = param((x.kshape[1], 2), name="test_param").uniform()
                 a = T.dot(x, self.W)
-                a.shape = (x.shape[0], 2)
+                a.kshape = (x.kshape[0], 2)
                 return a
         d = np.random.random((5, 4))
         b = DummyBlock()
