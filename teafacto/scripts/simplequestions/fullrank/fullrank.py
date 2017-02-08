@@ -491,6 +491,7 @@ class NegIdxGen(object):
         self.relsperent = {k: set(v[0]) for k, v in relsperent.items()} if relsperent is not None else None
         self.samprobf = lambda x: np.tanh(np.log(x + 1)/3)
         self.usefive = usefive
+        print "use five: {}".format(self.usefive)
 
     def __call__(self, datas, gold):
         subjrand = self.sample(gold[:, 0], self.subjclose, self.maxentid)
