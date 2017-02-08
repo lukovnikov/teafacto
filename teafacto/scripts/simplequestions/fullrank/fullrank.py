@@ -480,7 +480,7 @@ class CustomPredictor(object):
 
 
 class NegIdxGen(object):
-    def __init__(self, maxentid, maxrelid, relclose=None, subjclose=None, relsperent=None):
+    def __init__(self, maxentid, maxrelid, relclose=None, subjclose=None, relsperent=None, usefive=False):
         self.maxentid = maxentid
         self.maxrelid = maxrelid
         print "using relclose" if relclose is not None else "no relclose"
@@ -490,6 +490,7 @@ class NegIdxGen(object):
         self.subjclose = {k: set(v) for k, v in subjclose.items()} if subjclose is not None else None
         self.relsperent = {k: set(v[0]) for k, v in relsperent.items()} if relsperent is not None else None
         self.samprobf = lambda x: np.tanh(np.log(x + 1)/3)
+        self.usefive = usefive
 
     def __call__(self, datas, gold):
         subjrand = self.sample(gold[:, 0], self.subjclose, self.maxentid)
@@ -533,8 +534,11 @@ class NegIdxGen(object):
             ret = np.zeros_like(gold)
             for i in range(gold.shape[0]):
                 sampleset = closeset[gold[i]] if gold[i] in closeset else []
-                #if np.random.random() < self.samprobf(len(sampleset)):
-                if len(sampleset) >= 5:
+                if self.usefive:
+                    samplefromset = len(sampleset) >= 5
+                else:
+                    samplefromset = np.random.random() < self.samprobf(len(sampleset))
+                if samplefromset:
                     ret[i] = random.sample(sampleset, 1)[0]
                 else:
                     ret[i] = np.random.randint(0, maxid + 1)
@@ -574,6 +578,7 @@ def run(negsammode="closest",   # "close" or "random"
         testmodel=False,        # just embed
         debugvalid=False,
         loss="margin",          # or "ce"
+        usefive=False,
         ):
 
     tt = ticktock("script")
@@ -613,7 +618,8 @@ def run(negsammode="closest",   # "close" or "random"
         nig = NegIdxGen(numsubjs - 1, numrels - 1,
                         relclose=relsamplespace,
                         subjclose=subjsamplespace,
-                        relsperent=nsrelsperent)
+                        relsperent=nsrelsperent,
+                        usefive=usefive)
         embed()
 
     if mode == "seq" or mode == "multi":
@@ -817,7 +823,8 @@ def run(negsammode="closest",   # "close" or "random"
             .negsamplegen(NegIdxGen(numsubjs-1, numrels-1,
                                     relclose=relsamplespace,
                                     subjclose=subjsamplespace,
-                                    relsperent=nsrelsperent)) \
+                                    relsperent=nsrelsperent,
+                                    usefive=usefive)) \
             .objective(obj).adagrad(lr=lr).l2(wreg).grad_total_norm(gradnorm) \
             .validate_on([validdata, validgold]).extvalid(extvalidf) \
             .autosavethis(scorer, savep).writeresultstofile(savep+".progress.tsv") \
