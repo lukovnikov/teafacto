@@ -42,16 +42,23 @@ class TestSoftmax(TestCase):
         predsums = np.sum(pred, axis=-1)
         self.assertTrue(np.allclose(predsums, np.ones_like(predsums)))
 
+    def test_softmax_normal_temperature(self):
+        b = Softmax(temperature=1e6)
+        d = np.random.random((5, 3))
+        pred = b.predict(d)
+        print pred
+
 
 class TestGumbelSoftmax(TestCase):
     def test_gumbel_softmax(self):
         d = np.random.random((5, 3))
+        d[0, 0] = 2.
         sm = Softmax()
-        gsm = GumbelSoftmax(temperature=0.03)
+        gsm = GumbelSoftmax(temperature=1e-10, _alwaysrandom=True)
         smpred = sm.predict(d)
         samples = []
         gsmpredf = gsm.predict
-        for i in range(1000):
+        for i in range(100000):
             gsmpred = gsmpredf(smpred)
             samples.append(gsmpred[0, :])
         samples = np.concatenate([sample[:, np.newaxis] for sample in samples],
@@ -64,6 +71,7 @@ class TestGumbelSoftmax(TestCase):
         predsums = np.sum(gsmpred, axis=-1)
         self.assertTrue(np.allclose(predsums, np.ones_like(predsums)))
         self.assertEqual(d.shape, gsmpred.shape)
+        self.assertTrue(np.allclose(smpred[0, :], sampleavg, rtol=1e-1))
 
     def test_masked_gumbel_softmax(self):
         d = np.random.random((5, 3))

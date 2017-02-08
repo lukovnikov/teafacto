@@ -160,8 +160,9 @@ class Dropout(Block):
             rng = RVal(self.seed)
             rv = rng.binomial(x.shape, p=1-self.p, dtype=x.dtype)
             x = x * rv
-            print "done dropout"
+            #print "done dropout"
             x.mask = xmask
+            # x.push_extra_outs({"dropout{}".format(np.random.randint(100, 199)): rv})
             return x
         else:
             return x

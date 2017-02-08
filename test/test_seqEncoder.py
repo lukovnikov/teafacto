@@ -55,7 +55,6 @@ class TestSeqEncoder(TestCase):
         mpred = m.predict(data, weights, mask)
         self.assertEqual(mpred.shape, (batsize, seqlen, dim))
 
-
     def test_mask_dynamic_pad(self):
         batsize = 10
         seqlen = 5

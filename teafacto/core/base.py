@@ -14,6 +14,7 @@ from teafacto.util import isstring, issequence, isfunction, Saveable, isnumber
 from teafacto.core.datafeed import DataFeed
 
 _TRAINMODE = False
+_DEBUGMODE = False
 
 
 def recurmap(fun, data):
@@ -61,13 +62,15 @@ class TWrapper(type):
                       truncate_gradient=truncate_gradient, go_backwards=go_backwards,mode=mode, name=name, profile=profile,
                       allow_gc=allow_gc, strict=strict)
 
-    def softmax(cls, x, mask=None):     # masked, multidim softmax
+    def softmax(cls, x, mask=None, temperature=None):     # masked, multidim softmax
         xndim = x.ndim
         s = x.shape
         if xndim > 2:
             x = x.dimmove(xndim - 1, 0).flatten(2).T
             if mask is not None:
                 mask = mask.dimmove(xndim - 1, 0).flatten(2).T
+        if temperature is not None:
+            x = x * temperature
         if mask is None:
             z = tensorops.nnet.softmax(x)
         else:
@@ -453,6 +456,18 @@ class Val(Elem, TensorWrapped, Masked):
     def dshape(self):
         return Var(self.d.shape)
 
+    @property
+    def allparams(self):
+        return set()
+
+    @property
+    def allupdates(self):
+        return {}
+
+    @property
+    def all_extra_outs(self):
+        return {}
+
 
 class RVal(Elem, TensorWrapped, Masked):    # random value
     def __init__(self, seed=None, **kw):
@@ -497,6 +512,18 @@ class RVal(Elem, TensorWrapped, Masked):    # random value
     @property
     def v(self):
         return self.value.eval()
+
+    @property
+    def allparams(self):
+        return set()
+
+    @property
+    def allupdates(self):
+        return {}
+
+    @property
+    def all_extra_outs(self):
+        return {}
 
 
 class Var(Elem, TensorWrapped, Masked): # result of applying a block on theano variables
@@ -721,17 +748,24 @@ class Block(Elem, Saveable): # block with parameters
     def wrapply(self, *args, **kwargs): # is this multi-output compatible?
         transform = None
         oldtrainmode = None
+        olddebugmode = None
         global _TRAINMODE
+        global _DEBUGMODE
         #print "{} train mode (in base.py)".format(_TRAINMODE)
         if "transform" in kwargs and kwargs["transform"] is not None:
             transform = kwargs.pop("transform")
         if "_trainmode" in kwargs:      # changes global _TRAINMODE
             oldtrainmode = _TRAINMODE
             _TRAINMODE = kwargs.pop("_trainmode")
+        if "_debugmode" in kwargs:      # changes global _DEBUGMODE
+            olddebugmode = _DEBUGMODE
+            _DEBUGMODE = kwargs.pop("_debugmode")
         if "_batsize" in kwargs:
             batsize = kwargs.pop("_batsize")
         if "_trainmode" in inspect.getargspec(self.apply)[0]:
             kwargs["_trainmode"] = _TRAINMODE
+        if "_debugmode" in inspect.getargspec(self.apply)[0]:
+            kwargs["_debugmode"] = _DEBUGMODE
 
         # param pushing
         paramstopush = set()        # params to transfer from input vars to output vars
@@ -759,6 +793,8 @@ class Block(Elem, Saveable): # block with parameters
                         setattr(param, k, v)
         if oldtrainmode is not None:    # this was where we changed the global _TRAINMODE
             _TRAINMODE = oldtrainmode   # put it back
+        if olddebugmode is not None:
+            _DEBUGMODE = olddebugmode
         return ret
 
     def build(self): # stores block inputs and block output

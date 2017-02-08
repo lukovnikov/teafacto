@@ -17,7 +17,7 @@ class SeqTrans(Block):
 
 class SimpleSeqTrans(SeqTrans):
     def __init__(self, indim=400, embdim=50, inpemb=None,
-                 innerdim=100, outdim=50, rnu=GRU, **kw):
+                 innerdim=100, outdim=50, rnu=GRU, dropout=False, **kw):
         if inpemb is None:
             emb = VectorEmbed(indim=indim, dim=embdim)
         else:
@@ -26,6 +26,6 @@ class SimpleSeqTrans(SeqTrans):
         if not issequence(innerdim):
             innerdim = [innerdim]
         innerdim = [embdim] + innerdim
-        rnn, lastdim = MakeRNU.fromdims(innerdim, rnu=rnu)
+        rnn, lastdim = MakeRNU.fromdims(innerdim, rnu=rnu, dropout_h=dropout, dropout_in=dropout)
         smo = Lin(indim=lastdim, dim=outdim)
         super(SimpleSeqTrans, self).__init__(emb, *(rnn + [smo, Softmax()]), **kw)

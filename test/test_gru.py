@@ -42,7 +42,8 @@ class TestGRUBasic(TestCase):
         self.assertTrue(np.all(abs(grupred[:, 0, :]) > 0))
 
     def test_gru_noinput(self):
-        gru = GRU(innerdim=50, dim=0)
+        gru = GRU(innerdim=50, dim=0, noinput=True)
+
 
 class TestGRU(TestCase):
 

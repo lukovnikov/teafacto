@@ -32,6 +32,29 @@ class TestSeqTransducer(TestCase):
 
         pred = m.predict(traindata)
         self.assertEqual(pred.shape, (batsize, seqlen, outvocsize))
+        predsums = np.sum(pred, axis=-1)
+        self.assertTrue(np.allclose(predsums, np.ones_like(predsums)))
+
+    def test_train_with_dropout(self):
+        # settings
+        batsize = 10
+        seqlen = 5
+        invocsize = 50
+        inembdim = 50
+        innerdim = 11
+        outvocsize = 17
+
+        # data
+        traindata = np.random.randint(0, invocsize, (batsize*10, seqlen))
+        traingold = np.random.randint(0, outvocsize, (batsize*10, seqlen))
+
+        # model
+        m = SimpleSeqTrans(indim=invocsize, embdim=inembdim,
+                           innerdim=innerdim, outdim=outvocsize,
+                           dropout=0.95)
+
+        m.train([traindata], traingold).cross_entropy().adadelta(lr=0.5)\
+            .train(numbats=10, epochs=2)
 
 
 class TestSeqTransDec(TestCase):
