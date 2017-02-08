@@ -89,7 +89,6 @@ class BulkNN(Block):
         inpenc = args[-1]
         states_tm1 = args[:-1]
         batsize = inpenc.shape[0]
-        #return (mem_tm1, mem_tm1, h_tm1) + states_tm1   # DEBUG
         # mem_tm1: f(batsize, outseqlen, outvocsize)
         # h_tm1:   f(batsize, thinkerdim)
         # inpenc:  f(batsize, inplen, inpencdim)
