@@ -6,8 +6,8 @@ import numpy as np
 
 class TestRNNWithoutInput(TestCase):
     def test_shape(self):
-        m = RNNWithoutInput(5)
-        b = asblock(lambda: m(10))
+        m = RNNWithoutInput(7)
+        b = asblock(lambda: m(12))
         pred = b.predict()
         print pred
-        self.assertEqual(pred.shape, (10, 5))
+        self.assertEqual(pred.shape, (12, 7))

@@ -710,8 +710,9 @@ class RNNWithoutInput(Block):
         self.block = RecStack(*self.layers)
 
     def apply(self, steps):
-        initinfo = self.block.get_init_info(5)
-        seqs = T.zeros((steps, 5, 5))
-        outputs = T.scan(self.block.rec, sequences=seqs, outputs_info=[None] + initinfo)
+        initinfo = self.block.get_init_info(2)
+        seqs = T.zeros((steps, 2, 2))
+        outputs = T.scan(self.block.rec, sequences=seqs,
+                         outputs_info=[None] + initinfo)
         return outputs[0][:, 0, :]
 
