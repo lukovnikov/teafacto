@@ -161,10 +161,12 @@ class BulkNN(Block):
         return self._write_value_generator(crit)  # generate categorical write distr
 
     def _get_erase(self, h):
-        return T.sum(self._mem_erase_generator(h), axis=1)
+        #return T.sum(self._mem_erase_generator(h), axis=1)
+        return self._mem_erase_generator(h)
 
     def _get_change(self, h):
-        return T.sum(self._mem_change_generator(h), axis=1)
+        #return T.sum(self._mem_change_generator(h), axis=1)
+        return self._mem_change_generator(h)
 
 
 from teafacto.blocks.seq.rnn import SeqEncoder, MakeRNU, RecStack, RNNWithoutInput
@@ -337,8 +339,8 @@ def make_vector_slicers(*sizes):
     rets = []
     for i in range(len(boundaries) - 1):
         a, b = boundaries[i], boundaries[i + 1]
-        #yield Slicer(a, b)
-        yield MatMulSlicer(a, b, alldim)
+        yield Slicer(a, b)
+        #yield MatMulSlicer(a, b, alldim)
 
 
 class Slicer(Block):
@@ -350,7 +352,7 @@ class Slicer(Block):
     def apply(self, x):
         attrs = [slice(None, None, None)] * x.ndim
         if self.b - self.a == 1:
-            attrs[-1] = slice(self.a, self.b, None)     # or self.a
+            attrs[-1] = self.a      #slice(self.a, self.b, None)     # or self.a
         else:
             attrs[-1] = slice(self.a, self.b, None)
         ret = x[attrs]
