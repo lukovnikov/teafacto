@@ -30,7 +30,7 @@ class TestBlockPredictor(TestCase):
         m = SimpleSeqEncDecAtt()
         xdata = np.random.randint(0, 400, (50, 13))
         ydata = np.random.randint(0, 100, (50, 7))
-        pred, extra = m.predict.return_extra_outs(["attention_weights", "i_t"])(xdata, ydata)
+        pred, extra = m.predict.return_extra_outs(["attention_weights"])(xdata, ydata)
         self.assertEqual(pred.shape, (50, 7, 100))
         self.assertEqual(extra["attention_weights"].shape, (7, 50, 13))
 

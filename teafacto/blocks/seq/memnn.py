@@ -1,5 +1,6 @@
 from teafacto.core.base import Block, Var, Val, param, tensorops as T
 from IPython import embed
+import numpy as np
 
 # TODO: INPUT MASK !!!!!!!! and attention etc
 # TODO: what about memory mask?
@@ -47,6 +48,8 @@ class BulkNN(Block):
         self._mem_change_generator = mem_change_generator
         self._mem_erase_generator = mem_erase_generator
 
+        self._return_all_mems = False
+
     def apply(self, inpseq):    # int-(batsize, seqlen)
         inpenco = self._inpencoder(inpseq)    # may carry mask, based on encoder's embedder
         batsize = inpenco.shape[0]
@@ -82,7 +85,10 @@ class BulkNN(Block):
                          n_steps=self._nsteps,
                          non_sequences=inpenc)
         ret = outputs[0]
-        return ret[-1], ret
+        if self._return_all_mems:
+            return ret[-1], ret
+        else:
+            return ret[-1]
 
     def rec(self, mem_tm1, h_tm1, *args):
         inpenc = args[-1]
@@ -155,10 +161,10 @@ class BulkNN(Block):
         return self._write_value_generator(crit)  # generate categorical write distr
 
     def _get_erase(self, h):
-        return self._mem_erase_generator(h)
+        return T.sum(self._mem_erase_generator(h), axis=1)
 
     def _get_change(self, h):
-        return self._mem_change_generator(h)
+        return T.sum(self._mem_change_generator(h), axis=1)
 
 
 from teafacto.blocks.seq.rnn import SeqEncoder, MakeRNU, RecStack, RNNWithoutInput
@@ -272,7 +278,7 @@ class SimpleBulkNN(BulkNN):
         else:
             inp_addr_extractor, mem_addr_extractor, write_addr_extractor, \
             write_value_extractor, mem_erase_generator, mem_change_generator = \
-                make_vector_slicers(0, lastinpdim + xtra_dim, lastmemdim + xtra_dim,
+                make_vector_slicers(lastcoredim, lastinpdim + xtra_dim, lastmemdim + xtra_dim,
                                     lastmemdim + xtra_dim, write_value_dim, 1, 1)
 
         super(SimpleBulkNN, self).__init__(inpencoder=inpencoder,
@@ -321,6 +327,8 @@ class StateToScalar(Block):
 
 def make_vector_slicers(*sizes):
     sizes = list(sizes)
+    alldim = sizes[0]
+    sizes[0] = 0
     boundaries = [sizes[0]]
     del sizes[0]
     while len(sizes) > 0:
@@ -329,7 +337,8 @@ def make_vector_slicers(*sizes):
     rets = []
     for i in range(len(boundaries) - 1):
         a, b = boundaries[i], boundaries[i + 1]
-        yield Slicer(a, b)
+        #yield Slicer(a, b)
+        yield MatMulSlicer(a, b, alldim)
 
 
 class Slicer(Block):
@@ -341,10 +350,24 @@ class Slicer(Block):
     def apply(self, x):
         attrs = [slice(None, None, None)] * x.ndim
         if self.b - self.a == 1:
-            attrs[-1] = self.a
+            attrs[-1] = slice(self.a, self.b, None)     # or self.a
         else:
             attrs[-1] = slice(self.a, self.b, None)
         ret = x[attrs]
+        return ret
+
+
+class MatMulSlicer(Block):
+    def __init__(self, a, b, alldim, **kw):
+        super(MatMulSlicer, self).__init__(**kw)
+        slicemat = np.eye(b - a)
+        pre = np.zeros((a, b - a))
+        post = np.zeros((alldim - b, b - a))
+        slicemat = np.concatenate([pre, slicemat, post], axis=0)
+        self.mat = Val(slicemat)
+
+    def apply(self, x):
+        ret = T.dot(x, self.mat)
         return ret
 
 

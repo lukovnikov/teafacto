@@ -476,11 +476,6 @@ class CustomPredictor(object):
                         filteredrankedsubjs[i].append((-1, -1.))
                 bestsubjs = [x[0][0] for x in filteredrankedsubjs]
 
-
-
-
-
-
         ret = np.concatenate([
             np.expand_dims(np.asarray(bestsubjs, dtype="int32"), axis=1),
             np.expand_dims(np.asarray(bestrels, dtype="int32"), axis=1)

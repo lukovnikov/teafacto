@@ -17,6 +17,7 @@ class RandomSequence(Block):
     def rec(self):
         return self.randval
 
+
 class NestedRandomSequence(Block):
     def __init__(self, **kw):
         super(NestedRandomSequence, self).__init__(**kw)
