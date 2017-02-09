@@ -516,7 +516,6 @@ class SeqDecoder(Block):
         ctx_t = self._get_ctx_t(ctx, states_tm1[-1], encmask)     # TODO: might not work with LSTM
         # do inconcat
         i_t = T.concatenate([x_t_emb, ctx_t], axis=1) if self.inconcat else x_t_emb
-        i_t.push_extra_outs({"i_t": i_t})
         rnuret = self.block.rec(i_t, *states_tm1)
         h_t = rnuret[0]
         states_t = rnuret[1:]

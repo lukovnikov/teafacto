@@ -12,6 +12,7 @@ class DummyBlock(Block):
         a = T.dot(x, self.W)
         b = T.sum(a, axis=1)
         c = T.sum(b, axis=0)
+        a.printas("a")
         a.push_extra_outs({"b": b, "c": c})
         return a
 
@@ -19,7 +20,7 @@ class DummyBlock(Block):
 class TestExtraRet(TestCase):
     def test_extra_ret(self):
         b = DummyBlock()
-        d = np.random.random((10,5)).astype("float32")
+        d = np.random.random((10, 5)).astype("float32")
         pred, extra = b.predict(d, _extra_outs=True)
         print pred.shape
         print extra

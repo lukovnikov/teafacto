@@ -82,7 +82,6 @@ class BulkNN(Block):
                          n_steps=self._nsteps,
                          non_sequences=inpenc)
         ret = outputs[0]
-        ret.push_extra_outs({"mem_0": mem_0, "h_0": h_0})   # DEBUGGING
         return ret[-1], ret
 
     def rec(self, mem_tm1, h_tm1, *args):

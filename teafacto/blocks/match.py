@@ -30,7 +30,6 @@ class CosineDistance(Distance):
         while rnorms.ndim < dots.ndim:
             rnorms = T.shape_padaxis(rnorms, -1)
         ret = dots/(lnorms * rnorms)
-        ret.push_extra_outs({"lnorms": lnorms, "rnorms": rnorms})
         return ret
 
 

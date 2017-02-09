@@ -10,7 +10,7 @@ from theano.tensor.var import _tensor_py_operators
 from theano.sandbox.rng_mrg import MRG_RandomStreams as RandomStreams
 
 from teafacto.core.trainer import ModelTrainer, NSModelTrainer
-from teafacto.util import isstring, issequence, isfunction, Saveable, isnumber
+from teafacto.util import isstring, issequence, isfunction, Saveable, isnumber, unstructurize
 from teafacto.core.datafeed import DataFeed
 
 _TRAINMODE = False
@@ -81,8 +81,6 @@ class TWrapper(type):
         if xndim > 2:
             z = z.reshape(s)
         return z
-
-
 
     def until(cls, expr):
         return until(expr)
@@ -214,7 +212,6 @@ class TensorWrapped(object):
                     slices.append(slice(None, None, None))
             return v[tuple(slices)]
         return OpBlock(rinner, name="reverse")(self, axes)
-
 
 
 class LazyShape(object):
@@ -609,6 +606,10 @@ class Var(Elem, TensorWrapped, Masked): # result of applying a block on theano v
         self._name = name
         self.d.name = name
 
+    def printas(self, name):
+        from theano.printing import Print
+        self.value = Print(name)(self.value)
+
 
 class Input(Var): # generates feed + creates symbolic vars for input
     def __init__(self, ndim, dtype, shape=None, name=None, **kw): # data source (numpy array)
@@ -633,8 +634,6 @@ class TrainModeContext(object):
     def __exit__(self, e_type, e_value, traceback):
         global _TRAINMODE
         _TRAINMODE = self.oldtrainmode
-
-
 
 
 class Block(Elem, Saveable): # block with parameters
@@ -803,10 +802,6 @@ class Block(Elem, Saveable): # block with parameters
     def build(self): # stores block inputs and block output
         self.inputs = self.initinputs()
         self.wrapply(*self.inputs)
-
-    #def _build(self, *inps, **kwinps):
-    #    output = self.wrapply(*inps, **kwinps)
-    #    return output
 
     def autobuild(self, *inputdata, **kwinputdata):
         transform = None
@@ -1105,6 +1100,11 @@ class scan(Block):
         def fwrapper(*args): # theano vars
             trueargs = [Var(x, name="innerrecwrapvarwrap") for x in args]
             res = fn(*trueargs) # has the params from inner rec
+            updates = OrderedDict()
+            retupdates = None
+            if isinstance(res[-1], dict):
+                retupdates = res[-1]
+                res = res[0]
             ret = recurmap(lambda x: x.d if hasattr(x, "d") else x, res)
             if not issequence(ret):
                 ret = (ret,)
@@ -1117,7 +1117,15 @@ class scan(Block):
                     ret += (extra_out.d,)
                     scanblock._rec_extra_outs.append(k)
 #                scanblock._rec_extra_outs.update(var._extra_outs)
-            return ret
+            for reswithupdates in recurfilter(lambda x: isinstance(x, Var), res):
+                updates.update(reswithupdates.allupdates)
+            if retupdates is not None:
+                updatesupdate = {k.d: v.d for k, v in retupdates.items()}
+                updates.update(updatesupdate)
+            if len(updates) > 0:
+                return ret, updates
+            else:
+                return ret
         return fwrapper
 
     def apply(self, fn, **kwargs):
@@ -1161,6 +1169,10 @@ class scan(Block):
         initinfos = [initinfos] if not issequence(initinfos) else initinfos
         fnargs = seqs + filter(lambda x: x is not None, initinfos)
         fnappl = fn(*(fnargs + nonseqs))
+        updates = None
+        if isinstance(fnappl[-1], dict):
+            updates = fnappl[-1]
+            fnappl = fnappl[0]
         if not issequence(fnappl):
             fnappl = [fnappl]
         numouts = len(fnappl)
@@ -1168,6 +1180,7 @@ class scan(Block):
         for realout in fnappl:
             numextraouts += len(realout.all_extra_outs)
         return numouts, numextraouts
+
 
 def _get_updates_from(kwargs):
     updates = {}

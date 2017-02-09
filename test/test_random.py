@@ -8,13 +8,27 @@ import numpy as np
 class RandomSequence(Block):
     def __init__(self, **kw):
         super(RandomSequence, self).__init__(**kw)
-        self.randval = RVal().normal((5,))
+        self.randval = RVal().normal((3,))
 
     def apply(self):
         out = T.scan(self.rec, sequences=None, outputs_info=[None], n_steps=5)
         return out
 
     def rec(self):
+        return self.randval
+
+class NestedRandomSequence(Block):
+    def __init__(self, **kw):
+        super(NestedRandomSequence, self).__init__(**kw)
+        self.randval = RVal().normal((2,))
+
+    def apply(self):
+        return T.scan(self.outerrec, sequences=None, outputs_info=[None], n_steps=3)
+
+    def outerrec(self):
+        return T.scan(self.innerrec, sequences=None, outputs_info=[None], n_steps=4)
+
+    def innerrec(self):
         return self.randval
 
 
@@ -59,31 +73,36 @@ class TestRandom(TestCase):
         rs = RandomSequence()
         pred = rs.predict()
         print pred
-        for i in range(pred.shape[1]-1):
-            self.assertTrue(not np.allclose(pred[:, i], pred[:, i+1]))
+        for i in range(pred.shape[0]-1):
+            self.assertTrue(not np.allclose(pred[i, :], pred[i+1, :]))
+
+    def test_nested_random_sequence(self):
+        rs = NestedRandomSequence()
+        pred = rs.predict()
+        print pred
 
     def test_random_sequence_inside(self):
         rs = RandomSequenceInside()
-        d = np.random.random((5, 4, 3))
+        d = np.random.random((4, 3, 2))
         pred = rs.predict(d)
         print pred
-        for i in range(pred.shape[1]-1):
-            self.assertTrue(not np.allclose(pred[:, i], pred[:, i+1]))
+        for i in range(pred.shape[0]-1):
+            self.assertTrue(not np.allclose(pred[i, :, :], pred[i+1, :, :]))
         self.assertEqual(d.shape, pred.shape)
 
     def test_dropout_sequence(self):
         m = DropoutSequence()
-        d = np.ones((5, 20))
+        d = np.ones((7, 10))
         pred = m.predict(d)
         print pred
-        for i in range(pred.shape[1]-1):
-            self.assertTrue(not np.allclose(pred[:, i], pred[:, i+1]))
+        for i in range(pred.shape[0]-1):
+            self.assertTrue(not np.allclose(pred[i, :], pred[i+1, :]))
         self.assertEqual(d.shape, pred.shape)
 
     def test_gumbel_sequence(self):
         shape = None # (4,3)
         m = GumbelSequence(shape=shape)
-        d = np.ones((5, 4, 3))
+        d = np.ones((4, 3, 2))
         pred = m.predict(d)
         np.set_printoptions(precision=5, suppress=True)
         print pred
