@@ -295,7 +295,7 @@ class SimpleMemNN(MemNN):
         xtra_dim = posvecdim if posvecdim is not None else 0
         # CORE RNN - THE THINKER
         if core is None:
-            corelayers, _ = MakeRNU.fromdims([memdim + xtra_dim * 2] + coredims,
+            corelayers, _ = MakeRNU.fromdims([memdim + xtra_dim + inpembdim] + coredims,
                                              rnu=rnu, dropout_in=dropout, dropout_h=dropout,
                                              param_init_states=True)
             core = RecStack(*corelayers)

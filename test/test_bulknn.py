@@ -7,12 +7,12 @@ class MemNNTest(TestCase):
     def test_shapes(self):
         inpvocsize = 5
         inpembdim = 10
-        maskid=-1
-        posvecdim = 10
+        maskid = -1
+        posvecdim = 11
         memdim = 12
         memlen = 17
-        outdim = 10
-        outvocsize = 17
+        outdim = 13
+        outvocsize = 15
 
         lastcoredim = outdim + memdim * 3 + posvecdim * 2 + 1 + 1
         coredims = [40, lastcoredim]
