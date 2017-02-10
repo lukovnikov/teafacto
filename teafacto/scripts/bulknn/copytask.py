@@ -7,6 +7,7 @@ from IPython import embed
 
 def runmem(epochs=100, lr=1.,
            mode="copy",     # or "sort" or "reverse"
+           seqlen=10,
            ):
     inpvocsize = 50
     inpembdim = 20
@@ -26,7 +27,6 @@ def runmem(epochs=100, lr=1.,
                     outdim=outdim, outvocsize=outvocsize)
 
 
-    seqlen = 15
     b = asblock(lambda x: m(x)[:, seqlen:-1])
 
     origdata = np.random.randint(1, inpvocsize, (1000, seqlen))
