@@ -40,8 +40,6 @@ def run(epochs=100):
     m.train([data], data).cross_entropy().adadelta()\
         .train(epochs=epochs, numbats=10)
 
-    # ERROR: due to state slicing: Theano#5224
-
 
 if __name__ == "__main__":
     argprun(run)
