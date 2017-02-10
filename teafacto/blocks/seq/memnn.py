@@ -162,11 +162,15 @@ class BulkNN(Block):
 
     def _get_erase(self, h):
         #return T.sum(self._mem_erase_generator(h), axis=1)
-        return self._mem_erase_generator(h)
+        ret = self._mem_erase_generator(h)
+        ret = T.nnet.sigmoid(ret)
+        return ret
 
     def _get_change(self, h):
         #return T.sum(self._mem_change_generator(h), axis=1)
-        return self._mem_change_generator(h)
+        ret = self._mem_change_generator(h)
+        ret = T.nnet.sigmoid(ret)
+        return ret
 
 
 from teafacto.blocks.seq.rnn import SeqEncoder, MakeRNU, RecStack, RNNWithoutInput
