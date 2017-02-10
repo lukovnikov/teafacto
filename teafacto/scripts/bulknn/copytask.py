@@ -6,14 +6,14 @@ from IPython import embed
 
 
 def runmem(epochs=100, lr=1.):
-    inpvocsize = 50
-    inpembdim = 10
-    maskid=-1
-    posvecdim = 10
-    memdim = 12
-    memlen = 17
-    outdim = 10
-    outvocsize = 50
+    inpvocsize = 100
+    inpembdim = 20
+    maskid = -1
+    posvecdim = 20
+    memdim = 40
+    memlen = 100
+    outdim = 20
+    outvocsize = 100
 
     lastcoredim = outdim + memdim * 3 + posvecdim * 2 + 1 + 1
     coredims = [40, lastcoredim]
@@ -24,14 +24,15 @@ def runmem(epochs=100, lr=1.):
                     outdim=outdim, outvocsize=outvocsize)
 
 
-    seqlen = 10
+    seqlen = 50
     b = asblock(lambda x: m(x)[:, seqlen+1:])
 
-    origdata = np.random.randint(1, inpvocsize, (1000, seqlen))
+    origdata = np.random.randint(1, inpvocsize, (5000, seqlen))
     data = origdata
-    data = np.concatenate([data, np.zeros((1000, 1)).astype("int32"), data], axis=1)
+    data = np.concatenate([data, np.zeros((5000, 1)).astype("int32"), data], axis=1)
 
-    b.train([data], origdata).cross_entropy().adadelta(lr=lr) \
+    b.train([data], origdata).cross_entropy().adadelta(lr=lr)\
+        .split_validate(5).cross_entropy().seq_accuracy() \
         .train(epochs=epochs, numbats=10)
 
     origpreddata = np.random.randint(1, inpvocsize, (50, seqlen))
