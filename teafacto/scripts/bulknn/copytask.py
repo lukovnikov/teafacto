@@ -1,4 +1,4 @@
-from teafacto.blocks.seq.memnn import SimpleBulkNN, SimpleMemNN
+from teafacto.blocks.seq.memnn import SimpleBulkNN, SimpleMemNN, SimpleTransMemNN
 from teafacto.core.base import asblock
 from teafacto.util import argprun
 import numpy as np

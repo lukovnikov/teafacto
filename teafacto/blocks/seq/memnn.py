@@ -10,7 +10,7 @@ class MemNN(Block):
                 write_addr_extractor=None, write_addr_generator=None,
                 write_value_extractor=None, outvec_extractor=None,
                 mem_erase_generator=None, mem_change_generator=None,
-                inpemb=None, memdim=None, smo=None,
+                inpemb=None, memdim=None, smo=None, _debug=False,
                  **kw):
         super(MemNN, self).__init__(**kw)
         self._memlen = memlen
@@ -32,12 +32,18 @@ class MemNN(Block):
         self.smo = smo
         self.outvec_extractor = outvec_extractor
 
-    def apply(self, inpseq):  # int-(batsize, seqlen)
+        self._with_all_mems = False
+        self._only_last_mem = False
+
+        self._debug = _debug
+
+    def apply(self, inpseq, mem_0=None):  # int-(batsize, seqlen)
         inpemb = self.inpembedder(inpseq)  # may carry mask, based on encoder's embedder
         batsize = inpseq.shape[0]
 
-        mem_0 = Val(np.zeros((1, self._memlen, self.memdim)))
-        mem_0 = T.repeat(mem_0, batsize, axis=0)
+        if mem_0 is None:
+            mem_0 = Val(np.zeros((1, self._memlen, self.memdim)))
+            mem_0 = T.repeat(mem_0, batsize, axis=0)
 
         core_init_states = self._core.get_init_info(batsize)
         core_state_spec = self._core.get_statespec(flat=False)
@@ -58,7 +64,12 @@ class MemNN(Block):
                          sequences=recinp,
                          outputs_info=[None, mem_0, h_0] + core_init_states)
         ret = outputs[0].dimswap(1, 0)
-        return ret
+        if self._only_last_mem:
+            return outputs[1][-1]
+        elif self._with_all_mems:
+            return ret, outputs[1]
+        else:
+            return ret
 
     def rec(self, x_t, mem_tm1, h_tm1, *args):
         states_tm1 = args
@@ -80,18 +91,31 @@ class MemNN(Block):
 
         # memory change interface
         mem_t_addr = self._get_addr_weights(h_t, mem_tm1_sum)  # float-(batsize, outseqlen)
+        if self._debug:
+            mem_t_addr.output_as("mem_t_addr")
         mem_t_write = self._get_write_weights(h_t)  # (batsize, memvocsize)
+        if self._debug:
+            mem_t_write.output_as("mem_t_write")
         e_t = self._get_erase(h_t)  # (0..1)-(batsize,)
+        if self._debug:
+            e_t.output_as("e_t")
         c_t = self._get_change(h_t)  # (0..1)-(batsize,)
+        if self._debug:
+            c_t.output_as("c_t")
 
         # e_t = T.zeros_like(e_t)     # DEBUG
 
         # memory change
         can_mem_t = mem_tm1
-        can_mem_t = can_mem_t - T.batched_dot(e_t,
-                        can_mem_t * mem_t_addr.dimshuffle(0, 1, 'x'))  # erase where we addressed
+        can_mem_t = can_mem_t - e_t.dimshuffle(0, 'x', 'x') * \
+                        can_mem_t * mem_t_addr.dimshuffle(0, 1, 'x')  # erase where we addressed
+        if self._debug:
+            can_mem_t.output_as("can_mem_t_after_erase")
         can_mem_t = can_mem_t + T.batched_tensordot(mem_t_addr, mem_t_write, axes=0)  # write new value
-        mem_t = T.batched_dot(1 - c_t, mem_tm1) + T.batched_dot(c_t, can_mem_t)  # interpolate between old and new value
+        if self._debug:
+            can_mem_t.output_as("can_mem_t_after_addition")
+        c_t = c_t.dimshuffle(0, 'x', 'x')
+        mem_t = (1 - c_t) * mem_tm1 + c_t * can_mem_t  # interpolate between old and new value
 
         _y_t = self.outvec_extractor(h_t)
         y_t = self.smo(_y_t)
@@ -119,6 +143,19 @@ class MemNN(Block):
         # return T.sum(self._mem_change_generator(h), axis=1)
         ret = self._mem_change_generator(h)
         ret = T.nnet.sigmoid(ret)
+        return ret
+
+
+class TransMemNN(Block):
+    def __init__(self, enc, dec, **kw):
+        super(TransMemNN, self).__init__(**kw)
+        self.enc = enc
+        self.enc._only_last_mem = True
+        self.dec = dec
+
+    def apply(self, inpseq, outseq):
+        encmem = self.enc(inpseq)
+        ret = self.dec(outseq, mem_0=encmem)
         return ret
 
 
@@ -324,6 +361,35 @@ class SimpleMemNN(MemNN):
                 mem_erase_generator=mem_erase_generator, mem_change_generator=mem_change_generator,
 
                 inpemb=inpemb, memdim=memdim, smo=smo, **kw)
+
+
+class SimpleTransMemNN(TransMemNN):
+    def __init__(self, inpvocsize=None, inpembdim=None, inpemb=None,
+                 outvocsize=None, outembdim=None, outemb=None,
+                 maskid=None, dropout=False, rnu=GRU,
+                 posvecdim=None,
+                 coredims=None,
+                 mem_att_dist=CosineDistance(),
+                 write_addr_dist=CosineDistance(),
+                 memdim=None, memlen=None,
+                 outdim=None, **kw):
+        encmemnn = SimpleMemNN(inpvocsize=inpvocsize, inpembdim=inpembdim,
+            inpemb=inpemb, maskid=maskid, dropout=dropout, rnu=rnu,
+                 posvecdim=posvecdim,
+                 coredims=coredims,
+                 mem_att_dist=mem_att_dist,
+                 write_addr_dist=write_addr_dist,
+                 memdim=memdim, memlen=memlen,
+                 outdim=outdim, outvocsize=inpvocsize, **kw)
+        decmemnn = SimpleMemNN(inpvocsize=outvocsize, inpembdim=outembdim,
+            inpemb=outemb, maskid=maskid, dropout=dropout, rnu=rnu,
+                 posvecdim=posvecdim,
+                 coredims=coredims,
+                 mem_att_dist=mem_att_dist,
+                 write_addr_dist=write_addr_dist,
+                 memdim=memdim, memlen=memlen,
+                 outdim=outdim, outvocsize=outvocsize, **kw)
+        super(SimpleTransMemNN, self).__init__(encmemnn, decmemnn)
 
 
 class SimpleBulkNN(BulkNN):
