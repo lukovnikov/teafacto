@@ -8,18 +8,21 @@ from IPython import embed
 def runmem(epochs=100, lr=1.,
            mode="copy",     # or "sort" or "reverse"
            seqlen=10,
+           numsam=5000,
+           vocsize=20,
+           embdim=10,
+           memdim=20,
            ):
-    inpvocsize = 50
-    inpembdim = 20
+    inpvocsize = vocsize
+    inpembdim = embdim
     maskid = -1
-    posvecdim = 20
-    memdim = 40
-    memlen = 20
-    outdim = 20
-    outvocsize = 50
+    posvecdim = memdim
+    memlen = seqlen*2
+    outdim = embdim
+    outvocsize = vocsize
 
     lastcoredim = outdim + memdim * 3 + posvecdim * 2 + 1 + 1
-    coredims = [40, lastcoredim]
+    coredims = [lastcoredim, lastcoredim]
 
     m = SimpleMemNN(inpvocsize=inpvocsize, inpembdim=inpembdim,
                     maskid=maskid, posvecdim=posvecdim,
@@ -29,7 +32,7 @@ def runmem(epochs=100, lr=1.,
 
     b = asblock(lambda x: m(x)[:, seqlen:-1])
 
-    origdata = np.random.randint(1, inpvocsize, (1000, seqlen))
+    origdata = np.random.randint(1, inpvocsize, (numsam, seqlen))
     data = origdata
 
     def gettargetdata(inpd):
@@ -42,7 +45,7 @@ def runmem(epochs=100, lr=1.,
         else:
             raise Exception("unrecognized mode")
 
-    data = np.concatenate([data, np.zeros((1000, 1)).astype("int32"), gettargetdata(data)], axis=1)
+    data = np.concatenate([data, np.zeros((numsam, 1)).astype("int32"), gettargetdata(data)], axis=1)
 
     b.train([data], origdata).cross_entropy().adadelta(lr=lr)\
         .split_validate(5).cross_entropy().seq_accuracy() \
