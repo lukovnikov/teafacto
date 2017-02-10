@@ -2,6 +2,7 @@ from teafacto.blocks.seq.memnn import SimpleBulkNN, SimpleMemNN
 from teafacto.core.base import asblock
 from teafacto.util import argprun
 import numpy as np
+from IPython import embed
 
 
 def runmem(epochs=100, lr=1.):
@@ -32,6 +33,14 @@ def runmem(epochs=100, lr=1.):
 
     b.train([data], origdata).cross_entropy().adadelta(lr=lr) \
         .train(epochs=epochs, numbats=10)
+
+    origpreddata = np.random.randint(1, inpvocsize, (50, seqlen))
+    preddata = origpreddata
+    preddata = np.concatenate([preddata, np.zeros((50, 1)).astype("int32"), preddata], axis=1)
+
+    pred = b.predict(preddata)
+    print np.argmax(pred, axis=2)
+    embed()
 
 
 
