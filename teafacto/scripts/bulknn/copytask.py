@@ -6,14 +6,14 @@ from IPython import embed
 
 
 def runmem(epochs=100, lr=1.):
-    inpvocsize = 5
+    inpvocsize = 50
     inpembdim = 10
     maskid=-1
     posvecdim = 10
     memdim = 12
     memlen = 17
     outdim = 10
-    outvocsize = 17
+    outvocsize = 50
 
     lastcoredim = outdim + memdim * 3 + posvecdim * 2 + 1 + 1
     coredims = [40, lastcoredim]
