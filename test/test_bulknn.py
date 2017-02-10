@@ -1,7 +1,33 @@
 from unittest import TestCase
 
-from teafacto.blocks.seq.memnn import BulkNN, SimpleBulkNN
+from teafacto.blocks.seq.memnn import BulkNN, SimpleBulkNN, SimpleMemNN
 import numpy as np
+
+class MemNNTest(TestCase):
+    def test_shapes(self):
+        inpvocsize = 5
+        inpembdim = 10
+        maskid=-1
+        posvecdim = 10
+        memdim = 12
+        memlen = 17
+        outdim = 10
+        outvocsize = 17
+
+        lastcoredim = outdim + memdim * 3 + posvecdim * 2 + 1 + 1
+        coredims = [40, lastcoredim]
+
+        m = SimpleMemNN(inpvocsize=inpvocsize, inpembdim=inpembdim,
+                        maskid=maskid, posvecdim=posvecdim,
+                        coredims=coredims, memdim=memdim, memlen=memlen,
+                        outdim=outdim, outvocsize=outvocsize)
+
+        batsize = 10
+        seqlen = 11
+        data = np.random.randint(0, inpvocsize, (batsize, seqlen))
+
+        pred = m.predict(data)
+        print pred.shape
 
 
 class BulkNNTest(TestCase):

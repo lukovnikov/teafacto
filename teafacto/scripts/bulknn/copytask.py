@@ -1,9 +1,41 @@
-from teafacto.blocks.seq.memnn import SimpleBulkNN
+from teafacto.blocks.seq.memnn import SimpleBulkNN, SimpleMemNN
+from teafacto.core.base import asblock
 from teafacto.util import argprun
 import numpy as np
 
 
-def run(epochs=100, lr=1.):
+def runmem(epochs=100, lr=1.):
+    inpvocsize = 5
+    inpembdim = 10
+    maskid=-1
+    posvecdim = 10
+    memdim = 12
+    memlen = 17
+    outdim = 10
+    outvocsize = 17
+
+    lastcoredim = outdim + memdim * 3 + posvecdim * 2 + 1 + 1
+    coredims = [40, lastcoredim]
+
+    m = SimpleMemNN(inpvocsize=inpvocsize, inpembdim=inpembdim,
+                    maskid=maskid, posvecdim=posvecdim,
+                    coredims=coredims, memdim=memdim, memlen=memlen,
+                    outdim=outdim, outvocsize=outvocsize)
+
+
+    seqlen = 10
+    b = asblock(lambda x: m(x)[:, seqlen+1:])
+
+    origdata = np.random.randint(1, inpvocsize, (1000, seqlen))
+    data = origdata
+    data = np.concatenate([data, np.zeros((1000, 1)).astype("int32"), data], axis=1)
+
+    b.train([data], origdata).cross_entropy().adadelta(lr=lr) \
+        .train(epochs=epochs, numbats=10)
+
+
+
+def runbulk(epochs=100, lr=1.):
     inpvocsize = 100
     outvocsize = 100
     inpembdim = 20
@@ -33,13 +65,18 @@ def run(epochs=100, lr=1.):
                      nsteps=20,
                      maskid=maskid,
                      memsamplemethod="gumbel",      # or "gumbel"
-                     dropout=0.3,
                      memsampletemp=0.3)
 
     data = np.random.randint(1, 100, (1000, 10))
+    m._return_all_mems = True
+    pred, all = m.predict(data)
+    for i in range(all.shape[0]):
+        print np.argmax(all[i], axis=2)
+
+    m._return_all_mems = False
     m.train([data], data).cross_entropy().adadelta(lr=lr)\
         .train(epochs=epochs, numbats=10)
 
 
 if __name__ == "__main__":
-    argprun(run)
+    argprun(runmem)

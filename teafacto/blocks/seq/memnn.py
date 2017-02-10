@@ -2,9 +2,124 @@ from teafacto.core.base import Block, Var, Val, RVal, param, tensorops as T
 from IPython import embed
 import numpy as np
 
-# TODO: INPUT MASK !!!!!!!! and attention etc
-# TODO: what about memory mask?
-# TODO: MEMORY POSITION EMBEDDINGS/ENCODINGS
+
+class MemNN(Block):
+    """ Basic key-value store """
+    def __init__(self, memlen=None, core=None, mem_pos_repr=None,
+                 mem_attention=None, mem_addr_extractor=None,
+                write_addr_extractor=None, write_addr_generator=None,
+                write_value_extractor=None, outvec_extractor=None,
+                mem_erase_generator=None, mem_change_generator=None,
+                inpemb=None, memdim=None, smo=None,
+                 **kw):
+        super(MemNN, self).__init__(**kw)
+        self._memlen = memlen
+        self._core = core
+        if mem_pos_repr is not None:
+            self._memposvecs = mem_pos_repr(memlen)
+        else:
+            self._memposvecs = None
+        self._mem_addr_extractor = mem_addr_extractor
+        self._mem_att = mem_attention
+        self._write_addr_extractor = write_addr_extractor
+        self._write_addr_generator = write_addr_generator
+        self._write_value_extractor = write_value_extractor
+        self._mem_change_generator = mem_change_generator
+        self._mem_erase_generator = mem_erase_generator
+
+        self.inpembedder = inpemb
+        self.memdim = memdim
+        self.smo = smo
+        self.outvec_extractor = outvec_extractor
+
+    def apply(self, inpseq):  # int-(batsize, seqlen)
+        inpemb = self.inpembedder(inpseq)  # may carry mask, based on encoder's embedder
+        batsize = inpseq.shape[0]
+
+        mem_0 = Val(np.zeros((1, self._memlen, self.memdim)))
+        mem_0 = T.repeat(mem_0, batsize, axis=0)
+
+        core_init_states = self._core.get_init_info(batsize)
+        core_state_spec = self._core.get_statespec(flat=False)
+        assert (len(core_state_spec) == len(core_init_states))
+        h_0 = None  # take last output of core states as initial state
+        c = 0
+        for ss in core_state_spec:
+            h_0_isout = False
+            for sss in ss:
+                if sss[0] == "output":
+                    h_0_isout = True
+                    h_0 = core_init_states[c]
+                if not h_0_isout:
+                    h_0 = core_init_states[c]
+                c += 1
+        recinp = inpemb.dimswap(1, 0)
+        outputs = T.scan(fn=self.rec,
+                         sequences=recinp,
+                         outputs_info=[None, mem_0, h_0] + core_init_states)
+        ret = outputs[0].dimswap(1, 0)
+        return ret
+
+    def rec(self, x_t, mem_tm1, h_tm1, *args):
+        states_tm1 = args
+        batsize = x_t.shape[0]
+
+        mem_tm1_sum = mem_tm1
+        if self._memposvecs is not None:
+            memposvecs = T.repeat(self._memposvecs.dimadd(0), batsize, axis=0)
+            mem_tm1_sum = T.concatenate([mem_tm1_sum, memposvecs], axis=2)
+
+        # input and memory read attentions
+        mem_ctx_t = self._get_mem_ctx(h_tm1, mem_tm1_sum)  # (batsize, memsumdim)
+
+        # update thinker state
+        i_t = T.concatenate([x_t, mem_ctx_t], axis=1)
+        rnuret = self._core.rec(i_t, *states_tm1)
+        h_t = rnuret[0]
+        states_t = rnuret[1:]
+
+        # memory change interface
+        mem_t_addr = self._get_addr_weights(h_t, mem_tm1_sum)  # float-(batsize, outseqlen)
+        mem_t_write = self._get_write_weights(h_t)  # (batsize, memvocsize)
+        e_t = self._get_erase(h_t)  # (0..1)-(batsize,)
+        c_t = self._get_change(h_t)  # (0..1)-(batsize,)
+
+        # e_t = T.zeros_like(e_t)     # DEBUG
+
+        # memory change
+        can_mem_t = mem_tm1
+        can_mem_t = can_mem_t - T.batched_dot(e_t,
+                        can_mem_t * mem_t_addr.dimshuffle(0, 1, 'x'))  # erase where we addressed
+        can_mem_t = can_mem_t + T.batched_tensordot(mem_t_addr, mem_t_write, axes=0)  # write new value
+        mem_t = T.batched_dot(1 - c_t, mem_tm1) + T.batched_dot(c_t, can_mem_t)  # interpolate between old and new value
+
+        _y_t = self.outvec_extractor(h_t)
+        y_t = self.smo(_y_t)
+        return (y_t, mem_t, h_t) + tuple(states_t)
+
+    def _get_mem_ctx(self, h, mem):
+        crit = self._mem_addr_extractor(h)
+        return self._mem_att(crit, mem)
+
+    def _get_addr_weights(self, h, mem):
+        crit = self._write_addr_extractor(h)
+        return self._write_addr_generator(crit, mem)
+
+    def _get_write_weights(self, h):
+        crit = self._write_value_extractor(h)
+        return crit  # generate categorical write distr
+
+    def _get_erase(self, h):
+        # return T.sum(self._mem_erase_generator(h), axis=1)
+        ret = self._mem_erase_generator(h)
+        ret = T.nnet.sigmoid(ret)
+        return ret
+
+    def _get_change(self, h):
+        # return T.sum(self._mem_change_generator(h), axis=1)
+        ret = self._mem_change_generator(h)
+        ret = T.nnet.sigmoid(ret)
+        return ret
 
 
 # SYMBOLIC OUTPUT MEMORY ENABLED SEQ2SEQ
@@ -13,42 +128,26 @@ import numpy as np
 # - can do multiple attention steps without actual output (change scalars)
 
 # -> loss is placed over the symbolic output memory
-class BulkNN(Block):
+class BulkNN(MemNN):
     def __init__(self, inpencoder=None, memsampler=None,
-                memembmat=None, memencoder=None, memlen=None,
-                mem_pos_repr=None, inp_pos_repr=None,
-                inp_attention=None, mem_attention=None,
-                inp_addr_extractor=None, mem_addr_extractor=None,
-                write_addr_extractor=None, write_addr_generator=None,
-                write_value_generator=None, write_value_extractor=None,
-                mem_erase_generator=None, mem_change_generator=None,
-                nsteps=100, core=None, **kw):
+                memembmat=None, memencoder=None,
+                inp_pos_repr=None,
+                inp_attention=None,
+                inp_addr_extractor=None,
+                 write_value_generator=None,
+                nsteps=100, **kw):
         super(BulkNN, self).__init__(**kw)
-        if mem_pos_repr is not None:
-            self._memposvecs = mem_pos_repr(memlen)
-        else:
-            self._memposvecs = None
         self._inp_pos_repr = inp_pos_repr
         self._nsteps = nsteps
-        self._memlen = memlen
         self._inpencoder = inpencoder
         self._inp_att = inp_attention
         self._memencoder = memencoder
-        self._mem_att = mem_attention
         self._memembmat = memembmat
         self._memsampler = memsampler
-        self._core = core
         # extractors from top core state:
         self._inp_addr_extractor = inp_addr_extractor
-        self._mem_addr_extractor = mem_addr_extractor
-        self._write_addr_extractor = write_addr_extractor
-        self._write_addr_generator = write_addr_generator
-        self._write_value_extractor = write_value_extractor
-        self._write_value_generator = write_value_generator
-        self._mem_change_generator = mem_change_generator
-        self._mem_erase_generator = mem_erase_generator
-
         self._return_all_mems = False
+        self._write_value_generator = write_value_generator
 
     def apply(self, inpseq):    # int-(batsize, seqlen)
         inpenco = self._inpencoder(inpseq)    # may carry mask, based on encoder's embedder
@@ -156,39 +255,74 @@ class BulkNN(Block):
         crit = self._inp_addr_extractor(h)
         return self._inp_att(crit, inpenc)
 
-    def _get_mem_ctx(self, h, mem):
-        crit = self._mem_addr_extractor(h)
-        return self._mem_att(crit, mem)
-
-    def _get_addr_weights(self, h, mem):
-        crit = self._write_addr_extractor(h)
-        return self._write_addr_generator(crit, mem)
-
     def _get_write_weights(self, h):
         crit = self._write_value_extractor(h)
         return self._write_value_generator(crit)  # generate categorical write distr
-
-    def _get_erase(self, h):
-        #return T.sum(self._mem_erase_generator(h), axis=1)
-        ret = self._mem_erase_generator(h)
-        ret = T.nnet.sigmoid(ret)
-        return ret
-
-    def _get_change(self, h):
-        #return T.sum(self._mem_change_generator(h), axis=1)
-        ret = self._mem_change_generator(h)
-        ret = T.nnet.sigmoid(ret)
-        return ret
 
 
 from teafacto.blocks.seq.rnn import SeqEncoder, MakeRNU, RecStack, RNNWithoutInput
 from teafacto.blocks.seq.rnu import GRU
 from teafacto.blocks.match import CosineDistance
 from teafacto.blocks.seq.attention import Attention, AttGen
-from teafacto.blocks.basic import MatDot, Linear, Forward, SMO
+from teafacto.blocks.basic import MatDot, Linear, Forward, SMO, VectorEmbed
 from teafacto.blocks.activations import GumbelSoftmax
 from teafacto.core.base import asblock
 from teafacto.util import issequence
+
+
+class SimpleMemNN(MemNN):
+    def __init__(self, inpvocsize=None, inpembdim=None, inpemb=None,
+                 maskid=None, dropout=False, rnu=GRU,
+                 posvecdim=None, mem_pos_repr=None,
+                 core=None, coredims=None,
+                 mem_att_dist=CosineDistance(), mem_attention=None,
+                    mem_addr_extractor=None,
+                     write_addr_extractor=None, write_addr_generator=None,
+                     write_addr_dist=CosineDistance(),
+                     write_value_extractor=None,
+                     mem_erase_generator=None, mem_change_generator=None,
+                 memdim=None, memlen=None,
+                 smo=None, outdim=None, outvocsize=None, **kw):
+        # INPUT SYMBOL EMBEDDER
+        if inpemb is None:
+            inpemb = VectorEmbed(inpvocsize, inpembdim, maskid=maskid)
+
+        # POSITION VECTORS
+        if posvecdim is not None and mem_pos_repr is None:
+            mem_pos_repr = RNNWithoutInput(posvecdim, dropout=dropout)
+
+        xtra_dim = posvecdim if posvecdim is not None else 0
+        # CORE RNN - THE THINKER
+        if core is None:
+            corelayers, _ = MakeRNU.fromdims([memdim + xtra_dim * 2] + coredims,
+                                             rnu=rnu, dropout_in=dropout, dropout_h=dropout,
+                                             param_init_states=True)
+            core = RecStack(*corelayers)
+
+        lastcoredim = core.get_statespec()[-1][0][1][0]
+
+        # ATTENTIONS
+        if mem_attention is None:
+            mem_attention = Attention(mem_att_dist)
+        if write_addr_generator is None:
+            write_addr_generator = AttGen(write_addr_dist)
+
+        if smo is None:
+            smo = SMO(outdim, outvocsize)
+
+        outvec_extractor, mem_addr_extractor, write_addr_extractor,\
+        write_value_extractor, mem_erase_generator, mem_change_generator = \
+            make_vector_slicers(lastcoredim, outdim, memdim + xtra_dim,
+                                memdim + xtra_dim, memdim, 1, 1)
+
+        super(SimpleMemNN, self).__init__(memlen=memlen, core=core,
+                mem_pos_repr=mem_pos_repr, outvec_extractor=outvec_extractor,
+                 mem_attention=mem_attention, mem_addr_extractor=mem_addr_extractor,
+                write_addr_extractor=write_addr_extractor, write_addr_generator=write_addr_generator,
+                write_value_extractor=write_value_extractor,
+                mem_erase_generator=mem_erase_generator, mem_change_generator=mem_change_generator,
+
+                inpemb=inpemb, memdim=memdim, smo=smo, **kw)
 
 
 class SimpleBulkNN(BulkNN):
