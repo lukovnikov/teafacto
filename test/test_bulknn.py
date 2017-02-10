@@ -35,7 +35,7 @@ class BulkNNTest(TestCase):
                          explicit_interface=True,
                          write_value_dim=writedim,
                          posvecdim=posvecdim,
-                         nsteps=99,
+                         nsteps=9,
                          maskid=maskid,
                          memsamplemethod="gumbel",
                          dropout=0.3,
@@ -49,7 +49,10 @@ class BulkNNTest(TestCase):
         mem_last = preds[0]
         mem_all = preds[1]
 
+        for i in range(mem_all.shape[0]):
+            print np.argmax(mem_all[i], axis=2)
+
         print mem_last.shape
         print mem_all.shape
         self.assertEqual(mem_last.shape, (batsize, memlen, outvocsize))
-        self.assertEqual(mem_all.shape, (99, batsize, memlen, outvocsize))
+        self.assertEqual(mem_all.shape, (9, batsize, memlen, outvocsize))

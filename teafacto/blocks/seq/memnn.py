@@ -1,4 +1,4 @@
-from teafacto.core.base import Block, Var, Val, param, tensorops as T
+from teafacto.core.base import Block, Var, Val, RVal, param, tensorops as T
 from IPython import embed
 import numpy as np
 
@@ -58,6 +58,11 @@ class BulkNN(Block):
             T.ones((batsize, self._memlen, 1), dtype="float32") * 0.95,
             T.ones((batsize, self._memlen, outvocsize-1), dtype="float32") * 0.05,
             ], axis=2)      # (batsize, outseqlen, outvocsize)
+
+        # DEBUG
+        #mem_0 = Val(np.random.random((1, self._memlen, outvocsize)))
+        #mem_0 = T.repeat(mem_0, batsize, axis=0)
+
         mem_0 = T.softmax(mem_0)
         core_init_states = self._core.get_init_info(batsize)
         core_state_spec = self._core.get_statespec(flat=False)
@@ -124,8 +129,11 @@ class BulkNN(Block):
         e_t = self._get_erase(h_t)      # (0..1)-(batsize,)
         c_t = self._get_change(h_t)     # (0..1)-(batsize,)
 
+        #e_t = T.zeros_like(e_t)     # DEBUG
+
         # memory change
-        can_mem_t = mem_tm1 - T.batched_dot(e_t, mem_tm1 * mem_t_addr.dimshuffle(0, 1, 'x'))    # erase where we addressed
+        can_mem_t = mem_tm1
+        can_mem_t = can_mem_t - T.batched_dot(e_t, can_mem_t * mem_t_addr.dimshuffle(0, 1, 'x'))    # erase where we addressed
         can_mem_t = can_mem_t + T.batched_tensordot(mem_t_addr, mem_t_write, axes=0)            # write new value
         mem_t = T.batched_dot(1 - c_t, mem_tm1) + T.batched_dot(c_t, can_mem_t)                 # interpolate between old and new value
 
@@ -258,7 +266,7 @@ class SimpleBulkNN(BulkNN):
         # MEMORY SAMPLER
         if memsampler is not None:
             assert(memsamplemethod is None)
-        if memsamplemethod is not None:
+        if memsamplemethod is "gumbel":
             assert(memsampler is None)
             memsampler = GumbelSoftmax(temperature=memsampletemp)
 

@@ -3,7 +3,7 @@ from teafacto.util import argprun
 import numpy as np
 
 
-def run(epochs=100):
+def run(epochs=100, lr=1.):
     inpvocsize = 100
     outvocsize = 100
     inpembdim = 20
@@ -30,14 +30,14 @@ def run(epochs=100):
                      explicit_interface=True,
                      write_value_dim=writedim,
                      posvecdim=posvecdim,
-                     nsteps=99,
+                     nsteps=20,
                      maskid=maskid,
-                     memsamplemethod=None,      # or "gumbel"
+                     memsamplemethod="gumbel",      # or "gumbel"
                      dropout=0.3,
                      memsampletemp=0.3)
 
-    data = np.random.randint(0, 100, (1000, 10))
-    m.train([data], data).cross_entropy().adadelta()\
+    data = np.random.randint(1, 100, (1000, 10))
+    m.train([data], data).cross_entropy().adadelta(lr=lr)\
         .train(epochs=epochs, numbats=10)
 
 
