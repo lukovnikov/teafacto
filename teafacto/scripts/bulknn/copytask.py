@@ -12,6 +12,7 @@ def runmem(epochs=100, lr=1.,
            vocsize=20,
            embdim=10,
            memdim=20,
+           dropout=0.3,
            ):
     inpvocsize = vocsize
     inpembdim = embdim
@@ -27,7 +28,7 @@ def runmem(epochs=100, lr=1.,
     m = SimpleMemNN(inpvocsize=inpvocsize, inpembdim=inpembdim,
                     maskid=maskid, posvecdim=posvecdim,
                     coredims=coredims, memdim=memdim, memlen=memlen,
-                    outdim=outdim, outvocsize=outvocsize)
+                    outdim=outdim, outvocsize=outvocsize, dropout=dropout)
 
 
     b = asblock(lambda x: m(x)[:, seqlen:-1])
