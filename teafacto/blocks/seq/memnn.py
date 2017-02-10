@@ -289,7 +289,8 @@ class SimpleMemNN(MemNN):
 
         # POSITION VECTORS
         if posvecdim is not None and mem_pos_repr is None:
-            mem_pos_repr = RNNWithoutInput(posvecdim, dropout=dropout)
+            #mem_pos_repr = RNNWithoutInput(posvecdim, dropout=dropout)
+            mem_pos_repr = MatParamGen(memlen, posvecdim)
 
         xtra_dim = posvecdim if posvecdim is not None else 0
         # CORE RNN - THE THINKER
@@ -517,6 +518,15 @@ class MatMulSlicer(Block):
     def apply(self, x):
         ret = T.dot(x, self.mat)
         return ret
+
+
+class MatParamGen(Block):
+    def __init__(self, a, b, **kw):
+        super(MatParamGen, self).__init__(**kw)
+        self.W = param((a, b)).glorotuniform()
+
+    def apply(self, x):
+        return self.W
 
 
 if __name__ == "__main__":

@@ -50,7 +50,7 @@ def runmem(epochs=100, lr=1.,
 
     origpreddata = np.random.randint(1, inpvocsize, (50, seqlen))
     preddata = origpreddata
-    preddata = np.concatenate([preddata, np.zeros((50, 1)).astype("int32"), preddata], axis=1)
+    preddata = np.concatenate([preddata, np.zeros((50, 1)).astype("int32"), gettargetdata(preddata)], axis=1)
 
     pred = b.predict(preddata)
     print np.argmax(pred, axis=2)
