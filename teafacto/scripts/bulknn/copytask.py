@@ -13,6 +13,7 @@ def runmem(epochs=100, lr=1.,
            embdim=10,
            memdim=20,
            dropout=0.3,
+           transmode=False,
            ):
     inpvocsize = vocsize
     inpembdim = embdim
@@ -25,13 +26,20 @@ def runmem(epochs=100, lr=1.,
     lastcoredim = outdim + memdim * 3 + posvecdim * 2 + 1 + 1
     coredims = [lastcoredim, lastcoredim]
 
-    m = SimpleMemNN(inpvocsize=inpvocsize, inpembdim=inpembdim,
-                    maskid=maskid, posvecdim=posvecdim,
-                    coredims=coredims, memdim=memdim, memlen=memlen,
-                    outdim=outdim, outvocsize=outvocsize, dropout=dropout)
+    if not transmode:
+        m = SimpleMemNN(inpvocsize=inpvocsize, inpembdim=inpembdim,
+                        maskid=maskid, posvecdim=posvecdim,
+                        coredims=coredims, memdim=memdim, memlen=memlen,
+                        outdim=outdim, outvocsize=outvocsize, dropout=dropout)
+        b = asblock(lambda x: m(x)[:, seqlen:-1])
+    else:
+        b = SimpleTransMemNN(inpvocsize=inpvocsize, inpembdim=inpembdim,
+                        maskid=maskid, posvecdim=posvecdim,
+                        coredims=coredims, memdim=memdim, memlen=memlen,
+                        outdim=outdim, outvocsize=outvocsize, outembdim=inpembdim,
+                        dropout=dropout)
 
 
-    b = asblock(lambda x: m(x)[:, seqlen:-1])
 
     origdata = np.random.randint(1, inpvocsize, (numsam, seqlen))
     data = origdata
@@ -46,18 +54,27 @@ def runmem(epochs=100, lr=1.,
         else:
             raise Exception("unrecognized mode")
 
-    data = np.concatenate([data, np.zeros((numsam, 1)).astype("int32"), gettargetdata(data)], axis=1)
+    if transmode:
+        inpdata = data
+        outdata = gettargetdata(data)
+        ioutdata = np.concatenate([
+            np.zeros((outdata.shape[0],))[:, np.newaxis].astype("int32"),
+            inpdata[:, :-1]], axis=1)
+        b.train([data, ioutdata], outdata).cross_entropy().adadelta(lr=lr) \
+            .split_validate(5).cross_entropy().seq_accuracy() \
+            .train(epochs=epochs, numbats=10)
+    else:
+        data = np.concatenate([data, np.zeros((numsam, 1)).astype("int32"), gettargetdata(data)], axis=1)
+        b.train([data], origdata).cross_entropy().adadelta(lr=lr)\
+            .split_validate(5).cross_entropy().seq_accuracy() \
+            .train(epochs=epochs, numbats=10)
 
-    b.train([data], origdata).cross_entropy().adadelta(lr=lr)\
-        .split_validate(5).cross_entropy().seq_accuracy() \
-        .train(epochs=epochs, numbats=10)
+        origpreddata = np.random.randint(1, inpvocsize, (25, seqlen))
+        preddata = origpreddata
+        preddata = np.concatenate([preddata, np.zeros((25, 1)).astype("int32"), gettargetdata(preddata)], axis=1)
 
-    origpreddata = np.random.randint(1, inpvocsize, (50, seqlen))
-    preddata = origpreddata
-    preddata = np.concatenate([preddata, np.zeros((50, 1)).astype("int32"), gettargetdata(preddata)], axis=1)
-
-    pred = b.predict(preddata)
-    print np.argmax(pred, axis=2)
+        pred = b.predict(preddata)
+        print np.argmax(pred, axis=2)
     embed()
 
 
