@@ -118,7 +118,10 @@ class MemNN(Block):
         mem_t = (1 - c_t) * mem_tm1 + c_t * can_mem_t  # interpolate between old and new value
 
         _y_t = self.outvec_extractor(h_t)
-        y_t = self.smo(_y_t)
+        if self.smo:
+            y_t = self.smo(_y_t)
+        else:
+            y_t = _y_t
         return (y_t, mem_t, h_t) + tuple(states_t)
 
     def _get_mem_ctx(self, h, mem):
@@ -380,7 +383,8 @@ class SimpleTransMemNN(TransMemNN):
                  mem_att_dist=mem_att_dist,
                  write_addr_dist=write_addr_dist,
                  memdim=memdim, memlen=memlen,
-                 outdim=outdim, outvocsize=inpvocsize, **kw)
+                 outdim=outdim, outvocsize=inpvocsize,
+                 smo=False, **kw)
         decmemnn = SimpleMemNN(inpvocsize=outvocsize, inpembdim=outembdim,
             inpemb=outemb, maskid=maskid, dropout=dropout, rnu=rnu,
                  posvecdim=posvecdim,

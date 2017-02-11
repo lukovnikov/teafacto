@@ -39,8 +39,6 @@ def runmem(epochs=100, lr=1.,
                         outdim=outdim, outvocsize=outvocsize, outembdim=inpembdim,
                         dropout=dropout)
 
-
-
     origdata = np.random.randint(1, inpvocsize, (numsam, seqlen))
     data = origdata
 
