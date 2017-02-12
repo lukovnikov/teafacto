@@ -2,6 +2,7 @@ import sys, gc, inspect
 from pympler import asizeof
 from datetime import datetime as dt
 from IPython import embed
+from collections import OrderedDict
 
 import numpy as np
 import theano
@@ -505,9 +506,14 @@ class ModelTrainer(object):
         metrics, newinp = self.buildlosses(outp, self.validators)
         inputs = newinp if newinp is not None else inps
         ret = None
+        updates = OrderedDict()
+        for metric in metrics:
+            if hasattr(metric, "allupdates"):
+                updates.update(metric.allupdates)
         if len(metrics) > 0:
             ret = theano.function(inputs=[x.d for x in inputs] + [self.goldvar],
                                   outputs=metrics,
+                                  updates=updates,
                                   mode=NanGuardMode(nan_is_error=True, inf_is_error=False, big_is_error=True)
                                   )
         else:
