@@ -510,7 +510,7 @@ class ModelTrainer(object):
             ret = theano.function(inputs=[x.d for x in inputs] + [self.goldvar],
                                   outputs=metrics,
                                   updates=outp.allupdates,
-                                  mode=NanGuardMode(nan_is_error=True, inf_is_error=False, big_is_error=True)
+                                  #mode=NanGuardMode(nan_is_error=True, inf_is_error=False, big_is_error=True)  # same issue as training
                                   )
         else:
             self.tt.msg("NO VALIDATION METRICS DEFINED, RETURNS NONE")
