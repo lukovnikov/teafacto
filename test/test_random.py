@@ -45,7 +45,7 @@ class RandomSequenceInside(Block):
 class DropoutSequence(Block):
     def __init__(self, **kw):
         super(DropoutSequence, self).__init__(**kw)
-        self.dropout = Dropout(0.5, _alwaysrandom=True)
+        self.dropout = Dropout(0.45, _alwaysrandom=True)
 
     def apply(self, x):
         out = T.scan(self.rec, sequences=x, outputs_info=[None])
@@ -95,6 +95,7 @@ class TestRandom(TestCase):
         m = DropoutSequence()
         d = np.ones((7, 10))
         pred = m.predict(d)
+        np.set_printoptions(suppress=True, precision=2)
         print pred
         for i in range(pred.shape[0]-1):
             self.assertTrue(not np.allclose(pred[i, :], pred[i+1, :]))

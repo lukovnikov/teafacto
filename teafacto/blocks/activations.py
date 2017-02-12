@@ -60,15 +60,15 @@ class GumbelSoftmax(Activation):
         self._debug = _alwaysrandom
         self._det_sm_temp = 1e6
         self._shape = shape
+        self.rval = RVal(self.seed)
 
     def innerapply(self, x, _trainmode=False):        # x is probabilities??
-        if True or _trainmode or self._debug:
-            rng = RVal(self.seed)
+        if _trainmode or self._debug:
             shap = self._shape if self._shape is not None else x.shape
-            g = rng.gumbel(shap)
+            g = self.rval.gumbel(shap)
             y = (T.log(x) + g) / self.temp
             ret = T.softmax(y, x.mask)
             ret.mask = x.mask
             return ret
         else:
-            return T.softmax(x, x.mask, temperature=self._det_sm_temp)
+            return T.softmax(T.log(x) / self.temp, mask=x.mask)

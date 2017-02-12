@@ -20,7 +20,8 @@ class MemNNTest(TestCase):
         m = SimpleMemNN(inpvocsize=inpvocsize, inpembdim=inpembdim,
                         maskid=maskid, posvecdim=posvecdim,
                         coredims=coredims, memdim=memdim, memlen=memlen,
-                        outdim=outdim, outvocsize=outvocsize, _debug=True)
+                        outdim=outdim, outvocsize=outvocsize,
+                        addr_sampler="gumbel", _debug=True)
         m._with_all_mems = True
 
         batsize = 3

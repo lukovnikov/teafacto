@@ -151,6 +151,7 @@ class Dropout(Block):
         self.rescale = rescale
         self.seed = seed
         self._debug = _alwaysrandom
+        self.rval = RVal(self.seed)
 
     def apply(self, x, _trainmode=False):
         if (_trainmode or self._debug) and self.p > 0:
@@ -158,8 +159,8 @@ class Dropout(Block):
             if self.rescale:
                 one = T.constant(1)
                 x /= one - self.p
-            rng = RVal(self.seed)
-            rv = rng.binomial(x.shape, p=1-self.p, dtype=x.dtype)
+            #rng = RVal(self.seed)
+            rv = self.rval.binomial(x.shape, p=1-self.p, dtype=x.dtype)
             x = x * rv
             #print "done dropout"
             x.mask = xmask
