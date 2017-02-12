@@ -62,7 +62,7 @@ class GumbelSoftmax(Activation):
         self._shape = shape
 
     def innerapply(self, x, _trainmode=False):        # x is probabilities??
-        if True or _trainmode or self._debug:
+        if _trainmode or self._debug:
             rng = RVal(self.seed)
             shap = self._shape if self._shape is not None else x.shape
             g = rng.gumbel(shap)
