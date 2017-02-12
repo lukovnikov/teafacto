@@ -43,14 +43,16 @@ def runmem(epochs=100, lr=1.,
                         coredims=coredims, memdim=memdim, memlen=memlen,
                         outdim=outdim, outvocsize=outvocsize,
                         dropout_h=dropout,
-                        rnn_pos_gen=rnnposgen, addr_sampler=addrsample)
+                        rnn_pos_gen=rnnposgen, addr_sampler=addrsample,
+                        addr_sample_temperature=0.2)
         b = asblock(lambda x: m(x)[:, seqlen:-1])
     else:
         b = SimpleTransMemNN(inpvocsize=inpvocsize, inpembdim=inpembdim,
                         maskid=maskid, posvecdim=posvecdim,
                         coredims=coredims, memdim=memdim, memlen=memlen,
                         outdim=outdim, outvocsize=outvocsize, outembdim=inpembdim,
-                        dropout_h=dropout, rnn_pos_gen=rnnposgen, addr_sampler=addrsample)
+                        dropout_h=dropout, rnn_pos_gen=rnnposgen,
+                        addr_sampler=addrsample, addr_sample_temperature=0.2)
 
     origdata = np.random.randint(1, inpvocsize, (numsam, seqlen))
     data = origdata
