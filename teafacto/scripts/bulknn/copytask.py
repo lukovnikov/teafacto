@@ -34,7 +34,8 @@ def runmem(epochs=100, lr=1.,
         m = SimpleMemNN(inpvocsize=inpvocsize, inpembdim=inpembdim,
                         maskid=maskid, posvecdim=posvecdim,
                         coredims=coredims, memdim=memdim, memlen=memlen,
-                        outdim=outdim, outvocsize=outvocsize, dropout_in=dropout,
+                        outdim=outdim, outvocsize=outvocsize,
+                        dropout_in=dropout,
                         rnn_pos_gen=rnnposgen, addr_sampler=addrsample)
         b = asblock(lambda x: m(x)[:, seqlen:-1])
     else:

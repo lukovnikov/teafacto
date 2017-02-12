@@ -319,7 +319,7 @@ from teafacto.util import issequence
 class SimpleMemNN(MemNN):
     def __init__(self, inpvocsize=None, inpembdim=None, inpemb=None,
                  maskid=None,
-                 dropout=None, dropout_in=None, dropout_h=None,
+                 dropout=False, dropout_in=False, dropout_h=False,
                  rnu=GRU,
                  posvecdim=None, rnn_pos_gen=False, mem_pos_repr=None,
                  addr_sampler=None, addr_sample_temperature=0.5,
@@ -349,14 +349,9 @@ class SimpleMemNN(MemNN):
         xtra_dim = posvecdim if posvecdim is not None else 0
 
         # CORE RNN - THE THINKER
-        if dropout is not None:
-            assert(dropout_h is None and dropout_in is None)
+        if dropout is not False:
+            assert(dropout_h is False and dropout_in is False)
             dropout_h, dropout_h = dropout, dropout
-        else:
-            if dropout_h is None and dropout_in is None:
-                dropout_h, dropout_in = False, False
-            else:
-                assert(dropout_h is not None and dropout_in is not None)
         if core is None:
             corelayers, _ = MakeRNU.fromdims([memdim + xtra_dim + inpembdim] + coredims,
                                              rnu=rnu, dropout_in=dropout_in, dropout_h=dropout_h,
@@ -392,7 +387,7 @@ class SimpleMemNN(MemNN):
 class SimpleTransMemNN(TransMemNN):
     def __init__(self, inpvocsize=None, inpembdim=None, inpemb=None,
                  outvocsize=None, outembdim=None, outemb=None,
-                 maskid=None, dropout_h=None, dropout_in=None, rnu=GRU,
+                 maskid=None, dropout_h=False, dropout_in=False, rnu=GRU,
                  posvecdim=None, rnn_pos_gen=False, addr_sampler=None,
                  coredims=None,
                  mem_att_dist=CosineDistance(),
