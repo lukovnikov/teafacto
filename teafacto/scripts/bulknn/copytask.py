@@ -12,8 +12,10 @@ def runmem(epochs=100, lr=1.,
            vocsize=20,
            embdim=10,
            memdim=20,
-           dropout=0.3,
+           dropout=0.1,
            transmode=False,
+           rnnposgen=False,
+           addrsample=False,
            ):
     inpvocsize = vocsize
     inpembdim = embdim
@@ -26,18 +28,21 @@ def runmem(epochs=100, lr=1.,
     lastcoredim = outdim + memdim * 3 + posvecdim * 2 + 1 + 1
     coredims = [lastcoredim, lastcoredim]
 
+    addrsample = "gumbel" if addrsample else None
+
     if not transmode:
         m = SimpleMemNN(inpvocsize=inpvocsize, inpembdim=inpembdim,
                         maskid=maskid, posvecdim=posvecdim,
                         coredims=coredims, memdim=memdim, memlen=memlen,
-                        outdim=outdim, outvocsize=outvocsize, dropout=dropout)
+                        outdim=outdim, outvocsize=outvocsize, dropout_in=dropout,
+                        rnn_pos_gen=rnnposgen, addr_sampler=addrsample)
         b = asblock(lambda x: m(x)[:, seqlen:-1])
     else:
         b = SimpleTransMemNN(inpvocsize=inpvocsize, inpembdim=inpembdim,
                         maskid=maskid, posvecdim=posvecdim,
                         coredims=coredims, memdim=memdim, memlen=memlen,
                         outdim=outdim, outvocsize=outvocsize, outembdim=inpembdim,
-                        dropout=dropout)
+                        dropout_in=dropout, rnn_pos_gen=rnnposgen, addr_sampler=addrsample)
 
     origdata = np.random.randint(1, inpvocsize, (numsam, seqlen))
     data = origdata

@@ -11,6 +11,7 @@ class MemNN(Block):
                 write_value_extractor=None, outvec_extractor=None,
                 mem_erase_generator=None, mem_change_generator=None,
                 inpemb=None, memdim=None, smo=None, _debug=False,
+                 addr_sampler=None,
                  **kw):
         super(MemNN, self).__init__(**kw)
         self._memlen = memlen
@@ -31,6 +32,7 @@ class MemNN(Block):
         self.memdim = memdim
         self.smo = smo
         self.outvec_extractor = outvec_extractor
+        self.addr_sampler = addr_sampler
 
         self._with_all_mems = False
         self._only_last_mem = False
@@ -130,7 +132,10 @@ class MemNN(Block):
 
     def _get_addr_weights(self, h, mem):
         crit = self._write_addr_extractor(h)
-        return self._write_addr_generator(crit, mem)
+        ret = self._write_addr_generator(crit, mem)
+        if self.addr_sampler is not None:
+            ret = self.addr_sampler(ret)
+        return ret
 
     def _get_write_weights(self, h):
         crit = self._write_value_extractor(h)
@@ -189,14 +194,15 @@ class BulkNN(MemNN):
         self._return_all_mems = False
         self._write_value_generator = write_value_generator
 
-    def apply(self, inpseq):    # int-(batsize, seqlen)
+    def apply(self, inpseq, mem_0=None):    # int-(batsize, seqlen)
         inpenco = self._inpencoder(inpseq)    # may carry mask, based on encoder's embedder
         batsize = inpenco.shape[0]
         outvocsize = self._memembmat.shape[0]
-        mem_0 = T.concatenate([
-            T.ones((batsize, self._memlen, 1), dtype="float32") * 0.95,
-            T.ones((batsize, self._memlen, outvocsize-1), dtype="float32") * 0.05,
-            ], axis=2)      # (batsize, outseqlen, outvocsize)
+        if mem_0 is None:
+            mem_0 = T.concatenate([
+                T.ones((batsize, self._memlen, 1), dtype="float32") * 0.95,
+                T.ones((batsize, self._memlen, outvocsize-1), dtype="float32") * 0.05,
+                ], axis=2)      # (batsize, outseqlen, outvocsize)
 
         # DEBUG
         #mem_0 = Val(np.random.random((1, self._memlen, outvocsize)))
@@ -312,8 +318,11 @@ from teafacto.util import issequence
 
 class SimpleMemNN(MemNN):
     def __init__(self, inpvocsize=None, inpembdim=None, inpemb=None,
-                 maskid=None, dropout=False, rnu=GRU,
-                 posvecdim=None, mem_pos_repr=None,
+                 maskid=None,
+                 dropout=None, dropout_in=None, dropout_h=None,
+                 rnu=GRU,
+                 posvecdim=None, rnn_pos_gen=False, mem_pos_repr=None,
+                 addr_sampler=None, addr_sample_temperature=0.5,
                  core=None, coredims=None,
                  mem_att_dist=CosineDistance(), mem_attention=None,
                     mem_addr_extractor=None,
@@ -329,14 +338,28 @@ class SimpleMemNN(MemNN):
 
         # POSITION VECTORS
         if posvecdim is not None and mem_pos_repr is None:
-            #mem_pos_repr = RNNWithoutInput(posvecdim, dropout=dropout)
-            mem_pos_repr = MatParamGen(memlen, posvecdim)
+            if rnn_pos_gen:
+                mem_pos_repr = RNNWithoutInput(posvecdim, dropout=dropout)
+            else:
+                mem_pos_repr = MatParamGen(memlen, posvecdim)
+
+        if addr_sampler == "gumbel":
+            addr_sampler = GumbelSoftmax(temperature=addr_sample_temperature)
 
         xtra_dim = posvecdim if posvecdim is not None else 0
+
         # CORE RNN - THE THINKER
+        if dropout is not None:
+            assert(dropout_h is None and dropout_in is None)
+            dropout_h, dropout_h = dropout, dropout
+        else:
+            if dropout_h is None and dropout_in is None:
+                dropout_h, dropout_in = False, False
+            else:
+                assert(dropout_h is not None and dropout_in is not None)
         if core is None:
             corelayers, _ = MakeRNU.fromdims([memdim + xtra_dim + inpembdim] + coredims,
-                                             rnu=rnu, dropout_in=dropout, dropout_h=dropout,
+                                             rnu=rnu, dropout_in=dropout_in, dropout_h=dropout_h,
                                              param_init_states=True)
             core = RecStack(*corelayers)
 
@@ -360,7 +383,7 @@ class SimpleMemNN(MemNN):
                 mem_pos_repr=mem_pos_repr, outvec_extractor=outvec_extractor,
                  mem_attention=mem_attention, mem_addr_extractor=mem_addr_extractor,
                 write_addr_extractor=write_addr_extractor, write_addr_generator=write_addr_generator,
-                write_value_extractor=write_value_extractor,
+                write_value_extractor=write_value_extractor, addr_sampler=addr_sampler,
                 mem_erase_generator=mem_erase_generator, mem_change_generator=mem_change_generator,
 
                 inpemb=inpemb, memdim=memdim, smo=smo, **kw)
@@ -369,29 +392,33 @@ class SimpleMemNN(MemNN):
 class SimpleTransMemNN(TransMemNN):
     def __init__(self, inpvocsize=None, inpembdim=None, inpemb=None,
                  outvocsize=None, outembdim=None, outemb=None,
-                 maskid=None, dropout=False, rnu=GRU,
-                 posvecdim=None,
+                 maskid=None, dropout_h=None, dropout_in=None, rnu=GRU,
+                 posvecdim=None, rnn_pos_gen=False, addr_sampler=None,
                  coredims=None,
                  mem_att_dist=CosineDistance(),
                  write_addr_dist=CosineDistance(),
                  memdim=None, memlen=None,
                  outdim=None, **kw):
         encmemnn = SimpleMemNN(inpvocsize=inpvocsize, inpembdim=inpembdim,
-            inpemb=inpemb, maskid=maskid, dropout=dropout, rnu=rnu,
-                 posvecdim=posvecdim,
+            inpemb=inpemb, maskid=maskid, dropout_in=dropout_in,
+            dropout_h=dropout_h, rnu=rnu,
+                 posvecdim=posvecdim, addr_sampler=addr_sampler,
                  coredims=coredims,
                  mem_att_dist=mem_att_dist,
                  write_addr_dist=write_addr_dist,
                  memdim=memdim, memlen=memlen,
                  outdim=outdim, outvocsize=inpvocsize,
+                 rnn_pos_gen=rnn_pos_gen,
                  smo=False, **kw)
         decmemnn = SimpleMemNN(inpvocsize=outvocsize, inpembdim=outembdim,
-            inpemb=outemb, maskid=maskid, dropout=dropout, rnu=rnu,
-                 posvecdim=posvecdim,
+            inpemb=outemb, maskid=maskid, dropout_h=dropout_h,
+            dropout_in=dropout_in, rnu=rnu,
+                 posvecdim=posvecdim, addr_sampler=addr_sampler,
                  coredims=coredims,
                  mem_att_dist=mem_att_dist,
                  write_addr_dist=write_addr_dist,
                  memdim=memdim, memlen=memlen,
+                 rnn_pos_gen=rnn_pos_gen,
                  outdim=outdim, outvocsize=outvocsize, **kw)
         super(SimpleTransMemNN, self).__init__(encmemnn, decmemnn)
 
@@ -403,7 +430,7 @@ class SimpleBulkNN(BulkNN):
                         dropout=False, rnu=GRU,
                  inpencoder=None,
                        memvocsize=None, memembdim=None, memembmat=None,
-                        memencinnerdim=None,
+                        memencinnerdim=None, memlen=None,
                  memencoder=None,
                        inp_att_dist=CosineDistance(), mem_att_dist=CosineDistance(),
                         inp_attention=None, mem_attention=None,
@@ -443,8 +470,10 @@ class SimpleBulkNN(BulkNN):
         # POSITION VECTORS
         if posvecdim is not None and inp_pos_repr is None:
             inp_pos_repr = RNNWithoutInput(posvecdim, dropout=dropout)
+            #inp_pos_repr = MatParamGen(memlen, posvecdim)
         if posvecdim is not None and mem_pos_repr is None:
             mem_pos_repr = RNNWithoutInput(posvecdim, dropout=dropout)
+            #mem_pos_repr = MatParamGen(memlen, posvecdim)
 
         xtra_dim = posvecdim if posvecdim is not None else 0
         # CORE RNN - THE THINKER
@@ -503,7 +532,7 @@ class SimpleBulkNN(BulkNN):
         super(SimpleBulkNN, self).__init__(inpencoder=inpencoder,
             memembmat=memembmat, memencoder=memencoder,
             inp_attention=inp_attention, mem_attention=mem_attention,
-            core=core, memsampler=memsampler, nsteps=nsteps,
+            core=core, memsampler=memsampler, nsteps=nsteps, memlen=memlen,
             inp_addr_extractor=inp_addr_extractor, mem_addr_extractor=mem_addr_extractor,
             write_addr_extractor=write_addr_extractor, write_addr_generator=write_addr_generator,
             mem_erase_generator=mem_erase_generator, mem_change_generator=mem_change_generator,

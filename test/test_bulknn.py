@@ -60,7 +60,6 @@ class MemNNTest(TestCase):
             self.assertTrue(np.allclose(mems[i+1][0], mem_t))
             print "."
 
-
     def memupdate_replication(self, e_t, c_t, mem_t_addr, mem_t_write, mem_tm1):
         can_mem_t = mem_tm1
         can_mem_t = can_mem_t \
