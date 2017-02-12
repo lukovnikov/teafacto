@@ -35,7 +35,7 @@ def runmem(epochs=100, lr=1.,
                         maskid=maskid, posvecdim=posvecdim,
                         coredims=coredims, memdim=memdim, memlen=memlen,
                         outdim=outdim, outvocsize=outvocsize,
-                        dropout_in=dropout,
+                        dropout_h=dropout,
                         rnn_pos_gen=rnnposgen, addr_sampler=addrsample)
         b = asblock(lambda x: m(x)[:, seqlen:-1])
     else:
@@ -43,7 +43,7 @@ def runmem(epochs=100, lr=1.,
                         maskid=maskid, posvecdim=posvecdim,
                         coredims=coredims, memdim=memdim, memlen=memlen,
                         outdim=outdim, outvocsize=outvocsize, outembdim=inpembdim,
-                        dropout_in=dropout, rnn_pos_gen=rnnposgen, addr_sampler=addrsample)
+                        dropout_h=dropout, rnn_pos_gen=rnnposgen, addr_sampler=addrsample)
 
     origdata = np.random.randint(1, inpvocsize, (numsam, seqlen))
     data = origdata
@@ -79,7 +79,7 @@ def runmem(epochs=100, lr=1.,
 
         pred = b.predict(preddata)
         print np.argmax(pred, axis=2)
-    embed()
+    #embed()
 
 
 
