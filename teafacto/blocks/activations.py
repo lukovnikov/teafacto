@@ -63,7 +63,7 @@ class GumbelSoftmax(Activation):
         self.rval = RVal(self.seed)
 
     def innerapply(self, x, _trainmode=False):        # x is probabilities??
-        if _trainmode or self._debug:
+        if True or _trainmode or self._debug:   # TODO pred still not working well
             shap = self._shape if self._shape is not None else x.shape
             g = self.rval.gumbel(shap)
             y = (T.log(x) + g) / self.temp
