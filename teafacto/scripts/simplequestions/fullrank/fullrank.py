@@ -862,7 +862,7 @@ def run(negsammode="closest",   # "close" or "random"
                     return probs
 
                 def rec(self, target, data):    # target: idx~(batsize, 2)
-                    score = self.transedblock(target, data)
+                    score = self.transedblock(data, target)
                     return score
 
             scorerMultiCeWrap = ScorerMultiCEWrap(scorer, transf)
