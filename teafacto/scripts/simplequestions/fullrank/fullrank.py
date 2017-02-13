@@ -848,12 +848,18 @@ def run(negsammode="closest",   # "close" or "random"
 
         if loss == "multice":  # normal softmax with fixed negatives
             class ScorerMultiCEWrap(Block):
-                def __init__(self, scorer, transf, **kw):
+                def __init__(self, scorer, subjmat, relmat, **kw):
                     super(ScorerMultiCEWrap, self).__init__(**kw)
-                    self.transedblock = TransWrapBlock(scorer, transf)
+                    self.scorer = scorer
+                    self.transf = PreProcMultiCE(subjmat, relmat)
+                    #self.transedblock = TransWrapBlock(scorer, transf)
 
                 def apply(self, data, targets): # targets: idx~(batsize, negrate+1, 2)
-                    scores, _ = T.scan(self.rec, sequences=targets.dimswap(1, 0),
+                    transedinps, _ = self.transf(data, targets)
+                    d, s, r = transedinps[0], transedinps[1], transedinps[2]
+                    s = s.dimswap(1, 0)
+                    r = r.dimswap(1, 0)
+                    scores, _ = T.scan(self.rec, sequences=[s, r],
                                      non_sequences=data,
                                      outputs_info=[None])
                     scores = scores.dimshuffle(1, 2, 0)   # (batsize, 2, negrate+1)
@@ -861,11 +867,11 @@ def run(negsammode="closest",   # "close" or "random"
                     #probs = subjsm * predsm         # (batsize, negrate+1)
                     return probs
 
-                def rec(self, target, data):    # target: idx~(batsize, 2)
-                    score = self.transedblock(data, target)
+                def rec(self, s, r, data):    # target: idx~(batsize, 2)
+                    score = self.scorer(data, s, r)
                     return score
 
-            scorerMultiCeWrap = ScorerMultiCEWrap(scorer, transf)
+            scorerMultiCeWrap = ScorerMultiCEWrap(scorer, subjmat, relmat)
 
             cegold = np.zeros((traindata.shape[0], 2)).astype("int32")
             tt.msg("doing multi CE")
