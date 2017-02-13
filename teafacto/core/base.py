@@ -169,6 +169,14 @@ class TensorWrapped(object):
             return v.dimshuffle(*dims)
         return OpBlock(tinner, name="dimswap")(self, a, b)
 
+    def dimmove(self, dim, index):
+        def tinner(v, val, idx):
+            dims = range(v.ndim)
+            del dims[val]
+            dims.insert(idx, val)
+            return v.dimshuffle(*dims)
+        return OpBlock(tinner, name="dimmove")(self, dim, index)
+
     def reverse(self, *axes):
         """ axis can be an *int* or a sequence of *int*s"""
         if len(axes) == 0:
