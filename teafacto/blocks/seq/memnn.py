@@ -5,7 +5,8 @@ import numpy as np
 
 class MemNN(Block):
     """ Basic key-value store """
-    def __init__(self, memlen=None, core=None, mem_pos_repr=None,
+    def __init__(self, memlen=None, core=None,
+                 mem_pos_repr=None, mem_pos_vecs=None,
                  mem_attention=None, mem_addr_extractor=None,
                 write_addr_extractor=None, write_addr_generator=None,
                 write_value_extractor=None, outvec_extractor=None,
@@ -16,7 +17,9 @@ class MemNN(Block):
         super(MemNN, self).__init__(**kw)
         self._memlen = memlen
         self._core = core
-        if mem_pos_repr is not None:
+        if mem_pos_vecs is not None:
+            self._memposvecs = mem_pos_vecs
+        elif mem_pos_repr is not None:
             self._memposvecs = mem_pos_repr(memlen)
         else:
             self._memposvecs = None
@@ -183,6 +186,7 @@ class BulkNN(MemNN):
     def __init__(self, inpencoder=None, memsampler=None,
                 memembmat=None, memencoder=None,
                 inp_pos_repr=None,
+                inp_pos_vecs=None,
                 inp_attention=None,
                 inp_addr_extractor=None,
                 inp_addr_sampler=None,
@@ -190,6 +194,7 @@ class BulkNN(MemNN):
                 nsteps=100, **kw):
         super(BulkNN, self).__init__(**kw)
         self._inp_pos_repr = inp_pos_repr
+        self._inp_pos_vecs = inp_pos_vecs
         self._nsteps = nsteps
         self._inpencoder = inpencoder
         self._inp_att = inp_attention
@@ -232,8 +237,13 @@ class BulkNN(MemNN):
                 if not h_0_isout:
                     h_0 = core_init_states[c]
                 c += 1
-        if self._inp_pos_repr is not None:
+        inpposvecs = None
+        if self._inp_pos_vecs is not None:
+            inpposvecs = self._inp_pos_vecs
+        elif self._inp_pos_repr is not None:
             inpposvecs = self._inp_pos_repr(inpseq.shape[1])
+
+        if inpposvecs is not None:
             inpposvecs = T.repeat(inpposvecs.dimadd(0), batsize, axis=0)
             inpenc = T.concatenate([inpenco, inpposvecs], axis=2)
             inpenc.mask = inpenco.mask
@@ -567,7 +577,7 @@ class SimpleBulkNN(BulkNN):
             write_addr_extractor=write_addr_extractor, write_addr_generator=write_addr_generator,
             mem_change_generator=mem_change_generator,
             write_value_generator=write_value_generator, write_value_extractor=write_value_extractor,
-            inp_pos_repr=inp_pos_repr, mem_pos_repr=mem_pos_repr,
+            inp_pos_vecs=inp_pos_repr, mem_pos_vecs=mem_pos_repr,
             inp_addr_sampler=inp_addr_sampler,
             mem_read_addr_sampler=read_addr_sampler,
             mem_write_addr_sampler=write_addr_sampler,
