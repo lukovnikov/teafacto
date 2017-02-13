@@ -13,7 +13,6 @@ def runmem(epochs=100, lr=1.,
            embdim=10,
            memdim=20,
            dropout=0.0,
-           transmode=False,
            rnnposgen=False,         # this works, but is slower
            addrsample=False,        # this is shit, validation loss stays very high
                                     # maybe because during prediction, is replaced
@@ -23,6 +22,7 @@ def runmem(epochs=100, lr=1.,
                                     # sampled Gumbel (or just use sampled during pred)
                                     # QUESTION: does training w. gumbel force
                                     # the network to produce sharper softmaxes?
+           model="memnn",   # or "bulknn" or "transmemnn"
            ):
     inpvocsize = vocsize
     inpembdim = embdim
@@ -37,7 +37,7 @@ def runmem(epochs=100, lr=1.,
 
     addrsample = "gumbel" if addrsample else None
 
-    if not transmode:
+    if model == "memnn":
         m = SimpleMemNN(inpvocsize=inpvocsize, inpembdim=inpembdim,
                         maskid=maskid, posvecdim=posvecdim,
                         coredims=coredims, memdim=memdim, memlen=memlen,
@@ -46,13 +46,37 @@ def runmem(epochs=100, lr=1.,
                         rnn_pos_gen=rnnposgen, addr_sampler=addrsample,
                         addr_sample_temperature=0.2)
         b = asblock(lambda x: m(x)[:, seqlen:-1])
-    else:
+    elif model == "transmemnn":
         b = SimpleTransMemNN(inpvocsize=inpvocsize, inpembdim=inpembdim,
                         maskid=maskid, posvecdim=posvecdim,
                         coredims=coredims, memdim=memdim, memlen=memlen,
                         outdim=outdim, outvocsize=outvocsize, outembdim=inpembdim,
                         dropout_h=dropout, rnn_pos_gen=rnnposgen,
                         addr_sampler=addrsample, addr_sample_temperature=0.2)
+    elif model == "bulknn":
+        memembdim = 22
+        inpdim = [30]
+        memdim = [30]
+        writedim = 19
+        lastcoredim = inpdim[-1] + memdim[-1] + memdim[-1] \
+                      + writedim + 1 + 1 + posvecdim * 3
+        coredims = [lastcoredim, lastcoredim]
+        b = SimpleBulkNN(inpvocsize=inpvocsize,
+                         inpembdim=inpembdim,
+                         inpencinnerdim=inpdim,
+                         memvocsize=outvocsize,
+                         memembdim=memembdim,
+                         memencinnerdim=memdim,
+                         memlen=memlen,
+                         coredims=coredims,
+                         explicit_interface=True,
+                         write_value_dim=writedim,
+                         posvecdim=posvecdim,
+                         nsteps=20,
+                         maskid=maskid,
+                         addr_sampler="gumbel",
+                         write_value_sampler="gumbel",
+                         )
 
     # TODO put and maintain BulkNN option here
 
@@ -69,7 +93,7 @@ def runmem(epochs=100, lr=1.,
         else:
             raise Exception("unrecognized mode")
 
-    if transmode:
+    if model == "transmemnn":
         inpdata = data
         outdata = gettargetdata(data)
         ioutdata = np.concatenate([
@@ -78,7 +102,7 @@ def runmem(epochs=100, lr=1.,
         b.train([data, ioutdata], outdata).cross_entropy().adadelta(lr=lr) \
             .split_validate(5).cross_entropy().seq_accuracy() \
             .train(epochs=epochs, numbats=10)
-    else:
+    elif model == "memnn":
         data = np.concatenate([data, np.zeros((numsam, 1)).astype("int32"), gettargetdata(data)], axis=1)
         b.train([data], origdata).cross_entropy().adadelta(lr=lr)\
             .split_validate(5).cross_entropy().seq_accuracy() \
@@ -90,6 +114,13 @@ def runmem(epochs=100, lr=1.,
 
         pred = b.predict(preddata)
         print np.argmax(pred, axis=2)
+    elif model == "bulknn":
+        inpdata = data
+        outdata = gettargetdata(data)
+        b.train([inpdata], outdata).cross_entropy().adadelta(lr=lr) \
+            .split_validate(5).cross_entropy().seq_accuracy() \
+            .train(epochs=epochs, numbats=10)
+
     #embed()
 
 
