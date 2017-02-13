@@ -134,9 +134,10 @@ class BulkNNTest(TestCase):
                          posvecdim=posvecdim,
                          nsteps=9,
                          maskid=maskid,
-                         memsamplemethod="gumbel",
                          dropout=0.3,
-                         memsampletemp=0.3)
+                         addr_sampler="gumbel",
+                         write_value_sampler="gumbel",
+                         )
 
         m._return_all_mems = True
 
@@ -147,7 +148,8 @@ class BulkNNTest(TestCase):
         mem_all = preds[1]
 
         for i in range(mem_all.shape[0]):
-            print np.argmax(mem_all[i], axis=2)
+            #print np.argmax(mem_all[i], axis=2)
+            pass
 
         print mem_last.shape
         print mem_all.shape
