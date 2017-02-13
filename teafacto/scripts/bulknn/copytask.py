@@ -14,14 +14,8 @@ def runmem(epochs=100, lr=1.,
            memdim=20,
            dropout=0.0,
            rnnposgen=False,         # this works, but is slower
-           addrsample=False,        # this is shit, validation loss stays very high
-                                    # maybe because during prediction, is replaced
-                                    # by normal unsharpened softmax
-                                    # TODO: need to make sure that GumbelSoftmax
-                                    # during prediction is as sharp as the
-                                    # sampled Gumbel (or just use sampled during pred)
-                                    # QUESTION: does training w. gumbel force
-                                    # the network to produce sharper softmaxes?
+           addrsample=False,
+           writesample=False,
            model="memnn",   # or "bulknn" or "transmemnn"
            ):
     inpvocsize = vocsize
@@ -36,6 +30,7 @@ def runmem(epochs=100, lr=1.,
     coredims = [lastcoredim, lastcoredim]
 
     addrsample = "gumbel" if addrsample else None
+    writesample = "gumbel" if writesample else None
 
     if model == "memnn":
         m = SimpleMemNN(inpvocsize=inpvocsize, inpembdim=inpembdim,
@@ -74,8 +69,8 @@ def runmem(epochs=100, lr=1.,
                          posvecdim=posvecdim,
                          nsteps=20,
                          maskid=maskid,
-                         addr_sampler="gumbel",
-                         write_value_sampler="gumbel",
+                         addr_sampler=addrsample,
+                         write_value_sampler=writesample,
                          )
 
     # TODO put and maintain BulkNN option here
