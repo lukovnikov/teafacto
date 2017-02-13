@@ -578,7 +578,8 @@ def run(negsammode="closest",   # "close" or "random"
         testnegsam=False,
         testmodel=False,        # just embed
         debugvalid=False,
-        loss="margin",          # or "ce"
+        loss="margin",          # or "ce" or "multice"
+        negrate=10,             # if loss is "multice"
         usefive=False,
         ):
 
@@ -604,8 +605,6 @@ def run(negsammode="closest",   # "close" or "random"
         subjsamplespace = loadsubjsamplespace()
     tt.tock("data loaded")
 
-    if checkdata:
-        embed()
 
     numwords = max(worddic.values()) + 1
     numsubjs = max(subjdic.values()) + 1
@@ -615,12 +614,21 @@ def run(negsammode="closest",   # "close" or "random"
 
     nsrelsperent = relsperent if negsammode == "closest" else None
 
-    if testnegsam:
-        nig = NegIdxGen(numsubjs - 1, numrels - 1,
-                        relclose=relsamplespace,
-                        subjclose=subjsamplespace,
-                        relsperent=nsrelsperent,
-                        usefive=usefive)
+    nig = NegIdxGen(numsubjs-1, numrels-1,
+                    relclose=relsamplespace,
+                    subjclose=subjsamplespace,
+                    relsperent=nsrelsperent,
+                    usefive=usefive)
+
+    # negative matrices for multi ce training with negrate
+    if loss == "multice":
+        traintargets = [traingold[np.newaxis, :, :]]
+        for i in range(negrate):
+            _, negatives = nig(traindata, traingold)
+            traintargets.append(negatives[np.newaxis, :, :])
+        traintargets = np.concatenate([traintargets], axis=0)
+
+    if testnegsam or checkdata:
         embed()
 
     if mode == "seq" or mode == "multi":
@@ -673,13 +681,13 @@ def run(negsammode="closest",   # "close" or "random"
     if usetypes:
         # encode subj type on word level
         subjtypemb = SimpleSeq2Vec(inpemb=wordemb,
-                                   innerdim=int(np.ceil(decdim*1./3)),
+                                   innerdim=int(np.ceil(decdim * 1./3)),
                                    maskid=maskid,
                                    bidir=bidir,
                                    layers=1)
         # encode subject on character level
         subjemb = SimpleSeq2Vec(inpemb=charemb,
-                                innerdim=int(np.floor(decdim*2./3)),
+                                innerdim=int(np.floor(decdim * 2./3)),
                                 maskid=maskid,
                                 bidir=bidir,
                                 layers=1)
@@ -811,6 +819,30 @@ def run(negsammode="closest",   # "close" or "random"
         return validate_acc
 
     savep = None
+    if loss == "multice":       # normal softmax with fixed negatives
+        tt.tick("training")
+        pathexists = True
+        while pathexists:
+            saveid = "".join([str(np.random.randint(0, 10)) for i in range(4)])
+            print("CHECKPOINTING AS: {}".format(saveid))
+            savep = "fullrank{}.model".format(saveid)
+            pathexists = os.path.isfile(savep)
+        extvalidf = get_validate_acc(savep)
+        nscorer = scorer.train([traindata, traingold]).transform(transf) \
+            .negsamplegen(nig) \
+            .objective(obj).adagrad(lr=lr).l2(wreg).grad_total_norm(gradnorm) \
+            .validate_on([validdata, validgold]).extvalid(extvalidf) \
+            .autosavethis(scorer, savep).writeresultstofile(savep+".progress.tsv") \
+            .takebest(lambda x: x[2], save=True, smallerbetter=False) \
+            .train(numbats=numbats, epochs=epochs, _skiptrain=debugvalid)
+        tt.tock("trained").tick()
+
+        # saving
+        #scorer.save("fullrank{}.model".format(saveid))
+        #embed()
+        print("SAVED AS: {}".format(saveid))
+
+
     if epochs > 0 and loadmodel == "no":
         tt.tick("training")
         pathexists = True
@@ -821,11 +853,7 @@ def run(negsammode="closest",   # "close" or "random"
             pathexists = os.path.isfile(savep)
         extvalidf = get_validate_acc(savep)
         nscorer = scorer.nstrain([traindata, traingold]).transform(transf) \
-            .negsamplegen(NegIdxGen(numsubjs-1, numrels-1,
-                                    relclose=relsamplespace,
-                                    subjclose=subjsamplespace,
-                                    relsperent=nsrelsperent,
-                                    usefive=usefive)) \
+            .negsamplegen(nig) \
             .objective(obj).adagrad(lr=lr).l2(wreg).grad_total_norm(gradnorm) \
             .validate_on([validdata, validgold]).extvalid(extvalidf) \
             .autosavethis(scorer, savep).writeresultstofile(savep+".progress.tsv") \
