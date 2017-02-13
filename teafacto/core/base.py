@@ -57,6 +57,26 @@ class TWrapper(type):
     def as_long_as(cls, expr):
         return until(cls.xor(expr, 1))     # xor?
 
+    def softmax(cls, x, mask=None, temperature=1.):     # masked, multidim softmax
+        xndim = x.ndim
+        s = x.shape
+        if xndim > 2:
+            x = x.dimmove(xndim - 1, 0).flatten(2).T
+            if mask is not None:
+                mask = mask.dimmove(xndim - 1, 0).flatten(2).T
+        x = x / temperature
+        if mask is None:
+            z = tensorops.nnet.softmax(x)
+        else:
+            o_exp = tensorops.exp(x - tensorops.max(x, axis=1).dimshuffle(0, 'x'))
+            o_exp *= mask
+            o_exp_sum = tensorops.sum(o_exp, axis=1)
+            o_exp_sum = o_exp_sum.dimshuffle(0, 'x')
+            z = o_exp / o_exp_sum
+        if xndim > 2:
+            z = z.reshape(s)
+        return z
+
 
 def wrapf(attr, root=None):
     if isfunction(attr): # real function

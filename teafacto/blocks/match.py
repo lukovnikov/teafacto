@@ -79,7 +79,7 @@ class SeqMatchScore(MatchScore):
         scores, _ = T.scan(self.rec, sequences=[l.dimswap(1, 0), r.dimswap(1, 0)])
         scores = scores.dimswap(1, 0)
         ret = self.agg(scores)
-        print ret.ndim
+        #print ret.ndim
         return ret
 
     def rec(self, left, right):

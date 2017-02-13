@@ -13,7 +13,7 @@ from teafacto.blocks.basic import VectorEmbed
 from teafacto.blocks.memory import MemVec
 from teafacto.blocks.match import SeqMatchScore, CosineDistance, DotDistance, GenDotDistance, MatchScore
 
-from teafacto.core.base import Block, tensorops as T, Val
+from teafacto.core.base import Block, tensorops as T, Val, TransWrapBlock
 
 
 def readdata(p="../../../../data/simplequestions/clean/datamat.word.fb2m.pkl",
@@ -623,11 +623,11 @@ def run(negsammode="closest",   # "close" or "random"
     # negative matrices for multi ce training with negrate
     if loss == "multice":
         tt.tick("generating neg matrix for multi CE")
-        traintargets = [traingold[np.newaxis, :, :]]
+        traintargets = [traingold[:, np.newaxis, :]]
         for i in range(negrate):
             _, negatives = nig(traindata, traingold)
-            traintargets.append(negatives[np.newaxis, :, :])
-        traintargets = np.concatenate([traintargets], axis=0)
+            traintargets.append(negatives[:, np.newaxis, :])
+        traintargets = np.concatenate(traintargets, axis=1)
         tt.tock("generated neg matrix")
 
     if testnegsam or checkdata:
@@ -726,6 +726,7 @@ def run(negsammode="closest",   # "close" or "random"
     scorer = SeqMatchScore(lb, rb, scorer=scoref,
                            aggregator=lambda x: x,
                            argproc=lambda x, y, z: ((x,), (y, z)))
+        # returns (batsize, 2) scores, one for subj and one for pred
 
     if loss == "margin":
         obj = lambda p, n: T.sum((n - p + margin).clip(0, np.infty), axis=1)
@@ -767,6 +768,17 @@ def run(negsammode="closest",   # "close" or "random"
 
         def __call__(self, x):
             return (self.entmat[x],), {}
+
+
+    class PreProcMultiCE(object):
+        def __init__(self, subjmat, relmat):
+            self.ef = PreProcEnt(subjmat)
+            self.rf = PreProcEnt(relmat)
+
+        def __call__(self, data, targets):  # targets: (batsize, negrate+1, 2)
+            st = self.ef(targets[:, :, 0])[0][0]
+            rt = self.rf(targets[:, :, 1])[0][0]
+            return (data, st, rt), {}
 
     transf = PreProc(subjmat, relmat)
 
@@ -821,29 +833,6 @@ def run(negsammode="closest",   # "close" or "random"
         return validate_acc
 
     savep = None
-    if loss == "multice":       # normal softmax with fixed negatives
-        tt.tick("training")
-        pathexists = True
-        while pathexists:
-            saveid = "".join([str(np.random.randint(0, 10)) for i in range(4)])
-            print("CHECKPOINTING AS: {}".format(saveid))
-            savep = "fullrank{}.model".format(saveid)
-            pathexists = os.path.isfile(savep)
-        extvalidf = get_validate_acc(savep)
-        nscorer = scorer.train([traindata, traingold]).transform(transf) \
-            .negsamplegen(nig) \
-            .objective(obj).adagrad(lr=lr).l2(wreg).grad_total_norm(gradnorm) \
-            .validate_on([validdata, validgold]).extvalid(extvalidf) \
-            .autosavethis(scorer, savep).writeresultstofile(savep+".progress.tsv") \
-            .takebest(lambda x: x[2], save=True, smallerbetter=False) \
-            .train(numbats=numbats, epochs=epochs, _skiptrain=debugvalid)
-        tt.tock("trained").tick()
-
-        # saving
-        #scorer.save("fullrank{}.model".format(saveid))
-        #embed()
-        print("SAVED AS: {}".format(saveid))
-
 
     if epochs > 0 and loadmodel == "no":
         tt.tick("training")
@@ -854,19 +843,52 @@ def run(negsammode="closest",   # "close" or "random"
             savep = "fullrank{}.model".format(saveid)
             pathexists = os.path.isfile(savep)
         extvalidf = get_validate_acc(savep)
-        nscorer = scorer.nstrain([traindata, traingold]).transform(transf) \
-            .negsamplegen(nig) \
-            .objective(obj).adagrad(lr=lr).l2(wreg).grad_total_norm(gradnorm) \
-            .validate_on([validdata, validgold]).extvalid(extvalidf) \
-            .autosavethis(scorer, savep).writeresultstofile(savep+".progress.tsv") \
-            .takebest(lambda x: x[2], save=True, smallerbetter=False) \
-            .train(numbats=numbats, epochs=epochs, _skiptrain=debugvalid)
-        tt.tock("trained").tick()
 
-        # saving
-        #scorer.save("fullrank{}.model".format(saveid))
-        #embed()
-        print("SAVED AS: {}".format(saveid))
+        if loss == "multice":  # normal softmax with fixed negatives
+            class ScorerMultiCEWrap(Block):
+                def __init__(self, scorer, transf, **kw):
+                    super(ScorerMultiCEWrap, self).__init__(**kw)
+                    self.transedblock = TransWrapBlock(scorer, transf)
+
+                def apply(self, data, targets): # targets: idx~(batsize, negrate+1, 2)
+                    scores = T.scan(self.rec, sequences=targets.dimswap(1, 0),
+                                     non_sequences=data,
+                                     outputs_info=[None])
+                    scores = scores.dimshuffle(1, 2, 0)   # (batsize, 2, negrate+1)
+                    probs = T.softmax(scores)        # (batsize, 2, negrate+1)
+                    #probs = subjsm * predsm         # (batsize, negrate+1)
+                    return probs
+
+                def rec(self, target, data):    # target: idx~(batsize, 2)
+                    score = self.transedblock(target, data)
+                    return score
+
+            scorerMultiCeWrap = ScorerMultiCEWrap(scorer, transf)
+
+            cegold = np.zeros((traindata.shape[0], 2)).astype("int32")
+            tt.msg("doing multi CE")
+            nscorer = scorerMultiCeWrap.train([traindata, traintargets], cegold) \
+                .seq_cross_entropy().adagrad(lr=lr).l2(wreg).grad_total_norm(gradnorm) \
+                .validate_on([validdata, validgold]).extvalid(extvalidf) \
+                .autosavethis(scorer, savep).writeresultstofile(savep + ".progress.tsv") \
+                .takebest(lambda x: x[2], save=True, smallerbetter=False) \
+                .train(numbats=numbats, epochs=epochs, _skiptrain=debugvalid)
+            tt.tock("trained").tick()
+            print("SAVED AS: {}".format(saveid))
+        else:
+            nscorer = scorer.nstrain([traindata, traingold]).transform(transf) \
+                .negsamplegen(nig) \
+                .objective(obj).adagrad(lr=lr).l2(wreg).grad_total_norm(gradnorm) \
+                .validate_on([validdata, validgold]).extvalid(extvalidf) \
+                .autosavethis(scorer, savep).writeresultstofile(savep+".progress.tsv") \
+                .takebest(lambda x: x[2], save=True, smallerbetter=False) \
+                .train(numbats=numbats, epochs=epochs, _skiptrain=debugvalid)
+            tt.tock("trained").tick()
+
+            # saving
+            #scorer.save("fullrank{}.model".format(saveid))
+            #embed()
+            print("SAVED AS: {}".format(saveid))
 
     # LOAD MODEL FOR EVAL
     loadp = savep
