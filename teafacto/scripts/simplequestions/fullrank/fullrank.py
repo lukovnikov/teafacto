@@ -853,7 +853,7 @@ def run(negsammode="closest",   # "close" or "random"
                     self.transedblock = TransWrapBlock(scorer, transf)
 
                 def apply(self, data, targets): # targets: idx~(batsize, negrate+1, 2)
-                    scores = T.scan(self.rec, sequences=targets.dimswap(1, 0),
+                    scores, _ = T.scan(self.rec, sequences=targets.dimswap(1, 0),
                                      non_sequences=data,
                                      outputs_info=[None])
                     scores = scores.dimshuffle(1, 2, 0)   # (batsize, 2, negrate+1)
