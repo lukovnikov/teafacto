@@ -54,6 +54,8 @@ def runmem(epochs=100, lr=1.,
                         dropout_h=dropout, rnn_pos_gen=rnnposgen,
                         addr_sampler=addrsample, addr_sample_temperature=0.2)
 
+    # TODO put and maintain BulkNN option here
+
     origdata = np.random.randint(1, inpvocsize, (numsam, seqlen))
     data = origdata
 
