@@ -52,25 +52,25 @@ def runmem(epochs=100, lr=1.,
         memembdim = 22
         inpdim = [30]
         memdim = [30]
-        writedim = 19
         lastcoredim = inpdim[-1] + memdim[-1] + memdim[-1] \
-                      + writedim + 1 + 1 + posvecdim * 3
+                      + outdim + 1 + 1 + posvecdim * 3
         coredims = [lastcoredim, lastcoredim]
         b = SimpleBulkNN(inpvocsize=inpvocsize,
                          inpembdim=inpembdim,
                          inpencinnerdim=inpdim,
-                         memvocsize=outvocsize,
+                         memvocsize=outvocsize+1,
                          memembdim=memembdim,
                          memencinnerdim=memdim,
                          memlen=memlen,
                          coredims=coredims,
                          explicit_interface=True,
-                         write_value_dim=writedim,
+                         write_value_dim=outdim,
                          posvecdim=posvecdim,
                          nsteps=20,
                          maskid=maskid,
                          addr_sampler=addrsample,
                          write_value_sampler=writesample,
+                         maxinplen=seqlen,
                          )
 
     # TODO put and maintain BulkNN option here

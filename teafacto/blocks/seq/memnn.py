@@ -281,7 +281,6 @@ class BulkNN(MemNN):
         # memory change interface
         mem_t_addr = self._get_addr_weights(h_t, mem_tm1_sum)  # float-(batsize, outseqlen)
         mem_t_write = self._get_write_weights(h_t)     # (batsize, memvocsize)
-        e_t = self._get_erase(h_t)      # TODO: erase is useless (remove?)
         c_t = self._get_change(h_t)     # (0..1)-(batsize,)
 
         c_t = c_t.dimshuffle(0, 'x', 'x')
@@ -451,12 +450,13 @@ class SimpleBulkNN(BulkNN):
                  core=None, explicit_interface=False, scalaraggdim=None,
                                         write_value_dim=None, nsteps=100,
                  posvecdim=None, mem_pos_repr=None, inp_pos_repr=None,
+                    maxinplen=None,
                      inp_addr_extractor=None, mem_addr_extractor=None,
                      write_addr_extractor=None, write_addr_generator=None,
                      write_addr_dist=CosineDistance(),
                      write_value_generator=None, write_value_extractor=None,
                      write_value_sampler=None, write_value_temperature=0.3,
-                     mem_erase_generator=None, mem_change_generator=None,
+                     mem_change_generator=None,
                  addr_sampler=None, addr_sample_temperature=0.3,
                  **kw):
 
@@ -484,11 +484,11 @@ class SimpleBulkNN(BulkNN):
         # POSITION VECTORS
         # TODO: use embedding vectors
         if posvecdim is not None and inp_pos_repr is None:
-            inp_pos_repr = RNNWithoutInput(posvecdim, dropout=dropout)
-            #inp_pos_repr = MatParamGen(memlen, posvecdim)
+            #inp_pos_repr = RNNWithoutInput(posvecdim, dropout=dropout)
+            inp_pos_repr = MatParamGen(maxinplen, posvecdim)
         if posvecdim is not None and mem_pos_repr is None:
-            mem_pos_repr = RNNWithoutInput(posvecdim, dropout=dropout)
-            #mem_pos_repr = MatParamGen(memlen, posvecdim)
+            #mem_pos_repr = RNNWithoutInput(posvecdim, dropout=dropout)
+            mem_pos_repr = MatParamGen(memlen, posvecdim)
 
         xtra_dim = posvecdim if posvecdim is not None else 0
         # CORE RNN - THE THINKER
@@ -545,16 +545,19 @@ class SimpleBulkNN(BulkNN):
             if write_value_extractor is None:
                 write_value_extractor = Forward(lastcoredim, write_value_dim, dropout=dropout)
 
-            # MEM UPDATE INTERFACE
-            if mem_erase_generator is None:
-                mem_erase_generator = StateToScalar(lastcoredim, scalaraggdim)
+            # MEM UPDATE INTERFACEScalar(lastcoredim, scalaraggdim)
             if mem_change_generator is None:
                 mem_change_generator = StateToScalar(lastcoredim, scalaraggdim)
         else:
-            inp_addr_extractor, mem_addr_extractor, write_addr_extractor, \
-            write_value_extractor, mem_erase_generator, mem_change_generator = \
+            c_inp_addr_extractor, c_mem_addr_extractor, c_write_addr_extractor, \
+            c_write_value_extractor, c_mem_change_generator = \
                 make_vector_slicers(lastcoredim, lastinpdim + xtra_dim, lastmemdim + xtra_dim,
-                                    lastmemdim + xtra_dim, write_value_dim, 1, 1)
+                                    lastmemdim + xtra_dim, write_value_dim, 1)
+            inp_addr_extractor = c_inp_addr_extractor if inp_addr_extractor is None else inp_addr_extractor
+            mem_addr_extractor = c_mem_addr_extractor if mem_addr_extractor is None else mem_addr_extractor
+            write_addr_extractor = c_write_addr_extractor if write_addr_extractor is None else write_addr_extractor
+            write_value_extractor = c_write_value_extractor if write_value_extractor is None else write_value_extractor
+            mem_change_generator = c_mem_change_generator if mem_change_generator is None else mem_change_generator
 
         super(SimpleBulkNN, self).__init__(inpencoder=inpencoder,
             memembmat=memembmat, memencoder=memencoder,
@@ -562,7 +565,7 @@ class SimpleBulkNN(BulkNN):
             core=core, nsteps=nsteps, memlen=memlen,
             inp_addr_extractor=inp_addr_extractor, mem_addr_extractor=mem_addr_extractor,
             write_addr_extractor=write_addr_extractor, write_addr_generator=write_addr_generator,
-            mem_erase_generator=mem_erase_generator, mem_change_generator=mem_change_generator,
+            mem_change_generator=mem_change_generator,
             write_value_generator=write_value_generator, write_value_extractor=write_value_extractor,
             inp_pos_repr=inp_pos_repr, mem_pos_repr=mem_pos_repr,
             inp_addr_sampler=inp_addr_sampler,

@@ -14,7 +14,7 @@ class MemNNTest(TestCase):
         outdim = 13
         outvocsize = 15
 
-        lastcoredim = outdim + memdim * 3 + posvecdim * 2 + 1 + 1
+        lastcoredim = outdim + memdim * 3 + posvecdim * 2 + 1
         coredims = [40, lastcoredim]
 
         m = SimpleMemNN(inpvocsize=inpvocsize, inpembdim=inpembdim,
@@ -120,6 +120,7 @@ class BulkNNTest(TestCase):
         seqlen = 11
 
         maskid = 0
+        maxinplen = seqlen
 
         m = SimpleBulkNN(inpvocsize=inpvocsize,
                          inpembdim=inpembdim,
@@ -137,6 +138,7 @@ class BulkNNTest(TestCase):
                          dropout=0.3,
                          addr_sampler="gumbel",
                          write_value_sampler="gumbel",
+                         maxinplen=maxinplen,
                          )
 
         m._return_all_mems = True
