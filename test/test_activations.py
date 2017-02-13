@@ -20,6 +20,14 @@ class TestSoftmax(TestCase):
         self.assertTrue(np.allclose(predsums, np.ones_like(predsums)))
         self.assertEqual(d.shape, pred.shape)
 
+    def test_softmax_5D(self):
+        b = Softmax()
+        d = np.random.random((7, 6, 5, 4, 3))
+        pred = b.predict(d)
+        predsums = np.sum(pred, axis=-1)
+        self.assertTrue(np.allclose(predsums, np.ones_like(predsums)))
+        self.assertEqual(d.shape, pred.shape)
+
     def test_softmax_normal_masked(self):
         b = Softmax()
         d = np.random.random((5, 3))
