@@ -153,3 +153,6 @@ class BulkNNTest(TestCase):
         print mem_all.shape
         self.assertEqual(mem_last.shape, (batsize, memlen, outvocsize))
         self.assertEqual(mem_all.shape, (9, batsize, memlen, outvocsize))
+        for i in range(mem_all.shape[0]):
+            memsum = np.sum(mem_all[i], axis=-1)
+            self.assertTrue(np.allclose(memsum, np.ones_like(memsum)))

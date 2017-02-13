@@ -11,7 +11,7 @@ class MemNN(Block):
                 write_value_extractor=None, outvec_extractor=None,
                 mem_erase_generator=None, mem_change_generator=None,
                 inpemb=None, memdim=None, smo=None, _debug=False,
-                 addr_sampler=None,
+                mem_read_addr_sampler=None, mem_write_addr_sampler=None,
                  **kw):
         super(MemNN, self).__init__(**kw)
         self._memlen = memlen
@@ -32,7 +32,9 @@ class MemNN(Block):
         self.memdim = memdim
         self.smo = smo
         self.outvec_extractor = outvec_extractor
-        self.addr_sampler = addr_sampler
+
+        self.mem_read_addr_sampler = mem_read_addr_sampler
+        self.mem_write_addr_sampler = mem_write_addr_sampler
 
         self._with_all_mems = False
         self._only_last_mem = False
@@ -128,13 +130,17 @@ class MemNN(Block):
 
     def _get_mem_ctx(self, h, mem):
         crit = self._mem_addr_extractor(h)
-        return self._mem_att(crit, mem)
+        attw = self._mem_att.attentiongenerator(crit, mem)
+        if self.mem_read_addr_sampler is not None:
+            attw = self.mem_read_addr_sampler(attw)
+        ret = self._mem_att.attentionconsumer(mem, attw)
+        return ret
 
     def _get_addr_weights(self, h, mem):
         crit = self._write_addr_extractor(h)
         ret = self._write_addr_generator(crit, mem)
-        if self.addr_sampler is not None:
-            ret = self.addr_sampler(ret)
+        if self.mem_write_addr_sampler is not None:
+            ret = self.mem_write_addr_sampler(ret)
         return ret
 
     def _get_write_weights(self, h):
@@ -179,7 +185,8 @@ class BulkNN(MemNN):
                 inp_pos_repr=None,
                 inp_attention=None,
                 inp_addr_extractor=None,
-                 write_value_generator=None,
+                inp_addr_sampler=None,
+                write_value_generator=None,
                 nsteps=100, **kw):
         super(BulkNN, self).__init__(**kw)
         self._inp_pos_repr = inp_pos_repr
@@ -194,6 +201,8 @@ class BulkNN(MemNN):
         self._return_all_mems = False
         self._write_value_generator = write_value_generator
 
+        self.inp_addr_sampler = inp_addr_sampler
+
     def apply(self, inpseq, mem_0=None):    # int-(batsize, seqlen)
         inpenco = self._inpencoder(inpseq)    # may carry mask, based on encoder's embedder
         batsize = inpenco.shape[0]
@@ -203,12 +212,12 @@ class BulkNN(MemNN):
                 T.ones((batsize, self._memlen, 1), dtype="float32") * 0.95,
                 T.ones((batsize, self._memlen, outvocsize-1), dtype="float32") * 0.05,
                 ], axis=2)      # (batsize, outseqlen, outvocsize)
-
-        # DEBUG
-        #mem_0 = Val(np.random.random((1, self._memlen, outvocsize)))
-        #mem_0 = T.repeat(mem_0, batsize, axis=0)
+            # RANDOM
+            #mem_0 = Val(np.random.random((1, self._memlen, outvocsize)))
+            #mem_0 = T.repeat(mem_0, batsize, axis=0)
 
         mem_0 = T.softmax(mem_0)
+
         core_init_states = self._core.get_init_info(batsize)
         core_state_spec = self._core.get_statespec(flat=False)
         assert(len(core_state_spec) == len(core_init_states))
@@ -248,9 +257,10 @@ class BulkNN(MemNN):
         # mem_tm1: f(batsize, outseqlen, outvocsize)
         # h_tm1:   f(batsize, thinkerdim)
         # inpenc:  f(batsize, inplen, inpencdim)
-
+        # INSTEAD OF SAMPLING A SWAMPY MEMORY, WE CAN WRITE SHARPLY
         # summarize memory
-        mem_tm1_sam = self._memsample(mem_tm1)               # sample from mem
+        mem_tm1_sam = mem_tm1
+        #mem_tm1_sam = self._memsample(mem_tm1)               # sample from mem
         mem_tm1_embsum = T.dot(mem_tm1_sam, self._memembmat)  # f(batsize, outseqlen, memembdim)
         mem_tm1_sum = self._memencode(mem_tm1_embsum)     # f(batsize, outseqlen, memsumdim)
 
@@ -271,18 +281,16 @@ class BulkNN(MemNN):
         # memory change interface
         mem_t_addr = self._get_addr_weights(h_t, mem_tm1_sum)  # float-(batsize, outseqlen)
         mem_t_write = self._get_write_weights(h_t)     # (batsize, memvocsize)
-        e_t = self._get_erase(h_t)      # (0..1)-(batsize,)
+        e_t = self._get_erase(h_t)      # TODO: erase is useless (remove?)
         c_t = self._get_change(h_t)     # (0..1)-(batsize,)
 
-        #e_t = T.zeros_like(e_t)     # DEBUG
+        c_t = c_t.dimshuffle(0, 'x', 'x')
+        toadd = c_t * T.batched_tensordot(mem_t_addr, mem_t_write, axes=0)  # write new value
+        mem_t_addr = mem_t_addr.dimshuffle(0, 1, 'x')
+        retained = mem_tm1 * (1 - (1 - c_t) * mem_t_addr)
+        mem_t = retained + toadd
 
-        # memory change
-        can_mem_t = mem_tm1
-        can_mem_t = can_mem_t - T.batched_dot(e_t, can_mem_t * mem_t_addr.dimshuffle(0, 1, 'x'))    # erase where we addressed
-        can_mem_t = can_mem_t + T.batched_tensordot(mem_t_addr, mem_t_write, axes=0)            # write new value
-        mem_t = T.batched_dot(1 - c_t, mem_tm1) + T.batched_dot(c_t, can_mem_t)                 # interpolate between old and new value
-
-        mem_t = T.softmax(mem_t)        # normalize to probabilities
+        mem_t = mem_t / T.sum(mem_t, axis=-1, keepdims=True)
         return (mem_t, mem_t, h_t) + tuple(states_t)
 
     def _memsample(self, mem):
@@ -299,7 +307,11 @@ class BulkNN(MemNN):
 
     def _get_inp_ctx(self, h, inpenc):
         crit = self._inp_addr_extractor(h)
-        return self._inp_att(crit, inpenc)
+        attw = self._inp_att.attentiongenerator(crit, inpenc)
+        if self.inp_addr_sampler is not None:
+            attw = self.inp_addr_sampler(attw)
+        ret = self._inp_att.attentionconsumer(inpenc, attw)
+        return ret
 
     def _get_write_weights(self, h):
         crit = self._write_value_extractor(h)
@@ -343,8 +355,10 @@ class SimpleMemNN(MemNN):
             else:
                 mem_pos_repr = MatParamGen(memlen, posvecdim)
 
+        read_addr_sampler, write_addr_sampler = None, None
         if addr_sampler == "gumbel":
-            addr_sampler = GumbelSoftmax(temperature=addr_sample_temperature)
+            read_addr_sampler = GumbelSoftmax(temperature=addr_sample_temperature)
+            write_addr_sampler = GumbelSoftmax(temperature=addr_sample_temperature)
 
         xtra_dim = posvecdim if posvecdim is not None else 0
 
@@ -378,7 +392,8 @@ class SimpleMemNN(MemNN):
                 mem_pos_repr=mem_pos_repr, outvec_extractor=outvec_extractor,
                  mem_attention=mem_attention, mem_addr_extractor=mem_addr_extractor,
                 write_addr_extractor=write_addr_extractor, write_addr_generator=write_addr_generator,
-                write_value_extractor=write_value_extractor, addr_sampler=addr_sampler,
+                write_value_extractor=write_value_extractor,
+                mem_read_addr_sampler=read_addr_sampler, mem_write_addr_sampler=write_addr_sampler,
                 mem_erase_generator=mem_erase_generator, mem_change_generator=mem_change_generator,
 
                 inpemb=inpemb, memdim=memdim, smo=smo, **kw)
@@ -440,8 +455,9 @@ class SimpleBulkNN(BulkNN):
                      write_addr_extractor=None, write_addr_generator=None,
                      write_addr_dist=CosineDistance(),
                      write_value_generator=None, write_value_extractor=None,
+                     write_value_sampler=None, write_value_temperature=0.3,
                      mem_erase_generator=None, mem_change_generator=None,
-                 memsampler=None, memsamplemethod=None, memsampletemp=0.3,
+                 addr_sampler=None, addr_sample_temperature=0.3,
                  **kw):
 
         # INPUT ENCODING
@@ -466,6 +482,7 @@ class SimpleBulkNN(BulkNN):
             lastmemdim = memencoder.block.layers[-1].innerdim
 
         # POSITION VECTORS
+        # TODO: use embedding vectors
         if posvecdim is not None and inp_pos_repr is None:
             inp_pos_repr = RNNWithoutInput(posvecdim, dropout=dropout)
             #inp_pos_repr = MatParamGen(memlen, posvecdim)
@@ -493,15 +510,27 @@ class SimpleBulkNN(BulkNN):
 
         # WRITE VALUE
         if write_value_generator is None:
-            write_value_generator = WriteValGenerator(write_value_dim, memvocsize, dropout=dropout)
+            write_value_generator = \
+                WriteValGenerator(write_value_dim, memvocsize,
+                                  dropout=dropout,
+                                  sampler=write_value_sampler,
+                                  sample_temperature=write_value_temperature)
 
+        # POSITION SAMPLERS
+        read_addr_sampler, write_addr_sampler, inp_addr_sampler = None, None, None
+        if addr_sampler == "gumbel":
+            read_addr_sampler = GumbelSoftmax(temperature=addr_sample_temperature)
+            write_addr_sampler = GumbelSoftmax(temperature=addr_sample_temperature)
+            inp_addr_sampler = GumbelSoftmax(temperature=addr_sample_temperature)
+
+        """
         # MEMORY SAMPLER
         if memsampler is not None:
             assert(memsamplemethod is None)
         if memsamplemethod is "gumbel":
             assert(memsampler is None)
             memsampler = GumbelSoftmax(temperature=memsampletemp)
-
+        """
         ################ STATE INTERFACES #################
 
         if not explicit_interface:
@@ -530,17 +559,21 @@ class SimpleBulkNN(BulkNN):
         super(SimpleBulkNN, self).__init__(inpencoder=inpencoder,
             memembmat=memembmat, memencoder=memencoder,
             inp_attention=inp_attention, mem_attention=mem_attention,
-            core=core, memsampler=memsampler, nsteps=nsteps, memlen=memlen,
+            core=core, nsteps=nsteps, memlen=memlen,
             inp_addr_extractor=inp_addr_extractor, mem_addr_extractor=mem_addr_extractor,
             write_addr_extractor=write_addr_extractor, write_addr_generator=write_addr_generator,
             mem_erase_generator=mem_erase_generator, mem_change_generator=mem_change_generator,
             write_value_generator=write_value_generator, write_value_extractor=write_value_extractor,
             inp_pos_repr=inp_pos_repr, mem_pos_repr=mem_pos_repr,
+            inp_addr_sampler=inp_addr_sampler,
+            mem_read_addr_sampler=read_addr_sampler,
+            mem_write_addr_sampler=write_addr_sampler,
             **kw)
 
 
 class WriteValGenerator(Block):
-    def __init__(self, dim, vocsize, interdims=tuple(), dropout=False, **kw):
+    def __init__(self, dim, vocsize, interdims=tuple(), dropout=False,
+                 sampler=None, sample_temperature=0.3, **kw):
         super(WriteValGenerator, self).__init__(**kw)
         self.dims = (dim,) + interdims
         self.vocsize = vocsize
@@ -549,12 +582,18 @@ class WriteValGenerator(Block):
         for i in range(len(self.dims)-1):
             layer = Forward(self.dims[i], self.dims[i+1], dropout=dropout)
             self.layers.append(layer)
-        self.smo = SMO(self.dims[-1], outdim=self.vocsize)
+        self.smolin = Linear(self.dims[-1], self.vocsize, dropout=dropout)
+        self.sampler = None
+        if sampler is "gumbel":
+            self.sampler = GumbelSoftmax(temperature=sample_temperature)
 
     def apply(self, x):
         for layer in self.layers:
             x = layer(x)
-        ret = self.smo(x)
+        ret = self.smolin(x)
+        ret = T.softmax(ret)
+        if self.sampler is not None:
+            ret = self.sampler(ret)
         return ret
 
 
