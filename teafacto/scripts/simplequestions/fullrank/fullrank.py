@@ -500,7 +500,7 @@ class NegIdxGen(object):
             relrand = self.samplereluberclose(gold[:, 1], gold[:, 0], negrate=nrate)
         else:
             relrand = self.sample(gold[:, 1], self.relclose, self.maxrelid, negrate=nrate)
-        ret = np.concatenate([subjrand, relrand], axis=1)
+        ret = np.concatenate([subjrand, relrand], axis=-1)
         # embed()
         # TODO NEGATIVE SAMPLING OF RELATIONS FROM GOLD ENTITY'S RELATIONS
         return datas, ret.astype("int32")
@@ -546,7 +546,7 @@ class NegIdxGen(object):
                                 ))
             sampleset = uberclosesampleset.union(closesampleset).union(randomsampleset).difference({relgold[i]})
             ret[i, :] = random.sample(sampleset, negrate)
-        return ret
+        return ret[:, :, np.newaxis]
 
     def sample(self, gold, closeset, maxid, negrate=1):
         if negrate > 1:
@@ -576,7 +576,7 @@ class NegIdxGen(object):
             randomset = set(random.sample(xrange(maxid), max(0, negrate - len(sampleset) + 1)))
             sampleset = sampleset.union(randomset).difference({gold[i]})
             ret[i, :] = random.sample(sampleset, negrate)
-        return ret
+        return ret[:, :, np.newaxis]
 
 # python fullrank.py -numtestcans 400 -loadmodel ? -multiprune ?(1) -mode ?
 # margin is still default (0.5), no need to specify
@@ -655,11 +655,9 @@ def run(negsammode="closest",   # "close" or "random"
     # negative matrices for multi ce training with negrate
     if loss == "multice":
         tt.tick("generating neg matrix for multi CE")
-        traintargets = [traingold[:, np.newaxis, :]]
-        for i in range(negrate):
-            _, negatives = nig(traindata, traingold)
-            traintargets.append(negatives[:, np.newaxis, :])
-        traintargets = np.concatenate(traintargets, axis=1)
+        negatives = nig(traindata, traingold, negrate=negrate)  # (batsize, negrate, 2)
+        traintargets = np.concatenate([traingold[:, np.newaxis, :],
+                                       negatives], axis=1)
         tt.tock("generated neg matrix")
 
     if testnegsam or checkdata:
