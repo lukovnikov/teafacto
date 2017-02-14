@@ -621,7 +621,7 @@ def run(negsammode="closest",   # "close" or "random"
                     usefive=usefive)
 
     # negative matrices for multi ce training with negrate
-    if loss == "multice":   # TODO ensure no doubles
+    if loss == "multice":
         tt.tick("generating neg matrix for multi CE")
         traintargets = [traingold[:, np.newaxis, :]]
         for i in range(negrate):
