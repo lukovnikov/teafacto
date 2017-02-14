@@ -534,17 +534,13 @@ class NegIdxGen(object):
         ret = np.zeros((relgold.shape[0], negrate), dtype="int32")
         for i in range(relgold.shape[0]):
             uberclosesampleset = self.relsperent[entgold[i]] if entgold[i] in self.relsperent else set()
-            placesleft = max(0, negrate - len(uberclosesampleset))
             closesampleset = self.relclose[relgold[i]] if relgold[i] in self.relclose else set()
-            closesampleset = set(random.sample(closesampleset,
-                                    min(len(closesampleset), round(1.5 * placesleft))))
-            placesleft -= len(closesampleset)
-            randomsampleset = set(random.sample(xrange(self.maxrelid + 1),
-                                    max(placesleft,
-                                        round((len(uberclosesampleset) + len(closesampleset)) / 3)
-                                    )
-                                ))
-            sampleset = uberclosesampleset.union(closesampleset).union(randomsampleset).difference({relgold[i]})
+            randomsampleset = set(random.sample(xrange(self.maxrelid + 1), negrate))
+            numsam = negrate - len(uberclosesampleset) + 1 if len(uberclosesampleset) < negrate \
+                                                           else round(len(uberclosesampleset) / 2.)
+            sampleset = set(random.sample(closesampleset.union(randomsampleset), numsam))
+            sampleset = set(random.sample(uberclosesampleset.union(sampleset).difference({relgold[i]}),
+                                          negrate))
             ret[i, :] = random.sample(sampleset, negrate)
         return ret[:, :, np.newaxis]
 
