@@ -568,7 +568,7 @@ class NegIdxGen(object):
     def sample_multi(self, gold, closeset, maxid, negrate):
         ret = np.zeros((gold.shape[0], negrate), dtype="int32")
         for i in range(gold.shape[0]):
-            sampleset = closeset[gold[i]] if gold[i] in closeset else []
+            sampleset = closeset[gold[i]] if gold[i] in closeset else set()
             randomset = set(random.sample(xrange(maxid), max(0, negrate - len(sampleset) + 1)))
             sampleset = set(sampleset.union(randomset).difference({gold[i]}))
             ret[i, :] = random.sample(sampleset, negrate)
