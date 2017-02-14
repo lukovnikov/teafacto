@@ -402,7 +402,8 @@ class ModelTrainer(object):
         else:
             extravalid = self.external_validators
             def validfun(*sampleinps):
-                ret = symbolic_validfun(*sampleinps)
+                if symbolic_validfun is not None:
+                    ret = symbolic_validfun(*sampleinps)
                 for ev in extravalid:
                     a = ev(*sampleinps)
                     if not issequence(a):
