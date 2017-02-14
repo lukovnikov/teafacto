@@ -620,6 +620,13 @@ def run(closenegsam=False,
                 ret = np.expand_dims(ret, axis=1)
                 return ret.astype("int32")
 
+    nig = NegIdxGen(numsubjs-1, numrels-1,
+                    relclose=relsamplespace,
+                    subjclose=subjsamplespace)
+
+    if checkdata:
+        embed()
+
     class PreProc(object):
         def __init__(self, subjmat, relmat):
             self.ef = PreProcEnt(subjmat)
@@ -658,9 +665,7 @@ def run(closenegsam=False,
         savep = "fullrank{}.model".format(saveid)
         scorer.save(savep)
         nscorer = scorer.nstrain([traindata, traingold]).transform(transf)\
-            .negsamplegen(NegIdxGen(numsubjs-1, numrels-1,
-                                    relclose=relsamplespace,
-                                    subjclose=subjsamplespace)) \
+            .negsamplegen(nig) \
             .autosavethis(scorer, savep) \
             .objective(obj).adagrad(lr=lr).l2(wreg).grad_total_norm(gradnorm)\
             .validate_on([validdata, validgold])\
