@@ -495,10 +495,10 @@ class SimpleBulkNN(BulkNN):
         # TODO: use embedding vectors
         if posvecdim is not None and inp_pos_repr is None:
             #inp_pos_repr = RNNWithoutInput(posvecdim, dropout=dropout)
-            inp_pos_repr = MatParamGen(maxinplen, posvecdim)
+            inp_pos_vecs = MatParamGen(maxinplen, posvecdim).W
         if posvecdim is not None and mem_pos_repr is None:
             #mem_pos_repr = RNNWithoutInput(posvecdim, dropout=dropout)
-            mem_pos_repr = MatParamGen(memlen, posvecdim)
+            mem_pos_vecs = MatParamGen(memlen, posvecdim).W
 
         xtra_dim = posvecdim if posvecdim is not None else 0
         # CORE RNN - THE THINKER
@@ -577,7 +577,7 @@ class SimpleBulkNN(BulkNN):
             write_addr_extractor=write_addr_extractor, write_addr_generator=write_addr_generator,
             mem_change_generator=mem_change_generator,
             write_value_generator=write_value_generator, write_value_extractor=write_value_extractor,
-            inp_pos_vecs=inp_pos_repr, mem_pos_vecs=mem_pos_repr,
+            inp_pos_vecs=inp_pos_vecs, mem_pos_vecs=mem_pos_vecs,
             inp_addr_sampler=inp_addr_sampler,
             mem_read_addr_sampler=read_addr_sampler,
             mem_write_addr_sampler=write_addr_sampler,
