@@ -877,7 +877,7 @@ def run(negsammode="closest",   # "close" or "random"
             tt.msg("doing multi CE")
             nscorer = scorerMultiCeWrap.train([traindata, traintargets], cegold) \
                 .seq_cross_entropy().adagrad(lr=lr).l2(wreg).grad_total_norm(gradnorm) \
-                .validate_on([validdata, validgold]).extvalid(extvalidf) \
+                .validate_on([validdata, validgold], np.ones_like(validgold)).extvalid(extvalidf) \
                 .autosavethis(scorer, savep).writeresultstofile(savep + ".progress.tsv") \
                 .takebest(lambda x: x[2], save=True, smallerbetter=False) \
                 .train(numbats=numbats, epochs=epochs, _skiptrain=debugvalid)
