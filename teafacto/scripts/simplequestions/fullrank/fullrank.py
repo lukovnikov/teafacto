@@ -654,18 +654,20 @@ def run(closenegsam=False,
 
     if epochs > 0 and loadmodel < 0:
         tt.tick("training")
+        saveid = "".join([str(np.random.randint(0, 10)) for i in range(4)])
+        savep = "fullrank{}.model".format(saveid)
+        scorer.save(savep)
         nscorer = scorer.nstrain([traindata, traingold]).transform(transf)\
             .negsamplegen(NegIdxGen(numsubjs-1, numrels-1,
                                     relclose=relsamplespace,
                                     subjclose=subjsamplespace)) \
+            .autosavethis(scorer, savep) \
             .objective(obj).adagrad(lr=lr).l2(wreg).grad_total_norm(gradnorm)\
             .validate_on([validdata, validgold])\
             .train(numbats=numbats, epochs=epochs)
         tt.tock("trained").tick()
 
         # saving
-        saveid = "".join([str(np.random.randint(0, 10)) for i in range(4)])
-        scorer.save("fullrank{}.model".format(saveid))
         tt.tock("saved: {}".format(saveid))
 
     if loadmodel > -1:
