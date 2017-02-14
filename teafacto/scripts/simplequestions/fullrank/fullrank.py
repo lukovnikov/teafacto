@@ -493,18 +493,21 @@ class NegIdxGen(object):
         self.usefive = usefive
         print "use five: {}".format(self.usefive)
 
-    def __call__(self, datas, gold):
-        subjrand = self.sample(gold[:, 0], self.subjclose, self.maxentid)
+    def __call__(self, datas, gold, negrate=0):
+        nrate = 1 if negrate < 1 else negrate
+        subjrand = self.sample(gold[:, 0], self.subjclose, self.maxentid, negrate=nrate)
         if self.relsperent is not None:     # sample uber-close
-            relrand = self.samplereluberclose(gold[:, 1], gold[:, 0])
+            relrand = self.samplereluberclose(gold[:, 1], gold[:, 0], negrate=nrate)
         else:
-            relrand = self.sample(gold[:, 1], self.relclose, self.maxrelid)
+            relrand = self.sample(gold[:, 1], self.relclose, self.maxrelid, negrate=nrate)
         ret = np.concatenate([subjrand, relrand], axis=1)
         # embed()
         # TODO NEGATIVE SAMPLING OF RELATIONS FROM GOLD ENTITY'S RELATIONS
         return datas, ret.astype("int32")
 
-    def samplereluberclose(self, relgold, entgold):
+    def samplereluberclose(self, relgold, entgold, negrate=1):
+        if negrate > 1:
+            return self.samplereluberclose_multi(relgold, entgold, negrate)
         ret = np.zeros_like(relgold, dtype="int32")
         for i in range(relgold.shape[0]):
             uberclosesampleset = (self.relsperent[entgold[i]] if entgold[i] in self.relsperent else set())\
@@ -527,7 +530,27 @@ class NegIdxGen(object):
         ret = np.expand_dims(ret, axis=1)
         return ret
 
-    def sample(self, gold, closeset, maxid):
+    def samplereluberclose_multi(self, relgold, entgold, negrate):
+        ret = np.zeros((relgold.shape[0], negrate), dtype="int32")
+        for i in range(relgold.shape[0]):
+            uberclosesampleset = self.relsperent[entgold[i]] if entgold[i] in self.relsperent else set()
+            placesleft = max(0, negrate - len(uberclosesampleset))
+            closesampleset = self.relclose[relgold[i]] if relgold[i] in self.relclose else set()
+            closesampleset = set(random.sample(closesampleset,
+                                    min(len(closesampleset), round(1.5 * placesleft))))
+            placesleft -= len(closesampleset)
+            randomsampleset = set(random.sample(xrange(self.maxrelid + 1),
+                                    max(placesleft,
+                                        round((len(uberclosesampleset) + len(closesampleset)) / 3)
+                                    )
+                                ))
+            sampleset = uberclosesampleset.union(closesampleset).union(randomsampleset).difference({relgold[i]})
+            ret[i, :] = random.sample(sampleset, negrate)
+        return ret
+
+    def sample(self, gold, closeset, maxid, negrate=1):
+        if negrate > 1:
+            return self.sample_multi(gold, closeset, maxid, negrate)
         # assert(gold.ndim == 2 and gold.shape[1] == 1)
         if closeset is None:
             return np.random.randint(0, maxid + 1, (gold.shape[0], 1))
@@ -545,6 +568,15 @@ class NegIdxGen(object):
                     ret[i] = np.random.randint(0, maxid + 1)
             ret = np.expand_dims(ret, axis=1)
             return ret.astype("int32")
+
+    def sample_multi(self, gold, closeset, maxid, negrate):
+        ret = np.zeros((gold.shape[0], negrate), dtype="int32")
+        for i in range(gold.shape[0]):
+            sampleset = closeset[gold[i]] if gold[i] in closeset else []
+            randomset = set(random.sample(xrange(maxid), max(0, negrate - len(sampleset) + 1)))
+            sampleset = sampleset.union(randomset).difference({gold[i]})
+            ret[i, :] = random.sample(sampleset, negrate)
+        return ret
 
 # python fullrank.py -numtestcans 400 -loadmodel ? -multiprune ?(1) -mode ?
 # margin is still default (0.5), no need to specify
