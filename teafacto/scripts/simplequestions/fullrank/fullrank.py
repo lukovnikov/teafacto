@@ -478,6 +478,7 @@ def run(closenegsam=False,
         numtestcans=5,
         multiprune=-1,
         multivec=False,
+        checkloaded=False,
         ):
     tt = ticktock("script")
     tt.tick("loading data")
@@ -675,6 +676,8 @@ def run(closenegsam=False,
         subjemb = m.r.subjenc
         predemb = m.r.predenc
         tt.tock("loaded model")
+        if checkloaded:
+            embed()
 
     # evaluation
     predictor = CustomPredictor(questionencoder=question_encoder,
