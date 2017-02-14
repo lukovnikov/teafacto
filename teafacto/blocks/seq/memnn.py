@@ -492,13 +492,12 @@ class SimpleBulkNN(BulkNN):
             lastmemdim = memencoder.block.layers[-1].innerdim
 
         # POSITION VECTORS
-        # TODO: use embedding vectors
         if posvecdim is not None and inp_pos_repr is None:
-            #inp_pos_repr = RNNWithoutInput(posvecdim, dropout=dropout)
-            inp_pos_vecs = MatParamGen(maxinplen, posvecdim).W
+            # inp_pos_repr = RNNWithoutInput(posvecdim, dropout=dropout)
+            inp_pos_vecs = param((maxinplen, posvecdim)).glorotuniform()
         if posvecdim is not None and mem_pos_repr is None:
-            #mem_pos_repr = RNNWithoutInput(posvecdim, dropout=dropout)
-            mem_pos_vecs = MatParamGen(memlen, posvecdim).W
+            # mem_pos_repr = RNNWithoutInput(posvecdim, dropout=dropout)
+            mem_pos_vecs = param((memlen, posvecdim)).glorotuniform()
 
         xtra_dim = posvecdim if posvecdim is not None else 0
         # CORE RNN - THE THINKER
