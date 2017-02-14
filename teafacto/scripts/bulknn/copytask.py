@@ -55,6 +55,9 @@ def runmem(epochs=100, lr=1.,
         lastcoredim = inpdim[-1] + memdim[-1] + memdim[-1] \
                       + outdim + 1 + 1 + posvecdim * 3
         coredims = [lastcoredim, lastcoredim]
+
+        memlen = seqlen
+
         b = SimpleBulkNN(inpvocsize=inpvocsize,
                          inpembdim=inpembdim,
                          inpencinnerdim=inpdim,

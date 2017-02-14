@@ -494,10 +494,10 @@ class SimpleBulkNN(BulkNN):
         # POSITION VECTORS
         if posvecdim is not None and inp_pos_repr is None:
             # inp_pos_repr = RNNWithoutInput(posvecdim, dropout=dropout)
-            inp_pos_vecs = param((maxinplen, posvecdim)).glorotuniform()
+            inp_pos_vecs = param((maxinplen, posvecdim), name="inp_posvecs").glorotuniform()
         if posvecdim is not None and mem_pos_repr is None:
             # mem_pos_repr = RNNWithoutInput(posvecdim, dropout=dropout)
-            mem_pos_vecs = param((memlen, posvecdim)).glorotuniform()
+            mem_pos_vecs = param((memlen, posvecdim), name="mem_posvecs").glorotuniform()
 
         xtra_dim = posvecdim if posvecdim is not None else 0
         # CORE RNN - THE THINKER
