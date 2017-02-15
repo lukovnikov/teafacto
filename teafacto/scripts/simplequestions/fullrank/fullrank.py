@@ -945,7 +945,9 @@ def run(negsammode="closest",   # "close" or "random"
 
     tt.tick("loading model")
     m = SeqMatchScore.load(loadp)
-    #embed()
+
+    if inspectloadedmodel:
+        embed()
     question_encoder = m.l.inner
     subjemb = m.r.subjenc
     predemb = m.r.predenc
