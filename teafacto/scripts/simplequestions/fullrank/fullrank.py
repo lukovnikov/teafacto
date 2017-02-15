@@ -662,8 +662,7 @@ def run(negsammode="closest",   # "close" or "random"
     # negative matrices for multi ce training with negrate
     if loss == "multice":
         tt.tick("generating neg matrix for multi CE")
-        negatives = nig(traindata, traingold, negrate=negrate)  # (batsize, negrate, 2)
-        embed()
+        _, negatives = nig(traindata, traingold, negrate=negrate)  # (batsize, negrate, 2)
         traintargets = np.concatenate([traingold[:, np.newaxis, :],
                                        negatives], axis=1)
         tt.tock("generated neg matrix")
