@@ -620,6 +620,7 @@ def run(negsammode="closest",   # "close" or "random"
         loss="margin",          # or "ce" or "multice"
         negrate=10,             # if loss is "multice"
         usefive=False,
+        inspectloadedmodel=False,
         ):
 
     tt = ticktock("script")
@@ -962,6 +963,7 @@ def run(negsammode="closest",   # "close" or "random"
 
     tt.tick("predicting")
     if forcesubjincl:       # forces the intended subject entity to be among candidates
+        print "FORCED SUBJ INCL !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
         for i in range(len(testsubjcans)):
             if testgold[i, 0] not in testsubjcans[i]:
                 testsubjcans[i].append(testgold[i, 0])
