@@ -538,7 +538,7 @@ class NegIdxGen(object):
                 closesampleset = self.relclose[relgold[i]].difference(uberclosesampleset).difference({relgold[i]}) if relgold[i] in self.relclose else set()
                 randomsampleset = set()
                 while len(randomsampleset) < negrate:
-                    randomsampleset.update(random.sample(xrange(self.maxrelid + 1), 1)
+                    randomsampleset.update(set(random.sample(xrange(self.maxrelid + 1), 1))
                                                .difference({relgold[i]})
                                                .difference(uberclosesampleset)
                                                .difference(closesampleset))
