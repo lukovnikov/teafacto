@@ -534,10 +534,9 @@ class NegIdxGen(object):
         ret = np.zeros((relgold.shape[0], negrate), dtype="int32")
         for i in range(relgold.shape[0]):
             try:
-                uberclosesampleset = self.relsperent[entgold[i]] if entgold[i] in self.relsperent else set()
-                uberclosesampleset = uberclosesampleset.difference(relgold[i])
-                closesampleset = self.relclose[relgold[i]].difference(uberclosesampleset) if relgold[i] in self.relclose else set()
-                randomsampleset = set(random.sample(xrange(self.maxrelid + 1), negrate))
+                uberclosesampleset = self.relsperent[entgold[i]].difference(relgold[i]) if entgold[i] in self.relsperent else set()
+                closesampleset = self.relclose[relgold[i]].difference(uberclosesampleset).difference({relgold[i]}) if relgold[i] in self.relclose else set()
+                randomsampleset = set(random.sample(xrange(self.maxrelid + 1), negrate + 1)).difference({relgold[i]})
                 mergedsampleset = closesampleset.union(randomsampleset)
                 numsam = negrate - len(uberclosesampleset) if len(uberclosesampleset) < negrate \
                                                            else min(len(mergedsampleset), round(len(uberclosesampleset) / 2.))
