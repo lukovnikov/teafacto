@@ -535,6 +535,7 @@ class NegIdxGen(object):
         for i in range(relgold.shape[0]):
             try:
                 uberclosesampleset = self.relsperent[entgold[i]] if entgold[i] in self.relsperent else set()
+                uberclosesampleset = uberclosesampleset.difference(relgold[i])
                 closesampleset = self.relclose[relgold[i]].difference(uberclosesampleset) if relgold[i] in self.relclose else set()
                 randomsampleset = set(random.sample(xrange(self.maxrelid + 1), negrate))
                 mergedsampleset = closesampleset.union(randomsampleset)
