@@ -540,7 +540,7 @@ class NegIdxGen(object):
                 mergedsampleset = closesampleset.union(randomsampleset)
                 numsam = negrate - len(uberclosesampleset) if len(uberclosesampleset) < negrate \
                                                            else min(len(mergedsampleset), round(len(uberclosesampleset) / 2.))
-                sampleset = set(random.sample(mergedsampleset, negrate))
+                sampleset = set(random.sample(mergedsampleset, numsam))
                 mergedsampleset = uberclosesampleset.union(sampleset).difference({relgold[i]})
                 sampleset = set(random.sample(mergedsampleset, negrate))
                 ret[i, :] = list(sampleset)
