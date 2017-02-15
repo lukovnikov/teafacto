@@ -544,7 +544,7 @@ class NegIdxGen(object):
                 mergedsampleset = uberclosesampleset.union(sampleset).difference({relgold[i]})
                 sampleset = set(random.sample(mergedsampleset, negrate))
                 ret[i, :] = list(sampleset)
-            except Exception:
+            except Exception, e:
                 embed()
         return ret[:, :, np.newaxis]
 
