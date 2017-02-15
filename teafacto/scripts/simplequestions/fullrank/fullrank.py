@@ -760,7 +760,7 @@ def run(negsammode="closest",   # "close" or "random"
     elif loss == "ce":
         scoref = DotDistance()      # GenDotDistance() ??
     elif loss == "multice":
-        scoref = DotDistance()
+        scoref = CosineDistance()
     else:
         raise Exception("unknown option for loss argument")
     scorer = SeqMatchScore(lb, rb, scorer=scoref,
