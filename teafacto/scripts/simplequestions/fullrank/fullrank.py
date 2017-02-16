@@ -943,7 +943,7 @@ def run(negsammode="closest",   # "close" or "random"
                     d, s, r = transedinps[0], transedinps[1], transedinps[2]
                     s = s.dimswap(1, 0)
                     r = r.dimswap(1, 0)
-                    qencs = self.scorer.l.inner(d)
+                    qencs = self.scorer.l(d)
                     scores, _ = T.scan(self.rec, sequences=[s, r],
                                      non_sequences=qencs,
                                      outputs_info=[None])
