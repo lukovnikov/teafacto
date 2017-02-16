@@ -557,7 +557,7 @@ class NegIdxGen(object):
             sampleset.update(addset)
             addset = set(random.sample(xrange(self.maxrelid + 1), max(0, negrate - len(sampleset))))
             sampleset.update(addset)
-            ret[i, :] = list(sampleset)
+            ret[i, :] = random.sample(sampleset, negrate)
         return ret[:, :, np.newaxis]
 
     def old_samplereluberclose_multi(self, relgold, entgold, negrate):
