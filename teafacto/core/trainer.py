@@ -413,7 +413,7 @@ class ModelTrainer(object):
                     else:
                         if isinstance(a, tuple):
                             a = list(a)
-                    ret.append(a)
+                    ret += a
                 return ret
             return validfun
 

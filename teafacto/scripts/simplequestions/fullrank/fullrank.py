@@ -555,7 +555,7 @@ class NegIdxGen(object):
             closesampleset = self.relclose[relgold[i]].difference(sampleset).difference({relgold[i]}) if relgold[i] in self.relclose else set()
             addset = set(random.sample(closesampleset, min(len(closesampleset), max(0, negrate - len(sampleset)))))
             sampleset.update(addset)
-            addset = set(random.sample(xrange(self.maxrelid + 1), max(0, negrate - len(sampleset))))
+            addset = set(random.sample(xrange(self.maxrelid + 1), max(1, negrate - len(sampleset))))
             sampleset.update(addset)
             sampleset = sampleset.difference({relgold[i]})
             ret[i, :] = random.sample(sampleset, negrate)
@@ -596,7 +596,7 @@ class NegIdxGen(object):
             ret = np.zeros_like(gold)
             for i in range(gold.shape[0]):
                 sampleset = (closeset[gold[i]] if gold[i] in closeset else set()).difference({gold[i]})
-                addset = set(random.sample(xrange(maxid + 1), max(0, self.minimal - len(sampleset))))
+                addset = set(random.sample(xrange(maxid + 1), max(1, self.minimal - len(sampleset))))
                 sampleset.update(addset)
                 ret[i] = random.sample(sampleset, 1)[0]
             ret = ret[:, np.newaxis]
