@@ -515,7 +515,7 @@ class NegIdxGen(object):
                 .difference({relgold[i]})
             closesampleset = (self.relclose[relgold[i]] if relgold[i] in self.relclose else set())\
                 .difference({relgold[i]}).difference(sampleset)
-            addset = set(random.sample(closesampleset, max(0, self.minimal - len(sampleset))))
+            addset = set(random.sample(closesampleset, min(len(closesampleset), max(0, self.minimal - len(sampleset)))))
             sampleset.update(addset)
             addset = set(random.sample(xrange(self.maxrelid + 1), max(0, self.minimal - len(sampleset))))
             sampleset.update(addset)
@@ -553,7 +553,7 @@ class NegIdxGen(object):
         for i in range(relgold.shape[0]):
             sampleset = self.relsperent[entgold[i]].difference({relgold[i]}) if entgold[i] in self.relsperent else set()
             closesampleset = self.relclose[relgold[i]].difference(sampleset).difference({relgold[i]}) if relgold[i] in self.relclose else set()
-            addset = set(random.sample(closesampleset, max(0, negrate - len(sampleset))))
+            addset = set(random.sample(closesampleset, min(len(closesampleset), max(0, negrate - len(sampleset)))))
             sampleset.update(addset)
             addset = set(random.sample(xrange(self.maxrelid + 1), max(0, negrate - len(sampleset))))
             sampleset.update(addset)
@@ -943,8 +943,9 @@ def run(negsammode="closest",   # "close" or "random"
                     d, s, r = transedinps[0], transedinps[1], transedinps[2]
                     s = s.dimswap(1, 0)
                     r = r.dimswap(1, 0)
+                    qencs = self.scorer.l.inner(d)
                     scores, _ = T.scan(self.rec, sequences=[s, r],
-                                     non_sequences=data,
+                                     non_sequences=qencs,
                                      outputs_info=[None])
                     scores = scores.dimshuffle(1, 2, 0)   # (batsize, 2, negrate+1)
                     probs = T.softmax(scores)        # (batsize, 2, negrate+1)
