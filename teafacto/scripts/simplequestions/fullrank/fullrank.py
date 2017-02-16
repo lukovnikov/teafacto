@@ -557,6 +557,7 @@ class NegIdxGen(object):
             sampleset.update(addset)
             addset = set(random.sample(xrange(self.maxrelid + 1), max(0, negrate - len(sampleset))))
             sampleset.update(addset)
+            sampleset = sampleset.difference({relgold[i]})
             ret[i, :] = random.sample(sampleset, negrate)
         return ret[:, :, np.newaxis]
 
@@ -962,17 +963,17 @@ def run(negsammode="closest",   # "close" or "random"
             cegold = np.zeros((traindata.shape[0], 2)).astype("int32")
             tt.msg("doing multi CE")
             nscorer = scorerMultiCeWrap.train([traindata, traintargets], cegold) \
-                .seq_cross_entropy().adagrad(lr=lr).l2(wreg).grad_total_norm(gradnorm) \
+                .seq_cross_entropy().adadelta(lr=lr).l2(wreg).grad_total_norm(gradnorm) \
                 .validate_on([validdata, validgold], np.ones_like(validgold)).extvalid(extvalidf) \
                 .autosavethis(scorer, savep).writeresultstofile(savep + ".progress.tsv") \
-                .takebest(lambda x: x[2], save=True, smallerbetter=False) \
+                .takebest(lambda x: x[1], save=True, smallerbetter=False) \
                 .train(numbats=numbats, epochs=epochs, _skiptrain=debugvalid)
             tt.tock("trained").tick()
             print("SAVED AS: {}".format(saveid))
         else:
             nscorer = scorer.nstrain([traindata, traingold]).transform(transf) \
                 .negsamplegen(nig) \
-                .objective(obj).adadelta(lr=lr).l2(wreg).grad_total_norm(gradnorm) \
+                .objective(obj).adagrad(lr=lr).l2(wreg).grad_total_norm(gradnorm) \
                 .validate_on([validdata, validgold]).extvalid(extvalidf) \
                 .autosavethis(scorer, savep).writeresultstofile(savep+".progress.tsv") \
                 .takebest(lambda x: x[2], save=True, smallerbetter=False) \

@@ -404,7 +404,8 @@ class ModelTrainer(object):
             def validfun(*sampleinps):
                 ret = []
                 if symbolic_validfun is not None:
-                    ret.append(symbolic_validfun(*sampleinps))
+                    for x in symbolic_validfun(*sampleinps):
+                        ret.append(x)
                 for ev in extravalid:
                     a = ev(*sampleinps)
                     if not issequence(a):
@@ -412,7 +413,7 @@ class ModelTrainer(object):
                     else:
                         if isinstance(a, tuple):
                             a = list(a)
-                    ret += a
+                    ret.append(a)
                 return ret
             return validfun
 
