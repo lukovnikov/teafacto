@@ -517,8 +517,9 @@ class NegIdxGen(object):
                 .difference({relgold[i]}).difference(sampleset)
             addset = set(random.sample(closesampleset, min(len(closesampleset), max(0, self.minimal - len(sampleset)))))
             sampleset.update(addset)
-            addset = set(random.sample(xrange(self.maxrelid + 1), max(0, self.minimal - len(sampleset))))
+            addset = set(random.sample(xrange(self.maxrelid + 1), max(1, self.minimal - len(sampleset))))
             sampleset.update(addset)
+            sampleset = sampleset.difference({relgold[i]})
             ret[i] = random.sample(sampleset, 1)[0]
         ret = ret[:, np.newaxis]
         return ret
@@ -595,9 +596,10 @@ class NegIdxGen(object):
         else:
             ret = np.zeros_like(gold)
             for i in range(gold.shape[0]):
-                sampleset = (closeset[gold[i]] if gold[i] in closeset else set()).difference({gold[i]})
+                sampleset = closeset[gold[i]].difference({gold[i]}) if gold[i] in closeset else set()
                 addset = set(random.sample(xrange(maxid + 1), max(1, self.minimal - len(sampleset))))
                 sampleset.update(addset)
+                sampleset = sampleset.difference({gold[i]})
                 ret[i] = random.sample(sampleset, 1)[0]
             ret = ret[:, np.newaxis]
             return ret
@@ -626,9 +628,10 @@ class NegIdxGen(object):
     def sample_multi(self, gold, closeset, maxid, negrate):
         ret = np.zeros((gold.shape[0], negrate), dtype="int32")
         for i in range(gold.shape[0]):
-            sampleset = closeset[gold[i]] if gold[i] in closeset else set()
-            randomset = set(random.sample(xrange(maxid), max(0, negrate - len(sampleset) + 1)))
-            sampleset = set(sampleset.union(randomset).difference({gold[i]}))
+            sampleset = closeset[gold[i]].difference({gold[i]}) if gold[i] in closeset else set()
+            randomset = set(random.sample(xrange(maxid), max(1, negrate - len(sampleset) + 1)))
+            sampleset = sampleset.union(randomset)
+            sampleset = sampleset.difference({gold[i]})
             ret[i, :] = random.sample(sampleset, negrate)
         return ret[:, :, np.newaxis]
 
