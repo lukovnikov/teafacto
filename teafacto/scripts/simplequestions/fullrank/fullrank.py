@@ -594,7 +594,7 @@ class NegIdxGen(object):
         else:
             ret = np.zeros_like(gold)
             for i in range(gold.shape[0]):
-                sampleset = closeset[gold[i]] if gold[i] in closeset else []
+                sampleset = (closeset[gold[i]] if gold[i] in closeset else set()).difference({gold[i]})
                 addset = set(random.sample(xrange(maxid + 1), max(0, self.minimal - len(sampleset))))
                 sampleset.update(addset)
                 ret[i] = random.sample(sampleset, 1)[0]
