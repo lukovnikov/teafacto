@@ -942,7 +942,7 @@ def run(negsammode="closest",   # "close" or "random"
                     transedinps, _ = self.transf(data, targets)
                     d, s, r = transedinps[0], transedinps[1], transedinps[2]
                     s = s.dimswap(1, 0)
-                    r = r.dimswap(1, 0)
+                    r = r.dimswap(1, 0)     # (negrate+1, batsize, 2, ?)
                     qencs = self.scorer.l(d)
                     scores, _ = T.scan(self.rec, sequences=[s, r],
                                      non_sequences=qencs,
@@ -954,7 +954,7 @@ def run(negsammode="closest",   # "close" or "random"
 
                 def rec(self, s, r, qenc):    # target: idx~(batsize, 2)
                     subjpredenc = self.scorer.r(s, r)
-                    score = self.scorer.s(qenc, subjpredenc)
+                    score = self.scorer.innerapply(qenc, subjpredenc)
                     return score
 
             scorerMultiCeWrap = ScorerMultiCEWrap(scorer, subjmat, relmat)
