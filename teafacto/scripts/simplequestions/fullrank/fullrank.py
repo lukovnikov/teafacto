@@ -952,8 +952,9 @@ def run(negsammode="closest",   # "close" or "random"
                     #probs = subjsm * predsm         # (batsize, negrate+1)
                     return probs
 
-                def rec(self, s, r, data):    # target: idx~(batsize, 2)
-                    score = self.scorer(data, s, r)
+                def rec(self, s, r, qenc):    # target: idx~(batsize, 2)
+                    subjpredenc = self.scorer.r(s, r)
+                    score = self.scorer.s(qenc, subjpredenc)
                     return score
 
             scorerMultiCeWrap = ScorerMultiCEWrap(scorer, subjmat, relmat)
