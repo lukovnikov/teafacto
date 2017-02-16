@@ -491,6 +491,7 @@ class NegIdxGen(object):
         self.relsperent = {k: set(v[0]) for k, v in relsperent.items()} if relsperent is not None else None
         self.samprobf = lambda x: np.tanh(np.log(x + 1)/3)
         self.usefive = usefive
+        self.minimal = 15
         print "use five: {}".format(self.usefive)
 
     def __call__(self, datas, gold, negrate=0):
@@ -506,6 +507,22 @@ class NegIdxGen(object):
         return datas, ret.astype("int32")
 
     def samplereluberclose(self, relgold, entgold, negrate=1):
+        if negrate > 1:
+            return self.samplereluberclose_multi(relgold, entgold, negrate)
+        ret = np.zeros_like(relgold, dtype="int32")
+        for i in range(relgold.shape[0]):
+            sampleset = (self.relsperent[entgold[i]] if entgold[i] in self.relsperent else set()) \
+                .difference({relgold[i]})
+            closesampleset = (self.relclose[relgold[i]] if relgold[i] in self.relclose else set())\
+                .difference({relgold[i]})
+            addset = set(random.sample(closesampleset, max(0, self.minimal - len(sampleset))))
+            sampleset.update(addset)
+            addset = set(random.sample(xrange(self.maxrelid + 1), max(0, self.minimal - len(sampleset))))
+            sampleset.update(addset)
+            ret[i] = random.sample(sampleset, 1)[0]
+        return ret
+
+    def oldsamplereluberclose(self, relgold, entgold, negrate=1):
         if negrate > 1:
             return self.samplereluberclose_multi(relgold, entgold, negrate)
         ret = np.zeros_like(relgold, dtype="int32")
@@ -924,7 +941,7 @@ def run(negsammode="closest",   # "close" or "random"
         else:
             nscorer = scorer.nstrain([traindata, traingold]).transform(transf) \
                 .negsamplegen(nig) \
-                .objective(obj).adagrad(lr=lr).l2(wreg).grad_total_norm(gradnorm) \
+                .objective(obj).adadelta(lr=lr).l2(wreg).grad_total_norm(gradnorm) \
                 .validate_on([validdata, validgold]).extvalid(extvalidf) \
                 .autosavethis(scorer, savep).writeresultstofile(savep+".progress.tsv") \
                 .takebest(lambda x: x[2], save=True, smallerbetter=False) \
@@ -965,12 +982,13 @@ def run(negsammode="closest",   # "close" or "random"
 
     tt.tick("predicting")
     if forcesubjincl:       # forces the intended subject entity to be among candidates
-        print "FORCED SUBJ INCL !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+        print "FORCED SUBJ INCL !!! WRONG !!!!!!"
         for i in range(len(testsubjcans)):
             if testgold[i, 0] not in testsubjcans[i]:
                 testsubjcans[i].append(testgold[i, 0])
 
     if randsameval > 0:     # generate random sampling eval data
+        print "RAND SAM EVAL!!! WRONG !!!!!!"
         testsubjcans = np.random.randint(0, numsubjs, (testgold.shape[0], randsameval))
         testrelcans = np.random.randint(0, numrels, (testgold.shape[0], randsameval))
         testsubjcans = np.concatenate([testgold[:, 0:1], testsubjcans], axis=1)
