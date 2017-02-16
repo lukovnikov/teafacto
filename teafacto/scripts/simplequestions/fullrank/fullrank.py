@@ -514,12 +514,13 @@ class NegIdxGen(object):
             sampleset = (self.relsperent[entgold[i]] if entgold[i] in self.relsperent else set()) \
                 .difference({relgold[i]})
             closesampleset = (self.relclose[relgold[i]] if relgold[i] in self.relclose else set())\
-                .difference({relgold[i]})
+                .difference({relgold[i]}).difference(sampleset)
             addset = set(random.sample(closesampleset, max(0, self.minimal - len(sampleset))))
             sampleset.update(addset)
             addset = set(random.sample(xrange(self.maxrelid + 1), max(0, self.minimal - len(sampleset))))
             sampleset.update(addset)
             ret[i] = random.sample(sampleset, 1)[0]
+        ret = ret[:, np.newaxis]
         return ret
 
     def oldsamplereluberclose(self, relgold, entgold, negrate=1):
@@ -550,6 +551,18 @@ class NegIdxGen(object):
     def samplereluberclose_multi(self, relgold, entgold, negrate):
         ret = np.zeros((relgold.shape[0], negrate), dtype="int32")
         for i in range(relgold.shape[0]):
+            sampleset = self.relsperent[entgold[i]].difference({relgold[i]}) if entgold[i] in self.relsperent else set()
+            closesampleset = self.relclose[relgold[i]].difference(sampleset).difference({relgold[i]}) if relgold[i] in self.relclose else set()
+            addset = set(random.sample(closesampleset, max(0, negrate - len(sampleset))))
+            sampleset.update(addset)
+            addset = set(random.sample(xrange(self.maxrelid + 1), max(0, negrate - len(sampleset))))
+            sampleset.update(addset)
+            ret[i, :] = list(sampleset)
+        return ret[:, :, np.newaxis]
+
+    def old_samplereluberclose_multi(self, relgold, entgold, negrate):
+        ret = np.zeros((relgold.shape[0], negrate), dtype="int32")
+        for i in range(relgold.shape[0]):
             try:
                 uberclosesampleset = self.relsperent[entgold[i]].difference({relgold[i]}) if entgold[i] in self.relsperent else set()
                 closesampleset = self.relclose[relgold[i]].difference(uberclosesampleset).difference({relgold[i]}) if relgold[i] in self.relclose else set()
@@ -573,6 +586,22 @@ class NegIdxGen(object):
         return ret[:, :, np.newaxis]
 
     def sample(self, gold, closeset, maxid, negrate=1):
+        if negrate > 1:
+            return self.sample_multi(gold, closeset, maxid, negrate)
+        # assert(gold.ndim == 2 and gold.shape[1] == 1)
+        if closeset is None:
+            return np.random.randint(0, maxid + 1, (gold.shape[0], 1))
+        else:
+            ret = np.zeros_like(gold)
+            for i in range(gold.shape[0]):
+                sampleset = closeset[gold[i]] if gold[i] in closeset else []
+                addset = set(random.sample(xrange(maxid + 1), max(0, self.minimal - len(sampleset))))
+                sampleset.update(addset)
+                ret[i] = random.sample(sampleset, 1)[0]
+            ret = ret[:, np.newaxis]
+            return ret
+
+    def oldsample(self, gold, closeset, maxid, negrate=1):
         if negrate > 1:
             return self.sample_multi(gold, closeset, maxid, negrate)
         # assert(gold.ndim == 2 and gold.shape[1] == 1)
