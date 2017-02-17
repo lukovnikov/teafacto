@@ -43,6 +43,8 @@ def readdata(p="../../../../data/simplequestions/clean/datamat.word.fb2m.pkl",
         validgold[:, 1] -= numents
         testgold[:, 1] -= numents
 
+        # TODO: add surrogates here?
+
         rwd = {v: k for k, v in worddic.items()}
 
         subjdic = {k: v for k, v in entdic.items() if v < numents}
@@ -490,15 +492,19 @@ class CustomPredictor(object):
 
 
 class NegIdxGen(object):
-    def __init__(self, maxentid, maxrelid, relclose=None, subjclose=None, relsperent=None, usefive=False):
+    def __init__(self, maxentid, maxrelid, relclose=None, subjclose=None,
+                 relsperent=None, usefive=False, surrogates=None, maskid=-1):
         self.maxentid = maxentid
         self.maxrelid = maxrelid
+        self.maskid = maskid
         print "using relclose" if relclose is not None else "no relclose"
         print "using subjclose" if subjclose is not None else "no subjclose"
         print "using relsperent" if relsperent is not None else "no relsperent"
+        print "using surrogates" if surrogates is not None else "no surrogates"
         self.relclose = {k: set(v) for k, v in relclose.items()} if relclose is not None else None
         self.subjclose = {k: set(v) for k, v in subjclose.items()} if subjclose is not None else None
         self.relsperent = {k: set(v[0]) for k, v in relsperent.items()} if relsperent is not None else None
+        self.surrogates = surrogates
         self.samprobf = lambda x: np.tanh(np.log(x + 1)/3)
         self.usefive = usefive
         self.minimal = 15
@@ -506,7 +512,10 @@ class NegIdxGen(object):
 
     def __call__(self, datas, gold, negrate=0):
         nrate = 1 if negrate < 1 else negrate
-        subjrand = self.sample(gold[:, 0], self.subjclose, self.maxentid, negrate=nrate)
+        if self.surrogates is None:
+            subjrand = self.sample(gold[:, 0], self.subjclose, self.maxentid, negrate=nrate)
+        else:
+            subjrand = self.sample_surrogates(datas, gold[:, 0], self.maxentid)
         if self.relsperent is not None:     # sample uber-close
             relrand = self.samplereluberclose(gold[:, 1], gold[:, 0], negrate=nrate)
         else:
@@ -635,6 +644,16 @@ class NegIdxGen(object):
             ret = np.expand_dims(ret, axis=1)
             return ret.astype("int32")
 
+    def sample_surrogates(self, data, gold, maxid):
+        ret = np.zeros_like(gold)
+        for i in range(data.shape[0]):
+            surset = get_surrogates(data[i], self.surrogates, maskid=self.maskid)
+            if len(surset) < 5:
+                ret[i] = np.random.randint(0, maxid + 1)
+            else:
+                ret[i] = random.sample(surset, 1)[0]
+        ret = np.expand_dims(ret, axis=1)
+        return ret
 
     def oldsample(self, gold, closeset, maxid, negrate=1):
         if negrate > 1:
@@ -708,7 +727,9 @@ def run(negsammode="closest",   # "close" or "random"
         inspectloadedmodel=False,
         inspectpredictions=False,
         evalwithgoldsubjs=False,
+        usesurrogates=False,
         ):
+    maskid = -1
 
     tt = ticktock("script")
     tt.tick("loading data")
@@ -717,13 +738,42 @@ def run(negsammode="closest",   # "close" or "random"
     subjinfo, (testsubjcans, relsperent) = readdata(debug=debug,
                                                     numtestcans=numtestcans if numtestcans > 0 else None)
 
-
+    rwd = {v: k for k, v in worddic.items()}
 
     if usetypes:
         print "building type matrix"
         typmat = buildtypmat(subjmat, subjinfo, worddic)
         subjmat = np.concatenate([typmat, subjmat], axis=1)
         typlen = typmat.shape[1]
+
+    surrogates = None
+    if usesurrogates:
+        tt.tick("making surrogates")
+        if usetypes:
+            surmat, surtypmat, datatosur = generate_surrogate_entities(traindata, traingold, typmat=typmat, maskid=maskid)
+        else:
+            surmat, surtypmat, datatosur = generate_surrogate_entities(traindata, traingold,
+                                                             maskid=maskid)
+
+        surmat = wordmat2charmat(surmat, rwd=rwd, maskid=maskid, raretoken="<RARE>", maxlen=75)
+        if usetypes:
+            surmat = np.concatenate([surtypmat, surmat], axis=1)
+        tt.tock("made surrogates")
+        # udpate datatosur id's
+        surrogateid = max(subjdic.values()) + 1
+        datatosur = {k: {ve + surrogateid for ve in v} for k, v in datatosur.items()}
+        # update subjdic
+        for i in range(surmat.shape[0]):
+            subjdic["surrogate_{}".format(surrogateid)] = surrogateid
+            surrogateid += 1
+        # update subjmat
+        surmat = np.concatenate([surmat,
+                                 maskid * np.ones((surmat.shape[0], subjmat.shape[1] - surmat.shape[1]))],
+                                axis=1)
+        subjmat = np.concatenate([subjmat, surmat], axis=0)
+
+        surrogates = datatosur      # use surrogates in negidxgen
+        embed()
 
     relsamplespace = None
     subjsamplespace = None
@@ -736,7 +786,6 @@ def run(negsammode="closest",   # "close" or "random"
     numwords = max(worddic.values()) + 1
     numsubjs = max(subjdic.values()) + 1
     numrels = max(reldic.values()) + 1
-    maskid = -1
     numchars = 256
 
     nsrelsperent = relsperent if negsammode == "closest" else None
@@ -745,7 +794,9 @@ def run(negsammode="closest",   # "close" or "random"
                     relclose=relsamplespace,
                     subjclose=subjsamplespace,
                     relsperent=nsrelsperent,
-                    usefive=usefive)
+                    usefive=usefive,
+                    surrogates=surrogates,
+                    maskid=maskid)
 
     # negative matrices for multi ce training with negrate
     if loss == "multice":
@@ -1153,5 +1204,73 @@ def run(negsammode="closest",   # "close" or "random"
         embed()
 
 
+def generate_surrogate_entities(data, gold, typmat=None, topngram=4, maskid=-1):
+    # data: (numsam, seqlen, wordlen+1),
+    # gold: (numsam, 2)
+    # typmat: (numsubjs, len) - words
+    from collections import OrderedDict
+    data = data[:, :, 0]        # only words
+    gold = list(gold[:, 0])
+    ngramids = OrderedDict()
+    ngramtypes = {}
+    maxlen = 0
+    ngramaddr = 0
+    datatosur = {}
+    for i in range(data.shape[0]):      # for each question
+        question = list(data[i])
+        qs = " ".join([str(qwid) for qwid in question if qwid != maskid])
+        j = 0
+        stop = False
+        while not stop:
+            if j+1 >= len(question) or question[j] == maskid:
+                break
+            for k in range(1, topngram):
+                try:
+                    if j+k+1 >= len(question) or question[j+k+1] == maskid:
+                        break
+                    # TODO: check n-gram overlap with gold words
+                    ngram = tuple(question[j:j+k])
+                    if ngram not in ngramids:
+                        ngramids[ngram] = ngramaddr
+                        ngramaddr += 1
+                    # add ngramaddr to qs
+                    if not qs in datatosur:
+                        datatosur[qs] = set()
+                    datatosur[qs].add(ngramids[ngram])
+
+                    if typmat is not None:
+                        ngramtypes[ngram] = typmat[gold[i]]
+                except Exception, e:
+                    embed()
+                maxlen = max(maxlen, len(ngram))
+            j += 1
+    surrogatetypmat = None
+    surrogatewordmat = np.ones((len(ngramids), maxlen), dtype="int32") * maskid
+    if typmat is not None:
+        surrogatetypmat = np.ones((len(ngramids), typmat.shape[1]), dtype="int32") * maskid
+    i = 0
+    for ngram in ngramids.keys():
+        surrogatewordmat[i, :len(ngram)] = ngram
+        if typmat is not None:
+            surrogatetypmat[i, :] = ngramtypes[ngram]
+        i += 1
+    randomtypmat = True
+    if randomtypmat and typmat is not None:
+        typmatidx = np.random.randint(0, typmat.shape[0], (surrogatewordmat.shape[0],))
+        surrogatetypmat = typmat[typmatidx]
+    return surrogatewordmat, surrogatetypmat, datatosur
+
+
+def get_surrogates(datarow, datatosur, maskid=-1):
+    # return set of surrogate integer ids
+    key = list(datarow)
+    key = " ".join([str(x) for x in key if x != maskid])
+    return datatosur[key]
+
+
+
 if __name__ == "__main__":
+    data = np.random.randint(0, 1000, (5,6,7))
+    gold = np.random.randint(0, 10, (5, 2))
+    generate_surrogate_entities(data, gold)
     argprun(run)
