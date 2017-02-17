@@ -773,7 +773,7 @@ def run(negsammode="closest",   # "close" or "random"
         subjmat = np.concatenate([subjmat, surmat], axis=0)
 
         surrogates = datatosur      # use surrogates in negidxgen
-        embed()
+        #embed()
 
     relsamplespace = None
     subjsamplespace = None
@@ -1263,7 +1263,7 @@ def generate_surrogate_entities(data, gold, typmat=None, topngram=4, maskid=-1):
 
 def get_surrogates(datarow, datatosur, maskid=-1):
     # return set of surrogate integer ids
-    key = list(datarow)
+    key = list(datarow[:, 0])   # only words
     key = " ".join([str(x) for x in key if x != maskid])
     return datatosur[key]
 
