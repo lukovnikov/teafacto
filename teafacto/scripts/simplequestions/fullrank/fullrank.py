@@ -1149,7 +1149,8 @@ def run(negsammode="closest",   # "close" or "random"
             inp()
 
     print "##### DONE #####"
-    #embed()
+    if inspectpredictions:
+        embed()
 
 
 if __name__ == "__main__":
