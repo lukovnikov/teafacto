@@ -630,7 +630,7 @@ class NegIdxGen(object):
             return ret.astype("int32")
 
 
-    def sample(self, gold, closeset, maxid, negrate=1):
+    def oldsample(self, gold, closeset, maxid, negrate=1):
         if negrate > 1:
             return self.sample_multi(gold, closeset, maxid, negrate)
         # assert(gold.ndim == 2 and gold.shape[1] == 1)
