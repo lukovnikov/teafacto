@@ -506,7 +506,7 @@ class NegIdxGen(object):
         # TODO NEGATIVE SAMPLING OF RELATIONS FROM GOLD ENTITY'S RELATIONS
         return datas, ret.astype("int32")
 
-    def samplereluberclose(self, relgold, entgold, negrate=1):
+    def new_samplereluberclose(self, relgold, entgold, negrate=1):
         if negrate > 1:
             return self.samplereluberclose_multi(relgold, entgold, negrate)
         ret = np.zeros_like(relgold, dtype="int32")
@@ -524,7 +524,7 @@ class NegIdxGen(object):
         ret = ret[:, np.newaxis]
         return ret
 
-    def oldsamplereluberclose(self, relgold, entgold, negrate=1):
+    def samplereluberclose(self, relgold, entgold, negrate=1):
         if negrate > 1:
             return self.samplereluberclose_multi(relgold, entgold, negrate)
         ret = np.zeros_like(relgold, dtype="int32")
@@ -549,7 +549,7 @@ class NegIdxGen(object):
         ret = np.expand_dims(ret, axis=1)
         return ret
 
-    def samplereluberclose_multi(self, relgold, entgold, negrate):
+    def new_samplereluberclose_multi(self, relgold, entgold, negrate):
         ret = np.zeros((relgold.shape[0], negrate), dtype="int32")
         for i in range(relgold.shape[0]):
             sampleset = self.relsperent[entgold[i]].difference({relgold[i]}) if entgold[i] in self.relsperent else set()
@@ -587,7 +587,7 @@ class NegIdxGen(object):
                 embed()
         return ret[:, :, np.newaxis]
 
-    def sample(self, gold, closeset, maxid, negrate=1):
+    def new_sample(self, gold, closeset, maxid, negrate=1):
         if negrate > 1:
             return self.sample_multi(gold, closeset, maxid, negrate)
         # assert(gold.ndim == 2 and gold.shape[1] == 1)
@@ -604,7 +604,7 @@ class NegIdxGen(object):
             ret = ret[:, np.newaxis]
             return ret
 
-    def oldsample(self, gold, closeset, maxid, negrate=1):
+    def sample(self, gold, closeset, maxid, negrate=1):
         if negrate > 1:
             return self.sample_multi(gold, closeset, maxid, negrate)
         # assert(gold.ndim == 2 and gold.shape[1] == 1)
@@ -625,7 +625,7 @@ class NegIdxGen(object):
             ret = np.expand_dims(ret, axis=1)
             return ret.astype("int32")
 
-    def sample_multi(self, gold, closeset, maxid, negrate):
+    def new_sample_multi(self, gold, closeset, maxid, negrate):
         ret = np.zeros((gold.shape[0], negrate), dtype="int32")
         for i in range(gold.shape[0]):
             sampleset = closeset[gold[i]].difference({gold[i]}) if gold[i] in closeset else set()
@@ -953,7 +953,6 @@ def run(negsammode="closest",   # "close" or "random"
                                      outputs_info=[None])
                     scores = scores.dimshuffle(1, 2, 0)   # (batsize, 2, negrate+1)
                     probs = T.softmax(scores)        # (batsize, 2, negrate+1)
-                    #probs = subjsm * predsm         # (batsize, negrate+1)
                     return probs
 
                 def rec(self, s, r, qenc):    # target: idx~(batsize, 2)
