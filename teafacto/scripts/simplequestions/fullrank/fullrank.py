@@ -1219,6 +1219,8 @@ def generate_surrogate_entities(data, gold, typmat=None, topngram=4, maskid=-1):
     for i in range(data.shape[0]):      # for each question
         question = list(data[i])
         qs = " ".join([str(qwid) for qwid in question if qwid != maskid])
+        if not qs in datatosur:
+            datatosur[qs] = set()
         j = 0
         stop = False
         while not stop:
@@ -1226,7 +1228,7 @@ def generate_surrogate_entities(data, gold, typmat=None, topngram=4, maskid=-1):
                 break
             for k in range(1, topngram):
                 try:
-                    if j+k+1 >= len(question) or question[j+k+1] == maskid:
+                    if j+k+1 > len(question) or question[j+k] == maskid:
                         break
                     # TODO: check n-gram overlap with gold words
                     ngram = tuple(question[j:j+k])
@@ -1234,10 +1236,8 @@ def generate_surrogate_entities(data, gold, typmat=None, topngram=4, maskid=-1):
                         ngramids[ngram] = ngramaddr
                         ngramaddr += 1
                     # add ngramaddr to qs
-                    if not qs in datatosur:
-                        datatosur[qs] = set()
                     datatosur[qs].add(ngramids[ngram])
-
+                    # types
                     if typmat is not None:
                         ngramtypes[ngram] = typmat[gold[i]]
                 except Exception, e:
@@ -1265,7 +1265,8 @@ def get_surrogates(datarow, datatosur, maskid=-1):
     # return set of surrogate integer ids
     key = list(datarow[:, 0])   # only words
     key = " ".join([str(x) for x in key if x != maskid])
-    return datatosur[key]
+    ret = datatosur[key] if key in datatosur else set()
+    return ret
 
 
 
