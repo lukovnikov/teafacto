@@ -770,7 +770,7 @@ def run(negsammode="closest",   # "close" or "random"
         surmat = np.concatenate([surmat,
                                  maskid * np.ones((surmat.shape[0], subjmat.shape[1] - surmat.shape[1]))],
                                 axis=1)
-        subjmat = np.concatenate([subjmat, surmat], axis=0)
+        subjmat = np.concatenate([subjmat, surmat], axis=0).astype("in32")
 
         surrogates = datatosur      # use surrogates in negidxgen
         #embed()
@@ -1228,7 +1228,7 @@ def generate_surrogate_entities(data, gold, typmat=None, topngram=4, maskid=-1):
                 break
             for k in range(1, topngram):
                 try:
-                    if j+k+1 > len(question) or question[j+k] == maskid:
+                    if j+k+1 > len(question) or question[j+k-1] == maskid:
                         break
                     # TODO: check n-gram overlap with gold words
                     ngram = tuple(question[j:j+k])
