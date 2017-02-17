@@ -178,6 +178,10 @@ def loadsubjsamplespace(p="../../../../data/simplequestions/clean/subjclose.dic.
     d = pickle.load(open(p))
     return d
 
+def loadsubjtraincans(p="../../../../data/simplequestions/clean/traincans10c.pkl"):
+    t = pickle.load(open(p))
+    return t
+
 def buildtypmat(subjmat, subjinfo, worddic, maxlen=6, maskid=-1):
     ret = maskid * np.ones((subjmat.shape[0], maxlen), dtype="int32")
     import re
@@ -613,15 +617,40 @@ class NegIdxGen(object):
         else:
             ret = np.zeros_like(gold)
             for i in range(gold.shape[0]):
-                sampleset = closeset[gold[i]] if gold[i] in closeset else []
-                if self.usefive:
-                    samplefromset = len(sampleset) >= 5
-                else:
-                    samplefromset = np.random.random() < self.samprobf(len(sampleset))
-                if samplefromset:
-                    ret[i] = random.sample(sampleset, 1)[0]
-                else:
-                    ret[i] = np.random.randint(0, maxid + 1)
+                sample = gold[i]
+                while sample == gold[i]:
+                    sampleset = closeset[gold[i]] if gold[i] in closeset else []
+                    samplefromset = len(sampleset) >= 4
+                    if samplefromset:
+                        sample = random.sample(sampleset, 1)[0]
+                    else:
+                        sample = np.random.randint(0, maxid + 1)
+                ret[i] = sample
+            ret = np.expand_dims(ret, axis=1)
+            return ret.astype("int32")
+
+
+    def sample(self, gold, closeset, maxid, negrate=1):
+        if negrate > 1:
+            return self.sample_multi(gold, closeset, maxid, negrate)
+        # assert(gold.ndim == 2 and gold.shape[1] == 1)
+        if closeset is None:
+            return np.random.randint(0, maxid + 1, (gold.shape[0], 1))
+        else:
+            ret = np.zeros_like(gold)
+            for i in range(gold.shape[0]):
+                sample = gold[i]
+                while sample == gold[i]:
+                    sampleset = closeset[gold[i]] if gold[i] in closeset else []
+                    if self.usefive:
+                        samplefromset = len(sampleset) >= 4
+                    else:
+                        samplefromset = np.random.random() < self.samprobf(len(sampleset))
+                    if samplefromset:
+                        sample = random.sample(sampleset, 1)[0]
+                    else:
+                        sample = np.random.randint(0, maxid + 1)
+                ret[i] = sample
             ret = np.expand_dims(ret, axis=1)
             return ret.astype("int32")
 
