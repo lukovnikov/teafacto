@@ -553,7 +553,7 @@ class NegIdxGen(object):
         ret = np.expand_dims(ret, axis=1)
         return ret
 
-    def new_samplereluberclose_multi(self, relgold, entgold, negrate):
+    def samplereluberclose_multi(self, relgold, entgold, negrate):
         ret = np.zeros((relgold.shape[0], negrate), dtype="int32")
         for i in range(relgold.shape[0]):
             sampleset = self.relsperent[entgold[i]].difference({relgold[i]}) if entgold[i] in self.relsperent else set()
@@ -654,7 +654,7 @@ class NegIdxGen(object):
             ret = np.expand_dims(ret, axis=1)
             return ret.astype("int32")
 
-    def new_sample_multi(self, gold, closeset, maxid, negrate):
+    def sample_multi(self, gold, closeset, maxid, negrate):
         ret = np.zeros((gold.shape[0], negrate), dtype="int32")
         for i in range(gold.shape[0]):
             sampleset = closeset[gold[i]].difference({gold[i]}) if gold[i] in closeset else set()
@@ -700,6 +700,7 @@ def run(negsammode="closest",   # "close" or "random"
         negrate=10,             # if loss is "multice"
         usefive=False,
         inspectloadedmodel=False,
+        inspectpredictions=False,
         ):
 
     tt = ticktock("script")
