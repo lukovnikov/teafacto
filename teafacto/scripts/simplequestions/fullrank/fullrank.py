@@ -357,13 +357,19 @@ class CustomPredictor(object):
         relcans = [relsperent[bestsubj][0] if bestsubj in relsperent else [] for bestsubj in bestsubjs]
         return self.rankrelations(relcans)
 
-    def predict(self, data, entcans=None, relsperent=None, relcans=None, multiprune=-1):
+    def predict(self, data, entcans=None, relsperent=None,
+                relcans=None, multiprune=-1,
+                goldsubjects=None):
         #print multiprune
         assert(relsperent is None or relcans is None)
         assert(relsperent is not None or relcans is not None)
         assert(entcans is not None)
         self.encodequestions(data)
-        rankedsubjs = self.ranksubjects(entcans)
+        if goldsubjects is None:
+            rankedsubjs = self.ranksubjects(entcans)
+        else:
+            print "USING GOLD SUBJECTS!!! WRONG !!!"
+            rankedsubjs = [[[x]] for x in goldsubjects]
         bestsubjs = [x[0][0] for x in rankedsubjs]
         if relcans is not None:
             rankedrels = self.rankrelations(relcans)
@@ -701,6 +707,7 @@ def run(negsammode="closest",   # "close" or "random"
         usefive=False,
         inspectloadedmodel=False,
         inspectpredictions=False,
+        evalwithgoldsubjs=False,
         ):
 
     tt = ticktock("script")
@@ -1062,8 +1069,13 @@ def run(negsammode="closest",   # "close" or "random"
         prediction = predictor.predict(testdata, entcans=testsubjcans,
                                        relcans=testrelcans)
     else:
-        prediction = predictor.predict(testdata, entcans=testsubjcans,
+        if not evalwithgoldsubjs:
+            prediction = predictor.predict(testdata, entcans=testsubjcans,
                             relsperent=relsperent, multiprune=multiprune)
+        else:
+            prediction = predictor.predict(testdata, entcans=testsubjcans,
+                            relsperent=relsperent, multiprune=0,
+                            goldsubjects=list(testgold[:, 0]))
     tt.tock("predicted")
     tt.tick("evaluating")
     evalmat = prediction == testgold
