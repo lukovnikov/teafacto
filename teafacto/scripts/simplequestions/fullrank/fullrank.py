@@ -770,7 +770,7 @@ def run(negsammode="closest",   # "close" or "random"
         surmat = np.concatenate([surmat,
                                  maskid * np.ones((surmat.shape[0], subjmat.shape[1] - surmat.shape[1]))],
                                 axis=1)
-        subjmat = np.concatenate([subjmat, surmat], axis=0).astype("in32")
+        subjmat = np.concatenate([subjmat, surmat], axis=0).astype("int32")
 
         surrogates = datatosur      # use surrogates in negidxgen
         #embed()
