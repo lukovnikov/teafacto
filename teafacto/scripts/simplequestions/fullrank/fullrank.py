@@ -819,6 +819,7 @@ def run(negsammode="closest",   # "close" or "random"
     if negsammode == "closest" or negsammode == "close":
         relsamplespace, revind = buildrelsamplespace(relmat, worddic)
         subjsamplespace = loadsubjsamplespace()
+    traincanspace = None
     if usetraincans:
         traincanspace = buildtraincanspace(traindata, maskid=maskid)
     tt.tock("data loaded")
