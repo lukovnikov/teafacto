@@ -184,6 +184,18 @@ def loadsubjtraincans(p="../../../../data/simplequestions/clean/traincans10c.pkl
     t = pickle.load(open(p))
     return t
 
+def buildtraincanspace(traindata, maskid=-1):
+    cans = loadsubjtraincans()
+    out = {}
+    for i in range(traindata.shape[0]):
+        key = list(traindata[i, :, 0])  # only words
+        key = " ".join([str(x) for x in key if x != maskid])
+        if key not in out:
+            out[key] = set()
+        out[key].update(set(cans[i]))
+    return out
+
+
 def buildtypmat(subjmat, subjinfo, worddic, maxlen=6, maskid=-1):
     ret = maskid * np.ones((subjmat.shape[0], maxlen), dtype="int32")
     import re
@@ -493,7 +505,8 @@ class CustomPredictor(object):
 
 class NegIdxGen(object):
     def __init__(self, maxentid, maxrelid, relclose=None, subjclose=None,
-                 relsperent=None, usefive=False, surrogates=None, maskid=-1):
+                 relsperent=None, usefive=False, surrogates=None,
+                 traincanspace=None, maskid=-1):
         self.maxentid = maxentid
         self.maxrelid = maxrelid
         self.maskid = maskid
@@ -501,6 +514,7 @@ class NegIdxGen(object):
         print "using subjclose" if subjclose is not None else "no subjclose"
         print "using relsperent" if relsperent is not None else "no relsperent"
         print "using surrogates" if surrogates is not None else "no surrogates"
+        print "using traincanspace" if traincanspace is not None else "no traincanspace"
         self.relclose = {k: set(v) for k, v in relclose.items()} if relclose is not None else None
         self.subjclose = {k: set(v) for k, v in subjclose.items()} if subjclose is not None else None
         self.relsperent = {k: set(v[0]) for k, v in relsperent.items()} if relsperent is not None else None
@@ -508,14 +522,17 @@ class NegIdxGen(object):
         self.samprobf = lambda x: np.tanh(np.log(x + 1)/3)
         self.usefive = usefive
         self.minimal = 15
+        self.traincanspace = traincanspace
         print "use five: {}".format(self.usefive)
 
     def __call__(self, datas, gold, negrate=0):
         nrate = 1 if negrate < 1 else negrate
-        if self.surrogates is None:
-            subjrand = self.sample(gold[:, 0], self.subjclose, self.maxentid, negrate=nrate)
-        else:
+        if self.traincanspace is not None:
+            subjrand = self.sample_traincans(datas, gold[:, 0], self.maxentid)
+        elif self.surrogates is not None:
             subjrand = self.sample_surrogates(datas, gold[:, 0], self.maxentid)
+        else:
+            subjrand = self.sample(gold[:, 0], self.subjclose, self.maxentid, negrate=nrate)
         if self.relsperent is not None:     # sample uber-close
             relrand = self.samplereluberclose(gold[:, 1], gold[:, 0], negrate=nrate)
         else:
@@ -655,6 +672,26 @@ class NegIdxGen(object):
         ret = np.expand_dims(ret, axis=1)
         return ret
 
+    def sample_traincans(self, data, gold, maxid):
+        ret = np.zeros_like(gold)
+        for i in range(data.shape[0]):
+            key = filter(lambda x: x != self.maskid, list(data[i, :, 0]))
+            key = " ".join([str(x) for x in key])
+            canset = self.traincanspace[key].difference({gold[i]}) if key in self.traincanspace else set()
+            if len(canset) >= 4:
+                ret[i] = random.sample(canset, 1)[0]
+            elif self.surrogates is not None:
+                surset = get_surrogates(data[i], self.surrogates, maskid=self.maskid)
+                canset = canset.union(surset).difference({gold[i]})
+                if len(canset) >= 5:
+                    ret[i] = random.sample(canset, 1)[0]
+                else:
+                    ret[i] = np.random.randint(0, maxid + 1)
+            else:
+                ret[i] = np.random.randint(0, maxid + 1)
+        ret = np.expand_dims(ret, axis=1)
+        return ret
+
     def oldsample(self, gold, closeset, maxid, negrate=1):
         if negrate > 1:
             return self.sample_multi(gold, closeset, maxid, negrate)
@@ -728,6 +765,8 @@ def run(negsammode="closest",   # "close" or "random"
         inspectpredictions=False,
         evalwithgoldsubjs=False,
         usesurrogates=False,
+        usetraincans=False,
+        numlayers=1,
         ):
     maskid = -1
 
@@ -780,6 +819,8 @@ def run(negsammode="closest",   # "close" or "random"
     if negsammode == "closest" or negsammode == "close":
         relsamplespace, revind = buildrelsamplespace(relmat, worddic)
         subjsamplespace = loadsubjsamplespace()
+    if usetraincans:
+        traincanspace = buildtraincanspace(traindata, maskid=maskid)
     tt.tock("data loaded")
 
 
@@ -796,7 +837,9 @@ def run(negsammode="closest",   # "close" or "random"
                     relsperent=nsrelsperent,
                     usefive=usefive,
                     surrogates=surrogates,
-                    maskid=maskid)
+                    maskid=maskid,
+                    traincanspace=traincanspace,
+                    )
 
     # negative matrices for multi ce training with negrate
     if loss == "multice":
@@ -844,7 +887,7 @@ def run(negsammode="closest",   # "close" or "random"
     else:
 
         wordenc = RNNSeqEncoder(inpemb=False, inpembdim=wordemb.outdim + charencdim,
-                                innerdim=encdim, bidir=bidir).maskoptions(MaskMode.NONE)
+                                innerdim=[encdim]*numlayers, bidir=bidir).maskoptions(MaskMode.NONE)
 
     question_encoder = TwoLevelEncoder(l1enc=charenc, l2emb=wordemb,
                                        l2enc=wordenc, maskid=maskid)
