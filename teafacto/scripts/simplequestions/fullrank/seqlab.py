@@ -65,6 +65,12 @@ def run(lr=1.0, epochs=50, numbats=700, embdim=100, encdim=150, useglove=False, 
     traingold, validgold, testgold = traingold.astype("int32"), validgold.astype("int32"), testgold.astype("int32")
 
     #   print b.predict(traindata[:2])
+    nonrares = set(np.argwhere(np.bincount(traindata.flatten() + 1)[1:] >= 5)[:, 0])
+    rarify = np.vectorize(lambda x: x if x in nonrares else 0 if x != maskid else maskid)
+    traindata = rarify(traindata)
+    validdata = rarify(validdata)
+    testdata = rarify(testdata)
+    #embed()
 
     b.train([traindata], traingold).seq_cross_entropy().adadelta(lr=lr)\
         .validate_on([testdata], testgold).seq_cross_entropy().seq_accuracy()\
