@@ -301,6 +301,8 @@ class CustomPredictor(object):
         self.silent = silent
         self.subjmat = subjmat
         self.maskid = maskid
+        if testregions is not None:
+            print "Using TestRegions"
         self.testregions = testregions      # 92.8% seq accuracy 2layer bigru
         self.tt = ticktock("predictor", verbose=not silent)
 
@@ -341,6 +343,7 @@ class CustomPredictor(object):
                         retcans.append(entcansii)
                 if len(retcans) > 0:        # if region yields something
                     entcansi = retcans      # return region-filtered set
+                embed()
             if len(entcansi) == 0:
                 scoredentcans = [(-1, 0)]
             elif len(entcansi) == 1:
