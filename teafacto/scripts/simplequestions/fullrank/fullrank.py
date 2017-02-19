@@ -22,6 +22,7 @@ def readdata(p="../../../../data/simplequestions/clean/datamat.word.fb2m.pkl",
              maskid=-1,
              debug=False,
              numtestcans=None,
+             wordlevel=False,
              ):
     tt = ticktock("dataloader")
     if cachep is not None and os.path.isfile(cachep):      # load
@@ -60,11 +61,13 @@ def readdata(p="../../../../data/simplequestions/clean/datamat.word.fb2m.pkl",
         if debug:
             embed()
 
-        traindata = wordmat2wordchartensor(traindata, rwd=rwd, maskid=maskid)
-        validdata = wordmat2wordchartensor(validdata, rwd=rwd, maskid=maskid)
-        testdata = wordmat2wordchartensor(testdata, rwd=rwd, maskid=maskid)
+        if not wordlevel:
+            traindata = wordmat2wordchartensor(traindata, rwd=rwd, maskid=maskid)
+            validdata = wordmat2wordchartensor(validdata, rwd=rwd, maskid=maskid)
+            testdata = wordmat2wordchartensor(testdata, rwd=rwd, maskid=maskid)
 
-        subjmat = wordmat2charmat(subjmat, rwd=rwd, maskid=maskid, raretoken="<RARE>", maxlen=75)
+            subjmat = wordmat2charmat(subjmat, rwd=rwd, maskid=maskid, raretoken="<RARE>", maxlen=75)
+
         ret = ((traindata, traingold), (validdata, validgold),
                (testdata, testgold), (subjmat, relmat), (subjdic, reldic),
                worddic)
@@ -283,9 +286,9 @@ class TypedSubjBlock(Block):
 
 class CustomPredictor(object):
     def __init__(self, questionencoder=None, entityencoder=None,
-                 relationencoder=None, mode=None,
+                 relationencoder=None, mode=None, maskid=-1,
                  enttrans=None, reltrans=None, debug=False,
-                 subjinfo=None, silent=False):
+                 subjinfo=None, silent=False, subjmat=None, testregions=None):
         self.qenc = questionencoder
         self.eenc = entityencoder
         self.renc = relationencoder
@@ -296,6 +299,9 @@ class CustomPredictor(object):
         self.subjinfo = subjinfo
         self.qencodings = None
         self.silent = silent
+        self.subjmat = subjmat
+        self.maskid = maskid
+        self.testregions = testregions      # 92.8% seq accuracy 2layer bigru
         self.tt = ticktock("predictor", verbose=not silent)
 
     # stateful API
@@ -304,7 +310,7 @@ class CustomPredictor(object):
         self.qencodings = self.qenc.predict(data)
         self.tt.tock("encoded questions")
 
-    def ranksubjects(self, entcans):
+    def ranksubjects(self, entcans, data=None):
         assert(self.qencodings is not None)
         if self.mode == "concat":
             qencforent = self.qencodings[:, :(self.qencodings.shape[1] / 2)]
@@ -319,17 +325,34 @@ class CustomPredictor(object):
         self.tt.tick("rank subjects")
         ret = []    # list of lists of (subj, score) tuples, sorted
         for i in range(self.qencodings.shape[0]):       # for every question
+            regionwordids = None
+            if self.testregions is not None:    # filter by regions
+                question = data[i, :, 0]
+                region = np.argmax(self.testregions[i], axis=-1)
+                region[question == self.maskid] = 0
+                regionwordpos = np.argwhere(region)[:, 0]
+                regionwordids = list(question[regionwordpos])
             if len(entcans[i]) == 0:
                 scoredentcans = [(-1, 0)]
             elif len(entcans[i]) == 1:
                 scoredentcans = [(entcans[i][0], 1)]
-            else:
-                entembs = self.eenc.predict.transform(self.enttrans)(entcans[i])
+            else:   # nontrivial
+                entcansi = entcans[i]
+                if regionwordids is not None:       # then filter by region words
+                    retcans = set()
+                    for entcansii in entcansi:
+                        entcansi_words = filter(lambda x: x != self.maskid,
+                                                list(self.subjmat[entcansii]))
+                        if len(set(regionwordids).intersection(set(entcansi_words))) > 0:
+                            # at least one word in common
+                            retcans.append(entcansii)
+                    entcansi = retcans
+                entembs = self.eenc.predict.transform(self.enttrans)(entcansi)
                 #embed()
                 entscoresi = np.tensordot(qencforent[i], entembs, axes=(0, 1))
                 entscoresi /= np.linalg.norm(qencforent[i])
                 entscoresi /= np.linalg.norm(entembs, axis=1)
-                scoredentcans = sorted(zip(entcans[i], entscoresi), key=lambda (x, y): y, reverse=True)
+                scoredentcans = sorted(zip(entcansi, entscoresi), key=lambda (x, y): y, reverse=True)
             ret.append(scoredentcans)
             self.tt.progress(i, self.qencodings.shape[0], live=True)
         self.tt.tock("ranked subjects")
@@ -380,7 +403,7 @@ class CustomPredictor(object):
         assert(entcans is not None)
         self.encodequestions(data)
         if goldsubjects is None:
-            rankedsubjs = self.ranksubjects(entcans)
+            rankedsubjs = self.ranksubjects(entcans, data=data)
         else:
             print "USING GOLD SUBJECTS!!! WRONG !!!"
             rankedsubjs = [[[x]] for x in goldsubjects]
@@ -767,6 +790,7 @@ def run(negsammode="closest",   # "close" or "random"
         usesurrogates=False,
         usetraincans=False,
         numlayers=1,
+        usetestregions=False,
         ):
     maskid = -1
 
@@ -1137,6 +1161,14 @@ def run(negsammode="closest",   # "close" or "random"
     tt.tock("loaded model")
 
     # EVALUATION
+    testregions = None
+    predsubjmat = None
+    if usetestregions:
+        _, _, _, \
+        (subjwordmat, _), (_, _), _, \
+        _, (_, _) = readdata(wordlevel=True, numtestcans=5)
+        testregions = pickle.load(open("testregions.smout.pkl"))
+        predsubjmat = subjmat
     predictor = CustomPredictor(questionencoder=question_encoder,
                                 entityencoder=subjemb,
                                 relationencoder=predemb,
@@ -1144,7 +1176,9 @@ def run(negsammode="closest",   # "close" or "random"
                                 enttrans=transf.ef,
                                 reltrans=transf.rf,
                                 debug=debugtest,
-                                subjinfo=subjinfo)
+                                subjinfo=subjinfo,
+                                testregions=testregions,
+                                subjmat=predsubjmat)
 
     tt.tick("predicting")
     if forcesubjincl:       # forces the intended subject entity to be among candidates
