@@ -339,14 +339,14 @@ class CustomPredictor(object):
             else:   # nontrivial
                 entcansi = entcans[i]
                 if regionwordids is not None:       # then filter by region words
-                    retcans = set()
+                    retcans = []
                     for entcansii in entcansi:
                         entcansi_words = filter(lambda x: x != self.maskid,
                                                 list(self.subjmat[entcansii]))
                         if len(set(regionwordids).intersection(set(entcansi_words))) > 0:
                             # at least one word in common
                             retcans.append(entcansii)
-                    entcansi = retcans
+                    entcansi = np.asarray(retcans).astype("int32")
                 entembs = self.eenc.predict.transform(self.enttrans)(entcansi)
                 #embed()
                 entscoresi = np.tensordot(qencforent[i], entembs, axes=(0, 1))
