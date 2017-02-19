@@ -325,28 +325,27 @@ class CustomPredictor(object):
         self.tt.tick("rank subjects")
         ret = []    # list of lists of (subj, score) tuples, sorted
         for i in range(self.qencodings.shape[0]):       # for every question
-            regionwordids = None
+            entcansi = entcans[i]
             if self.testregions is not None:    # filter by regions
                 question = data[i, :, 0]
                 region = np.argmax(self.testregions[i], axis=-1)
                 region[question == self.maskid] = 0
                 regionwordpos = np.argwhere(region)[:, 0]
                 regionwordids = list(question[regionwordpos])
-            if len(entcans[i]) == 0:
+                retcans = []
+                for entcansii in entcansi:
+                    entcansi_words = filter(lambda x: x != self.maskid,
+                                            list(self.subjmat[entcansii]))
+                    if len(set(regionwordids).intersection(set(entcansi_words))) > 0:
+                        # at least one word in common
+                        retcans.append(entcansii)
+                if len(retcans) > 0:        # if region yields something
+                    entcansi = retcans      # return region-filtered set
+            if len(entcansi) == 0:
                 scoredentcans = [(-1, 0)]
-            elif len(entcans[i]) == 1:
-                scoredentcans = [(entcans[i][0], 1)]
+            elif len(entcansi) == 1:
+                scoredentcans = [(entcansi[0], 1)]
             else:   # nontrivial
-                entcansi = entcans[i]
-                if regionwordids is not None:       # then filter by region words
-                    retcans = []
-                    for entcansii in entcansi:
-                        entcansi_words = filter(lambda x: x != self.maskid,
-                                                list(self.subjmat[entcansii]))
-                        if len(set(regionwordids).intersection(set(entcansi_words))) > 0:
-                            # at least one word in common
-                            retcans.append(entcansii)
-                    entcansi = np.asarray(retcans).astype("int32")
                 entembs = self.eenc.predict.transform(self.enttrans)(entcansi)
                 #embed()
                 entscoresi = np.tensordot(qencforent[i], entembs, axes=(0, 1))
