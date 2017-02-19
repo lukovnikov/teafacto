@@ -22,6 +22,7 @@ def readdata(p="../../../../data/simplequestions/clean/datamat.word.fb2m.pkl",
              maskid=-1,
              debug=False,
              numtestcans=None,
+             wordlevel=False,
              ):
     tt = ticktock("dataloader")
     if cachep is not None and os.path.isfile(cachep):      # load
@@ -58,11 +59,13 @@ def readdata(p="../../../../data/simplequestions/clean/datamat.word.fb2m.pkl",
         if debug:
             embed()
 
-        traindata = wordmat2wordchartensor(traindata, rwd=rwd, maskid=maskid)
-        validdata = wordmat2wordchartensor(validdata, rwd=rwd, maskid=maskid)
-        testdata = wordmat2wordchartensor(testdata, rwd=rwd, maskid=maskid)
+        if not wordlevel:
+            traindata = wordmat2wordchartensor(traindata, rwd=rwd, maskid=maskid)
+            validdata = wordmat2wordchartensor(validdata, rwd=rwd, maskid=maskid)
+            testdata = wordmat2wordchartensor(testdata, rwd=rwd, maskid=maskid)
 
-        subjmat = wordmat2charmat(subjmat, rwd=rwd, maskid=maskid, raretoken="<RARE>", maxlen=75)
+            subjmat = wordmat2charmat(subjmat, rwd=rwd, maskid=maskid, raretoken="<RARE>", maxlen=75)
+
         ret = ((traindata, traingold), (validdata, validgold),
                (testdata, testgold), (subjmat, relmat), (subjdic, reldic),
                worddic)
