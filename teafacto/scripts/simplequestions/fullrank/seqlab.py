@@ -67,5 +67,5 @@ def run(lr=1.0, epochs=50, numbats=700):
 
 
 if __name__ == "__main__":
-    preproc()
+    #preproc()
     argprun(run)
