@@ -56,7 +56,7 @@ def run(lr=1.0, epochs=50, numbats=700, embdim=100, encdim=150, useglove=False, 
     if useglove:
         emb = Glove(embdim, maskid=maskid).adapt(worddic)
     else:
-        emb = WordEmb(dim=embdim, indim=max(worddic.values())+1)
+        emb = WordEmb(dim=embdim, indim=max(worddic.values())+1, maskid=maskid)
     b = SimpleSeqTrans(inpemb=emb, bidir=True, innerdim=[encdim, encdim], outdim=2)
 
     traindata, traingold = d["train"]
