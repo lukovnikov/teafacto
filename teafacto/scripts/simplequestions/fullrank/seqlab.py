@@ -49,23 +49,22 @@ def preproc():
     pickle.dump(save, open("seqlab.data", "w"))
 
 
-def run(lr=1.0, epochs=50, numbats=700, useglove=False, inspect=False):
+def run(lr=1.0, epochs=50, numbats=700, embdim=100, encdim=150, useglove=False, inspect=False):
     d = pickle.load(open("seqlab.data"))
     worddic = d["worddic"]
-    embdim = 50
     maskid = -1
     if useglove:
         emb = Glove(embdim, maskid=maskid).adapt(worddic)
     else:
         emb = WordEmb(dim=embdim, indim=max(worddic.values())+1)
-    b = SimpleSeqTrans(inpemb=emb, bidir=True, innerdim=[100, 100], outdim=2)
+    b = SimpleSeqTrans(inpemb=emb, bidir=True, innerdim=[encdim, encdim], outdim=2)
 
     traindata, traingold = d["train"]
     validdata, validgold = d["valid"]
     testdata, testgold = d["test"]
     traingold, validgold, testgold = traingold.astype("int32"), validgold.astype("int32"), testgold.astype("int32")
 
-    print b.predict(traindata[:2])
+    #   print b.predict(traindata[:2])
 
     b.train([traindata], traingold).seq_cross_entropy().adadelta(lr=lr)\
         .validate_on([testdata], testgold).seq_cross_entropy().seq_accuracy()\
