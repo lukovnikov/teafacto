@@ -1,7 +1,7 @@
 from teafacto.blocks.seq.trans import SimpleSeqTrans
 from teafacto.core.base import Block, asblock
 from teafacto.blocks.basic import VectorEmbed
-from teafacto.blocks.lang.wordvec import Glove
+from teafacto.blocks.lang.wordvec import Glove, WordEmb
 import numpy as np, pickle
 from IPython import embed
 from teafacto.scripts.simplequestions.fullrank.fullrank import readdata
@@ -49,21 +49,30 @@ def preproc():
     pickle.dump(save, open("seqlab.data", "w"))
 
 
-def run(lr=1.0, epochs=50, numbats=700):
+def run(lr=1.0, epochs=50, numbats=700, useglove=False, inspect=False):
     d = pickle.load(open("seqlab.data"))
     worddic = d["worddic"]
     embdim = 50
     maskid = -1
-    emb = Glove(embdim, maskid=maskid).adapt(worddic)
+    if useglove:
+        emb = Glove(embdim, maskid=maskid).adapt(worddic)
+    else:
+        emb = WordEmb(dim=embdim, indim=max(worddic.values())+1)
     b = SimpleSeqTrans(inpemb=emb, bidir=True, innerdim=[100, 100], outdim=2)
 
     traindata, traingold = d["train"]
     validdata, validgold = d["valid"]
-    traingold, validgold = traingold.astype("int32"), validgold.astype("int32")
+    testdata, testgold = d["test"]
+    traingold, validgold, testgold = traingold.astype("int32"), validgold.astype("int32"), testgold.astype("int32")
+
+    print b.predict(traindata[:2])
 
     b.train([traindata], traingold).seq_cross_entropy().adadelta(lr=lr)\
-        .validate_on([validdata], validgold).seq_cross_entropy().seq_accuracy()\
+        .validate_on([testdata], testgold).seq_cross_entropy().seq_accuracy()\
         .train(epochs=epochs, numbats=numbats)
+
+    if inspect:
+        embed()
 
 
 if __name__ == "__main__":
