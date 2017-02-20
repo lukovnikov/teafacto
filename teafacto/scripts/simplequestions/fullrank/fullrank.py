@@ -334,15 +334,20 @@ class CustomPredictor(object):
                 region[question == self.maskid] = 0
                 regionwordpos = np.argwhere(region)[:, 0]
                 regionwordids = list(question[regionwordpos])
-                retcans = []
+                exact_retcans = []
+                overlap_retcans = []
                 for entcansii in entcansi:
                     entcansi_words = filter(lambda x: x != self.maskid,
                                             list(self.subjmat[entcansii]))
-                    if len(set(regionwordids).intersection(set(entcansi_words))) > 0:
+                    if regionwordids == entcansi_words:
+                        exact_retcans.append(entcansii)
+                    elif len(set(regionwordids).intersection(set(entcansi_words))) > 0:
                         # at least one word in common
-                        retcans.append(entcansii)
-                if len(retcans) > 0:        # if region yields something
-                    entcansi = retcans      # return region-filtered set
+                        overlap_retcans.append(entcansii)
+                if len(exact_retcans) > 0:        # if region yields something
+                    entcansi = exact_retcans      # return region-filtered set
+                elif len(overlap_retcans) > 0:
+                    entcansi = overlap_retcans
                 #embed()
             if len(entcansi) == 0:
                 scoredentcans = [(-1, 0)]
