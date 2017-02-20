@@ -800,7 +800,14 @@ def run(negsammode="closest",   # "close" or "random"
         usetestregions=False,
         ):
     maskid = -1
-
+    """
+    # TODO remove
+    (traindata, traingold), (validdata, validgold), (testdata, testgold), \
+    (subjmat, relmat), (subjdic, reldic), worddic, \
+    subjinfo, (testsubjcans, relsperent) = readdata(wordlevel=True,
+                                                    numtestcans=5)
+    embed()
+    """
     tt = ticktock("script")
     tt.tick("loading data")
     (traindata, traingold), (validdata, validgold), (testdata, testgold), \
