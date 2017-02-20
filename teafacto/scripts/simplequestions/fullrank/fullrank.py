@@ -343,7 +343,7 @@ class CustomPredictor(object):
                         retcans.append(entcansii)
                 if len(retcans) > 0:        # if region yields something
                     entcansi = retcans      # return region-filtered set
-                embed()
+                #embed()
             if len(entcansi) == 0:
                 scoredentcans = [(-1, 0)]
             elif len(entcansi) == 1:
@@ -1164,13 +1164,12 @@ def run(negsammode="closest",   # "close" or "random"
 
     # EVALUATION
     testregions = None
-    predsubjmat = None
+    subjwordmat = None
     if usetestregions:
         _, _, _, \
         (subjwordmat, _), (_, _), _, \
         _, (_, _) = readdata(wordlevel=True, numtestcans=5)
         testregions = pickle.load(open("testregions.smout.pkl"))
-        predsubjmat = subjmat
     predictor = CustomPredictor(questionencoder=question_encoder,
                                 entityencoder=subjemb,
                                 relationencoder=predemb,
@@ -1180,7 +1179,7 @@ def run(negsammode="closest",   # "close" or "random"
                                 debug=debugtest,
                                 subjinfo=subjinfo,
                                 testregions=testregions,
-                                subjmat=predsubjmat)
+                                subjmat=subjwordmat)
 
     tt.tick("predicting")
     if forcesubjincl:       # forces the intended subject entity to be among candidates
