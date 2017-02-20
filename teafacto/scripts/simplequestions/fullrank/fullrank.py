@@ -1175,16 +1175,6 @@ def run(negsammode="closest",   # "close" or "random"
     tt.tock("loaded model")
 
     # EVALUATION
-    # evaluate on valid
-    validcansp = "../../../../data/simplequestions/clean/validcans{}.pkl"
-    validcans = loadsubjtestcans(p=validcansp, numcans=numtestcans)
-
-    testdata = validdata
-    testsubjcans = validcans
-    testgold = validgold
-
-
-
     testregions = None
     subjwordmat = None
     if usetestregions:
