@@ -1177,7 +1177,7 @@ def run(negsammode="closest",   # "close" or "random"
     # EVALUATION
     # evaluate on valid
     validcansp = "../../../../data/simplequestions/clean/validcans{}.pkl"
-    validcans = loadsubjtestcans(p=validgold, numcans=numtestcans)
+    validcans = loadsubjtestcans(p=validcansp, numcans=numtestcans)
 
     testdata = validdata
     testsubjcans = validcans
