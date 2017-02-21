@@ -49,14 +49,14 @@ class WordCharSentEnc(TwoLevelEncoder):
                  maskid=None, bidir=False, returnall=False, **kw):
         # char level inits
         if charemb is None:
-            charemb = VectorEmbed(indim=numchars, dim=charembdim)
+            charemb = VectorEmbed(indim=numchars, dim=charembdim, maskid=maskid)
         else:
             charemb = charemb
             charembdim = charemb.outdim
         if not issequence(charinnerdim):
             charinnerdim = [charinnerdim]
         charlayers, lastchardim = MakeRNU.make(charembdim, charinnerdim, bidir=bidir)
-        charenc = SeqEncoder(charemb, *charlayers).maskoptions(maskid, MaskMode.AUTO)
+        charenc = SeqEncoder(charemb, *charlayers)
         # word level inits
         if wordemb is None:
             wordemb = VectorEmbed(indim=numwords, dim=wordembdim)
@@ -69,7 +69,7 @@ class WordCharSentEnc(TwoLevelEncoder):
         if not issequence(wordinnerdim):
             wordinnerdim = [wordinnerdim]
         wordlayers, outdim = MakeRNU.make(wordembdim + lastchardim, wordinnerdim, bidir=bidir)
-        wordenc = SeqEncoder(None, *wordlayers).maskoptions(MaskMode.NONE)
+        wordenc = SeqEncoder(None, *wordlayers)
         if returnall:
             wordenc.all_outputs()
         self.outdim = outdim

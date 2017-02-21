@@ -1,5 +1,5 @@
 from teafacto.core.base import Block, asblock, Val, issequence, tensorops as T
-from teafacto.blocks.seq.rnn import SeqEncoder, MaskSetMode, SeqDecoder
+from teafacto.blocks.seq.rnn import SeqEncoder, SeqDecoder
 from teafacto.blocks.seq.rnu import GRU
 from teafacto.blocks.seq.attention import Attention, WeightedSumAttCon, AttGen
 from teafacto.blocks.basic import MatDot
@@ -17,13 +17,13 @@ class SeqEncDec(Block):
         self.dec = dec
         self.statetrans = statetrans
 
-    def apply(self, inpseq, outseq, inmask=None, outmask=None):
-        initstates, allenco = self.preapply(inpseq, inmask)
-        deco = self.dec(allenco, outseq, initstates=initstates, mask=outmask)
+    def apply(self, inpseq, outseq):
+        initstates, allenco = self.preapply(inpseq)
+        deco = self.dec(allenco, outseq, initstates=initstates)
         return deco
 
-    def preapply(self, inpseq, inmask=None):
-        enco, allenco, states = self.enc(inpseq, mask=inmask)   # bottom states first
+    def preapply(self, inpseq):
+        enco, allenco, states = self.enc(inpseq)   # bottom states first
         states = [state[:, -1, :] for state in states]
         initstates = self.make_initstates(states)
         return initstates, allenco
@@ -34,8 +34,8 @@ class SeqEncDec(Block):
         else:
             return None
 
-    def get_inits(self, inpseq, batsize, maskseq=None):
-        initstates, allenco = self.preapply(inpseq, inmask=maskseq)
+    def get_inits(self, inpseq, batsize):
+        initstates, allenco = self.preapply(inpseq)
         return self.dec.get_inits(initstates, batsize, allenco)
 
     def rec(self, x_t, *states):
@@ -159,7 +159,7 @@ class SimpleSeqEncDecAtt(SeqEncDec):
         enc = SeqEncoder.RNN(indim=indim, inpembdim=inpembdim, inpemb=inpemb,
                              innerdim=innerdim, bidir=bidir, maskid=maskid,
                              dropout_in=dropout_in, dropout_h=dropout_h, rnu=rnu) \
-            .with_outputs().with_states().maskoptions(MaskSetMode.ZERO)
+            .with_outputs().with_states()
         return enc
 
     def _getdecoder(self, outvocsize=None, outembdim=None, outemb=None, maskid=-1,
@@ -193,7 +193,8 @@ from teafacto.blocks.seq.rnn import MakeRNU, RecStack
 
 class MultiEncDec(Block):
     def __init__(self, encoders=None, slices=None, attentions=None,
-                 inpemb=None, indim=None, inconcat=True, outconcat=False,
+                 indim=None,
+                 inpemb=None, inconcat=True, outconcat=False,
                  innerdim=None, rnu=GRU, dropout_in=False, dropout_h=False,
                  smo=None, **kw):
         super(MultiEncDec, self).__init__(**kw)
@@ -203,13 +204,13 @@ class MultiEncDec(Block):
         self.inpemb = inpemb
         innerdim = innerdim if issequence(innerdim) else [innerdim]
         self.outdim = innerdim[-1]
-        layers = MakeRNU.fromdims([indim] + innerdim, rnu=rnu,
+        layers, lastdim = MakeRNU.fromdims([indim] + innerdim, rnu=rnu,
                                   dropout_in=dropout_in, dropout_h=dropout_h,
                                   param_init_states=True)
-        self.block = RecStack(layers)
+        self.block = RecStack(*layers)
         if not issequence(slices):
             slices = [slices]
-        self.slices = [smo.indim] + slices        # slices to take from final layer's vector to feed to each attention
+        self.slices = (smo.indim,) + tuple(slices)        # slices to take from final layer's vector to feed to each attention
         self.attentions = attentions
         self.smo = smo              # softmax out block on decoder
 
@@ -263,7 +264,7 @@ class MultiEncDec(Block):
         h_t = rnuret[0]
         states_t = rnuret[1:]
         _y_t_slice = h_t[:, :self.slices[0]]
-        _y_t = T.concatenate([_y_t_slice, ctx_t], axis=1) if self.outconcat else h_t
+        _y_t = T.concatenate([_y_t_slice, ctx_t], axis=1) if self.outconcat else _y_t_slice
         y_t = self.smo(_y_t)
         return [y_t] + states_t
 

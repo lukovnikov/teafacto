@@ -1,7 +1,8 @@
-from teafacto.blocks.basic import MatDot as Lin, Softmax, VectorEmbed, IdxToOneHot
+from teafacto.blocks.basic import MatDot as Lin, VectorEmbed, IdxToOneHot
 from teafacto.core.base import Block, param, Val
-from teafacto.blocks.match import Distance
+from teafacto.blocks.match import Distance, CosineDistance
 from teafacto.core.base import tensorops as T
+from teafacto.blocks.activations import GumbelSoftmax, Softmax
 import numpy as np
 import theano, theano.tensor
 
@@ -49,7 +50,7 @@ class WeightedSumAttCon(AttentionConsumer):    # applies attention to sequence w
 # ATTENTIONS
 
 class Attention(Block):
-    def __init__(self, attentiongenerator, attentionconsumer=WeightedSumAttCon(),
+    def __init__(self, attentiongenerator=AttGen(CosineDistance()), attentionconsumer=WeightedSumAttCon(),
                  splitters=None,        # two blocks, each applied to data, first used for addr, second used for content
                  **kw):
         super(Attention, self).__init__(**kw)

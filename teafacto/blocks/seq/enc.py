@@ -55,7 +55,7 @@ class Seq2Vec(Block):
         if not issequence(enclayers):
             enclayers = [enclayers]
         self.pool = pool
-        self.enc = SeqEncoder(inpemb, *enclayers).maskoptions(maskid, MaskMode.AUTO)
+        self.enc = SeqEncoder(inpemb, *enclayers)
         if self.pool is not None:
             self.enc = self.enc.all_outputs.with_mask
 
@@ -97,7 +97,7 @@ class SimpleSeq2Vec(Seq2Vec):
 
 class SimpleSeq2MultiVec(Block):
     def __init__(self, indim=400, inpembdim=50, inpemb=None, mode="concat",
-                 innerdim=100, numouts=1, maskid=0, bidir=False,
+                 innerdim=100, numouts=1, bidir=False,
                  maskmode=MaskMode.NONE, **kw):
         super(SimpleSeq2MultiVec, self).__init__(**kw)
         if inpemb is None:
@@ -115,14 +115,13 @@ class SimpleSeq2MultiVec(Block):
         innerdim[-1] += numouts
         rnn, lastdim = self.makernu(inpembdim, innerdim, bidir=bidir)
         self.outdim = lastdim*numouts if mode=="concat" else lastdim
-        self.maskid = maskid
         self.inpemb = inpemb
         self.numouts = numouts
         self.mode = mode
         self.bidir = bidir
         if not issequence(rnn):
             rnn = [rnn]
-        self.enc = SeqEncoder(inpemb, *rnn).maskoptions(maskid, maskmode)
+        self.enc = SeqEncoder(inpemb, *rnn)
         self.enc.all_outputs()
 
     @staticmethod
@@ -171,10 +170,10 @@ class SeqStar2Vec(Block):
             if not issequence(layers):
                 layers = [layers]
             if atbase:
-                enc = SeqEncoder(baseemb, *layers).maskoptions(MaskMode.NONE)
+                enc = SeqEncoder(baseemb, *layers)
                 atbase = False
             else:
-                enc = SeqEncoder(None, *layers).maskoptions(MaskMode.NONE)
+                enc = SeqEncoder(None, *layers)
             self.encoders.append(enc)
 
     def apply(self, x):     # (batsize, outerseqlen, innerseqlen)

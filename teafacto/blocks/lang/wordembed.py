@@ -27,8 +27,8 @@ class WordEmbedGlove(Embedder):
 class WordEncoder(Block):
     def __init__(self, indim=220, outdim=200, maskid=0, **kw):    # indim is number of characters
         super(WordEncoder, self).__init__(**kw)
-        self.enc = SeqEncoder(IdxToOneHot(indim),
-                              GRU(dim=indim, innerdim=outdim)).maskoptions(maskid, MaskMode.AUTO)
+        self.enc = SeqEncoder(IdxToOneHot(indim, maskid=maskid),
+                              GRU(dim=indim, innerdim=outdim))
 
     def apply(self, seq):       # seq: (batsize, maxwordlen) of character idxs
         enco = self.enc(seq)    # enco: (batsize, outdim) of floats

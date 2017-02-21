@@ -60,3 +60,51 @@ class TestSimpleSeqEncDecAtt(TestCase):
         _, outvar = m.autobuild(inpseq, outseq)
         for p in sorted(outvar[0].allparams, key=lambda x: str(x)):
             print p
+
+
+    def test_mask(self, rnu=GRU, bidir=False):
+        inpvocsize = 100
+        outvocsize = 13
+        inpembdim = 10
+        outembdim = 7
+        encdim = [26, 14]
+        decdim = [21, 15]
+        batsize = 11
+        inpseqlen = 6
+        outseqlen = 7
+
+        maskid = 0
+
+        m = SimpleSeqEncDecAtt(inpvocsize=inpvocsize,
+                               inpembdim=inpembdim,
+                               outvocsize=outvocsize,
+                               outembdim=outembdim,
+                               encdim=encdim,
+                               decdim=decdim,
+                               bidir=bidir,
+                               maskid=maskid,
+                               statetrans=True,
+                               attdist=LinearDistance(15, 14, 17),
+                               rnu=rnu)
+
+        inpseq = np.random.randint(1, inpvocsize, (batsize, inpseqlen)).astype("int32")
+        outseq = np.random.randint(1, outvocsize, (batsize, outseqlen)).astype("int32")
+
+        inpseq[:, -2:] = 0
+        outseq[:, -3:] = 0
+
+        from teafacto.core.base import asblock
+
+        maskpred = asblock(lambda x, y: m(x, y).mask)
+
+        maskprediction = maskpred.predict(inpseq, outseq)
+        self.assertTrue(np.allclose(maskprediction, outseq != maskid))
+
+        encmaskpred = asblock(lambda x: m.enc(x)[1].mask).predict(inpseq)
+        self.assertTrue(np.allclose(encmaskpred, inpseq != maskid))
+
+        decpred, extra = m.predict(inpseq, outseq, _extra_outs=["attention_weights"])
+        weights = extra["attention_weights"]
+        maskedweights = weights[:, :, -2:]
+        self.assertTrue(np.allclose(maskedweights, np.zeros_like(maskedweights)))
+        np.set_printoptions(precision=3)

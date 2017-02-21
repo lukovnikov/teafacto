@@ -102,32 +102,68 @@ class RecStack(ReccableBlock):
         return [nextinp] + nextstates
 
 
-class MaskMode(Enum):
-    NONE = 0
-    AUTO = 1
-    AUTO_FORCE = 2
+class FluentSeqEncoderBuilder(object):
+    """ Fluent construction interface for seqencoder """
+    def __init__(self, **kw):
+        super(FluentSeqEncoderBuilder, self).__init__(**kw)
+        self.embedder = None
+        self.layers = []
+        self.lastdim = None
 
-class MaskSetMode(Enum):
-    NONE = 0
-    ZERO = 1
-    MASKID = 2
+    def _return(self):
+        return self
 
-
-class MaskConfig(object):
-    def __init__(self, maskmode=MaskMode.NONE, maskid=0, maskset=MaskSetMode.NONE):
-        self.maskmode = maskmode
-        self.maskid = maskid
-        self.maskset = maskset
-
-    def option(self, o):
-        if isinstance(o, MaskSetMode):
-            self.maskset = o
-        elif isinstance(o, MaskMode):
-            self.maskmode = o
-        elif isinstance(o, int):
-            self.maskid = o
+    def make(self):
+        if self.embedder is not None and self.layers is not None and \
+            len(self.layers) > 0:
+            return SeqEncoder(self.embedder, *self.layers)
         else:
-            raise NotImplementedError("unrecognized mask configuration option")
+            raise Exception("not ready")
+
+    def noembedder(self, dim):
+        self.lastdim = dim
+        return self._return()
+
+    def onehotembedder(self, vocsize):
+        self.embedder, self.lastdim = IdxToOneHot(vocsize), vocsize
+        return self._return()
+
+    def setembedder(self, block):
+        self.embedder = block
+        self.lastdim = self.embedder.outdim
+        return self._return()
+
+    def vectorembedder(self, vocsize, embdim, maskid=None):
+        self.embedder, self.lastdim = VectorEmbed(indim=vocsize, dim=embdim, maskid=maskid), embdim
+        return self._return()
+
+    def setlayers(self, *layers):
+        self.layers = layers
+        return self._return()
+
+    def addlayers(self, dim=None, bidir=False, dropout_in=False, dropout_h=False, rnu=GRU):
+        inpdim = self.lastdim
+        if not issequence(dim):
+            dim = [dim]
+        #self.outdim = innerdim[-1] if not bidir else innerdim[-1] * 2
+        layers, lastdim = MakeRNU.make(inpdim, dim, bidir=bidir, rnu=rnu,
+                                       dropout_in=dropout_in, dropout_h=dropout_h)
+        self.layers = self.layers + layers
+        self.lastdim = lastdim
+        return self._return()
+
+    @staticmethod
+    def getemb(emb=None, embdim=None, vocsize=None, maskid=None):
+        if emb is False:
+            assert (embdim is not None)
+            return None, embdim
+        elif emb is not None:
+            return emb, emb.outdim
+        else:
+            if embdim is None:
+                return IdxToOneHot(vocsize), vocsize
+            else:
+                return VectorEmbed(indim=vocsize, dim=embdim, maskid=maskid), embdim
 
 
 class SeqEncoder(AttentionConsumer, Block):
@@ -140,17 +176,9 @@ class SeqEncoder(AttentionConsumer, Block):
     def __init__(self, embedder, *layers, **kw):
         super(SeqEncoder, self).__init__(**kw)
         self._returnings = {"enc"}
-        self._nomask = False
-        self._maskconfig = kw["maskcfg"] if "maskcfg" in kw else MaskConfig(MaskMode.AUTO, 0, MaskSetMode.NONE)
-        #dropout = False if "dropout" not in kw else kw["dropout"]
         self.embedder = embedder
         if len(layers) > 0:
             self.block = RecStack(*layers)
-            '''if len(layers) == 1:
-                self.block = layers[0]
-                assert(isinstance(self.block, RecurrentBlock))
-            else:
-                self.block = RecStack(*layers)'''
         else:
             self.block = None
 
@@ -164,20 +192,13 @@ class SeqEncoder(AttentionConsumer, Block):
     def apply_argspec(self):
         return ((2, "int"),) if self.embedder is not None else ((3, "float"),)
 
-    def apply(self, seq, weights=None, mask=None): # seq: (batsize, seqlen, dim), weights: (batsize, seqlen) OR (batsize, seqlen, seqlen*, dim) ==> reduce the innermost seqlen
-        mask = seq.mask if mask is None else mask
+    def apply(self, seq, weights=None): # seq: (batsize, seqlen, dim), weights: (batsize, seqlen) OR (batsize, seqlen, seqlen*, dim) ==> reduce the innermost seqlen
         # embed
         if self.embedder is None:
             seqemb = seq
         else:
             seqemb = self.embedder(seq)     # maybe this way of embedding is not so nice for memory
-            mask = seqemb.mask if mask is None else mask
-            # auto mask
-            if self._maskconfig.maskmode == MaskMode.AUTO_FORCE or \
-                    (mask is None and self._maskconfig.maskmode == MaskMode.AUTO) or \
-                    mask == "auto":
-                mask = self._autogenerate_mask(seq, seqemb)
-
+        mask = seqemb.mask
         # full mask
         fullmask = None
         if mask is not None:
@@ -186,31 +207,8 @@ class SeqEncoder(AttentionConsumer, Block):
             fullmask = weights if fullmask is None else weights * fullmask
         #embed()
         final, outputs, states = self.block.innerapply(seqemb, mask=fullmask)   # bottom states first
-        if mask is not None:
-            outputs.mask = mask
+        outputs.mask = mask
         return self._get_apply_outputs(final, outputs, states, mask)
-
-    def _autogenerate_mask(self, seq, seqemb):
-        assert(seqemb.ndim == 3)
-        print "automasking in SeqEncoder (%s)" % __file__
-        axes = range(2, seq.ndim)       # mask must be 2D
-        if "int" in seq.dtype:       # ==> indexes  # mask must be 2D
-            if seq.ndim < 2:
-                raise AttributeError("CAN NOT GENERATE MASK FOR NON-SEQUENCE")
-            elif seq.ndim == 2:
-                seqformask = seq
-            else:
-                print "generating default mask for non-standard seq shape (SeqEncoder, %s)" % __file__
-                seqformask = seq[(slice(None, None, None),) * 2 + (0,) * (seq.ndim-2)]
-                #if self._maskconfig.maskid != 0:
-                #    raise AttributeError("CAN NOT CREATE MASK USING CUSTOM MASKID %d BECAUSE OF NON-STANDARD SEQ (%d dims, %s)" % (self._maskconfig.maskid, seq.ndim, str(seq.dtype)))
-                #mask = T.gt(seq.sum(axis=axes), 0)      # 0 is TERMINUS
-            assert(seqformask.ndim == 2)
-            mask = T.neq(seqformask, self._maskconfig.maskid)
-        else:
-            #TODO raise AttributeError("CAN NOT GENERATE MASK FOR NON-INT SEQ")
-            mask = T.gt(seq.norm(2, axis=axes), 0)
-        return mask
 
     def _get_apply_outputs(self, final, outputs, states, mask):
         ret = []
@@ -218,9 +216,6 @@ class SeqEncoder(AttentionConsumer, Block):
             ret.append(final)
         if "all" in self._returnings:       # states (over all time) of topmost layer
             rete = outputs       # (batsize, seqlen, dim) --> zero-fy according to mask
-            if self._maskconfig.maskset == MaskSetMode.ZERO and mask is not None:
-                fmask = T.tensordot(mask, T.ones((outputs.shape[2],)), 0)
-                rete = rete * fmask
             rete.mask = mask
             ret.append(rete)
         if "mask" in self._returnings:
@@ -232,36 +227,6 @@ class SeqEncoder(AttentionConsumer, Block):
             return ret[0]
         else:
             return ret
-
-    def _get_apply_outputs_old(self, outputs):
-        output = outputs[0]
-        if self._all_states:    # get the last values of each of the states
-            states = self.block.get_states_from_outputs(outputs[1:])
-            ret = [s[-1, :, :] for s in states]
-        else:                   # get the last state of the final state
-            ret = [output[:, -1, :]] #output is (batsize, innerdim)
-        if self._alloutput:    # include stack output
-            return ret + [output]
-        else:
-            if len(ret) == 1:   # if only topmost last state or only one stateful layer --> one output
-                return ret[0]
-            else:               # else: a list of outputs
-                return ret
-
-    ### FLUENT MASK SETTINGS
-    def mask(self, maskcfg):
-        assert(isinstance(maskcfg, MaskConfig))
-        self._maskconfig = maskcfg
-        return self
-
-    def maskoptions(self, *opt):
-        for o in opt:
-            self.maskoption(o)
-        return self
-
-    def maskoption(self, maskoption):
-        self._maskconfig.option(maskoption)
-        return self
 
     ### FLUENT OUTPUT SETTINGS
     def reset_return(self):
@@ -300,17 +265,16 @@ class SeqEncoder(AttentionConsumer, Block):
     #CNN = CNNSeqEncoder        # TODO
 
     @staticmethod
+    def simple(*args, **kwargs):
+        return RNNSeqEncoder(*args, **kwargs)
+
+    @staticmethod
+    def fluent():
+        return FluentSeqEncoderBuilder()
+
+    @staticmethod
     def getemb(emb=None, embdim=None, vocsize=None, maskid=-1):
-        if emb is False:
-            assert(embdim is not None)
-            return None, embdim
-        elif emb is not None:
-            return emb, emb.outdim
-        else:
-            if embdim is None:
-                return IdxToOneHot(vocsize), vocsize
-            else:
-                return VectorEmbed(indim=vocsize, dim=embdim, maskid=maskid), embdim
+        return FluentSeqEncoderBuilder.getemb(emb=emb, embdim=embdim, vocsize=vocsize, maskid=maskid)
 
 
 class RNNSeqEncoder(SeqEncoder):
@@ -330,114 +294,6 @@ class RNNSeqEncoder(SeqEncoder):
     @property
     def outdim(self):
         return self._lastdim
-
-
-class SeqDecoderOld(Block):
-    """ seq decoder with attention with new inconcat implementation """
-    def __init__(self, layers, softmaxoutblock=None, innerdim=None,
-                 attention=None, inconcat=True, outconcat=False, **kw):
-        super(SeqDecoderOld, self).__init__(**kw)
-        self.embedder = layers[0]
-        self.block = RecStack(*layers[1:])
-        self.outdim = innerdim
-        self.attention = attention
-        self.inconcat = inconcat
-        self.outconcat = outconcat
-        self._mask = False
-        self._attention = None
-        assert(isinstance(self.block, ReccableBlock))
-        if softmaxoutblock is None: # default softmax out block
-            sm = Softmax()
-            self.lin = MatDot(indim=self.outdim, dim=self.embedder.indim)
-            self.softmaxoutblock = asblock(lambda x: sm(self.lin(x)))
-        elif softmaxoutblock is False:
-            self.softmaxoutblock = asblock(lambda x: x)
-        else:
-            self.softmaxoutblock = softmaxoutblock
-
-    @property
-    def numstates(self):
-        return self.block.numstates
-
-    def _get_seq_emb_t0(self, num, startsymemb=None):
-        # seq_emb = self.embedder(seq[:, 1:])    # (batsize, seqlen-1, embdim)
-        dim = self.embedder.outdim
-        seq_emb_t0_sym = T.zeros((dim,), dtype="float32") if startsymemb is None else startsymemb
-        seq_emb_t0 = T.repeat(seq_emb_t0_sym[np.newaxis, :], num, axis=0)
-        return seq_emb_t0
-
-    def apply(self, context, seq, context_0=None, initstates=None, mask=None,
-              encmask=None, startsymemb=None, **kw):  # context: (batsize, enc.innerdim), seq: idxs-(batsize, seqlen)
-        if initstates is None:
-            initstates = seq.shape[0]
-        elif issequence(initstates):
-            if len(initstates) < self.numstates:  # fill up with batsizes for lower layers
-                initstates = [seq.shape[0]] * (self.numstates - len(initstates)) + initstates
-        init_info, nonseq = self.get_init_info(context, initstates,
-                                    ctx_0=context_0, encmask=encmask)  # sets init states to provided ones
-        embedder = self.embedder
-        def recemb(x):
-            return embedder(x)
-        seq_emb = T.scan(fn=recemb, sequences=seq[:, 1:].dimswap(1, 0))
-        seq_emb = seq_emb.dimswap(1, 0)
-        seq_emb_t0 = self._get_seq_emb_t0(seq_emb.shape[0], startsymemb=startsymemb)
-        seq_emb = T.concatenate([seq_emb_t0.dimshuffle(0, "x", 1), seq_emb], axis=1)
-        outputs = T.scan(fn=self.rec,
-                            sequences=seq_emb.dimswap(1, 0),
-                            outputs_info=[None] + init_info,
-                            non_sequences=nonseq)
-        ret = outputs[0].dimswap(1, 0)  # returns probabilities of symbols --> (batsize, seqlen, vocabsize)
-        if mask == "auto":
-            mask = (seq > 0).astype("int32")
-        ret = self.applymask(ret, mask)
-        return ret
-
-    @classmethod
-    def applymask(cls, xseq, maskseq):
-        if maskseq is None:
-            return xseq
-        else:
-            mask = T.tensordot(maskseq, T.ones((xseq.shape[2],)), 0)  # f32^(batsize, seqlen, outdim) -- maskseq stacked
-            masker = T.concatenate(
-                [T.ones((xseq.shape[0], xseq.shape[1], 1)),
-                 T.zeros((xseq.shape[0], xseq.shape[1], xseq.shape[2] - 1))],
-                axis=2)  # f32^(batsize, seqlen, outdim) -- gives 100% prob to output 0
-            ret = xseq * mask + masker * (1.0 - mask)
-            return ret
-
-    def get_init_info(self, context, initstates, ctx_0=None, encmask=None):
-        initstates = self.block.get_init_info(initstates)
-        ctx_0 = self._get_ctx_t(context, initstates, encmask) if ctx_0 is None else ctx_0
-        if encmask is None:
-            encmask = T.ones(context.shape[:2], dtype="float32")
-        return [ctx_0, 0] + initstates, [encmask, context]
-
-    def _get_ctx_t(self, ctx, states_tm1, encmask):
-        if ctx.d.ndim == 2:     # static context
-            ctx_t = ctx
-            assert(self.attention is None)
-        elif ctx.d.ndim > 2:
-            # ctx is 3D, always dynamic context
-            assert(self.attention is not None)
-            h_tm1 = states_tm1[0]   # ??? --> will it also work with multi-state RNUs?
-            ctx_t = self.attention(h_tm1, ctx, mask=encmask)
-        return ctx_t
-
-    def rec(self, x_t_emb, ctx_tm1, t, *args):  # x_t_emb: (batsize, embdim), context: (batsize, enc.innerdim)
-        states_tm1 = args[:-2]
-        ctx = args[-1]
-        encmask = args[-2]
-        #x_t_emb = self.embedder(x_t)  # i_t: (batsize, embdim)
-        # do inconcat
-        i_t = T.concatenate([x_t_emb, ctx_tm1], axis=1) if self.inconcat else x_t_emb
-        rnuret = self.block.rec(i_t, *states_tm1)
-        t += 1
-        h_t = rnuret[0]
-        states_t = rnuret[1:]
-        ctx_t = self._get_ctx_t(ctx, states_t, encmask)  # get context with attention
-        _y_t = T.concatenate([h_t, ctx_t], axis=1) if self.outconcat else h_t
-        y_t = self.softmaxoutblock(_y_t)
-        return [y_t, ctx_t, t] + states_t
 
 
 class SeqDecoder(Block):
@@ -474,11 +330,11 @@ class SeqDecoder(Block):
     def apply_argspec(self):
         return ((3, "float"), (2, "int"))
 
-    def apply(self, ctx, seq, initstates=None, mask=None, ctxmask=None, **kw):  # context: (batsize, enc.innerdim), seq: idxs-(batsize, seqlen)
+    def apply(self, ctx, seq, initstates=None, **kw):  # context: (batsize, enc.innerdim), seq: idxs-(batsize, seqlen)
         batsize = seq.shape[0]
-        init_info, nonseqs = self.get_inits(initstates, batsize, ctx, ctxmask)
+        init_info, nonseqs = self.get_inits(initstates, batsize, ctx)
         seq_emb = self.embedder(seq)    # (batsize, seqlen, embdim)
-        mask = seq_emb.mask if mask is None else mask
+        mask = seq_emb.mask
         outputs = T.scan(fn=self.inner_rec,
                             sequences=seq_emb.dimswap(1, 0),
                             outputs_info=[None] + init_info,
@@ -487,14 +343,14 @@ class SeqDecoder(Block):
         ret.mask = mask
         return ret
 
-    def get_inits(self, initstates=None, batsize=None, ctx=None, ctxmask=None):
+    def get_inits(self, initstates=None, batsize=None, ctx=None):
         if initstates is None:
             initstates = batsize
         elif issequence(initstates):
             if len(initstates) < self.numstates:  # fill up with batsizes for lower layers
                 initstates = [batsize * (self.numstates - len(initstates))] + initstates
 
-        ctxmask = ctx.mask if ctxmask is None else ctxmask
+        ctxmask = ctx.mask
         ctxmask = T.ones(ctx.shape[:2], dtype="float32") if ctxmask is None else ctxmask
         nonseqs = [ctxmask, ctx]
         return self.get_init_info(initstates), nonseqs

@@ -113,12 +113,16 @@ class Embedder(Block):
 
 
 class IdxToOneHot(Embedder):
-    def __init__(self, vocsize, **kw):
+    def __init__(self, vocsize, maskid=None, **kw):
         super(IdxToOneHot, self).__init__(vocsize, vocsize, **kw)
         self.W = Val(np.eye(vocsize, vocsize))
+        self.maskid = maskid
 
     def apply(self, inp):
-        return self.W[inp, :]
+        ret = self.W[inp, :]
+        if self.maskid is not None:
+            ret.mask = T.neq(inp, self.maskid)
+        return ret
 
 
 class Eye(Block):
@@ -197,7 +201,6 @@ class VectorEmbed(Embedder):
             assert(self.indim is not None and self.outdim is not None)
         else:
             assert(self.W is None)
-
 
     def setvalue(self, v):
         if isinstance(v, Var):
