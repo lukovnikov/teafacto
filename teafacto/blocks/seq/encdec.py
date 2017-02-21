@@ -211,7 +211,6 @@ class SimpleSeqEncDecAtt(SeqEncDec):
         self.enc = enc
 
 
-
 class SepAttEncoders(Block):
     def __init__(self, enc_a, enc_c, **kw):
         super(SepAttEncoders, self).__init__(**kw)
@@ -230,3 +229,83 @@ class SepAttEncoders(Block):
         ret = T.concatenate([con_enc_all, att_enc_all], axis=2)
         ret.mask = encmask
         return con_enc_final, ret, con_enc_states
+
+
+from teafacto.blocks.seq.rnn import MakeRNU, RecStack
+
+
+class MultiEncDec(Block):
+    def __init__(self, encoders=None, slices=None, attentions=None,
+                 inpemb=None, indim=None, inconcat=True, outconcat=False,
+                 innerdim=None, rnu=GRU, dropout_in=False, dropout_h=False,
+                 smo=None, **kw):
+        super(MultiEncDec, self).__init__(**kw)
+        self.inconcat = inconcat
+        self.outconcat = outconcat
+        self.encoders = encoders
+        self.inpemb = inpemb
+        innerdim = innerdim if issequence(innerdim) else [innerdim]
+        layers = MakeRNU.fromdims([indim] + innerdim, rnu=rnu,
+                                  dropout_in=dropout_in, dropout_h=dropout_h,
+                                  param_init_states=True)
+        self.block = RecStack(layers)
+        self.slices = slices        # slices to take from final layer's vector to feed to each attention
+        self.attentions = attentions
+        self.smo = smo              # softmax out block on decoder
+
+    def apply(self, decinp, *encinps):
+        inpencs = []
+        for encinp, encoder in zip(encinps, self.encoders):
+            inpencs.append(encoder(encinp))
+        batsize = decinp.shape[0]
+        init_info = self.get_init_info(batsize)   # blank init info
+        nonseqs = self.get_nonseqs(*inpencs)
+        self._numnonseqs = len(nonseqs)
+        decinpemb = self.inpemb(decinp)
+        mask = decinpemb.mask
+        outputs = T.scan(fn=self.inner_rec,
+                        sequences=decinpemb.dimswap(1, 0),
+                        outputs_info=[None] + init_info,
+                        non_sequences=nonseqs,
+                        )
+        ret = outputs[0].dimswap(1, 0)
+        ret.mask = mask
+        return ret
+
+    def get_init_info(self, initstates):
+        return self.block.get_init_info(initstates)
+
+    def get_nonseqs(self, *inpencs):
+        ctxs = []
+        ctxmasks = []
+        for inpenc in inpencs:
+            ctx = inpenc
+            ctxmask = ctx.mask if ctx.mask is not None else T.ones(ctx.shape[:2], dtype="float32")
+            ctxs.append(ctx)
+            ctxmasks.append(ctxmask)
+        return ctxs + ctxmasks
+
+    def inner_rec(self, x_t_emb, *args):
+        ctxs = args[-self._numnonseqs:-self._numnonseqs/2]
+        ctxmasks = args[-self._numnonseqs/2:]
+        states_tm1 = args[:-self._numnonseqs]
+        ctxs_t = []
+        sliceleft = 0
+        h_tm1 = states_tm1[-1]          # ??? also check seqdecoder
+        for ctx, ctxmask, attention, slice in zip(ctxs, ctxmasks, self.attentions, self.slices):
+            h_tm1_slice = h_tm1[:, sliceleft:sliceleft+slice]
+            sliceleft += slice
+            ctx_t = self._get_ctx_t(ctx, h_tm1_slice, attention, ctxmask)
+            ctxs_t.append(ctx_t)
+        ctx_t = T.concatenate(ctxs_t, axis=1)
+        i_t = T.concatenate([x_t_emb, ctx_t], axis=1) if self.inconcat else x_t_emb
+        rnuret = self.block.rec(i_t, *states_tm1)
+        h_t = rnuret[0]
+        states_t = rnuret[1:]
+        _y_t = T.concatenate([h_t, ctx_t], axis=1) if self.outconcat else h_t
+        y_t = self.smo(_y_t)
+        return [y_t] + states_t
+
+    def _get_ctx_t(self, ctx, h, att, ctxmask):
+        ret = att(h, ctx, mask=ctxmask)
+        return ret

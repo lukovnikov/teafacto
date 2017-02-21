@@ -83,7 +83,7 @@ class RecStack(ReccableBlock):
             initstates = initstates[recurrentlayer.numstates:]
             initinfo = recurrentlayer.get_init_info(arg)
             init_infos.extend(initinfo)
-        return init_infos
+        return init_infos       # left is bottom
 
     def rec(self, x_t, *states):
         # apply each block on x_t to get next-level input, consume states in the process
