@@ -7,18 +7,15 @@ import numpy as np
 
 class TestSimpleSeqEncDecAtt(TestCase):
     def test_unidir_shapes(self):
-        self.do_test_shapes(False)
+        self.do_test_shapes(bidir=False)
 
     def test_bidir_shapes(self):
-        self.do_test_shapes(True)
-
-    def test_sepatt_shapes(self):
-        self.do_test_shapes(False, True)
+        self.do_test_shapes(bidir=True)
 
     def test_bidir_with_lstm(self):
         self.do_test_shapes(bidir=True, rnu=LSTM)
 
-    def do_test_shapes(self, bidir=False, sepatt=False, rnu=GRU):
+    def do_test_shapes(self, bidir=False, rnu=GRU):
         inpvocsize = 100
         outvocsize = 13
         inpembdim = 10
@@ -41,7 +38,6 @@ class TestSimpleSeqEncDecAtt(TestCase):
                                bidir=bidir,
                                statetrans=True,
                                attdist=LinearDistance(15, 14, 17),
-                               sepatt=sepatt,
                                rnu=rnu)
 
         inpseq = np.random.randint(0, inpvocsize, (batsize, inpseqlen)).astype("int32")
@@ -57,9 +53,6 @@ class TestSimpleSeqEncDecAtt(TestCase):
             self.assertEqual(len(states), 4)
             for state, encdime in zip(states, [encdim[0], encdim[0], encdim[1], encdim[1]]):
                 self.assertEqual(state.shape, (batsize, inpseqlen, encdime if not bidir else encdime * 2))
-
-        if sepatt:
-            self.assertEqual(enco.shape, (batsize, inpseqlen, 2, encdim[-1] if not bidir else encdim[-1] * 2))
 
         pred = m.predict(inpseq, outseq)
         self.assertEqual(pred.shape, (batsize, outseqlen, outvocsize))

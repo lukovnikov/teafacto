@@ -206,7 +206,7 @@ class RNU(RNUBase):
                     acc.append(T.zeros((initstate, self.innerdim)))
             else:
                 acc.append(initstate)
-        return acc
+        return acc          # left is bottom
 
     def rec(self, x_t, h_tm1):      # x_t: (batsize, dim), h_tm1: (batsize, innerdim)
         x_t = self.dropout_in(x_t) if not self.noinput else 0
@@ -337,7 +337,7 @@ class LSTM(GatedRNU):
         self.pi = param((self.innerdim,), name="pi").init(self.biasinit)
         self.po = param((self.innerdim,), name="po").init(self.biasinit)
 
-    def rec(self, x_t, y_tm1, c_tm1):
+    def rec(self, x_t, c_tm1, y_tm1):
         x_t = self.dropout_in(x_t) if not self.noinput else 0
         c_tm1 = self.dropout_h(c_tm1)
         fgate = self.gateactivation(c_tm1*self.pf + self.bf + T.dot(x_t, self.wf) + T.dot(y_tm1, self.rf))
@@ -347,10 +347,10 @@ class LSTM(GatedRNU):
         c_t = cf + ifi
         ogate = self.gateactivation(c_t*self.po + self.bo + T.dot(x_t, self.wo) + T.dot(y_tm1, self.ro))
         y_t = ogate * self.outpactivation(c_t)
-        return [y_t, y_t, c_t]
+        return [y_t, c_t, y_t]
 
     def get_statespec(self, flat=False):
-        return (("output", (self.innerdim,)), ("state", (self.innerdim,)))
+        return (("state", (self.innerdim,)), ("output", (self.innerdim,)))
 
 '''
 class XRU(RNU):

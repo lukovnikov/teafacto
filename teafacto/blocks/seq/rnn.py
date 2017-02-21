@@ -82,7 +82,7 @@ class RecStack(ReccableBlock):
             arg = initstates[:recurrentlayer.numstates]
             initstates = initstates[recurrentlayer.numstates:]
             initinfo = recurrentlayer.get_init_info(arg)
-            init_infos.extend(initinfo)
+            init_infos = init_infos + initinfo
         return init_infos       # left is bottom
 
     def rec(self, x_t, *states):
@@ -513,7 +513,8 @@ class SeqDecoder(Block):
         encmask = args[-2]
         # x_t_emb = self.embedder(x_t)  # i_t: (batsize, embdim)
         # compute current context
-        ctx_t = self._get_ctx_t(ctx, states_tm1[-1], encmask)     # TODO: might not work with LSTM
+        y_tm1 = states_tm1[-1]      # left is bottom, left is inner --> should work for lstm
+        ctx_t = self._get_ctx_t(ctx, y_tm1, encmask)
         # do inconcat
         i_t = T.concatenate([x_t_emb, ctx_t], axis=1) if self.inconcat else x_t_emb
         rnuret = self.block.rec(i_t, *states_tm1)

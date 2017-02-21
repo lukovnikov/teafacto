@@ -83,7 +83,7 @@ class SimpleSeqEncDecAtt(SeqEncDec):
                  maskid=-1,
                  dropout=False,
                  attdist=CosineDistance(),
-                 sepatt=False,
+                 splitatt=None,
                  encoder=None,
                  decoder=None,
                  attention=None,
@@ -94,19 +94,14 @@ class SimpleSeqEncDecAtt(SeqEncDec):
 
         # encoder
         if encoder is None:
-            if sepatt:
-                enc = self._getencoder_sepatt(indim=inpvocsize, inpembdim=inpembdim, inpemb=inpemb,
+            enc = self._getencoder(indim=inpvocsize, inpembdim=inpembdim, inpemb=inpemb,
                                 innerdim=self.encinnerdim, bidir=bidir, maskid=maskid,
                                 dropout_in=dropout, dropout_h=dropout, rnu=rnu)
-            else:
-                enc = self._getencoder(indim=inpvocsize, inpembdim=inpembdim, inpemb=inpemb,
-                                    innerdim=self.encinnerdim, bidir=bidir, maskid=maskid,
-                                    dropout_in=dropout, dropout_h=dropout, rnu=rnu)
         else:
             enc = encoder
 
         if attention is None:
-            attention = self._getattention(attdist, sepatt=sepatt)
+            attention = self._getattention(attdist, splitatt=splitatt)
 
         self.lastencinnerdim = enc.outdim
         if decoder is None:
@@ -123,10 +118,10 @@ class SimpleSeqEncDecAtt(SeqEncDec):
 
         super(SimpleSeqEncDecAtt, self).__init__(enc, dec, statetrans=statetrans, **kw)
 
-    def _getattention(self, attdist, sepatt=False):
+    def _getattention(self, attdist, splitatt=None):
         attgen = AttGen(attdist)
         attcon = WeightedSumAttCon()
-        attention = Attention(attgen, attcon, separate=sepatt)
+        attention = Attention(attgen, attcon, splitters=splitatt)
         return attention
 
     def _build_state_trans(self, statetrans):
@@ -167,19 +162,6 @@ class SimpleSeqEncDecAtt(SeqEncDec):
             .with_outputs().with_states().maskoptions(MaskSetMode.ZERO)
         return enc
 
-    def _getencoder_sepatt(self, indim=None, inpembdim=None, inpemb=None, innerdim=None,
-                    bidir=False, maskid=-1, dropout_in=False, dropout_h=False, rnu=GRU):
-        enc_a = SeqEncoder.RNN(indim=indim, inpembdim=inpembdim, inpemb=inpemb,
-                             innerdim=innerdim, bidir=bidir, maskid=maskid,
-                             dropout_in=dropout_in, dropout_h=dropout_h, rnu=rnu) \
-            .with_outputs().with_states().maskoptions(MaskSetMode.ZERO)
-
-        enc_c = SeqEncoder.RNN(indim=indim, inpembdim=inpembdim, inpemb=inpemb,
-                             innerdim=innerdim, bidir=bidir, maskid=maskid,
-                             dropout_in=dropout_in, dropout_h=dropout_h, rnu=rnu) \
-            .with_outputs().with_states().maskoptions(MaskSetMode.ZERO)
-        return SepAttEncoders(enc_a, enc_c)
-
     def _getdecoder(self, outvocsize=None, outembdim=None, outemb=None, maskid=-1,
                     attention=None, lastencinnerdim=None, decinnerdim=None, inconcat=False,
                     outconcat=True, softmaxout=None, dropout=None, rnu=None):
@@ -199,36 +181,11 @@ class SimpleSeqEncDecAtt(SeqEncDec):
                        bidir=False, maskid=-1, dropout_in=False, dropout_h=False, rnu=GRU,
                        sepatt=False):
         innerdim = ([innerdim] if not issequence(innerdim) else innerdim) if innerdim is not None else self.encinnerdim
-        if sepatt:
-            enc = self._getencoder_sepatt(indim=inpvocsize, inpembdim=inpembdim, inpemb=inpemb,
-                                    innerdim=innerdim, bidir=bidir, maskid=maskid,
-                                    dropout_in=dropout_in, dropout_h=dropout_h, rnu=rnu)
-        else:
-            enc = self._getencoder(indim=inpvocsize, inpembdim=inpembdim, inpemb=inpemb,
-                             innerdim=innerdim, bidir=bidir, maskid=maskid,
-                             dropout_in=dropout_in, dropout_h=dropout_h, rnu=rnu)
+        enc = self._getencoder(indim=inpvocsize, inpembdim=inpembdim, inpemb=inpemb,
+                         innerdim=innerdim, bidir=bidir, maskid=maskid,
+                         dropout_in=dropout_in, dropout_h=dropout_h, rnu=rnu)
         self.statetrans = self._build_state_trans(self.statetrans_setting)
         self.enc = enc
-
-
-class SepAttEncoders(Block):
-    def __init__(self, enc_a, enc_c, **kw):
-        super(SepAttEncoders, self).__init__(**kw)
-        self.enc_a = enc_a
-        self.enc_c = enc_c
-
-    def __getattr__(self, item):
-        return getattr(self.enc_c, item)
-
-    def apply(self, seq, weights=None, mask=None):
-        att_enc_final, att_enc_all, att_enc_states = self.enc_a(seq, weights=weights, mask=mask)
-        con_enc_final, con_enc_all, con_enc_states = self.enc_c(seq, weights=weights, mask=mask)
-        encmask = con_enc_all.mask
-        att_enc_all = att_enc_all.dimshuffle(0, 1, "x", 2)
-        con_enc_all = con_enc_all.dimshuffle(0, 1, "x", 2)
-        ret = T.concatenate([con_enc_all, att_enc_all], axis=2)
-        ret.mask = encmask
-        return con_enc_final, ret, con_enc_states
 
 
 from teafacto.blocks.seq.rnn import MakeRNU, RecStack
@@ -245,11 +202,14 @@ class MultiEncDec(Block):
         self.encoders = encoders
         self.inpemb = inpemb
         innerdim = innerdim if issequence(innerdim) else [innerdim]
+        self.outdim = innerdim[-1]
         layers = MakeRNU.fromdims([indim] + innerdim, rnu=rnu,
                                   dropout_in=dropout_in, dropout_h=dropout_h,
                                   param_init_states=True)
         self.block = RecStack(layers)
-        self.slices = slices        # slices to take from final layer's vector to feed to each attention
+        if not issequence(slices):
+            slices = [slices]
+        self.slices = [smo.indim] + slices        # slices to take from final layer's vector to feed to each attention
         self.attentions = attentions
         self.smo = smo              # softmax out block on decoder
 
@@ -290,9 +250,9 @@ class MultiEncDec(Block):
         ctxmasks = args[-self._numnonseqs/2:]
         states_tm1 = args[:-self._numnonseqs]
         ctxs_t = []
-        sliceleft = 0
-        h_tm1 = states_tm1[-1]          # ??? also check seqdecoder
-        for ctx, ctxmask, attention, slice in zip(ctxs, ctxmasks, self.attentions, self.slices):
+        sliceleft = self.slices[0]
+        h_tm1 = states_tm1[-1]          # left is bottom, left is inner
+        for ctx, ctxmask, attention, slice in zip(ctxs, ctxmasks, self.attentions, self.slices[1:]):
             h_tm1_slice = h_tm1[:, sliceleft:sliceleft+slice]
             sliceleft += slice
             ctx_t = self._get_ctx_t(ctx, h_tm1_slice, attention, ctxmask)
@@ -302,7 +262,8 @@ class MultiEncDec(Block):
         rnuret = self.block.rec(i_t, *states_tm1)
         h_t = rnuret[0]
         states_t = rnuret[1:]
-        _y_t = T.concatenate([h_t, ctx_t], axis=1) if self.outconcat else h_t
+        _y_t_slice = h_t[:, :self.slices[0]]
+        _y_t = T.concatenate([_y_t_slice, ctx_t], axis=1) if self.outconcat else h_t
         y_t = self.smo(_y_t)
         return [y_t] + states_t
 

@@ -49,30 +49,21 @@ class WeightedSumAttCon(AttentionConsumer):    # applies attention to sequence w
 # ATTENTIONS
 
 class Attention(Block):
-    def __init__(self, attentiongenerator, attentionconsumer=WeightedSumAttCon(), separate=False, **kw):
+    def __init__(self, attentiongenerator, attentionconsumer=WeightedSumAttCon(),
+                 splitters=None,        # two blocks, each applied to data, first used for addr, second used for content
+                 **kw):
         super(Attention, self).__init__(**kw)
         if isinstance(attentiongenerator, AttGen):
             self.attentiongenerator = attentiongenerator
         elif isinstance(attentiongenerator, Distance):
             self.attentiongenerator = AttGen(attentiongenerator)
         self.attentionconsumer = attentionconsumer
-        self.separate = separate
+        self.splitters = splitters
 
     def apply(self, criterion, data, mask=None):
-        if not self.separate:
-            ret = self._apply_normal(criterion, data, mask=mask)
-        else:
-            ret = self._apply_separate(criterion, data, mask=mask)
-        return ret
-
-    def _apply_normal(self, criterion, data, mask=None):
-        weights = self.attentiongenerator(criterion, data, mask=mask)
+        addrdata = data if self.splitters is None else self.splitters[0](data)
+        weights = self.attentiongenerator(criterion, addrdata, mask=mask)
         weights.output_as("attention_weights")
-        ret = self.attentionconsumer(data, weights)
-        return ret
-
-    def _apply_separate(self, criterion, data, mask=None):    # data: (batsize, seqlen, 2, dim)
-        weights = self.attentiongenerator(criterion, data[:, :, 1, :], mask=mask)
-        weights.output_as("attention_weights")
-        ret = self.attentionconsumer(data[:, :, 0, :], weights)
+        contdata = data if self.splitters is None else self.splitters[1](data)
+        ret = self.attentionconsumer(contdata, weights)
         return ret
