@@ -37,27 +37,29 @@ class AttentionConsumer(Block):
      A block that consumes some data and associated attention weights to generate a *context* that can be fed further.
      Subclass this for attention-consuming blocks.
     '''
-    def apply(self, data, weights):
+    def apply(self, data, weights, mask=None):
         """
         :param data:    data to aggregate ->            (batsize, seqlen, memdim)
         :param weights: weights to use to aggregate ->  (batsize, seqlen)
         """
-        raise NotImplementedError("use subclass")
+        mask = data.mask if mask is None else mask
+        return self._inner_apply(data, weights * mask)
 
 
 class WeightedSumAttCon(AttentionConsumer):    # applies attention to sequence while summing up
-    def apply(self, data, weights):   # data: (batsize, seqlen, elem_dim)
+    def _inner_apply(self, data, weights):   # data: (batsize, seqlen, elem_dim)
                                       # weights: (batsize, seqlen)
         w = weights.dimshuffle(0, 1, 'x')
         ret = data * w
         return T.sum(ret, axis=1)
 
 
-class WeightedMaxPool(AttentionConsumer):
-    def apply(self, data, weights):
+class WeightedMaxPoolAttCon(AttentionConsumer):
+    def _inner_apply(self, data, weights):
         w = weights.dimshuffle(0, 1, 'x')
         mindata = T.min(data)
-        wdata = data * w
+        wdata = ((data - mindata) * w) + mindata
+        return T.max(wdata, axis=-2)
 
 
 # ATTENTIONS
@@ -71,13 +73,18 @@ class Attention(Block):
             self.attentiongenerator = attentiongenerator
         elif isinstance(attentiongenerator, Distance):
             self.attentiongenerator = AttGen(attentiongenerator)
+        if attentionconsumer == "sum":
+            attentionconsumer = WeightedSumAttCon()
+        elif attentionconsumer == "max":
+            attentionconsumer = WeightedMaxPoolAttCon()
         self.attentionconsumer = attentionconsumer
         self.splitters = splitters
 
     def apply(self, criterion, data, mask=None):
+        mask = data.mask if mask is None else mask
         addrdata = data if self.splitters is None else self.splitters[0](data)
         weights = self.attentiongenerator(criterion, addrdata, mask=mask)
         weights.output_as("attention_weights")
         contdata = data if self.splitters is None else self.splitters[1](data)
-        ret = self.attentionconsumer(contdata, weights)
+        ret = self.attentionconsumer(contdata, weights, mask=mask)
         return ret
