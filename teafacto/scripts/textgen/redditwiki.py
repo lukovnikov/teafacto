@@ -7,6 +7,7 @@ from teafacto.blocks.seq.rnn import SeqEncoder
 from teafacto.blocks.basic import SMO, VectorEmbed
 from teafacto.blocks.seq.attention import Attention
 from teafacto.core.base import asblock
+from teafacto.blocks.cnn import CNNSeqEncoder
 
 
 def loaddata(p="../../../data/textgen/redditwiki", maxlen=np.infty, flattenwiki=False):
@@ -140,6 +141,7 @@ def run(p="../../../data/textgen/redditwiki",
         numbats=200,
         epochs=100,
         inspectdata=False,
+        srcenc="cnn",       # or "rnn"
         ):
     (traindata, traingold, trainwiki), (validdata, validgold, validwiki), \
     (testdata, testgold, testwiki), wd, ps \
@@ -158,14 +160,23 @@ def run(p="../../../data/textgen/redditwiki",
 
     emb = VectorEmbed(numwords, embdim, maskid=maskid)
 
-    encoder_one = SeqEncoder.fluent() \
-        .setembedder(emb) \
-        .addlayers([splitdim], bidir=True).addlayers([encdim]) \
-        .make().all_outputs()
-    encoder_two = SeqEncoder.fluent() \
-        .setembedder(emb) \
-        .addlayers([splitdim], bidir=True).addlayers([encdim]) \
-        .make().all_outputs()
+    if srcenc == "rnn":
+        encoder_one = SeqEncoder.fluent() \
+            .setembedder(emb) \
+            .addlayers([splitdim], bidir=True).addlayers([encdim]) \
+            .make().all_outputs()
+        encoder_two = SeqEncoder.fluent() \
+            .setembedder(emb) \
+            .addlayers([splitdim], bidir=True).addlayers([encdim]) \
+            .make().all_outputs()
+
+    elif srcenc == "cnn":
+        encoder_one = CNNSeqEncoder(inpemb=emb, windows=[3, 4, 5, 6],
+                                    innerdim=[encdim, encdim, encdim, encdim],
+                                    poolmode="max").all_outputs()
+        encoder_two = CNNSeqEncoder(inpemb=emb, windows=[3, 4, 5, 6],
+                                    innerdim=[encdim, encdim, encdim, encdim],
+                                    poolmode="max").all_outputs()
 
     splitters = (asblock(lambda x: x[:, :, :splitdim]), asblock(lambda x: x[:, :, encdim-splitdim:]))
     attention_one = Attention(splitters=splitters)

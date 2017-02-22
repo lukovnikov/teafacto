@@ -12,14 +12,28 @@ class TestConv1D(TestCase):
         self.assertEqual(pred.shape[:2], xval.shape[:2])
         self.assertEqual(pred.shape[2], 40)
 
-    def test_output_shape_strided(self):
+    def test_output_shape_strided_no_pad(self):
         xval = np.random.random((100, 13, 50)).astype("float32")
-        conv = Conv1D(indim=50, outdim=40, window=5, stride=2, border_mode="valid")
+        conv = Conv1D(indim=50, outdim=40, window=7, stride=2, pad_mode="none")
         pred = conv.predict(xval)
         print pred.shape
-        self.assertEqual(pred.shape, (100, 5, 40))
+        self.assertEqual(pred.shape, (100, 4, 40))
 
-    def test_output_shape_masked(self):
+    def test_output_shape_strided_match(self):
+        xval = np.random.random((100, 13, 50)).astype("float32")
+        conv = Conv1D(indim=50, outdim=40, window=7, stride=2, pad_mode="match")
+        pred = conv.predict(xval)
+        print pred.shape
+        self.assertEqual(pred.shape, (100, 7, 40))
+
+    def test_output_shape_strided_full(self):
+        xval = np.random.random((100, 13, 50)).astype("float32")
+        conv = Conv1D(indim=50, outdim=40, window=7, stride=2, pad_mode="full")
+        pred = conv.predict(xval)
+        print pred.shape
+        self.assertEqual(pred.shape, (100, 10, 40))
+
+    def test_output_shape_masked_match_no_stride(self):
         xval = np.random.random((100, 20, 50)).astype("float32")
         maskid = np.random.randint(3, 20, (100,))
         mask = np.ones((xval.shape[:2]))
@@ -39,20 +53,107 @@ class TestConv1D(TestCase):
         self.assertEqual(predval.shape[:2], xval.shape[:2])
         self.assertEqual(predval.shape[2], 40)
 
-    def test_output_mask_strided(self):
-        xval = np.random.random((100, 20, 50)).astype("float32")
-        maskid = np.random.randint(3, 20, (100,))
-        mask = np.ones((xval.shape[:2]))
-        for i in range(mask.shape[0]):
-            mask[i, maskid[i]:] = 0
-        conv = Conv1D(indim=50, outdim=40, window=5, stride=4, border_mode="valid")
+    def test_output_mask_strided_nopad(self):
+        np.random.seed(1337)
+        xval = np.random.random((9, 13, 50)).astype("float32")
+        mask = np.asarray([
+            [ 1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1],
+            [ 1,  1,  1,  1,  1,  1,  1,  0,  0,  0,  0,  0,  0],
+            [ 1,  1,  1,  1,  1,  1,  0,  0,  0,  0,  0,  0,  0],
+            [ 1,  1,  1,  1,  1,  0,  0,  0,  0,  0,  0,  0,  0],
+            [ 1,  1,  1,  1,  0,  0,  0,  0,  0,  0,  0,  0,  0],
+            [ 1,  1,  1,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0],
+            [ 1,  1,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0],
+            [ 1,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0],
+            [ 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0]])
+        conv = Conv1D(indim=50, outdim=40, window=4, stride=3, pad_mode="none")
         x = Val(xval)
         x.mask = Val(mask)
         pred = conv(x)
         predmask = pred.mask
         print predmask.eval().shape
-        print predmask.eval()[:5]
-        print mask[:5]
+        print predmask.eval()
+        print mask
+        expmask = np.asarray([
+                    [1, 1, 1, 1],
+                    [1, 1, 0, 0],
+                    [1, 0, 0, 0],
+                    [1, 0, 0, 0],
+                    [1, 0, 0, 0],
+                    [0, 0, 0, 0],
+                    [0, 0, 0, 0],
+                    [0, 0, 0, 0],
+                    [0, 0, 0, 0]])
+        self.assertTrue(np.allclose(expmask, predmask.eval()))
+
+
+    def test_output_mask_strided_match_pad(self):
+        np.random.seed(1337)
+        xval = np.random.random((9, 13, 50)).astype("float32")
+        mask = np.asarray([
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+            [1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0],
+            [1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0],
+            [1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+            [1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]])
+        conv = Conv1D(indim=50, outdim=40, window=4, stride=3,
+                      pad_mode="match")
+        x = Val(xval)
+        x.mask = Val(mask)
+        pred = conv(x)
+        predmask = pred.mask
+        print predmask.eval().shape
+        print predmask.eval()
+        print mask
+        expmask = np.asarray([
+            [1, 1, 1, 1, 1],
+            [1, 1, 1, 0, 0],
+            [1, 1, 1, 0, 0],
+            [1, 1, 0, 0, 0],
+            [1, 1, 0, 0, 0],
+            [1, 1, 0, 0, 0],
+            [1, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0]])
+        self.assertTrue(np.allclose(expmask, predmask.eval()))
+
+    def test_output_mask_strided_full_pad(self):
+        np.random.seed(1337)
+        xval = np.random.random((9, 13, 50)).astype("float32")
+        mask = np.asarray([
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+            [1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0],
+            [1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0],
+            [1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+            [1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]])
+        conv = Conv1D(indim=50, outdim=40, window=4, stride=3,
+                      pad_mode="full")
+        x = Val(xval)
+        x.mask = Val(mask)
+        pred = conv(x)
+        predmask = pred.mask
+        print predmask.eval().shape
+        print predmask.eval()
+        print mask
+        expmask = np.asarray([
+            [1, 1, 1, 1, 1, 1],
+            [1, 1, 1, 1, 0, 0],
+            [1, 1, 1, 0, 0, 0],
+            [1, 1, 1, 0, 0, 0],
+            [1, 1, 1, 0, 0, 0],
+            [1, 1, 0, 0, 0, 0],
+            [1, 1, 0, 0, 0, 0],
+            [1, 1, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0]])
+        self.assertTrue(np.allclose(expmask, predmask.eval()))
 
 
 class TestPool1D(TestCase):
@@ -86,19 +187,58 @@ class TestPool1D(TestCase):
         predvalexp = np.max(xval, axis=1)
         self.assertTrue(np.allclose(predval, predvalexp))
 
+    def test_avg_pool_masked(self):
+        xval = np.random.random((100, 20, 50)).astype("float32")
+        maskid = np.random.randint(1, 18, (100,))
+        mask = np.ones((xval.shape[:2]))
+        for i in range(mask.shape[0]):
+            mask[i, maskid[i]:] = 0
+        # xval[:, :, -1] = 100
+        x = Val(xval)
+        x.mask = Val(mask)
+        pool = GlobalPool1D(mode="avg")
+        pred = pool(x)
+        predval = pred.eval()
+        predvalexp = np.sum(xval * mask[:, :, np.newaxis], axis=1) / np.sum(mask, axis=1)[:, np.newaxis]
+        self.assertTrue(np.allclose(predval, predvalexp))
+
+    def test_sum_pool_masked(self):
+        xval = np.random.random((100, 20, 50)).astype("float32")
+        maskid = np.random.randint(1, 18, (100,))
+        mask = np.ones((xval.shape[:2]))
+        for i in range(mask.shape[0]):
+            mask[i, maskid[i]:] = 0
+        # xval[:, :, -1] = 100
+        x = Val(xval)
+        x.mask = Val(mask)
+        pool = GlobalPool1D(mode="sum")
+        pred = pool(x)
+        predval = pred.eval()
+        predvalexp = np.sum(xval * mask[:, :, np.newaxis], axis=1)
+        self.assertTrue(np.allclose(predval, predvalexp))
+
 
 class TestCNNEnc(TestCase):
     def test_enc(self):
         xval = np.random.randint(0, 200, (100, 20)).astype("int32")
         enc = CNNSeqEncoder(indim=200, inpembdim=50, innerdim=[30, 40])
         pred = enc.predict(xval)
+        print pred.dtype
         self.assertEqual(pred.shape, (100, 40))
 
     def test_cnnenc_in_dimred(self):
         xval = np.random.randint(0, 200, (3, 100, 20)).astype("int32")
         enc = EncLastDim(CNNSeqEncoder(indim=200, inpembdim=50, innerdim=[30, 40]))
         pred = enc.predict(xval)
+        print pred.dtype
         self.assertEqual(pred.shape, (3, 100, 40))
+
+    def test_cnnenc_ret_all(self):
+        xval = np.random.randint(0, 200, (100, 20)).astype("int32")
+        enc = CNNSeqEncoder(indim=200, inpembdim=50, innerdim=[30, 40]).all_outputs()
+        pred = enc.predict(xval)
+        print pred.dtype
+        self.assertEqual(pred.shape, (100, 20, 40))
 
     def test_enc_mask(self):
         xval = np.random.randint(1, 200, (100, 20)).astype("int32")
@@ -111,6 +251,20 @@ class TestCNNEnc(TestCase):
         #print pred.mask.eval().shape
         predval = pred.eval()
         print predval.shape
+
+    def test_enc_mask_ret_all(self):
+        xval = np.random.randint(1, 200, (100, 20)).astype("int32")
+        maskid = np.random.randint(5, 10, (100,))
+        for i in range(xval.shape[0]):
+            xval[i, maskid[i]:] = 0
+        x = Val(xval)
+        enc = CNNSeqEncoder(indim=200, inpembdim=50, innerdim=5, maskid=0).all_outputs()
+        pred = enc(x)
+        # print pred.mask.eval().shape
+        predval = pred.eval()
+        print predval.shape
+        print pred.mask.eval()
+        self.assertTrue(np.allclose(pred.mask.eval(), xval != 0))
 
 
 

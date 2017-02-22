@@ -9,6 +9,7 @@ class CNNEnc(Block):
     def __init__(self, indim=100, innerdim=200, window=5,
                  poolmode="max", activation=Tanh, stride=1, **kw):
         super(CNNEnc, self).__init__(**kw)
+        self._rets = {"final"}
         self.layers = []
         if not issequence(innerdim):
             innerdim = [innerdim]
@@ -27,7 +28,18 @@ class CNNEnc(Block):
                            window=window[i-1], stride=stride[i-1])
             self.layers.append(layer)
             self.layers.append(activation[i-1])
-        self.layers.append(GlobalPool1D(mode=poolmode))
+        if poolmode and poolmode != "none":
+            self.poollayer = GlobalPool1D(mode=poolmode)
+        else:
+            self.all_outputs()
+
+    def all_outputs(self):
+        self._rets = {"all"}
+        return self
+
+    def with_outputs(self):
+        self._rets.add("all")
+        return self
 
     def apply(self, x, mask=None):
         mask = x.mask if mask is None else mask
@@ -35,7 +47,18 @@ class CNNEnc(Block):
         acc.mask = mask
         for layer in self.layers:
             acc = layer(acc)
-        return T.cast(acc, "float32")        # TODO: why is "float64" returned?
+        return self._get_returnings(acc)
+
+    def _get_returnings(self, x):
+        ret = tuple()
+        if "final" in self._rets:
+            ret = ret + (self.poollayer(x),)
+        if "all" in self._rets:
+            ret = ret + (x,)
+        if len(ret) == 1:
+            return ret[0]
+        else:
+            return ret
 
 
 class CNNSeqEncoder(CNNEnc):
@@ -57,13 +80,20 @@ class CNNSeqEncoder(CNNEnc):
 
 
 class Conv1D(Block):
-    def __init__(self, indim=50, outdim=50, window=5,
-                 border_mode="half", stride=1, filter_flip=True, **kw):
+    def __init__(self, indim=None, outdim=None, window=5,
+                 pad_mode="match",     # "valid", "same"
+                 stride=1, filter_flip=True, **kw):
         super(Conv1D, self).__init__(**kw)
-        if isinstance(border_mode, tuple):
-            (border_mode,) = border_mode
-        if isinstance(border_mode, int):
-            border_mode = (border_mode, 0)
+        if pad_mode == "match":      # equivalent to border_mode "half"
+            pad_mode = window // 2
+        elif pad_mode == "none":    # equivalent to border_mode "valid"
+            pad_mode = 0
+        elif pad_mode == "full":    # equivalent to border_mode "full"
+            pad_mode = window - 1
+        if isinstance(pad_mode, int):
+            border_mode = (pad_mode, 0)
+        else:
+            raise Exception("invalid pad mode")
         self.border_mode = border_mode
         self.stride = stride
         self.filter_flip = filter_flip
@@ -74,10 +104,9 @@ class Conv1D(Block):
 
     def apply(self, x, mask=None):     # (batsize, seqlen, dim)
         mask = x.mask if mask is None else mask
-        if mask is not None:
-            assert(mask.ndim == x.ndim - 1) # mask must be (batsize, seqlen)
-            realm = T.cast(T.tensordot(mask, T.ones((x.shape[-1],), dtype="int32"), 0), "float32")
-            x = x * realm
+        if mask is not None:    # mask must be (batsize, seqlen)
+            #realm = T.cast(T.tensordot(mask, T.ones((x.shape[-1],), dtype="int32"), 0), "float32")
+            x = x * mask.dimadd(2)
         input = x.dimshuffle(0, 2, 1, 'x')
         input_shape = None #input.shape
         convout = T.nnet.conv2d(input, self.filter, input_shape, self.filter_shape,
@@ -85,15 +114,15 @@ class Conv1D(Block):
                             filter_flip=self.filter_flip)
         ret = convout[:, :, :, 0].dimshuffle(0, 2, 1)
         if mask is not None:    # compute new mask
-            print "conving the mask"
             mask_shape = None
             maskout = T.nnet.conv2d(T.cast(mask.dimshuffle(0, "x", 1, "x"), "float32"),
                                     self.maskfilter, mask_shape, self.maskfilter_shape,
                                     border_mode=self.border_mode, subsample=(self.stride, 1),
                                     filter_flip=self.filter_flip)
-            mask = T.cast(maskout[:, 0, :, 0] > 0, "int32")
+            maskcrit = self.filter_shape[2] - self.border_mode[0]
+            mask = T.cast(maskout[:, 0, :, 0] >= maskcrit, "int32")
         ret.mask = mask
-        return ret
+        return T.cast(ret, "float32")
 
 
 class GlobalPool1D(Block):
@@ -104,26 +133,22 @@ class GlobalPool1D(Block):
     def apply(self, x, mask=None):  # (batsize, seqlen, dim)
         mask = x.mask if mask is None else mask
         if mask is not None:
-            assert(mask.ndim == x.ndim - 1)
-            realm = T.tensordot(mask, T.ones((x.shape[-1],)), 0)
+            #realm = T.tensordot(mask, T.ones((x.shape[-1],)), 0)
             if self.mode == "max":
-                x = T.switch(realm, x, np.infty * (realm - 1))
+                xmin = T.min(x)
+                x = ((x + xmin) * mask.dimadd(2)) - xmin
             else:
-                x = x * realm
+                x = x * mask.dimadd(2)
         if self.mode == "max":
             ret = T.max(x, axis=-2)
         elif self.mode == "sum":
             ret = T.sum(x, axis=-2)
         elif self.mode == "avg":
-            ret = T.sum(x, axis=-2) / x.shape[-2]
+            div = x.shape[-2] if mask is None else T.sum(mask, axis=1).dimadd(1)
+            ret = T.sum(x, axis=-2) / div
         else:
             raise Exception("unknown pooling mode: {:3s}".format(self.mode))
         # ret: (batsize, dim)
-        if mask is not None:
-            mask = 1 * (T.sum(mask, axis=-1) > 0)
-            ret = T.switch(T.tensordot(mask, T.ones((x.shape[-1],)), 0),
-                           ret, T.zeros_like(ret))
-            ret.mask = mask
         return ret
 
 
