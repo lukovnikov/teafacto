@@ -54,7 +54,7 @@ class WeightedSumAttCon(AttentionConsumer):    # applies attention to sequence w
         return T.sum(ret, axis=1)
 
 
-class WeightedMaxPoolAttCon(AttentionConsumer):
+class WeightedMaxPoolAttCon(AttentionConsumer):     # <-- does it even make sense?
     def _inner_apply(self, data, weights):
         w = weights.dimshuffle(0, 1, 'x')
         mindata = T.min(data)

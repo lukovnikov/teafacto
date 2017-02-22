@@ -142,6 +142,7 @@ def run(p="../../../data/textgen/redditwiki",
         epochs=100,
         inspectdata=False,
         srcenc="cnn",       # or "rnn"
+        usestrides=False,
         ):
     (traindata, traingold, trainwiki), (validdata, validgold, validwiki), \
     (testdata, testgold, testwiki), wd, ps \
@@ -171,9 +172,13 @@ def run(p="../../../data/textgen/redditwiki",
             .make().all_outputs()
 
     elif srcenc == "cnn":
-        encoder_one = CNNSeqEncoder(inpemb=emb, windows=[3, 4, 5, 6],
+        if usestrides:
+            strides = [1, 1, 3, 5]
+        else:
+            strides = 1
+        encoder_one = CNNSeqEncoder(inpemb=emb, windows=[3, 4, 7, 9], stride=strides,
                                     innerdim=[encdim, encdim, encdim, encdim]).all_outputs()
-        encoder_two = CNNSeqEncoder(inpemb=emb, windows=[3, 4, 5, 6],
+        encoder_two = CNNSeqEncoder(inpemb=emb, windows=[3, 4, 7, 9], stride=strides,
                                     innerdim=[encdim, encdim, encdim, encdim]).all_outputs()
 
     splitters = (asblock(lambda x: x[:, :, :splitdim]), asblock(lambda x: x[:, :, encdim-splitdim:]))
