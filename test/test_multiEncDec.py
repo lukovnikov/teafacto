@@ -86,9 +86,9 @@ class TestMultiEncDecCNNEncoders(TestCase):
         maskid = 0
 
         encoder_one = CNNSeqEncoder(indim=vocsize, inpembdim=embdim, maskid=maskid,
-                                    window=[3, 4, 5], poolmode="max", innerdim=[50, 40, 50]).all_outputs()
+                                    window=[3, 4, 5], innerdim=[50, 40, 50]).all_outputs()
         encoder_two = CNNSeqEncoder(indim=vocsize, inpembdim=embdim, maskid=maskid,
-                                    window=[3, 4, 5], poolmode="max", innerdim=[50, 40, 50]).all_outputs()
+                                    window=[3, 4, 5], innerdim=[50, 40, 50]).all_outputs()
 
 
         splitters = (asblock(lambda x: x[:, :, :20]), asblock(lambda x: x[:, :, 20:]))

@@ -136,7 +136,7 @@ class GlobalPool1D(Block):
             #realm = T.tensordot(mask, T.ones((x.shape[-1],)), 0)
             if self.mode == "max":
                 xmin = T.min(x)
-                x = ((x + xmin) * mask.dimadd(2)) - xmin
+                x = ((x - xmin) * mask.dimadd(2)) + xmin
             else:
                 x = x * mask.dimadd(2)
         if self.mode == "max":

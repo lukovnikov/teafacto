@@ -53,6 +53,13 @@ class WeightedSumAttCon(AttentionConsumer):    # applies attention to sequence w
         return T.sum(ret, axis=1)
 
 
+class WeightedMaxPool(AttentionConsumer):
+    def apply(self, data, weights):
+        w = weights.dimshuffle(0, 1, 'x')
+        mindata = T.min(data)
+        wdata = data * w
+
+
 # ATTENTIONS
 
 class Attention(Block):

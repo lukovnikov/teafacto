@@ -172,11 +172,9 @@ def run(p="../../../data/textgen/redditwiki",
 
     elif srcenc == "cnn":
         encoder_one = CNNSeqEncoder(inpemb=emb, windows=[3, 4, 5, 6],
-                                    innerdim=[encdim, encdim, encdim, encdim],
-                                    poolmode="max").all_outputs()
+                                    innerdim=[encdim, encdim, encdim, encdim]).all_outputs()
         encoder_two = CNNSeqEncoder(inpemb=emb, windows=[3, 4, 5, 6],
-                                    innerdim=[encdim, encdim, encdim, encdim],
-                                    poolmode="max").all_outputs()
+                                    innerdim=[encdim, encdim, encdim, encdim]).all_outputs()
 
     splitters = (asblock(lambda x: x[:, :, :splitdim]), asblock(lambda x: x[:, :, encdim-splitdim:]))
     attention_one = Attention(splitters=splitters)

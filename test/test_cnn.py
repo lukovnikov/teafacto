@@ -172,7 +172,7 @@ class TestPool1D(TestCase):
         self.assertTrue(np.allclose(nppred, pred))
 
     def test_max_pool_masked(self):
-        xval = np.random.random((100, 20, 50)).astype("float32")
+        xval = np.random.random((100, 20, 50)).astype("float32") - 0.5
         maskid = np.random.randint(1, 18, (100,))
         mask = np.ones((xval.shape[:2]))
         for i in range(mask.shape[0]):
@@ -185,7 +185,9 @@ class TestPool1D(TestCase):
         predval = pred.eval()
         xval = xval - 1e9 * np.tensordot(1-mask, np.ones((xval.shape[-1],)), 0)
         predvalexp = np.max(xval, axis=1)
-        self.assertTrue(np.allclose(predval, predvalexp))
+        print predvalexp[:5, :5]
+        print predval[:5, :5]
+        self.assertTrue(np.allclose(predval, predvalexp, atol=1e-6))
 
     def test_avg_pool_masked(self):
         xval = np.random.random((100, 20, 50)).astype("float32")
