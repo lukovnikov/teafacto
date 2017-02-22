@@ -135,6 +135,7 @@ def run(p="../../../data/textgen/redditwiki",
         gradnorm=5.,
         numbats=200,
         epochs=100,
+        inspectdata=False,
         ):
     (traindata, traingold, trainwiki), (validdata, validgold, validwiki), \
     (testdata, testgold, testwiki), wd, ps \
@@ -144,12 +145,8 @@ def run(p="../../../data/textgen/redditwiki",
     print ps(traindata[1])
     print ps(traingold[1])
 
-    embed()
-
-    vocsize = 101
-    outvocsize = 120
-    embdim = 50
-    maskid = 0
+    if inspectdata:
+        embed()
 
     numwords = max(wd.values()) + 1
     maskid = 0
@@ -173,17 +170,17 @@ def run(p="../../../data/textgen/redditwiki",
 
     slices = (splitdim, splitdim)
 
-    m = MultiEncDec( encoders=[encoder_one, encoder_two],
-                     indim=(encdim-splitdim)*2 + embdim,
-                     slices=slices,
-                     attentions=[attention_one, attention_two],
-                     inpemb=VectorEmbed(numwords, embdim, maskid=maskid),
-                     smo=smo,
-                     innerdim=[decdim, decdim])
+    m = MultiEncDec(encoders=[encoder_one, encoder_two],
+                    indim=(encdim-splitdim)*2 + embdim,
+                    slices=slices,
+                    attentions=[attention_one, attention_two],
+                    inpemb=VectorEmbed(numwords, embdim, maskid=maskid),
+                    smo=smo,
+                    innerdim=[decdim, decdim])
 
     m.train([traingold[:, :-1], traindata, trainwiki], traingold[:, 1:])\
         .adadelta(lr=lr).cross_entropy().grad_total_norm(5.)\
-        .validate_on([validgold[:, :-1], validdata, validwiki]).cross_entropy()\
+        .validate_on([validgold[:, :-1], validdata, validwiki], validgold[:, 1:]).cross_entropy()\
         .autosaveit().takebest()\
         .train(numbats=numbats, epochs=epochs)
 
