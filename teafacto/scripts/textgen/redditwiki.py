@@ -66,6 +66,10 @@ def loaddata(p="../../../data/textgen/redditwiki", maxlen=np.infty, flattenwiki=
                                                   maxwikilen=maxlen)
     tt.tock("filtering by length")
 
+    traindata, traingold, wikitrain, validdata, validgold, wikivalid, testdata, testgold, wikitest = \
+        [x.astype("int32") for x in
+     [traindata, traingold, wikitrain, validdata, validgold, wikivalid, testdata, testgold, wikitest]]
+
     return (traindata, traingold, wikitrain), (validdata, validgold, wikivalid),\
            (testdata, testgold, wikitest), wd, ps
 
