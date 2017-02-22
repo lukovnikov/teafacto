@@ -722,7 +722,26 @@ class ModelTrainer(object):
     @property
     def autosave(self):
         self._autosave = True
+        self._autosavepath = self._gen_autosave_path()
         return self
+
+    def autosaveit(self, p=None):
+        self._autosave = True
+        self._autosavepath = p if p is not None else self._gen_autosave_path()
+        return self
+
+    def _gen_autosave_path(self):
+        import os, random
+        path = None
+        badpath = True
+        while badpath:
+            randid = "".join([str(random.sample(range(10), 1)[0]) for x in range(5)])
+            if os.path.exists("{}.model".format(randid)):
+                badpath = True
+            else:
+                badpath = False
+        print "autosave path:{}".format(path)
+        return path
 
     def autosavethis(self, block, p):
         self._autosave = True

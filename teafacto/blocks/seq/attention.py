@@ -11,15 +11,21 @@ import theano, theano.tensor
 
 class AttGen(Block):
     """ wraps a distance """
-    def __init__(self, distance, normalizer=Softmax(), **kw):
+    def __init__(self, distance, normalizer=Softmax(),
+                 sampler=None, sample_temperature=0.2, **kw):
         super(AttGen, self).__init__(**kw)
         self.dist = distance
         self.normalizer = normalizer
+        self.sampler = sampler
+        if sampler == "gumbel":
+            self.sampler = GumbelSoftmax(temperature=sample_temperature)
 
     def apply(self, criterion, data, mask=None):
         mask = data.mask if mask is None else mask
         o = self.dist(criterion, data)
         o_out = self.normalizer(o, mask=mask)
+        if self.sampler is not None:
+            o_out = self.sampler(o_out, mask=mask)
         o_out.mask = mask
         return o_out
 
