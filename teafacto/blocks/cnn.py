@@ -73,9 +73,11 @@ class CNNSeqEncoder(CNNEnc):
         else:
             self.embedder = inpemb
             inpembdim = inpemb.outdim
+        self.numpos = numpos
         if posemb is not False:
             if posemb is None or posemb is True:
-                self.posemb = VectorEmbed(numpos, posembdim)
+                self.posembmat = param((numpos, posembdim), name="pos_emb_mat").glorotuniform()
+                self.posemb = lambda x: self.posembmat
             else:
                 self.posemb = posemb
         else:
@@ -89,7 +91,9 @@ class CNNSeqEncoder(CNNEnc):
         xemb = self.embedder(x)
         if self.posemb is not None:
             mask = xemb.mask if mask is None else mask
-            posemb = T.repeat(self.posemb.W.dimadd(0), x.shape[0], axis=0)
+            posids = Val(np.arange(0, self.numpos))
+            posembone = self.posemb(posids)
+            posemb = T.repeat(posembone.dimadd(0), x.shape[0], axis=0)
             xemb = T.concatenate([xemb, posemb], axis=2)
             xemb.mask = mask
         ret = super(CNNSeqEncoder, self).apply(xemb, mask=mask)
