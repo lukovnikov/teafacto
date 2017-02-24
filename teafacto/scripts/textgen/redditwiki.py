@@ -131,22 +131,22 @@ def flatten_wiki(wikitensor, maskid=0, startid=1, stopid=2):   # (numsam, numsen
     return out
 
 
-def run(p="../../../data/textgen/redditwiki",
-        embdim=100,
-        encdim=300,
-        smodim=200,
-        decdim=500,
-        lr=0.5,
-        gradnorm=5.,
-        numbats=200,
-        epochs=100,
-        inspectdata=False,
-        srcenc="cnn",       # or "rnn"
-        usestrides=False,
-        maxlen=600,
-        dropout=0.2,
-        posembdim=50,
-        sameencoder=False,
+def run(p="../../../data/textgen/redditwiki",       # path used by loaddata
+        embdim=100,         # word embeddings dimensions of all inputs
+        encdim=300,         # internal dimensions of all encoders
+        smodim=200,         # softmax output layer input dimension
+        decdim=500,         # internal dimension of decoder
+        lr=0.5,             # learning rate
+        gradnorm=5.,        # gradient normalization
+        numbats=200,        # number of batches
+        epochs=100,         # number of epochs
+        inspectdata=False,  # turn switch to get interactive shell for inspecting loaded data
+        srcenc="cnn",       # or "rnn" - what kind of encoding network to use
+        usestrides=False,   # whether to use striding in CNN encoder <- reduces number of attentions (makes it lighter, not sure about performance yet)
+        maxlen=600,         # maximum length of input
+        dropout=0.2,        # dropout level
+        posembdim=50,       # position embedding dimensions, only with CNN encoder
+        sameencoder=False,  # use the same encoding network for all inputs
         ):
     (traindata, traingold, trainwiki), (validdata, validgold, validwiki), \
     (testdata, testgold, testwiki), wd, ps \
@@ -170,10 +170,13 @@ def run(p="../../../data/textgen/redditwiki",
             .setembedder(emb) \
             .addlayers([splitdim], bidir=True).addlayers([encdim]) \
             .make().all_outputs()
-        encoder_two = SeqEncoder.fluent() \
-            .setembedder(emb) \
-            .addlayers([splitdim], bidir=True).addlayers([encdim]) \
-            .make().all_outputs()
+        if not sameencoder:
+            encoder_two = SeqEncoder.fluent() \
+                .setembedder(emb) \
+                .addlayers([splitdim], bidir=True).addlayers([encdim]) \
+                .make().all_outputs()
+        else:
+            encoder_two = encoder_one
 
     elif srcenc == "cnn":
         windows = [3, 4, 5, 6]
