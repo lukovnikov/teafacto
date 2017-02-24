@@ -214,7 +214,8 @@ def run(p="../../../data/textgen/redditwiki",       # path used by loaddata
                     attentions=[attention_one, attention_two],
                     inpemb=emb,
                     smo=smo,
-                    innerdim=[decdim, decdim])
+                    innerdim=[decdim, decdim],
+                    dropout_in=dropout)
 
     m.train([traingold[:, :-1], traindata, trainwiki], traingold[:, 1:])\
         .adadelta(lr=lr).cross_entropy().grad_total_norm(gradnorm)\
