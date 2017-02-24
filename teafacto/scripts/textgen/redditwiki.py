@@ -202,7 +202,7 @@ def run(p="../../../data/textgen/redditwiki",
     m.train([traingold[:, :-1], traindata, trainwiki], traingold[:, 1:])\
         .adadelta(lr=lr).cross_entropy().grad_total_norm(gradnorm)\
         .validate_on([validgold[:, :-1], validdata, validwiki], validgold[:, 1:]).cross_entropy()\
-        .autosaveit().takebest()\
+        .autosaveit().takebest(save=True)\
         .train(numbats=numbats, epochs=epochs)
 
 

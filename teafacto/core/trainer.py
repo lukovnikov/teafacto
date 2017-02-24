@@ -736,11 +736,12 @@ class ModelTrainer(object):
         badpath = True
         while badpath:
             randid = "".join([str(random.sample(range(10), 1)[0]) for x in range(5)])
-            if os.path.exists("{}.model".format(randid)):
+            path = "{}.model".format(randid)
+            if os.path.exists(path):
                 badpath = True
             else:
                 badpath = False
-        print "autosave path:{}".format(path)
+        print "autosave path: {}".format(path)
         return path
 
     def autosavethis(self, block, p):
