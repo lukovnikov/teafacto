@@ -2,11 +2,11 @@ from teafacto.core.base import Block, param, tensorops as T, Val
 import numpy as np
 from teafacto.util import issequence
 from teafacto.blocks.activations import Tanh, ReLU
-from teafacto.blocks.basic import VectorEmbed
+from teafacto.blocks.basic import VectorEmbed, Dropout
 
 
 class CNNEnc(Block):
-    def __init__(self, indim=100, innerdim=200, window=5,
+    def __init__(self, indim=100, innerdim=200, window=5, dropout=None,
                  poolmode="max", activation=Tanh, stride=1, **kw):
         super(CNNEnc, self).__init__(**kw)
         self._rets = {"final"}
@@ -25,7 +25,8 @@ class CNNEnc(Block):
         innerdim = [indim] + innerdim
         for i in range(1, len(innerdim)):
             layer = Conv1D(indim=innerdim[i-1], outdim=innerdim[i],
-                           window=window[i-1], stride=stride[i-1])
+                           window=window[i-1], stride=stride[i-1],
+                           dropout=dropout)
             self.layers.append(layer)
             self.layers.append(activation[i-1])
         if poolmode and poolmode != "none":
@@ -62,27 +63,44 @@ class CNNEnc(Block):
 
 
 class CNNSeqEncoder(CNNEnc):
-    def __init__(self, indim=500, inpembdim=100, inpemb=None, innerdim=200,
-                 window=5, poolmode="max", activation=Tanh, maskid=None, **kw):
+    def __init__(self, indim=500, inpembdim=100, inpemb=None,
+                 numpos=None, posembdim=None, posemb=None,
+                 innerdim=200,
+                 window=5, poolmode="max", activation=Tanh, maskid=None,
+                 dropout=None, **kw):
         if inpemb is None:
             self.embedder = VectorEmbed(indim, inpembdim, maskid=maskid)
         else:
             self.embedder = inpemb
             inpembdim = inpemb.outdim
+        if posemb is not False:
+            if posemb is None or posemb is True:
+                self.posemb = VectorEmbed(numpos, posembdim)
+            else:
+                self.posemb = posemb
+        else:
+            self.posemb = None
+
         super(CNNSeqEncoder, self).__init__(indim=inpembdim, innerdim=innerdim,
                                             window=window, poolmode=poolmode,
-                                            activation=activation, **kw)
+                                            activation=activation, dropout=dropout, **kw)
 
     def apply(self, x, mask=None):
-        acc = self.embedder(x)
-        ret = super(CNNSeqEncoder, self).apply(acc, mask=mask)
+        xemb = self.embedder(x)
+        if self.posemb is not None:
+            mask = xemb.mask if mask is None else mask
+            posemb = T.repeat(self.posemb.W.dimadd(0), x.shape[0], axis=0)
+            xemb = T.concatenate([xemb, posemb], axis=2)
+            xemb.mask = mask
+        ret = super(CNNSeqEncoder, self).apply(xemb, mask=mask)
         return ret
 
 
 class Conv1D(Block):
     def __init__(self, indim=None, outdim=None, window=5,
                  pad_mode="match",     # "valid", "same"
-                 stride=1, filter_flip=True, **kw):
+                 stride=1, filter_flip=True,
+                 dropout=None, **kw):
         super(Conv1D, self).__init__(**kw)
         if pad_mode == "match":      # equivalent to border_mode "half"
             pad_mode = window // 2
@@ -101,9 +119,11 @@ class Conv1D(Block):
         self.filter = param(self.filter_shape, name="conv_w").glorotuniform()
         self.maskfilter_shape = (1, 1, window, 1)
         self.maskfilter = Val(np.ones(self.maskfilter_shape, dtype="float32"))
+        self.dropout = Dropout(dropout)
 
     def apply(self, x, mask=None):     # (batsize, seqlen, dim)
         mask = x.mask if mask is None else mask
+        x = self.dropout(x)
         if mask is not None:    # mask must be (batsize, seqlen)
             #realm = T.cast(T.tensordot(mask, T.ones((x.shape[-1],), dtype="int32"), 0), "float32")
             x = x * mask.dimadd(2)
