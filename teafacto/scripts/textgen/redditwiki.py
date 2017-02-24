@@ -143,10 +143,14 @@ def run(p="../../../data/textgen/redditwiki",
         inspectdata=False,
         srcenc="cnn",       # or "rnn"
         usestrides=False,
+        maxlen=600,
+        dropout=0.2,
+        posembdim=50,
+        sameencoder=False,
         ):
     (traindata, traingold, trainwiki), (validdata, validgold, validwiki), \
     (testdata, testgold, testwiki), wd, ps \
-        = loaddata(p, maxlen=600, flattenwiki=True)
+        = loaddata(p, maxlen=maxlen, flattenwiki=True)
     print "retained {} examples".format(len(traindata))
     print ps(trainwiki[1])
     print ps(traindata[1])
@@ -178,9 +182,19 @@ def run(p="../../../data/textgen/redditwiki",
         else:
             strides = 1
         encoder_one = CNNSeqEncoder(inpemb=emb, windows=windows, stride=strides,
-                                    innerdim=[encdim, encdim, encdim, encdim]).all_outputs()
-        encoder_two = CNNSeqEncoder(inpemb=emb, windows=windows, stride=strides,
-                                    innerdim=[encdim, encdim, encdim, encdim]).all_outputs()
+                                    innerdim=[encdim, encdim, encdim, encdim],
+                                    dropout=dropout,
+                                    posembdim=posembdim, numpos=maxlen).all_outputs()
+        if not sameencoder:
+            encoder_two = CNNSeqEncoder(inpemb=emb, windows=windows, stride=strides,
+                                        innerdim=[encdim, encdim, encdim, encdim],
+                                        dropout=dropout,
+                                        posembdim=posembdim, numpos=maxlen).all_outputs()
+        else:
+            encoder_two = encoder_one
+
+    else:
+        raise Exception("unknown srcenc option")
 
     splitters = (asblock(lambda x: x[:, :, :splitdim]), asblock(lambda x: x[:, :, encdim-splitdim:]))
     attention_one = Attention(splitters=splitters)

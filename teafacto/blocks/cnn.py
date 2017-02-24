@@ -77,16 +77,19 @@ class CNNSeqEncoder(CNNEnc):
         indim = inpembdim
         if posemb is not False:
             if posemb is None or posemb is True:
-                self.posembmat = param((numpos, posembdim), name="pos_emb_mat").glorotuniform()
-                self.posemb = lambda x: self.posembmat
-                indim += posembdim
+                if posembdim is not None and numpos is not None:
+                    self.posembmat = param((numpos, posembdim), name="pos_emb_mat").glorotuniform()
+                    self.posemb = lambda x: self.posembmat
+                    indim += posembdim
+                else:
+                    self.posemb = None
             else:
                 self.posemb = posemb
                 indim += self.posemb.outdim
         else:
             self.posemb = None
 
-        super(CNNSeqEncoder, self).__init__(indim=inpembdim, innerdim=innerdim,
+        super(CNNSeqEncoder, self).__init__(indim=indim, innerdim=innerdim,
                                             window=window, poolmode=poolmode,
                                             activation=activation, dropout=dropout, **kw)
 

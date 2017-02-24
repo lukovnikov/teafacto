@@ -242,6 +242,22 @@ class TestCNNEnc(TestCase):
         print pred.dtype
         self.assertEqual(pred.shape, (100, 20, 40))
 
+    def test_cnnenc_ret_all_pos_emb(self):
+        xval = np.random.randint(0, 200, (100, 20)).astype("int32")
+        enc = CNNSeqEncoder(indim=200, inpembdim=50, innerdim=[30, 40],
+                            posembdim=37, numpos=20).all_outputs()
+        pred = enc.predict(xval)
+        print pred.dtype
+        self.assertEqual(pred.shape, (100, 20, 40))
+
+    def test_cnnenc_ret_all_pos_emb_with_dropout(self):
+        xval = np.random.randint(0, 200, (100, 20)).astype("int32")
+        enc = CNNSeqEncoder(indim=200, inpembdim=50, innerdim=[30, 40],
+                            posembdim=37, numpos=20, dropout=0.1).all_outputs()
+        pred = enc.predict(xval)
+        print pred.dtype
+        self.assertEqual(pred.shape, (100, 20, 40))
+
     def test_enc_mask(self):
         xval = np.random.randint(1, 200, (100, 20)).astype("int32")
         maskid = np.random.randint(0, 5, (100,))
