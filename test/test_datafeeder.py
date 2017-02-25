@@ -27,17 +27,17 @@ class TestDataFeeder(TestCase):
 
     def test_dummy_valid_datafeed_randomness(self):
         d = Dummy()
-        numsam = 7
+        numsam = 9
         numbats = 3
         data = np.random.randint(0, 5, (numsam, 3))
 
         ret = [[]]
-        def v(a, b):
+        def v(a, b, phase=None):
             ret[0].append(a)
-            print np.concatenate(ret[0], axis=0)
-            return 0
+            print a
+            #print np.concatenate(ret[0], axis=0)
+            return a, b
 
-        d.train([data], data).cross_entropy().adagrad()\
-            .validate_on([data], data).extvalid(v)\
-            .train(numbats=numbats, epochs=3, _skiptrain=True)
+        d.train([data], data).cross_entropy().adagrad().sampletransform(v)\
+            .train(numbats=numbats, epochs=3)
 
