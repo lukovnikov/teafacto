@@ -219,7 +219,7 @@ def run(p="../../../data/textgen/redditwiki",       # path used by loaddata
                     dropout_in=dropout)
 
 
-    def get_perplexity():
+    def get_perplexity():   # TODO
         runningperplexitysum = [0]
         numperplexitywords = [0]
 
@@ -239,7 +239,7 @@ def run(p="../../../data/textgen/redditwiki",       # path used by loaddata
     m.train([traingold[:, :-1], traindata, trainwiki], traingold[:, 1:])\
         .adadelta(lr=lr).cross_entropy().grad_total_norm(gradnorm)\
         .validate_on([validgold[:, :-1], validdata, validwiki], validgold[:, 1:])\
-            .extvalid(get_perplexity())\
+            .cross_entropy()\
         .autosaveit().takebest(save=True)\
         .train(numbats=numbats, epochs=epochs, _skiptrain=debugvalid)
 
