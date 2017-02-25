@@ -484,7 +484,13 @@ class ModelTrainer(object):
             extravalid = self.external_validators
 
             def validfun(*sampleinps):
-                ret = symbolic_validfun(*sampleinps)
+                #embed()
+                ret = []
+                if symbolic_validfun is not None:
+                    svf = symbolic_validfun(*sampleinps)
+                    if not issequence(svf):
+                        svf = [svf]
+                    ret += svf
                 for ev in extravalid:
                     a = ev(*sampleinps)
                     if not issequence(a):
@@ -629,6 +635,7 @@ class ModelTrainer(object):
             if self._autosave:
                 self.save()
             if validf is not None and self.currentiter % evalinter == 0: # validate and print
+                #embed()
                 verre = validf()
                 prevverre = verre
                 verr.append(verre)

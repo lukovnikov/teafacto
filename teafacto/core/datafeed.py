@@ -39,7 +39,7 @@ class DataFeeder(object): # contains data feeds
         self.offset = 0
 
     def hasnextbatch(self):
-        ret = self.offset <= self.size-2
+        ret = self.offset <= self.size-1
         if not ret and self.autoreset:
             self.reset()
         return ret

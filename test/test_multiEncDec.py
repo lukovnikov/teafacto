@@ -58,7 +58,7 @@ class TestMultiEncDec(TestCase):
         self.assertEqual(pred.shape, (batsize, seqlen, outvocsize))
 
     def test_training(self):
-        numsam = 1000
+        numsam = 1001
         seqlen = 11
         vocsize = self.vocsize
         outvocsize = self.outvocsize
@@ -72,7 +72,8 @@ class TestMultiEncDec(TestCase):
         data_dec[:, 3:] = 0
 
         self.m.train([data_dec[:, :-1], data_one, data_two], data_dec[:, 1:])\
-            .adadelta(lr=lr).cross_entropy().train(numbats=100, epochs=5)
+            .adadelta(lr=lr).cross_entropy()\
+            .train(numbats=100, epochs=5)
 
         pred = self.m.predict(data_dec, data_one, data_two)
         self.assertEqual(pred.shape, (numsam, seqlen, outvocsize))
