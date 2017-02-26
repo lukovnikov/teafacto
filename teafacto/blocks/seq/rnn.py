@@ -297,7 +297,6 @@ class RNNSeqEncoder(SeqEncoder):
 
 
 class SeqDecoder(Block):
-    """ seq decoder with attention with new inconcat implementation """
 
     def __init__(self, layers, softmaxoutblock=None, innerdim=None,
                  attention=None, inconcat=True, outconcat=False, dropout=False, **kw):

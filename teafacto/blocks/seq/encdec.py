@@ -191,6 +191,75 @@ class SimpleSeqEncDecAtt(SeqEncDec):
 
 from teafacto.blocks.seq.rnn import MakeRNU, RecStack
 
+
+class EncDec(Block):        # doesn't have state transfer, parameterized initial states instead
+    def __init__(self, encoder=None, attention=None,
+                 inpemb=None,
+                 inconcat=True, outconcat=False, concatdecinp=False,
+                 innerdim=None, rnu=GRU, dropout_in=False, dropout_h=False,
+                 smo=None, **kw):
+        super(EncDec, self).__init__(**kw)
+        self.inconcat = inconcat
+        self.outconcat = outconcat
+        self.concatdecinp = concatdecinp
+        self.encoder = encoder
+        self.inpemb = inpemb
+        innerdim = innerdim if issequence(innerdim) else [innerdim]
+        self.outdim = innerdim[-1]
+        indim = inpemb.outdim + encoder.outdim
+        layers, lastdim = MakeRNU.fromdims([indim] + innerdim, rnu=rnu,
+                                  dropout_in=dropout_in, dropout_h=dropout_h,
+                                  param_init_states=True)
+        self.block = RecStack(*layers)
+        self.attention = attention
+        self.smo = smo              # softmax out block on decoder
+
+    def apply(self, decinp, encinp):
+        inpenc = self.encoder(encinp)
+        batsize = decinp.shape[0]
+        init_info = self.get_init_info(batsize)  # blank init info
+        nonseqs = self.get_nonseqs(inpenc)
+        decinpemb = self.inpemb(decinp)
+        mask = decinpemb.mask
+        outputs = T.scan(fn=self.inner_rec,
+                         sequences=decinpemb.dimswap(1, 0),
+                         outputs_info=[None] + init_info,
+                         non_sequences=nonseqs,
+                         )
+        ret = outputs[0].dimswap(1, 0)
+        ret.mask = mask
+        return ret
+
+    def get_init_info(self, initstates):
+        return self.block.get_init_info(initstates)
+
+    def get_nonseqs(self, inpenc):
+        ctx = inpenc
+        ctxmask = ctx.mask if ctx.mask is not None else T.ones(ctx.shape[:2], dtype="float32")
+        return ctx, ctxmask
+
+    def inner_rec(self, x_t_emb, *args):
+        ctx = args[-2]
+        ctxmask = args[-1]
+        states_tm1 = args[:-2]
+        h_tm1 = states_tm1[-1]
+        ctx_t = self._get_ctx_t(ctx, h_tm1, x_t_emb, self.attention, ctxmask)
+        i_t = T.concatenate([x_t_emb, ctx_t], axis=1) if self.inconcat else x_t_emb
+        rnuret = self.block.rec(i_t, *states_tm1)
+        h_t = rnuret[0]
+        states_t = rnuret[1:]
+        _y_t = T.concatenate([h_t, ctx_t], axis=1) if self.outconcat else h_t
+        _y_t = T.concatenate([_y_t, x_t_emb], axis=1) if self.concatdecinp else _y_t
+        y_t = self.smo(_y_t)
+        return [y_t] + states_t
+
+    def _get_ctx_t(self, ctx, h, x_t_emb, att, ctxmask):
+        if self.concatdecinp:
+            h = T.concatenate([h, x_t_emb], axis=-1)
+        ret = att(h, ctx, mask=ctxmask)
+        return ret
+
+
 class MultiEncDec(Block):
     def __init__(self, encoders=None, slices=None, attentions=None,
                  indim=None,
