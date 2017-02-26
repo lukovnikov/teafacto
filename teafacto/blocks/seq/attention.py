@@ -1,6 +1,6 @@
 from teafacto.blocks.basic import MatDot as Lin, VectorEmbed, IdxToOneHot
 from teafacto.core.base import Block, param, Val
-from teafacto.blocks.match import Distance, CosineDistance, DotDistance
+from teafacto.blocks.match import Distance, CosineDistance, DotDistance, ForwardDistance
 from teafacto.core.base import tensorops as T
 from teafacto.blocks.activations import GumbelSoftmax, Softmax
 import numpy as np
@@ -65,10 +65,12 @@ class WeightedMaxPoolAttCon(AttentionConsumer):     # <-- does it even make sens
 # ATTENTIONS
 
 class Attention(Block):
-    def __init__(self, attentiongenerator=AttGen(DotDistance()), attentionconsumer=WeightedSumAttCon(),
+    def __init__(self, attentiongenerator=None, attentionconsumer=None,
                  splitters=None,        # two blocks, each applied to data, first used for addr, second used for content
                  **kw):
         super(Attention, self).__init__(**kw)
+        attentiongenerator = AttGen(DotDistance()) if attentiongenerator is None else attentiongenerator
+        attentionconsumer = "sum" if attentionconsumer is None else attentionconsumer
         if isinstance(attentiongenerator, AttGen):
             self.attentiongenerator = attentiongenerator
         elif isinstance(attentiongenerator, Distance):
@@ -79,6 +81,15 @@ class Attention(Block):
             attentionconsumer = WeightedMaxPoolAttCon()
         self.attentionconsumer = attentionconsumer
         self.splitters = splitters
+
+    # fluent
+    def dot_gen(self):
+        self.attentiongenerator = AttGen(DotDistance())
+        return self
+
+    def forward_gen(self, ldim, rdim, innerdim=100):
+        self.attentiongenerator = AttGen(ForwardDistance(ldim, rdim, aggdim=innerdim))
+        return self
 
     def apply(self, criterion, data, mask=None):
         mask = data.mask if mask is None else mask

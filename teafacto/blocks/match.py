@@ -1,5 +1,5 @@
 from teafacto.core.base import tensorops as T, Block, asblock, param
-from teafacto.blocks.basic import Linear
+from teafacto.blocks.basic import Linear, Forward
 from teafacto.util import issequence
 from IPython import embed
 
@@ -39,15 +39,18 @@ class EuclideanDistance(Distance):
 
 
 class LinearDistance(Distance):
-    def __init__(self, ldim, rdim, aggdim, **kw):
+    def __init__(self, ldim, rdim, aggdim=100, **kw):
         super(LinearDistance, self).__init__(**kw)
-        self.lin = Linear(indim=ldim, dim=aggdim)
-        self.lin2 = Linear(indim=rdim, dim=aggdim)
+        self.make(ldim, rdim, aggdim)
+
+    def make(self, ldim, rdim, aggdim):
+        self.leftblock = Linear(indim=ldim, dim=aggdim)
+        self.rightblock = Linear(indim=rdim, dim=aggdim)
         self.agg = param((aggdim,), name="attention_agg").uniform()
 
     def apply(self, l, r):      # (batsize, dim)
-        a = self.lin(l)     # (batsize, dim)
-        b = self.lin2(r)    # (batsize, dim) or (batsize, seqlen, dim)
+        a = self.leftblock(l)     # (batsize, dim)
+        b = self.rightblock(r)    # (batsize, dim) or (batsize, seqlen, dim)
         x, s = a, b
         if a.ndim != b.ndim:
             x, s = (a, b) if a.ndim > b.ndim else (b, a)
@@ -60,6 +63,13 @@ class LinearDistance(Distance):
 
     def _gateit(self, x):
         return x
+
+
+class ForwardDistance(LinearDistance):
+    def make(self, ldim, rdim, aggdim):
+        self.leftblock = Forward(indim=ldim, dim=aggdim)
+        self.rightblock = Forward(indim=rdim, dim=aggdim)
+        self.agg = param((aggdim,), name="att_gen_summ").uniform()
 
 
 class LinearGateDistance(LinearDistance):

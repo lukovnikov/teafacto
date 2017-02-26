@@ -82,7 +82,7 @@ class SimpleSeqEncDecAtt(SeqEncDec):
                  outconcat=False,
                  maskid=-1,
                  dropout=False,
-                 attdist=CosineDistance(),
+                 attdist=DotDistance(),
                  splitatt=None,
                  encoder=None,
                  decoder=None,
@@ -102,6 +102,7 @@ class SimpleSeqEncDecAtt(SeqEncDec):
 
         if attention is None:
             attention = self._getattention(attdist, splitatt=splitatt)
+            self.attention = attention
 
         self.lastencinnerdim = enc.outdim
         if decoder is None:
@@ -189,7 +190,6 @@ class SimpleSeqEncDecAtt(SeqEncDec):
 
 
 from teafacto.blocks.seq.rnn import MakeRNU, RecStack
-
 
 class MultiEncDec(Block):
     def __init__(self, encoders=None, slices=None, attentions=None,

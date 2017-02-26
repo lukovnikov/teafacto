@@ -55,6 +55,15 @@ class TestLinear(TestCase):
         params = {lin.W, lin.b}
         self.assertEqual(params, lin.get_params())
 
+    def test_linear_over_sequence(self):
+        linear = Linear(indim=10, dim=15)
+        data = np.random.random((12, 11, 10))
+        out = linear.predict(data)
+        self.assertEqual(out.shape, (12, 11, 15))
+        for i in range(len(data)):
+            for j in range(len(data[i])):
+                self.assertTrue(np.allclose(out[i, j, :], np.dot(data[i, j, :], linear.W.d.get_value()) + linear.b.d.get_value()))
+
     def test_multilevel_set_lr(self):
         l1 = Linear(10, 11)
         l2 = Linear(11, 12)
