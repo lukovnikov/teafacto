@@ -86,9 +86,9 @@ class TestMultiEncDecCNNEncoders(TestCase):
         embdim = 50
         maskid = 0
 
-        encoder_one = CNNSeqEncoder(indim=vocsize, inpembdim=embdim, maskid=maskid,
+        encoder_one = CNNSeqEncoder(inpvocsize=vocsize, inpembdim=embdim, maskid=maskid,
                                     window=[3, 4, 5], innerdim=[50, 40, 50]).all_outputs()
-        encoder_two = CNNSeqEncoder(indim=vocsize, inpembdim=embdim, maskid=maskid,
+        encoder_two = CNNSeqEncoder(inpvocsize=vocsize, inpembdim=embdim, maskid=maskid,
                                     window=[3, 4, 5], innerdim=[50, 40, 50]).all_outputs()
 
 
