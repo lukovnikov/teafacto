@@ -186,12 +186,12 @@ def run(p="../../../data/textgen/redditwiki",       # path used by loaddata
             strides = [1, 1, 2, 3]
         else:
             strides = 1
-        encoder_one = CNNSeqEncoder(inpemb=emb, windows=windows, stride=strides,
+        encoder_one = CNNSeqEncoder(inpemb=emb, window=windows, stride=strides,
                                     innerdim=[encdim, encdim, encdim, encdim],
                                     dropout=dropout, activation=ReLU,
                                     posembdim=posembdim, numpos=maxlen).all_outputs()
         if not sameencoder:
-            encoder_two = CNNSeqEncoder(inpemb=emb, windows=windows, stride=strides,
+            encoder_two = CNNSeqEncoder(inpemb=emb, window=windows, stride=strides,
                                         innerdim=[encdim, encdim, encdim, encdim],
                                         dropout=dropout, activation=ReLU,
                                         posembdim=posembdim, numpos=maxlen).all_outputs()

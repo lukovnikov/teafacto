@@ -237,8 +237,10 @@ class SMO(Block):
         self.l = Linear(indim, outdim) if not nobias else MatDot(indim, outdim)
 
     def apply(self, x):
+        mask = x.mask
         ret = self.l(x)
         ret = Softmax()(ret)
+        ret.mask = mask
         return ret
 
 

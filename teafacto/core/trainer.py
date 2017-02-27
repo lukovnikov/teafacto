@@ -43,16 +43,21 @@ class Objective(object):
         self.current_agg_error = 0.
         self.current_agg_numexamples = 0.
 
-    def _reset(self):   # full reset
-        self.reset_agg()
-        self.agg_history = []
-
     def get_agg_error(self):
         if self.aggmode == "mean":
             if self.current_agg_numexamples == 0.:
-                return -999.
+                return -0.
             return self.current_agg_error / self.current_agg_numexamples
         return self.current_agg_error
+
+    def update_agg(self, err, numex):
+        self.current_agg_numexamples += numex
+        err = err * numex if self.aggmode == "mean" else err
+        self.current_agg_error += err
+
+    def _reset(self):   # full reset
+        self.reset_agg()
+        self.agg_history = []
 
     def get_agg_error_history(self):
         return self.agg_history
@@ -64,19 +69,18 @@ class Objective(object):
     def push_agg_to_history(self):
         self.agg_history.append(self.get_agg_error())
 
-    def update_agg(self, err, numex):
-        self.current_agg_numexamples += numex
-        err = err * numex if self.aggmode == "mean" else err
-        self.current_agg_error += err
-
 
 class ExternalObjective(Objective):
-    pass
+    def __init__(self):
+        super(ExternalObjective, self).__init__(None)
+
+    def __call__(self, *args, **kwargs):
+        raise NotImplementedError("override this")
 
 
 class ExternalFunctionObjective(ExternalObjective):
     def __init__(self, f):
-        super(ExternalFunctionObjective, self).__init__(None)
+        super(ExternalFunctionObjective, self).__init__()
         self.f = f
 
     def __call__(self, *args):
@@ -762,12 +766,9 @@ class ModelTrainer(object):
                 number_examples += batsize
                 #embed()
                 sampleinps = sampletransf(*sampleinps, phase=phase)
-                try:
-                    errors_current = f(*sampleinps)
-                    for current_error, objective in zip(errors_current, objectives):
-                        objective.update_agg(current_error, batsize)
-                except Exception, e:
-                    raise e
+                errors_current = f(*sampleinps)
+                for current_error, objective in zip(errors_current, objectives):
+                    objective.update_agg(current_error, batsize)
                 c += 1
             tt.stoplive()
             # END OF EPOCH

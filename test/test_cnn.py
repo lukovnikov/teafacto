@@ -86,7 +86,6 @@ class TestConv1D(TestCase):
                     [0, 0, 0, 0]])
         self.assertTrue(np.allclose(expmask, predmask.eval()))
 
-
     def test_output_mask_strided_match_pad(self):
         np.random.seed(1337)
         xval = np.random.random((9, 13, 50)).astype("float32")
@@ -232,28 +231,28 @@ class TestPool1D(TestCase):
 class TestCNNEnc(TestCase):
     def test_enc(self):
         xval = np.random.randint(0, 200, (100, 20)).astype("int32")
-        enc = CNNSeqEncoder(indim=200, inpembdim=50, innerdim=[30, 40])
+        enc = CNNSeqEncoder(inpvocsize=200, inpembdim=50, innerdim=[30, 40])
         pred = enc.predict(xval)
         print pred.dtype
         self.assertEqual(pred.shape, (100, 40))
 
     def test_cnnenc_in_dimred(self):
         xval = np.random.randint(0, 200, (3, 100, 20)).astype("int32")
-        enc = EncLastDim(CNNSeqEncoder(indim=200, inpembdim=50, innerdim=[30, 40]))
+        enc = EncLastDim(CNNSeqEncoder(inpvocsize=200, inpembdim=50, innerdim=[30, 40]))
         pred = enc.predict(xval)
         print pred.dtype
         self.assertEqual(pred.shape, (3, 100, 40))
 
     def test_cnnenc_ret_all(self):
         xval = np.random.randint(0, 200, (100, 20)).astype("int32")
-        enc = CNNSeqEncoder(indim=200, inpembdim=50, innerdim=[30, 40]).all_outputs()
+        enc = CNNSeqEncoder(inpvocsize=200, inpembdim=50, innerdim=[30, 40]).all_outputs()
         pred = enc.predict(xval)
         print pred.dtype
         self.assertEqual(pred.shape, (100, 20, 40))
 
     def test_cnnenc_ret_all_pos_emb(self):
         xval = np.random.randint(0, 200, (100, 20)).astype("int32")
-        enc = CNNSeqEncoder(indim=200, inpembdim=50, innerdim=[30, 40],
+        enc = CNNSeqEncoder(inpvocsize=200, inpembdim=50, innerdim=[30, 40],
                             posembdim=37, numpos=20).all_outputs()
         pred = enc.predict(xval)
         print pred.dtype
@@ -261,7 +260,7 @@ class TestCNNEnc(TestCase):
 
     def test_cnnenc_ret_all_pos_emb_with_dropout(self):
         xval = np.random.randint(0, 200, (100, 20)).astype("int32")
-        enc = CNNSeqEncoder(indim=200, inpembdim=50, innerdim=[30, 40],
+        enc = CNNSeqEncoder(inpvocsize=200, inpembdim=50, innerdim=[30, 40],
                             posembdim=37, numpos=20, dropout=0.1).all_outputs()
         pred = enc.predict(xval)
         print pred.dtype
@@ -273,7 +272,7 @@ class TestCNNEnc(TestCase):
         for i in range(xval.shape[0]):
             xval[i, maskid[i]:] = 0
         x = Val(xval)
-        enc = CNNSeqEncoder(indim=200, inpembdim=50, innerdim=5, maskid=0)
+        enc = CNNSeqEncoder(inpvocsize=200, inpembdim=50, innerdim=5, maskid=0)
         pred = enc(x)
         #print pred.mask.eval().shape
         predval = pred.eval()
@@ -285,7 +284,7 @@ class TestCNNEnc(TestCase):
         for i in range(xval.shape[0]):
             xval[i, maskid[i]:] = 0
         x = Val(xval)
-        enc = CNNSeqEncoder(indim=200, inpembdim=50, innerdim=5, maskid=0).all_outputs()
+        enc = CNNSeqEncoder(inpvocsize=200, inpembdim=50, innerdim=5, maskid=0).all_outputs()
         pred = enc(x)
         # print pred.mask.eval().shape
         predval = pred.eval()

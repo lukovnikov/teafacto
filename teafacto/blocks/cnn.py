@@ -63,13 +63,13 @@ class CNNEnc(Block):
 
 
 class CNNSeqEncoder(CNNEnc):
-    def __init__(self, indim=500, inpembdim=100, inpemb=None,
+    def __init__(self, inpvocsize=500, inpembdim=100, inpemb=None,
                  numpos=None, posembdim=None, posemb=None,
-                 innerdim=200,
+                 innerdim=200, stride=1,
                  window=5, poolmode="max", activation=Tanh, maskid=None,
                  dropout=None, **kw):
         if inpemb is None:
-            self.embedder = VectorEmbed(indim, inpembdim, maskid=maskid)
+            self.embedder = VectorEmbed(inpvocsize, inpembdim, maskid=maskid)
         else:
             self.embedder = inpemb
             inpembdim = inpemb.outdim
@@ -90,7 +90,7 @@ class CNNSeqEncoder(CNNEnc):
             self.posemb = None
 
         super(CNNSeqEncoder, self).__init__(indim=indim, innerdim=innerdim,
-                                            window=window, poolmode=poolmode,
+                                            window=window, poolmode=poolmode, stride=stride,
                                             activation=activation, dropout=dropout, **kw)
 
     def apply(self, x, mask=None):
@@ -150,9 +150,10 @@ class Conv1D(Block):
                                     border_mode=self.border_mode, subsample=(self.stride, 1),
                                     filter_flip=self.filter_flip)
             maskcrit = self.filter_shape[2] - self.border_mode[0]
-            mask = T.cast(maskout[:, 0, :, 0] >= maskcrit, "int32")
+            mask = maskout[:, 0, :, 0] >= maskcrit
+        #ret = T.cast(ret, "float32")
         ret.mask = mask
-        return T.cast(ret, "float32")
+        return ret
 
 
 class GlobalPool1D(Block):
