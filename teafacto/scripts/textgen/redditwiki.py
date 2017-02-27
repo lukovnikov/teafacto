@@ -149,7 +149,7 @@ def run(p="../../../data/textgen/redditwiki",       # path used by loaddata
         dropout=0.2,        # dropout level
         posembdim=50,       # position embedding dimensions, only with CNN encoder
         sameencoder=False,  # use the same encoding network for all inputs
-        debugvalid=True,
+        debugvalid=False,
         ):
     (traindata, traingold, trainwiki), (validdata, validgold, validwiki), \
     (testdata, testgold, testwiki), wd, ps \
