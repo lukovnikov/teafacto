@@ -9,6 +9,7 @@ from teafacto.blocks.seq.attention import Attention
 from teafacto.core.base import asblock
 from teafacto.blocks.cnn import CNNSeqEncoder
 from teafacto.blocks.activations import ReLU, Tanh, Sigmoid
+from teafacto.eval.extvalid import Perplexity
 
 
 def loaddata(p="../../../data/textgen/redditwiki", maxlen=np.infty, flattenwiki=False):
@@ -219,28 +220,10 @@ def run(p="../../../data/textgen/redditwiki",       # path used by loaddata
                     innerdim=[decdim, decdim],
                     dropout_in=dropout)
 
-
-    def get_perplexity():   # TODO
-        runningperplexitysum = [0]
-        numperplexitywords = [0]
-
-        def perplexity(ingold, data, wiki, outgold):
-            predprobs = m.predict(ingold, data, wiki)
-            mask = outgold != maskid
-            rightprobs = predprobs[outgold]
-            ces = -np.log(rightprobs)
-            ces = ces * mask
-            runningperplexitysum[0] += np.sum(ces)
-            numperplexitywords[0] += np.sum(mask)
-            ret = runningperplexitysum[0] / numperplexitywords[0]
-            embed()
-            return ret
-        return perplexity
-
     m.train([traingold[:, :-1], traindata, trainwiki], traingold[:, 1:])\
         .adadelta(lr=lr).cross_entropy().grad_total_norm(gradnorm)\
         .validate_on([validgold[:, :-1], validdata, validwiki], validgold[:, 1:])\
-            .cross_entropy()\
+            .cross_entropy().extvalid(Perplexity(m))\
         .autosaveit().takebest(save=True)\
         .train(numbats=numbats, epochs=epochs, _skiptrain=debugvalid)
 
