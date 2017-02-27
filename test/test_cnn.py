@@ -156,6 +156,15 @@ class TestConv1D(TestCase):
         self.assertTrue(np.allclose(expmask, predmask.eval()))
 
 
+class TestConv1DTooManyDims(TestCase):
+    def test_shapes(self):
+        xval = np.random.random((100, 20, 25, 50)).astype("float32")
+        conv = Conv1D(indim=50, outdim=40, window=5)
+        pred = conv.predict(xval)
+        self.assertEqual(pred.shape[:2], xval.shape[:2])
+        self.assertEqual(pred.shape[2], 40)
+
+
 class TestPool1D(TestCase):
     def test_max_pool(self):
         xval = np.random.random((100, 20, 50)).astype("float32")

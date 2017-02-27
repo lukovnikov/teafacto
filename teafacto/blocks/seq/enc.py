@@ -2,7 +2,7 @@ from teafacto.blocks.basic import IdxToOneHot, VectorEmbed, MatDot, Softmax, Lin
 from teafacto.blocks.pool import Pool
 from teafacto.blocks.seq.rnn import MakeRNU, EncLastDim
 from teafacto.blocks.seq.oldseqproc import Vec2Idx, SimpleVec2Idx
-from teafacto.blocks.seq.rnn import SeqEncoder, MaskMode
+from teafacto.blocks.seq.rnn import SeqEncoder
 from teafacto.core.base import Block, tensorops as T, param
 from teafacto.util import issequence
 
@@ -97,8 +97,7 @@ class SimpleSeq2Vec(Seq2Vec):
 
 class SimpleSeq2MultiVec(Block):
     def __init__(self, indim=400, inpembdim=50, inpemb=None, mode="concat",
-                 innerdim=100, numouts=1, bidir=False,
-                 maskmode=MaskMode.NONE, **kw):
+                 innerdim=100, numouts=1, bidir=False, **kw):
         super(SimpleSeq2MultiVec, self).__init__(**kw)
         if inpemb is None:
             if inpembdim is None:

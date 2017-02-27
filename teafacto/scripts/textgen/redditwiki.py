@@ -8,6 +8,7 @@ from teafacto.blocks.basic import SMO, VectorEmbed
 from teafacto.blocks.seq.attention import Attention
 from teafacto.core.base import asblock
 from teafacto.blocks.cnn import CNNSeqEncoder
+from teafacto.blocks.activations import ReLU, Tanh, Sigmoid
 
 
 def loaddata(p="../../../data/textgen/redditwiki", maxlen=np.infty, flattenwiki=False):
@@ -187,12 +188,12 @@ def run(p="../../../data/textgen/redditwiki",       # path used by loaddata
             strides = 1
         encoder_one = CNNSeqEncoder(inpemb=emb, windows=windows, stride=strides,
                                     innerdim=[encdim, encdim, encdim, encdim],
-                                    dropout=dropout,
+                                    dropout=dropout, activation=ReLU,
                                     posembdim=posembdim, numpos=maxlen).all_outputs()
         if not sameencoder:
             encoder_two = CNNSeqEncoder(inpemb=emb, windows=windows, stride=strides,
                                         innerdim=[encdim, encdim, encdim, encdim],
-                                        dropout=dropout,
+                                        dropout=dropout, activation=ReLU,
                                         posembdim=posembdim, numpos=maxlen).all_outputs()
         else:
             encoder_two = encoder_one

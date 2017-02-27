@@ -34,6 +34,55 @@ class thresh_lr(DynamicLearningParam):
         return lr if epoch < self.thresh else 0.
 
 
+class Objective(object):
+    def __init__(self, obj, aggmode="mean"):
+        super(Objective, self).__init__()
+        self.obj = obj
+        self.aggmode = aggmode
+        self.agg_history = []
+        self.current_agg_error = 0.
+        self.current_agg_numexamples = 0.
+
+    def _reset(self):   # full reset
+        self.reset_agg()
+        self.agg_history = []
+
+    def get_agg_error(self):
+        if self.aggmode == "mean":
+            if self.current_agg_numexamples == 0.:
+                return -999.
+            return self.current_agg_error / self.current_agg_numexamples
+        return self.current_agg_error
+
+    def get_agg_error_history(self):
+        return self.agg_history
+
+    def reset_agg(self):
+        self.current_agg_error = 0.
+        self.current_agg_numexamples = 0.
+
+    def push_agg_to_history(self):
+        self.agg_history.append(self.get_agg_error())
+
+    def update_agg(self, err, numex):
+        self.current_agg_numexamples += numex
+        err = err * numex if self.aggmode == "mean" else err
+        self.current_agg_error += err
+
+
+class ExternalObjective(Objective):
+    pass
+
+
+class ExternalFunctionObjective(ExternalObjective):
+    def __init__(self, f):
+        super(ExternalFunctionObjective, self).__init__(None)
+        self.f = f
+
+    def __call__(self, *args):
+        return self.f(*args)
+
+
 class ModelTrainer(object):
     def __init__(self, model, gold):
         self.model = model
@@ -89,14 +138,14 @@ class ModelTrainer(object):
         else:
             self.validators.append(obj)
 
-    def linear_objective(self): # multiplies prediction with gold, assumes prediction is already the loss
+    def linear_objective(self, mode="mean"): # multiplies prediction with gold, assumes prediction is already the loss
                                 # (this is for negative sampling models where the training model already computes the loss)
-        self._set_objective(lambda x, y: x * y)
+        self._set_objective(Objective(lambda x, y: x * y, aggmode=mode))
         return self
 
-    def cross_entropy(self):
+    def cross_entropy(self, mode="mean"):
         """ own implementation of categorical cross-entropy """
-        self._set_objective(self._inner_cross_entropy)
+        self._set_objective(Objective(self._inner_cross_entropy, aggmode=mode))
         return self
 
     @classmethod
@@ -107,9 +156,9 @@ class ModelTrainer(object):
         elif gold.ndim == 2:    # sequences
             return cls._inner_seq_neg_log_prob(probs, gold, mask=mask)
 
-    def seq_cross_entropy(self): # probs (batsize, seqlen, vocsize) + gold: (batsize, seqlen) ==> sum of neg log-probs of correct seq
+    def seq_cross_entropy(self, mode="mean"): # probs (batsize, seqlen, vocsize) + gold: (batsize, seqlen) ==> sum of neg log-probs of correct seq
         """ Own implementation of categorical cross-entropy, applied to a sequence of probabilities that should be multiplied """
-        self._set_objective(self._inner_seq_neg_log_prob)
+        self._set_objective(Objective(self._inner_seq_neg_log_prob, aggmode=mode))
         return self
 
     @classmethod
@@ -124,23 +173,23 @@ class ModelTrainer(object):
         o = tensor.sum(o, axis=1)
         return o        # (batsize,)
 
-    def squared_error(self):
-        self._set_objective(squared_error)
+    def squared_error(self, mode="mean"):
+        self._set_objective(Objective(squared_error, aggmode=mode))
         return self
 
-    def squared_loss(self):
-        self._set_objective(lambda x, y: (1 - x * y) ** 2)        # [-1, +1](batsize, )
+    def squared_loss(self, mode="mean"):
+        self._set_objective(Objective(lambda x, y: (1 - x * y) ** 2, aggmode=mode))        # [-1, +1](batsize, )
         return self
 
-    def binary_cross_entropy(self): # theano binary cross entropy (through lasagne), probs: (batsize,) float, gold: (batsize,) float
-        self._set_objective(binary_crossentropy)
+    def binary_cross_entropy(self, mode="mean"): # theano binary cross entropy (through lasagne), probs: (batsize,) float, gold: (batsize,) float
+        self._set_objective(Objective(binary_crossentropy, aggmode=mode))
         return self
 
-    def bin_accuracy(self, sep=0):
-        self._set_objective(lambda x, y: theano.tensor.eq(x > sep, y > sep))
+    def bin_accuracy(self, sep=0, mode="mean"):
+        self._set_objective(Objective(lambda x, y: theano.tensor.eq(x > sep, y > sep), aggmode=mode))
         return self
 
-    def accuracy(self, top_k=1):
+    def accuracy(self, top_k=1, mode="mean"):
         def categorical_accuracy(predictions, targets, top_k=1): # !!! copied from Lasagne # TODO: import properly
             if targets.ndim == predictions.ndim:
                 targets = theano.tensor.argmax(targets, axis=-1)
@@ -159,10 +208,10 @@ class ModelTrainer(object):
                           [slice(-top_k, None)]]
                 targets = theano.tensor.shape_padaxis(targets, axis=-1)
                 return theano.tensor.any(theano.tensor.eq(top, targets), axis=-1)
-        self._set_objective(lambda x, y: 1-categorical_accuracy(x, y, top_k=top_k))
+        self._set_objective(Objective(lambda x, y: 1-categorical_accuracy(x, y, top_k=top_k), aggmode=mode))
         return self
 
-    def seq_accuracy(self): # sequences must be exactly the same
+    def seq_accuracy(self, mode="mean"): # sequences must be exactly the same
         def inner(probs, gold, mask=None):
             if gold.ndim == probs.ndim:
                 gold = tensor.argmax(gold, axis=-1)
@@ -176,28 +225,28 @@ class ModelTrainer(object):
                 top *= mask
             diff = tensor.sum(abs(top - gold), axis=1)
             return tensor.eq(diff, tensor.zeros_like(diff))
-        self._set_objective(inner)
+        self._set_objective(Objective(inner, aggmode=mode))
         return self
 
-    def hinge_loss(self, margin=1., labelbin=True): # gold must be -1 or 1 if labelbin if False, otherwise 0 or 1
+    def hinge_loss(self, margin=1., labelbin=True, mode="mean"): # gold must be -1 or 1 if labelbin if False, otherwise 0 or 1
         def inner(preds, gold):     # preds: (batsize,), gold: (batsize,)
             if labelbin is True:
                 gold = 2 * gold - 1
             return tensor.nnet.relu(margin - gold * preds)
-        self._set_objective(inner)
+        self._set_objective(Objective(inner, aggmode=mode))
         return self
 
-    def multiclass_hinge_loss(self, margin=1.):
+    def multiclass_hinge_loss(self, margin=1., mode="mean"):
         def inner(preds, gold):     # preds: (batsize, numclasses) scores, gold: int:(batsize)
             pass
-        self._set_objective(inner)
+        self._set_objective(Objective(inner, aggmode=mode))
         return self
 
-    def log_loss(self):
+    def log_loss(self, mode="mean"):
         """ NOT cross-entropy, BUT log(1+e^(-t*y))"""
         def inner(preds, gold):     # preds: (batsize,) float, gold: (batsize,) float
             return tensor.nnet.softplus(-gold*preds)
-        self._set_objective(inner)
+        self._set_objective(Objective(inner, aggmode=mode))
         return self
     #endregion
 
@@ -335,7 +384,9 @@ class ModelTrainer(object):
         return self
 
     def extvalid(self, evaluator):
-        self.external_validators.append(evaluator)
+        if not isinstance(evaluator, ExternalObjective):
+            evaluator = ExternalFunctionObjective(evaluator)
+        self.validators.append(evaluator)
         return self
 
     #endregion
@@ -463,42 +514,49 @@ class ModelTrainer(object):
             self.tt.tock("training function compiled")
         return trainf
 
-    def buildlosses(self, output, objs):
+    def buildlosses(self, output, objs):    # every objective produces one number
         acc = []
         for objective in objs:
+            objaggmode = objective.aggmode
+            objective = objective.obj
             if "mask" in inspect.getargspec(objective)[0]:
                 mask = output.mask.d if output.mask is not None else None
                 obj = objective(output.d, self.goldvar, mask=mask)
             else:
                 assert(output.mask is None)
                 obj = objective(output.d, self.goldvar)
-            objagg = aggregate(obj, mode="mean" if self.average_err is True else "sum")
+            objagg = aggregate(obj, mode=objaggmode)
             acc.append(objagg)
         return acc, None
 
     def getvalidfun(self, model, batsize):
         symbolic_validfun = self.buildvalidfun(model, batsize)
-        if len(self.external_validators) == 0:
+        valids = []
+        i = 0
+        for validator in self.validators:
+            if isinstance(validator, ExternalObjective):
+                valids.append(validator)
+            else:
+                valids.append(i)
+                i += 1
+        if i == len(self.validators):
             return symbolic_validfun
         else:
-            extravalid = self.external_validators
-
             def validfun(*sampleinps):
                 #embed()
                 ret = []
+                symret = []
                 if symbolic_validfun is not None:
                     svf = symbolic_validfun(*sampleinps)
                     if not issequence(svf):
                         svf = [svf]
-                    ret += svf
-                for ev in extravalid:
-                    a = ev(*sampleinps)
-                    if not issequence(a):
-                        a = [a]
+                    symret = svf
+                for validf in valids:
+                    if not isinstance(validf, ExternalObjective):
+                        ret.append(symret[validf])
                     else:
-                        if isinstance(a, tuple):
-                            a = list(a)
-                    ret += a
+                        a = validf(*sampleinps)
+                        ret.append(a)
                 return ret
             return validfun
 
@@ -509,7 +567,8 @@ class ModelTrainer(object):
         outp = outps[0]
         self.tt.tock("validation - autobuilt")
         self.tt.tick("compiling validation function")
-        metrics, newinp = self.buildlosses(outp, self.validators)
+        validators = filter(lambda x: not isinstance(x, ExternalObjective), self.validators)
+        metrics, newinp = self.buildlosses(outp, validators)
         inputs = newinp if newinp is not None else inps
         ret = None
         if len(metrics) > 0:
@@ -605,14 +664,17 @@ class ModelTrainer(object):
     #region ############# TRAINING LOOPS ##################
     def trainloop(self, trainf, validf=None, _skiptrain=False):
         self.tt.tick("training")
-        err = []
-        verr = []
         stop = self.maxiter == 0
         self.currentiter = 1
         evalinter = self._validinter
         evalcount = evalinter
         tt = TT("iter")
-        prevverre = [float("inf")] * len(self.validators)
+
+        # resetting objectives
+        tt.msg("resetting objectives")
+        self.objective._reset()
+        for obj in self.validators:
+            obj._reset()
 
         writeresf = None
         if self._writeresultspath is not None:
@@ -622,35 +684,31 @@ class ModelTrainer(object):
             tt.tick("%d/%d" % (self.currentiter, int(self.maxiter)))
             if _skiptrain:
                 tt.msg("skipping training")
-                erre = [0.]
             else:
-                erre = trainf()
+                trainf()
             if self.currentiter == self.maxiter:
                 stop = True
             self.currentiter += 1
-            err.append(erre)
-            #print "done training"
-            verre = prevverre
             restowrite = ""
             if self._autosave:
                 self.save()
+            epoch_train_error = self.objective.get_agg_error()
+            epoch_valid_errors = []
             if validf is not None and self.currentiter % evalinter == 0: # validate and print
-                #embed()
-                verre = validf()
-                prevverre = verre
-                verr.append(verre)
+                validf()
+                epoch_valid_errors = [validator.get_agg_error() for validator in self.validators]
                 ttmsg = "training error: %s \t validation error: %s" \
-                       % ("%.4f" % erre[0],
-                          " - ".join(map(lambda x: "%.4f" % x, verre)))
-                restowrite = "\t".join(map(str, erre[0:1] + verre))
+                       % ("%.4f" % epoch_train_error,
+                          " - ".join(map(lambda x: "%.4f" % x, epoch_valid_errors)))
+                restowrite = "\t".join(map(str, [epoch_train_error] + epoch_valid_errors))
             else:
-                ttmsg = "training error: %s" % " - ".join(map(lambda x: "%.4f" % x, erre))
-                restowrite = str(erre[0])
+                ttmsg = "training error: %s" % " - ".join(map(lambda x: "%.4f" % x, [epoch_train_error]))
+                restowrite = str(epoch_train_error)
             if writeresf is not None:
                 writeresf.write("{}\t{}\n".format(self.currentiter - 1, restowrite))
             # retaining the best
             if self.besttaker is not None:
-                modelscore = self.besttaker(([erre]+verre+[self.currentiter]))
+                modelscore = self.besttaker(([epoch_train_error] + epoch_valid_errors + [self.currentiter]))
                 smallerbetter = 1 if self.smallerbetter else -1
                 if smallerbetter * modelscore < smallerbetter * self.bestmodel[1]:
                     if self.savebest:
@@ -660,55 +718,63 @@ class ModelTrainer(object):
                         #tt.tock("freezing best with score %.3f (prev: %.3f)" % (modelscore, self.bestmodel[1]), prefix="-").tick()
                         self.bestmodel = (self.save(freeze=True, filepath=False), modelscore)
             tt.tock(ttmsg + "\t", prefix="-")
-            self._update_lr(self.currentiter, self.maxiter, err, verr)
+            self._update_lr(self.currentiter,
+                            self.maxiter,
+                            self.objective.get_agg_error_history(),
+                            [validator.get_agg_error_history() for validator in self.validators])
             evalcount += 1
             if writeresf is not None:
                 writeresf.close()
         self.tt.tock("trained").tick()
-        return err, verr
+        return np.asarray(self.objective.get_agg_error_history()), \
+               np.asarray([validator.get_agg_error_history() for validator in self.validators]).T
 
-    def getbatchloop(self, trainf, datafeeder, verbose=True, phase="TEST"):
+    def getbatchloop(self, f, datafeeder, verbose=True, phase="TEST"):
         '''
         returns the batch loop, loaded with the provided trainf training function and samplegen sample generator
         '''
         sampletransf = self._transformsamples
-        this = self
+        objectives = []
+        if phase == "TRAIN":
+            objectives = [self.objective]
+        elif phase == "VALID":
+            objectives = self.validators
+        numdigs = 2
 
         def batchloop():
             c = 0
-            numex = 0
+            number_examples = 0
             prevperc = -1.
-            terr = [0.0]
-            numdigs = 2
             tt = TT("iter progress", verbose=verbose)
             tt.tick()
             datafeeder.reset()
+            for obj in objectives:
+                obj.reset_agg()
             while datafeeder.hasnextbatch():
                 perc = round(c*100.*(10**numdigs)/datafeeder.getnumbats())/(10**numdigs)
-                if perc > prevperc:
-                    terr0 = terr[0] * 1.0 / numex if numex > 0 else 0.0
-                    s = ("%." + str(numdigs) + "f%% \t error: %.3f") % (perc, terr0)
+                if perc > prevperc:     # print errors
+                    current_agg_errors = [obj.get_agg_error() for obj in objectives]
+                    errorstr = " - ".join(["{:.3f}".format(current_agg_error) for current_agg_error in current_agg_errors])
+                    s = ("{:." + str(numdigs) + "f}% \t errors: {}").format(perc, errorstr)
                     tt.live(s)
                     prevperc = perc
                 sampleinps, batsize = datafeeder.nextbatch(withbatchsize=True)
-                numex += batsize
+                number_examples += batsize
                 #embed()
                 sampleinps = sampletransf(*sampleinps, phase=phase)
                 try:
-                    eterr = trainf(*sampleinps)
-                    if len(terr) != len(eterr) and terr.count(0.0) == len(terr):
-                        terr = [0.0]*len(eterr)
+                    errors_current = f(*sampleinps)
+                    for current_error, objective in zip(errors_current, objectives):
+                        objective.update_agg(current_error, batsize)
                 except Exception, e:
                     raise e
-                if self.average_err is True:
-                    terr = [xterr + xeterr * batsize for xterr, xeterr in zip(terr, eterr)]
-                else:
-                    terr = [xterr + xeterr for xterr, xeterr in zip(terr, eterr)]
                 c += 1
             tt.stoplive()
-            if self.average_err is True:
-                terr = [xterr * 1.0 / numex for xterr in terr]
-            return terr
+            # END OF EPOCH
+            for obj in objectives:
+                obj.push_agg_to_history()
+            errors_agg = [obj.get_agg_error() for obj in objectives]
+            return errors_agg
         return batchloop
 
     def _transformsamples(self, *s, **kw):

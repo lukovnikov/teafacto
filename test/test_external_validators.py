@@ -18,7 +18,7 @@ class TestExternalValidators(TestCase):
         def extacc(*sampleinp):
             pred = mpredf(*sampleinp[:-1])
             ret = np.sum(np.argmax(pred, axis=1) == sampleinp[-1])
-            return [ret * 1. / sampleinp[-1].shape[0]]
+            return ret * 1. / sampleinp[-1].shape[0]
 
         _, err, verr, _, _ = \
             m.train([data], gdata).adadelta(lr=lr).cross_entropy() \

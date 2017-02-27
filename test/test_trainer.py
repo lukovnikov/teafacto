@@ -45,17 +45,17 @@ class TestTrainingPause(TestCase):
 
 class TestModelTrainer(TestCase):
     def setUp(self):
-        dim=50
-        self.epochs=4
-        self.vocabsize=2000
-        self.lrthresh = 2
-        normalize=True
+        dim = 50
+        self.epochs = 4
+        self.vocabsize = 2000
+        self.lrthresh = 3
+        normalize = True
         self.ae = Dummy(indim=self.vocabsize, dim=dim, normalize=normalize)
         self.train()
 
     def train(self):
-        numbats=100
-        lr=0.02
+        numbats = 100
+        lr = 0.02
         lr *= numbats
         data = np.arange(0, self.vocabsize).astype("int32")
         _, self.err, self.verr, _, _ = \
