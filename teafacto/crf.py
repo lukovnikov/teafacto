@@ -125,7 +125,10 @@ def forward(observations, transitions, startsymbol=0, viterbi=False,
         )
         sequence = T.concatenate([sequence[::-1],
                                   [T.argmax(alpha[:, -1], axis=1)]])
-        seqmask = T.concatenate([T.ones((1, mask.shape[0]), dtype="int8"), mask], axis=1)
+        if mask is not None:
+            seqmask = T.concatenate([T.ones((1, mask.shape[0]), dtype="int8"), mask], axis=1)
+        else:
+            seqmask = mask
         sequence = sequence.dimswap(0, 1)
         #seqmask = seqmask.dimswap(0, 1)
         sequence.mask = seqmask

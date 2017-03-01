@@ -280,7 +280,7 @@ class TestCRFUtils(TestCase):
                 bestseq = y
 
         print bestseq
-        self.assertEqual(bestseq, list(outv.T[0]))
+        self.assertEqual(bestseq, list(outv[0]))
 
     def test_viterbi_fixed_data_best_seq_masked(self):
         sma = -1e3
