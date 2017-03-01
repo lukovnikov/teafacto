@@ -60,12 +60,14 @@ def forward(observations, transitions, startsymbol=0, viterbi=False,
         obs = obs.dimshuffle(0, 'x', 1)             # (batsize, 1, n_classes)
         trans = trans.dimshuffle('x', 0, 1)         # (1, n_classes, n_classes)
         mask = mask.dimadd(1)
-        scores = prev + obs + trans
+        scores = prev + obs + trans             # (batsize, n_classes, n_classes)
         ret2 = None
         if viterbi:
             ret = scores.max(axis=1)
-            if return_best_sequence:    # TODO masking
-                ret2 = scores.argmax(axis=1)
+            if return_best_sequence:
+                ret2 = scores.argmax(axis=1)    # (batsize, n_classes)
+                if mask is not None:
+                    ret2 = T.switch(mask, ret2, T.zeros_like(ret2, dtype="int32"))
         else:
             ret = log_sum_exp(scores, axis=1)
         ret = ret * mask + (1 - mask) * previous
@@ -100,17 +102,37 @@ def forward(observations, transitions, startsymbol=0, viterbi=False,
 
     if return_alpha:
         return alpha
-    elif return_best_sequence:  # TODO: make batched and masked
+    elif return_best_sequence:
+
+        def bestrec(beta_i, prev):
+            ret = beta_i[T.arange(0, beta_i.shape[0]), prev]
+            return ret
+
+        def maskedbestrec(beta_i, mask, prev):
+            ret = beta_i[T.arange(0, beta_i.shape[0]), prev]
+            ret = T.switch(mask, ret, prev)
+            return ret
+
+        f = maskedbestrec if mask is not None else bestrec
+        outs = [T.cast(T.argmax(alpha[:, -1], axis=1), "int32")]
+        seqs = [T.cast(bestseq[::-1], "int32")] if mask is None else \
+            [T.cast(bestseq[::-1], "int32"), mask.dimswap(0, 1)[::-1]]
+        #return outs[0]
         sequence = T.scan(
-            fn=lambda beta_i, previous: beta_i[previous],
-            outputs_info=T.cast(T.argmax(alpha[-1]), 'int32'),
-            sequences=T.cast(bestseq[::-1], 'int32')
+            fn=f,
+            outputs_info=outs,
+            sequences=seqs
         )
-        sequence = T.concatenate([sequence[::-1], [T.argmax(alpha[-1])]])
-        return sequence
+        sequence = T.concatenate([sequence[::-1],
+                                  [T.argmax(alpha[:, -1], axis=1)]])
+        seqmask = T.concatenate([T.ones((1, mask.shape[0]), dtype="int8"), mask], axis=1)
+        sequence = sequence.dimswap(0, 1)
+        #seqmask = seqmask.dimswap(0, 1)
+        sequence.mask = seqmask
+        return sequence     # (batsize, seqlen)
     else:
         if viterbi:
-            return alpha[-1].max(axis=1)
+            return alpha[:, -1].max(axis=1)
         else:
             return log_sum_exp(alpha[:, -1, :], axis=1)
 
