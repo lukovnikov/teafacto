@@ -25,6 +25,7 @@ def run(numbats=50,
         userelu=False,
         numdeclayers=1,
         inspectdata=False,
+        forwardattention=False,
         ):
     tt = ticktock("script")
 
@@ -63,9 +64,10 @@ def run(numbats=50,
     smodim = encdim+encdim if not concatdecinp else encdim+encdim+embdim
     ctxdim = encdim
     critdim = encdim if not concatdecinp else encdim + embdim
+    attention = Attention().forward_gen(critdim, ctxdim) if forwardattention else Attention.dot_gen()
 
     decoder = EncDec(encoder=encoder,
-                     attention=Attention().forward_gen(critdim, ctxdim),
+                     attention=attention,
                      inpemb=outemb,
                      inconcat=inconcat, outconcat=outconcat, concatdecinp=concatdecinp,
                      innerdim=[encdim]*numdeclayers,
