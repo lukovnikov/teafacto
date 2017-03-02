@@ -54,10 +54,10 @@ def run(numbats=50,
                      dropout_in=dropout,
                      smo=SMO(encdim+encdim, max(adic.values()) + 1))
 
-    decoder.train([qmat_train, amat_train[:, :-1]], amat_train[:, 1:]) \
+    decoder.train([amat_train[:, :-1], qmat_train], amat_train[:, 1:]) \
         .cross_entropy().adadelta(lr=lr).grad_total_norm(5.) \
-        .validate_on([qmat_test, amat_test[:, :-1]], amat_test[:, 1:]) \
-        .cross_entropy().accuracy() \
+        .validate_on([amat_test[:, :-1], qmat_test], amat_test[:, 1:]) \
+        .cross_entropy().seq_accuracy() \
         .train(numbats, epochs)
 
     embed()
