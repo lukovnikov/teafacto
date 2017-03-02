@@ -61,9 +61,11 @@ def run(numbats=50,
                             dropout=dropout).all_outputs()
 
     smodim = encdim+encdim if not concatdecinp else encdim+encdim+embdim
+    ctxdim = encdim
+    critdim = encdim if not concatdecinp else encdim + embdim
 
     decoder = EncDec(encoder=encoder,
-                     attention=Attention().dot_gen(),
+                     attention=Attention().forward_gen(critdim, ctxdim),
                      inpemb=outemb,
                      inconcat=inconcat, outconcat=outconcat, concatdecinp=concatdecinp,
                      innerdim=[encdim]*numdeclayers,
