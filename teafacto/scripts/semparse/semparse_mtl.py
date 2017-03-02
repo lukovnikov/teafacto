@@ -23,6 +23,8 @@ def run(numbats=50,
         preproc=True,
         posembdim=50,
         userelu=False,
+        numdeclayers=1,
+        inspectdata=False,
         ):
     tt = ticktock("script")
 
@@ -44,6 +46,9 @@ def run(numbats=50,
     qmat_train, qmat_test = split_train_test(qmat)
     amat_train, amat_test = split_train_test(amat)
 
+    if inspectdata:
+        embed()
+
     inpemb = WordEmb(worddic=qdic, maskid=maskid, dim=embdim)
     outemb = WordEmb(worddic=adic, maskid=maskid, dim=embdim)
 
@@ -59,7 +64,7 @@ def run(numbats=50,
                      attention=Attention().dot_gen(),
                      inpemb=outemb,
                      inconcat=inconcat, outconcat=outconcat, concatdecinp=concatdecinp,
-                     innerdim=[encdim]*2,
+                     innerdim=[encdim]*numdeclayers,
                      dropout_h=dropout,
                      dropout_in=dropout,
                      smo=SMO(encdim+encdim, max(adic.values()) + 1))
