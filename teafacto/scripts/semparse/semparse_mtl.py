@@ -60,6 +60,8 @@ def run(numbats=50,
                             activation=ReLU if userelu else Tanh,
                             dropout=dropout).all_outputs()
 
+    smodim = encdim+encdim if not concatdecinp else encdim+encdim+embdim
+
     decoder = EncDec(encoder=encoder,
                      attention=Attention().dot_gen(),
                      inpemb=outemb,
@@ -67,7 +69,7 @@ def run(numbats=50,
                      innerdim=[encdim]*numdeclayers,
                      dropout_h=dropout,
                      dropout_in=dropout,
-                     smo=SMO(encdim+encdim, max(adic.values()) + 1))
+                     smo=SMO(smodim, max(adic.values()) + 1))
 
     tt.tick("training")
 
