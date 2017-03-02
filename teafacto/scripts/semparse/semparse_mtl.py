@@ -58,7 +58,7 @@ def run(numbats=50,
                      attention=Attention().dot_gen(),
                      inpemb=outemb,
                      inconcat=inconcat, outconcat=outconcat,
-                     innerdim=encdim,
+                     innerdim=[encdim]*2,
                      dropout_h=dropout,
                      dropout_in=dropout,
                      smo=SMO(encdim+encdim, max(adic.values()) + 1))
