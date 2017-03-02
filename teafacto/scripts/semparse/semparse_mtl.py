@@ -43,11 +43,11 @@ def run(numbats=50,
                             posembdim=posembdim,
                             innerdim=[encdim] * 3,
                             window=[3, 3, 4],
-                            dropout=dropout)
+                            dropout=dropout).all_outputs()
 
     decoder = EncDec(encoder=encoder,
                      attention=Attention().dot_gen(),
-                     impemb=outemb,
+                     inpemb=outemb,
                      inconcat=inconcat, outconcat=outconcat,
                      innerdim=encdim,
                      dropout_h=dropout,

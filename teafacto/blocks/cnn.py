@@ -13,6 +13,7 @@ class CNNEnc(Block):
         self.layers = []
         if not issequence(innerdim):
             innerdim = [innerdim]
+        self.outdim = innerdim[-1]
         if not issequence(window):
             window = [window] * len(innerdim)
         if not issequence(activation):

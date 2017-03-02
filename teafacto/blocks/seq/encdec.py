@@ -224,7 +224,7 @@ class EncDec(Block):        # doesn't have state transfer, parameterized initial
         outputs = T.scan(fn=self.inner_rec,
                          sequences=decinpemb.dimswap(1, 0),
                          outputs_info=[None] + init_info,
-                         non_sequences=nonseqs,
+                         non_sequences=list(nonseqs),
                          )
         ret = outputs[0].dimswap(1, 0)
         ret.mask = mask
