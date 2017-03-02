@@ -48,14 +48,17 @@ class MatDot(Block):
 
 class Linear(Block):
     def __init__(self, indim, dim, w_init="glorotuniform",
-                 b_init="uniform", dropout=False, **kw):
+                 b_init="uniform", dropout=False, nobias=False, **kw):
         super(Linear, self).__init__(**kw)
         self.indim = indim
         self.dim = dim
         self.w_init = w_init
         self.b_init = b_init
         self.W = param((self.indim, self.dim), name="linear_W").init(w_init)
-        self.b = param((self.dim,), name="linear_b").init(b_init)
+        if nobias:
+            self.b = 0.
+        else:
+            self.b = param((self.dim,), name="linear_b").init(b_init)
         self.dropout = Dropout(dropout)
 
     def apply(self, inp):
@@ -65,8 +68,8 @@ class Linear(Block):
 
 class Forward(Linear):
     def __init__(self, indim, dim, activation=T.tanh, w_init="glorotuniform",
-                 b_init="uniform", dropout=False, **kw):
-        super(Forward, self).__init__(indim, dim, w_init=w_init, b_init=b_init, dropout=dropout, **kw)
+                 b_init="uniform", dropout=False, nobias=False, **kw):
+        super(Forward, self).__init__(indim, dim, w_init=w_init, b_init=b_init, dropout=dropout, nobias=nobias, **kw)
         self.activation = activation
 
     def apply(self, inp):

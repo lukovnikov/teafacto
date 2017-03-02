@@ -44,8 +44,8 @@ class LinearDistance(Distance):
         self.make(ldim, rdim, aggdim)
 
     def make(self, ldim, rdim, aggdim):
-        self.leftblock = Linear(indim=ldim, dim=aggdim)
-        self.rightblock = Linear(indim=rdim, dim=aggdim)
+        self.leftblock = Linear(indim=ldim, dim=aggdim, nobias=True)
+        self.rightblock = Linear(indim=rdim, dim=aggdim, nobias=True)
         self.agg = param((aggdim,), name="attention_agg").uniform()
 
     def apply(self, l, r):      # (batsize, dim)
@@ -67,8 +67,8 @@ class LinearDistance(Distance):
 
 class ForwardDistance(LinearDistance):
     def make(self, ldim, rdim, aggdim):
-        self.leftblock = Forward(indim=ldim, dim=aggdim)
-        self.rightblock = Forward(indim=rdim, dim=aggdim)
+        self.leftblock = Forward(indim=ldim, dim=aggdim, nobias=True)
+        self.rightblock = Forward(indim=rdim, dim=aggdim, nobias=True)
         self.agg = param((aggdim,), name="att_gen_summ").uniform()
 
 
