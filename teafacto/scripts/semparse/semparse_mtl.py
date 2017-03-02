@@ -64,7 +64,7 @@ def run(numbats=50,
     smodim = encdim+encdim if not concatdecinp else encdim+encdim+embdim
     ctxdim = encdim
     critdim = encdim if not concatdecinp else encdim + embdim
-    attention = Attention().forward_gen(critdim, ctxdim, 200) if forwardattention else Attention.dot_gen()
+    attention = Attention().forward_gen(critdim, ctxdim, 200) if forwardattention else Attention().dot_gen()
 
     decoder = EncDec(encoder=encoder,
                      attention=attention,
