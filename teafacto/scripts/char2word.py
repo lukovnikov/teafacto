@@ -3,7 +3,7 @@ import pickle
 import numpy as np
 
 from teafacto.blocks.seq.enc import SimpleSeq2Vec
-from teafacto.blocks.lang.wordvec import Glove
+from teafacto.blocks.word.wordvec import Glove
 from teafacto.blocks.match import MatchScore, CosineDistance, EuclideanDistance
 from teafacto.util import argprun, ticktock
 

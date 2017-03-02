@@ -342,3 +342,4 @@ class TestCRFUtils(TestCase):
         print bestseq, outv, mask
         self.assertTrue(np.allclose(bestseq, outv))
 
+

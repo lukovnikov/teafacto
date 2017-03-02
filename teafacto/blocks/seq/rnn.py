@@ -262,7 +262,6 @@ class SeqEncoder(AttentionConsumer, Block):
     @staticmethod
     def RNN(*args, **kwargs):
         return RNNSeqEncoder(*args, **kwargs)
-    #CNN = CNNSeqEncoder        # TODO
 
     @staticmethod
     def simple(*args, **kwargs):
@@ -294,6 +293,10 @@ class RNNSeqEncoder(SeqEncoder):
     @property
     def outdim(self):
         return self._lastdim
+
+    @staticmethod
+    def fluent():
+        return FluentSeqEncoderBuilder()
 
 
 class SeqDecoder(Block):

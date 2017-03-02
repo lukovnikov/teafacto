@@ -3,7 +3,7 @@ import pickle, numpy as np
 from teafacto.util import argprun, ticktock
 from teafacto.scripts.simplequestions.classifypred.predpredkeras import readdata
 from teafacto.blocks.seq.enc import SimpleSeq2Idx
-from teafacto.blocks.lang.wordvec import Glove
+from teafacto.blocks.word.wordvec import Glove
 from IPython import embed
 
 def run(epochs=10,

@@ -1,5 +1,5 @@
 from teafacto.blocks.seq.enc import SimpleSeq2Bool, SimpleSeq2Vec, SimpleSeq2Idx
-from teafacto.blocks.lang.sentenc import WordCharSentEnc
+from teafacto.blocks.word.sentenc import WordCharSentEnc
 from teafacto.blocks.seq.rnn import EncLastDim
 from teafacto.blocks.basic import VectorEmbed, SMOWrap
 from teafacto.core.base import Val

@@ -4,8 +4,8 @@ import scipy.sparse as sparse
 from IPython import embed
 from teafacto.core.base import Val
 from teafacto.blocks.basic import VectorEmbed
-from teafacto.blocks.lang.wordvec import Glove, WordEmb
-from teafacto.blocks.lang.sentenc import WordCharSentEnc, TwoLevelEncoder
+from teafacto.blocks.word.wordvec import Glove, WordEmb
+from teafacto.blocks.word.sentenc import WordCharSentEnc, TwoLevelEncoder
 from teafacto.blocks.seq.enc import SimpleSeq2Vec
 from teafacto.blocks.seq.rnn import RNNSeqEncoder, MaskMode
 from teafacto.blocks.match import CosineDistance, MatchScore

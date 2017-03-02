@@ -6,8 +6,8 @@ from teafacto.blocks.seq.enc import SimpleSeq2Vec, SimpleSeqStar2Vec
 from teafacto.blocks.seq.rnn import SeqEncoder, MaskMode, EncLastDim
 from teafacto.blocks.basic import VectorEmbed
 from teafacto.blocks.seq.rnu import GRU
-from teafacto.blocks.lang.sentenc import WordCharSentEnc
-from teafacto.blocks.lang.wordvec import Glove
+from teafacto.blocks.word.sentenc import WordCharSentEnc
+from teafacto.blocks.word.wordvec import Glove
 from teafacto.procutil import wordmat2charmat
 
 

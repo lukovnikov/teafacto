@@ -4,8 +4,8 @@ from teafacto.procutil import *
 from IPython import embed
 from scipy import sparse
 
-from teafacto.blocks.lang.wordvec import Glove, WordEmb
-from teafacto.blocks.lang.sentenc import TwoLevelEncoder
+from teafacto.blocks.word.wordvec import Glove, WordEmb
+from teafacto.blocks.word.sentenc import TwoLevelEncoder
 from teafacto.blocks.seq.rnn import RNNSeqEncoder, MaskMode
 from teafacto.blocks.seq.enc import SimpleSeq2Vec, SimpleSeq2MultiVec, SimpleSeq2Sca, EncLastDim
 from teafacto.blocks.cnn import CNNSeqEncoder

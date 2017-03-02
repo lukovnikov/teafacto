@@ -1,7 +1,7 @@
 from teafacto.blocks.seq.rnn import SeqEncoder, MaskMode
 from teafacto.blocks.seq.rnu import GRU
 from teafacto.blocks.basic import IdxToOneHot, Embedder, VectorEmbed
-from teafacto.blocks.lang.wordvec import Glove
+from teafacto.blocks.word.wordvec import Glove
 from teafacto.core.base import *
 from teafacto.core.base import tensorops as T
 

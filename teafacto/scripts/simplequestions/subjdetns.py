@@ -9,7 +9,7 @@ from IPython import embed
 
 from teafacto.blocks.seq.enc import SimpleSeq2Vec
 from teafacto.blocks.basic import VectorEmbed
-from teafacto.blocks.lang.wordvec import Glove
+from teafacto.blocks.word.wordvec import Glove
 from teafacto.blocks.match import MatchScore
 from teafacto.core.base import Val
 from teafacto.datahelp.labelsearch import SimpleQuestionsLabelIndex

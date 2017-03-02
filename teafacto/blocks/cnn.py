@@ -94,15 +94,46 @@ class CNNSeqEncoder(CNNEnc):
                                             activation=activation, dropout=dropout, **kw)
 
     def apply(self, x, mask=None):
-        xemb = self.embedder(x)
+        xemb = self.embedder(x)     # (batsize, seqlen, embdim)
+        xemb.mask = mask if mask is not None else xemb.mask
+        xembndim = xemb.ndim
+        origshape = None
+        origmaskshape = None
+        if xemb.ndim > 3:   # flatten
+            flatmask = xemb.mask
+            origshape = xemb.shape
+            origmaskshape = flatmask.shape if flatmask is not None else None
+            xemb = xemb.reshape((-1, xemb.shape[-2], xemb.shape[-1]))
+            xemb.mask = flatmask.reshape((-1, flatmask.shape[-1])) if flatmask is not None else None
         if self.posemb is not None:
-            mask = xemb.mask if mask is None else mask
+            mask = xemb.mask
             posids = Val(np.arange(0, self.numpos))
             posembone = self.posemb(posids)
-            posemb = T.repeat(posembone.dimadd(0), x.shape[0], axis=0)
+            posemb = T.repeat(posembone.dimadd(0), xemb.shape[0], axis=0)
             xemb = T.concatenate([xemb, posemb], axis=2)
             xemb.mask = mask
-        ret = super(CNNSeqEncoder, self).apply(xemb, mask=mask)
+        ret = super(CNNSeqEncoder, self).apply(xemb)
+        if origshape is not None:
+            newret = tuple()
+            if not issequence(ret):
+                ret = (ret,)
+            for rete in ret:
+                if rete.ndim == xemb.ndim - 1:  # lost last seq dim
+                    goodshape = T.concatenate([origshape[:-2],
+                                               rete.shape[-1:]], axis=0)
+                    retek = rete.reshape(goodshape, ndim=xembndim - 1)
+                    if origmaskshape is not None:
+                        retek.mask = flatmask.reshape(origmaskshape)
+                        retek.mask = T.sum(retek.mask, axis=-1) > 0   # agg over mask
+                else:   # didn't lose
+                    goodshape = T.concatenate([origshape[:-1],
+                                               rete.shape[-1:]], axis=0)
+                    retek = rete.reshape(goodshape, ndim=xembndim)
+                    if origmaskshape is not None:
+                        retek.mask = flatmask.reshape(origmaskshape)
+                newret += (retek,)
+            newret = newret[0] if len(newret) == 1 else newret
+            ret = newret
         return ret
 
 

@@ -1,5 +1,5 @@
 from teafacto.scripts.simplequestions.subjdet import loadlabels
-from teafacto.blocks.lang.wordembed import Glove
+from teafacto.blocks.word.wordembed import Glove
 from teafacto.util import tokenize
 import pickle
 

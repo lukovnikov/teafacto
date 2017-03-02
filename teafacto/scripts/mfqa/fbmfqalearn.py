@@ -1,6 +1,6 @@
 from teafacto.blocks.kgraph.fbencdec import FBSeqCompositeEncDec, FBSeqCompositeEncMemDec, FBMemMatch, FBSeqCompEncMemDecAtt
 from teafacto.blocks.memory import LinearGateMemAddr, GeneralDotMemAddr
-from teafacto.blocks.lang.wordvec import Glove
+from teafacto.blocks.word.wordvec import Glove
 from teafacto.feed.freebasefeeders import getentdict, getglovedict, FreebaseSeqFeedMaker, FreebaseSeqFeedMakerEntidxs
 from teafacto.feed.langtransform import WordToWordCharTransform
 from teafacto.util import argprun, ticktock

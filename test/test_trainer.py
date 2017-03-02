@@ -8,7 +8,7 @@ from teafacto.core.trainer import ModelTrainer
 from teafacto.core.base import Block
 from teafacto.blocks.match import MatchScore, DotDistance, CosineDistance, EuclideanDistance
 from teafacto.blocks.basic import VectorEmbed, MatDot
-from teafacto.blocks.lang.wordvec import Glove
+from teafacto.blocks.word.wordvec import Glove
 
 '''
     pred = ae.predict(pdata)

@@ -2,7 +2,7 @@ from unittest import TestCase
 import numpy as np
 from teafacto.blocks.match import MatchScore, CosineDistance
 from teafacto.blocks.basic import VectorEmbed
-from teafacto.blocks.lang.wordvec import Glove
+from teafacto.blocks.word.wordvec import Glove
 from teafacto.util import ticktock
 
 

@@ -4,8 +4,8 @@ import numpy as np
 
 from teafacto.blocks.seq.enc import SimpleSeq2Vec
 from teafacto.blocks.seq.enc import Seq2Vec
-from teafacto.blocks.lang.wordembed import WordEncoder, WordEncoderPlusGlove, WordEmbedPlusGlove
-from teafacto.blocks.lang.wordvec import Glove
+from teafacto.blocks.word.wordembed import WordEncoder, WordEncoderPlusGlove, WordEmbedPlusGlove
+from teafacto.blocks.word.wordvec import Glove
 
 
 class TestWordEncoder(TestCase):

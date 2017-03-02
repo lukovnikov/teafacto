@@ -139,3 +139,6 @@ def forward(observations, transitions, startsymbol=0, viterbi=False,
         else:
             return log_sum_exp(alpha[:, -1, :], axis=1)
 
+
+
+

@@ -2,7 +2,7 @@ from unittest import TestCase
 
 import numpy as np
 
-from teafacto.blocks.lang.wordvec import Glove, WordEmb
+from teafacto.blocks.word.wordvec import Glove, WordEmb
 from teafacto.blocks.basic import VectorEmbed
 from teafacto.core.base import Val
 

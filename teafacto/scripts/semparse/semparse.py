@@ -8,7 +8,7 @@ from teafacto.blocks.seq.rnu import GRU
 from teafacto.blocks.seq.encdec import SimpleSeqEncDecAtt
 from teafacto.blocks.basic import VectorEmbed, Linear, MatDot
 from teafacto.blocks.activations import Softmax, Tanh
-from teafacto.blocks.lang.wordvec import WordEmb, Glove
+from teafacto.blocks.word.wordvec import WordEmb, Glove
 from teafacto.query.lbd2tree import LambdaParser
 
 

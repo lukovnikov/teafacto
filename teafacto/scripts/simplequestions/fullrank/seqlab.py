@@ -1,7 +1,7 @@
 from teafacto.blocks.seq.trans import SimpleSeqTrans
 from teafacto.core.base import Block, asblock
 from teafacto.blocks.basic import VectorEmbed
-from teafacto.blocks.lang.wordvec import Glove, WordEmb
+from teafacto.blocks.word.wordvec import Glove, WordEmb
 import numpy as np, pickle
 from IPython import embed
 from teafacto.scripts.simplequestions.fullrank.fullrank import readdata

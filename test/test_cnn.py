@@ -292,7 +292,22 @@ class TestCNNEnc(TestCase):
         print pred.mask.eval()
         self.assertTrue(np.allclose(pred.mask.eval(), xval != 0))
 
-
-
+    def test_enc_too_many_dims(self):
+        xval = np.random.randint(1, 200, (100, 10, 6)).astype("int32")
+        maskid = np.random.randint(2, 5, (100, 10))
+        for i in range(xval.shape[0]):
+            for j in range(xval.shape[1]):
+                xval[i, j, maskid[i, j]:] = 0
+        x = Val(xval)
+        enc = CNNSeqEncoder(inpvocsize=200, inpembdim=50, innerdim=15, maskid=0).with_outputs()
+        lastpred, pred = enc(x)
+        # print pred.mask.eval().shape
+        predval = pred.eval()
+        #print predval
+        print predval.shape
+        print pred.mask.eval().shape
+        print lastpred.mask.eval().shape
+        self.assertTrue(np.allclose(pred.mask.eval(), xval != 0))
+        self.assertTrue(np.allclose(lastpred.mask.eval(), np.sum(xval != 0, axis=-1) > 0))
 
 
