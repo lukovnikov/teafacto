@@ -196,8 +196,10 @@ class EncDec(Block):        # doesn't have state transfer, parameterized initial
     def __init__(self, encoder=None, attention=None,
                  inpemb=None,
                  inconcat=True, outconcat=False, concatdecinp=False,
-                 innerdim=None, rnu=GRU, dropout_in=False, dropout_h=False,
-                 smo=None, **kw):
+                 indim=None, innerdim=None, rnu=GRU, dropout_in=False, dropout_h=False,
+                 smo=None,
+                 init_state_gen=None,   # block that generates initial state of topmost layer that produces addressing vectors
+                 **kw):
         super(EncDec, self).__init__(**kw)
         self.inconcat = inconcat
         self.outconcat = outconcat
@@ -206,7 +208,8 @@ class EncDec(Block):        # doesn't have state transfer, parameterized initial
         self.inpemb = inpemb
         innerdim = innerdim if issequence(innerdim) else [innerdim]
         self.outdim = innerdim[-1]
-        indim = inpemb.outdim + encoder.outdim
+        if indim is None:
+            indim = inpemb.outdim + encoder.outdim
         layers, lastdim = MakeRNU.fromdims([indim] + innerdim, rnu=rnu,
                                   dropout_in=dropout_in, dropout_h=dropout_h,
                                   param_init_states=True)
