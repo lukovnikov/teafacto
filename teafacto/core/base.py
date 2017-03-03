@@ -9,7 +9,7 @@ from theano import tensor
 from theano.tensor.var import _tensor_py_operators
 from theano.sandbox.rng_mrg import MRG_RandomStreams as RandomStreams
 
-from teafacto.core.trainer import ModelTrainer, NSModelTrainer
+import teafacto.core
 from teafacto.util import isstring, issequence, isfunction, Saveable, isnumber, unstructurize
 from teafacto.core.datafeed import DataFeed
 
@@ -742,7 +742,7 @@ class Block(Elem, Saveable): # block with parameters
     """
 
     def gettrainer(self, goldvar):
-        return ModelTrainer(self, goldvar)
+        return teafacto.core.ModelTrainer(self, goldvar)
 
     # do not override ------------------------------------------------
     # TODO: what if wrapply gets params in args?
@@ -881,17 +881,18 @@ class Block(Elem, Saveable): # block with parameters
         return p
 
     # training
-    def train(self, inputdata, gold):
-        # wrap data in datafeeds, generate gold var
-        goldvar = Input(gold.ndim, gold.dtype, name="gold")
-        #self.autobuilder = self.get_autobuilder(*inputdata)
-        #inps, outp = self.autobuild(*inputdata)
-
-        trainer = ModelTrainer(self, goldvar.d)
+    def train(self, inputdata, gold=None):
+        trainer = teafacto.core.ModelTrainer(self)
+        if gold is None:
+            trainer.linear_objective()
+            gold = np.ones((inputdata[0].shape[0],), dtype="float32")
         trainer.traindata = inputdata
         trainer.traingold = gold
-        if hasattr(self, "_trainer_cost"):  # sets cost in block
-            trainer._set_objective(self._trainer_cost)
+        return trainer
+
+    def minimize(self, *data):
+        trainer = teafacto.core.ModelTrainer(self)
+        trainer.traindata = data
         return trainer
 
     def nstrain(self, datas):
@@ -1053,7 +1054,7 @@ class NSTrainConfig():
         # wrap data in datafeeds, generate gold var
         goldvar = Input(gold.ndim, gold.dtype, name="gold")
 
-        trainer = NSModelTrainer(block, goldvar.d, self.nrate, self.nsamgen)
+        trainer = teafacto.core.NSModelTrainer(block, goldvar.d, self.nrate, self.nsamgen)
         trainer.traindata = self.datas
         trainer.traingold = gold
 

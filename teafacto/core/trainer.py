@@ -13,7 +13,9 @@ from theano import tensor as tensor
 from theano.compile.nanguardmode import NanGuardMode
 
 #from core import Input
+from teafacto.core import asblock
 from teafacto.core.datafeed import DataFeeder, SplitIdxIterator
+from teafacto.blocks.loss import *
 from teafacto.util import ticktock as TT, issequence
 
 
@@ -87,10 +89,31 @@ class ExternalFunctionObjective(ExternalObjective):
         return self.f(*args)
 
 
-class ModelTrainer(object):
-    def __init__(self, model, gold):
+class LossesApplied(Block):
+    def __init__(self, model, losses, **kw):
+        super(LossesApplied, self).__init__(**kw)
         self.model = model
-        self.goldvar = gold
+        self.losses = losses
+
+    def apply(self, *data, **kw):
+        gold = data[-1]
+        inpd = data[:-1]
+        modelout = self.model(*inpd, **kw)
+        acc = []
+        for loss in self.losses:
+            if hasattr(loss, "apply") and \
+                    "mask" in inspect.getargspec(loss.apply)[0]:
+                mask = modelout.mask.d if modelout.mask is not None else None
+                acc.append(loss(modelout, gold, mask=mask))
+            else:
+                assert(modelout.mask is None)
+                acc.append(loss(modelout, gold))
+        return tuple(acc)
+
+
+class ModelTrainer(object):
+    def __init__(self, model):
+        self.model = model
         self.validsetmode= False
         self.average_err = True # TODO: do we still need this?
         self._autosave = False
@@ -100,7 +123,7 @@ class ModelTrainer(object):
         self.numbats = None
         self.learning_rate = None
         self.dynamic_lr = None
-        self.objective = None
+        self.training_objectives = []
         self.regularizer = None
         self._exp_mov_avg_decay = 0.0
         self.optimizer = None
@@ -113,10 +136,10 @@ class ModelTrainer(object):
         self.trainstrategy = self._train_full
         self.validsplits = 0
         self.validrandom = False
-        self.validata = None
+        self.validdata = None
         self.validgold = None
         self.validation = None
-        self.validators = []
+        self.validation_objectives = []
         self.external_validators = []
         self.tt = TT("FluentTrainer")
         # taking best
@@ -133,124 +156,58 @@ class ModelTrainer(object):
     def numbats(self, s):
         self.numbats = s
         return self
+    #endregion
 
     #region ################### LOSSES ##########################
 
     def _set_objective(self, obj):
         if self.validsetmode is False:
-            self.objective = obj
+            self.training_objectives.append(obj)
         else:
-            self.validators.append(obj)
+            self.validation_objectives.append(obj)
 
-    def linear_objective(self, mode="mean"): # multiplies prediction with gold, assumes prediction is already the loss
-                                # (this is for negative sampling models where the training model already computes the loss)
-        self._set_objective(Objective(lambda x, y: x * y, aggmode=mode))
+    def linear_objective(self, mode="mean"):
+        self._set_objective(Objective(LinearLoss(), aggmode=mode))
         return self
 
     def cross_entropy(self, mode="mean"):
-        """ own implementation of categorical cross-entropy """
-        self._set_objective(Objective(self._inner_cross_entropy, aggmode=mode))
+        self._set_objective(Objective(CrossEntropy(), aggmode=mode))
         return self
-
-    @classmethod
-    def _inner_cross_entropy(cls, probs, gold, mask=None):
-        if gold.ndim == 1:
-            assert(mask is None)
-            return tensor.nnet.categorical_crossentropy(probs, gold) #-tensor.log(probs[tensor.arange(gold.shape[0]), gold])
-        elif gold.ndim == 2:    # sequences
-            return cls._inner_seq_neg_log_prob(probs, gold, mask=mask)
 
     def seq_cross_entropy(self, mode="mean"): # probs (batsize, seqlen, vocsize) + gold: (batsize, seqlen) ==> sum of neg log-probs of correct seq
-        """ Own implementation of categorical cross-entropy, applied to a sequence of probabilities that should be multiplied """
-        self._set_objective(Objective(self._inner_seq_neg_log_prob, aggmode=mode))
+        self._set_objective(Objective(CrossEntropy(), aggmode=mode))
         return self
 
-    @classmethod
-    def _inner_seq_neg_log_prob(cls, probs, gold, mask=None):   # probs: (batsize, seqlen, vocsize) probs, gold: (batsize, seqlen) idxs
-        #print "using inner seq neg log prob"
-        def _f(probsmat, goldvec):      # probsmat: (seqlen, vocsize), goldvec: (seqlen,)
-            ce = tensor.nnet.categorical_crossentropy(probsmat, goldvec) #-tensor.log(probsmat[tensor.arange(probsmat.shape[0]), goldvec])
-            return ce       # (seqlen,) ==> (1,)
-        o, _ = theano.scan(fn=_f, sequences=[probs, gold], outputs_info=None)      # out: (batsize, seqlen)
-        #print "MASK!!" if mask is not None else "NO MASK!!!"
-        o = o * mask if mask is not None else o     # (batsize, seqlen)
-        o = tensor.sum(o, axis=1)
-        return o        # (batsize,)
-
     def squared_error(self, mode="mean"):
-        self._set_objective(Objective(squared_error, aggmode=mode))
+        self._set_objective(Objective(SquaredError(), aggmode=mode))
         return self
 
     def squared_loss(self, mode="mean"):
-        self._set_objective(Objective(lambda x, y: (1 - x * y) ** 2, aggmode=mode))        # [-1, +1](batsize, )
+        self._set_objective(Objective(SquaredLoss(), aggmode=mode))        # [-1, +1](batsize, )
         return self
 
     def binary_cross_entropy(self, mode="mean"): # theano binary cross entropy (through lasagne), probs: (batsize,) float, gold: (batsize,) float
-        self._set_objective(Objective(binary_crossentropy, aggmode=mode))
+        self._set_objective(Objective(BinaryCrossEntropy(), aggmode=mode))
         return self
 
     def bin_accuracy(self, sep=0, mode="mean"):
-        self._set_objective(Objective(lambda x, y: theano.tensor.eq(x > sep, y > sep), aggmode=mode))
+        self._set_objective(Objective(BinaryAccuracy(sep=sep), aggmode=mode))
         return self
 
     def accuracy(self, top_k=1, mode="mean"):
-        def categorical_accuracy(predictions, targets, top_k=1): # !!! copied from Lasagne # TODO: import properly
-            if targets.ndim == predictions.ndim:
-                targets = theano.tensor.argmax(targets, axis=-1)
-            elif targets.ndim != predictions.ndim - 1:
-                raise TypeError('rank mismatch between targets and predictions')
-
-            if top_k == 1:
-                # standard categorical accuracy
-                top = theano.tensor.argmax(predictions, axis=-1)
-                return theano.tensor.eq(top, targets)
-            else:
-                # top-k accuracy
-                top = theano.tensor.argsort(predictions, axis=-1)
-                # (Theano cannot index with [..., -top_k:], we need to simulate that)
-                top = top[[slice(None) for _ in range(top.ndim - 1)] +
-                          [slice(-top_k, None)]]
-                targets = theano.tensor.shape_padaxis(targets, axis=-1)
-                return theano.tensor.any(theano.tensor.eq(top, targets), axis=-1)
-        self._set_objective(Objective(lambda x, y: 1-categorical_accuracy(x, y, top_k=top_k), aggmode=mode))
+        self._set_objective(Objective(Accuracy(top_k=top_k), aggmode=mode))
         return self
 
     def seq_accuracy(self, mode="mean"): # sequences must be exactly the same
-        def inner(probs, gold, mask=None):
-            if gold.ndim == probs.ndim:
-                gold = tensor.argmax(gold, axis=-1)
-            elif gold.ndim != probs.ndim - 1:
-                raise TypeError('rank mismatch between targets and predictions')
-            top = tensor.argmax(probs, axis=-1)
-            assert(gold.ndim == 2 and top.ndim == 2)
-            assert(mask is None or mask.ndim == 2)
-            if mask is not None:
-                gold *= mask
-                top *= mask
-            diff = tensor.sum(abs(top - gold), axis=1)
-            return tensor.eq(diff, tensor.zeros_like(diff))
-        self._set_objective(Objective(inner, aggmode=mode))
+        self._set_objective(Objective(SeqAccuracy(), aggmode=mode))
         return self
 
     def hinge_loss(self, margin=1., labelbin=True, mode="mean"): # gold must be -1 or 1 if labelbin if False, otherwise 0 or 1
-        def inner(preds, gold):     # preds: (batsize,), gold: (batsize,)
-            if labelbin is True:
-                gold = 2 * gold - 1
-            return tensor.nnet.relu(margin - gold * preds)
-        self._set_objective(Objective(inner, aggmode=mode))
-        return self
-
-    def multiclass_hinge_loss(self, margin=1., mode="mean"):
-        def inner(preds, gold):     # preds: (batsize, numclasses) scores, gold: int:(batsize)
-            pass
-        self._set_objective(Objective(inner, aggmode=mode))
+        self._set_objective(Objective(HingeLoss(margin=margin, labelbin=labelbin), aggmode=mode))
         return self
 
     def log_loss(self, mode="mean"):
-        """ NOT cross-entropy, BUT log(1+e^(-t*y))"""
-        def inner(preds, gold):     # preds: (batsize,) float, gold: (batsize,) float
-            return tensor.nnet.softplus(-gold*preds)
-        self._set_objective(Objective(inner, aggmode=mode))
+        self._set_objective(Objective(LogLoss(), aggmode=mode))
         return self
     #endregion
 
@@ -371,7 +328,7 @@ class ModelTrainer(object):
         self.validsetmode = True
         return self
 
-    def validate_on(self, data, gold=None, splits=1, random=True):
+    def validate_on(self, data, gold, splits=1, random=True):
         self.trainstrategy = self._train_validdata
         self.validdata = data
         self.validgold = gold
@@ -390,7 +347,7 @@ class ModelTrainer(object):
     def extvalid(self, evaluator):
         if not isinstance(evaluator, ExternalObjective):
             evaluator = ExternalFunctionObjective(evaluator)
-        self.validators.append(evaluator)
+        self.validation_objectives.append(evaluator)
         return self
 
     #endregion
@@ -412,7 +369,7 @@ class ModelTrainer(object):
     #region ######################### ACTUAL TRAINING #########################
     def traincheck(self):
         assert(self.optimizer is not None)
-        assert(self.objective is not None)
+        assert(len(self.training_objectives) > 0)
         assert(self.traindata is not None)
         assert(self.traingold is not None)
 
@@ -440,31 +397,37 @@ class ModelTrainer(object):
     def get_learning_rate(self):
         return self.learning_rate
 
-    def autobuild_model(self, model, *traindata, **kw):
-        return model.autobuild(*traindata, **kw)
+    def autobuild_model(self, model, *data, **kw):
+        return model.autobuild(*data, **kw)
+
+    def apply_losses(self, model, losses):
+        lossblock = LossesApplied(model, losses)
+        return lossblock
 
     def buildtrainfun(self, model, batsize):
         self.tt.tick("training - autobuilding")
         with model.trainmode(True):
-            inps, outps = self.autobuild_model(model, *self.traindata, _trainmode=True, _batsize=batsize)
-            assert(len(outps) == 1)
-            outp = outps[0]
+            lossblock = self.apply_losses(model, [o.obj for o in self.training_objectives])
+            inps, lossouts = self.autobuild_model(lossblock, *(self.traindata + [self.traingold]), _trainmode=True, _batsize=batsize)
+            if not issequence(lossouts):
+                lossouts = [lossouts]
+            primarylossout = lossouts[0]
             self.tt.tock("training - autobuilt")
             self.tt.tick("compiling training function")
-            params = outp.allparams
+            params = primarylossout.allparams
             nonparams = [p for p in params if not p.lrmul > 0]
             params = [p for p in params if p.lrmul > 0]
-            scanupdates = outp.allupdates
+            scanupdates = primarylossout.allupdates
             inputs = inps
-            loss, newinp = self.buildlosses(outp, [self.objective])
-            loss = loss[0]
+            losses, newinp = self.buildlosses(lossouts, self.training_objectives)
+            primaryloss = losses[0]
             if newinp is not None:
                 inputs = newinp
             if self.regularizer is not None:
                 reg = self.regularizer(params)
-                cost = loss+reg
+                cost = primaryloss + reg
             else:
-                cost = loss
+                cost = primaryloss
             # theano.printing.debugprint(cost)
             # theano.printing.pydotprint(cost, outfile="pics/debug.png")
             updates = []
@@ -506,11 +469,11 @@ class ModelTrainer(object):
                             param.ema_value * self._exp_mov_avg_decay + newparamval * (1 - self._exp_mov_avg_decay)))
             #print updates
             #embed()
-            finputs = [x.d for x in inputs] + [self.goldvar]
+            finputs = [x.d for x in inputs]
             allupdates = updates + scanupdates.items()
             trainf = theano.function(
                 inputs=finputs,
-                outputs=[cost],
+                outputs=[cost]+losses[1:],
                 updates=allupdates,
                 #mode=NanGuardMode(nan_is_error=True, inf_is_error=False, big_is_error=False)
                 # TODO: enabling NanGuard with Dropout doesn't work --> see Theano.git/issues/4823
@@ -518,18 +481,10 @@ class ModelTrainer(object):
             self.tt.tock("training function compiled")
         return trainf
 
-    def buildlosses(self, output, objs):    # every objective produces one number
+    def buildlosses(self, losses, objs):    # every objective produces one number
         acc = []
-        for objective in objs:
-            objaggmode = objective.aggmode
-            objective = objective.obj
-            if "mask" in inspect.getargspec(objective)[0]:
-                mask = output.mask.d if output.mask is not None else None
-                obj = objective(output.d, self.goldvar, mask=mask)
-            else:
-                assert(output.mask is None)
-                obj = objective(output.d, self.goldvar)
-            objagg = aggregate(obj, mode=objaggmode)
+        for loss, obj in zip(losses, objs):
+            objagg = aggregate(loss.d, mode=obj.aggmode)
             acc.append(objagg)
         return acc, None
 
@@ -537,13 +492,13 @@ class ModelTrainer(object):
         symbolic_validfun = self.buildvalidfun(model, batsize)
         valids = []
         i = 0
-        for validator in self.validators:
+        for validator in self.validation_objectives:
             if isinstance(validator, ExternalObjective):
                 valids.append(validator)
             else:
                 valids.append(i)
                 i += 1
-        if i == len(self.validators):
+        if i == len(self.validation_objectives):
             return symbolic_validfun
         else:
             def validfun(*sampleinps):
@@ -566,19 +521,21 @@ class ModelTrainer(object):
 
     def buildvalidfun(self, model, batsize):
         self.tt.tick("validation - autobuilding")
-        inps, outps = self.autobuild_model(model, *self.traindata, _trainmode=False, _batsize=batsize)
-        assert(len(outps) == 1)
-        outp = outps[0]
+        validators = filter(lambda x: not isinstance(x, ExternalObjective), self.validation_objectives)
+        lossblock = self.apply_losses(model, [o.obj for o in validators])
+        inps, lossouts = self.autobuild_model(lossblock, *(self.traindata + [self.traingold]), _trainmode=False, _batsize=batsize)
+        if not issequence(lossouts):
+            lossouts = [lossouts]
         self.tt.tock("validation - autobuilt")
         self.tt.tick("compiling validation function")
-        validators = filter(lambda x: not isinstance(x, ExternalObjective), self.validators)
-        metrics, newinp = self.buildlosses(outp, validators)
+
+        losses, newinp = self.buildlosses(lossouts, validators)
         inputs = newinp if newinp is not None else inps
         ret = None
-        if len(metrics) > 0:
-            ret = theano.function(inputs=[x.d for x in inputs] + [self.goldvar],
-                                  outputs=metrics,
-                                  updates=outp.allupdates,
+        if len(losses) > 0:
+            ret = theano.function(inputs=[x.d for x in inputs],
+                                  outputs=losses,
+                                  updates=lossouts[0].allupdates,
                                   #mode=NanGuardMode(nan_is_error=True, inf_is_error=False, big_is_error=True)  # same issue as training
                                   )
         else:
@@ -676,8 +633,9 @@ class ModelTrainer(object):
 
         # resetting objectives
         tt.msg("resetting objectives")
-        self.objective._reset()
-        for obj in self.validators:
+        for obj in self.training_objectives:
+            obj._reset()
+        for obj in self.validation_objectives:
             obj._reset()
 
         writeresf = None
@@ -696,23 +654,23 @@ class ModelTrainer(object):
             restowrite = ""
             if self._autosave:
                 self.save()
-            epoch_train_error = self.objective.get_agg_error()
+            epoch_train_errors = [obj.get_agg_error() for obj in self.training_objectives]
             epoch_valid_errors = []
             if validf is not None and self.currentiter % evalinter == 0: # validate and print
                 validf()
                 epoch_valid_errors = [validator.get_agg_error() for validator in self.validators]
                 ttmsg = "training error: %s \t validation error: %s" \
-                       % ("%.4f" % epoch_train_error,
+                       % (" - ".join(map(lambda x: "%.4f" % x, epoch_train_errors)),
                           " - ".join(map(lambda x: "%.4f" % x, epoch_valid_errors)))
-                restowrite = "\t".join(map(str, [epoch_train_error] + epoch_valid_errors))
+                restowrite = "\t".join(map(str, [epoch_train_errors] + epoch_valid_errors))
             else:
-                ttmsg = "training error: %s" % " - ".join(map(lambda x: "%.4f" % x, [epoch_train_error]))
-                restowrite = str(epoch_train_error)
+                ttmsg = "training error: %s" % " - ".join(map(lambda x: "%.4f" % x, [epoch_train_errors]))
+                restowrite = str(epoch_train_errors)
             if writeresf is not None:
                 writeresf.write("{}\t{}\n".format(self.currentiter - 1, restowrite))
             # retaining the best
             if self.besttaker is not None:
-                modelscore = self.besttaker(([epoch_train_error] + epoch_valid_errors + [self.currentiter]))
+                modelscore = self.besttaker((epoch_train_errors + epoch_valid_errors + [self.currentiter]))
                 smallerbetter = 1 if self.smallerbetter else -1
                 if smallerbetter * modelscore < smallerbetter * self.bestmodel[1]:
                     if self.savebest:
@@ -724,14 +682,14 @@ class ModelTrainer(object):
             tt.tock(ttmsg + "\t", prefix="-")
             self._update_lr(self.currentiter,
                             self.maxiter,
-                            self.objective.get_agg_error_history(),
-                            [validator.get_agg_error_history() for validator in self.validators])
+                            [obj.get_agg_error_history() for obj in self.training_objectives],
+                            [validator.get_agg_error_history() for validator in self.validation_objectives])
             evalcount += 1
             if writeresf is not None:
                 writeresf.close()
         self.tt.tock("trained").tick()
-        return np.asarray(self.objective.get_agg_error_history()), \
-               np.asarray([validator.get_agg_error_history() for validator in self.validators]).T
+        return np.asarray([obj.get_agg_error_history() for obj in self.training_objectives]), \
+               np.asarray([validator.get_agg_error_history() for validator in self.validation_objectives]).T
 
     def getbatchloop(self, f, datafeeder, verbose=True, phase="TEST"):
         '''
@@ -740,9 +698,9 @@ class ModelTrainer(object):
         sampletransf = self._transformsamples
         objectives = []
         if phase == "TRAIN":
-            objectives = [self.objective]
+            objectives = self.training_objectives
         elif phase == "VALID":
-            objectives = self.validators
+            objectives = self.validation_objectives
         numdigs = 2
 
         def batchloop():

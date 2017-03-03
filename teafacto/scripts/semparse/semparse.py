@@ -3,7 +3,7 @@ from teafacto.procutil import wordids2string, wordmat2charmat
 import numpy as np, re, random
 from IPython import embed
 
-from teafacto.core.base import Val, Block, tensorops as T
+from teafacto.core import Val, Block, T
 from teafacto.blocks.seq.rnu import GRU
 from teafacto.blocks.seq.encdec import SimpleSeqEncDecAtt
 from teafacto.blocks.basic import VectorEmbed, Linear, MatDot

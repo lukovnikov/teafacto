@@ -33,3 +33,4 @@
 # TODO: TEST ATTENTION INCLUSION IN DECODER PAYLOAD
 
 from teafacto.core.base import Block, asblock, Val, Var, RVal, param, tensorops as T
+from teafacto.core.trainer import ModelTrainer, NSModelTrainer, InterleavedTrainer
