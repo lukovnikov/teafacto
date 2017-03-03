@@ -67,7 +67,7 @@ def run(numbats=50,
     smodim = encdim+encdim if not concatdecinp else encdim+encdim+embdim
     ctxdim = encdim
     critdim = encdim if not concatdecinp else encdim + embdim
-    splitters = (asblock(lambda x: x[:, encdim]), asblock(lambda x: x[:, encdim:encdim*2]))
+    splitters = (asblock(lambda x: x[:, :encdim]), asblock(lambda x: x[:, encdim:encdim*2]))
     attention = Attention(splitters=splitters) if splitatt else Attention()
     attention.forward_gen(critdim, ctxdim, encdim) if forwardattention else attention.dot_gen()
 
