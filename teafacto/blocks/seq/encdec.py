@@ -210,9 +210,11 @@ class EncDec(Block):        # doesn't have state transfer, parameterized initial
         self.outdim = innerdim[-1]
         if indim is None:
             indim = inpemb.outdim + encoder.outdim
+        self.init_state_gen = init_state_gen
+        paraminitstates = init_state_gen is None
         layers, lastdim = MakeRNU.fromdims([indim] + innerdim, rnu=rnu,
                                   dropout_in=dropout_in, dropout_h=dropout_h,
-                                  param_init_states=True)
+                                  param_init_states=paraminitstates)
         self.block = RecStack(*layers)
         self.attention = attention
         self.smo = smo              # softmax out block on decoder
@@ -220,7 +222,8 @@ class EncDec(Block):        # doesn't have state transfer, parameterized initial
     def apply(self, decinp, encinp):
         inpenc = self.encoder(encinp)
         batsize = decinp.shape[0]
-        init_info = self.get_init_info(batsize)  # blank init info
+        init_state = self.init_state_gen(inpenc) if self.init_state_gen is not None else None
+        init_info = self._get_init_states(init_state, batsize)  # blank init info
         nonseqs = self.get_nonseqs(inpenc)
         decinpemb = self.inpemb(decinp)
         mask = decinpemb.mask
@@ -232,6 +235,19 @@ class EncDec(Block):        # doesn't have state transfer, parameterized initial
         ret = outputs[0].dimswap(1, 0)
         ret.mask = mask
         return ret
+
+    @property
+    def numstates(self):
+        return self.block.numstates
+
+    def _get_init_states(self, initstates, batsize):
+        if initstates is None:
+            initstates = batsize
+        elif issequence(initstates):
+            if len(initstates) < self.numstates:  # fill up with batsizes for lower layers
+                initstates = [batsize * (self.numstates - len(initstates))] + initstates
+        return self.get_init_info(initstates)
+
 
     def get_init_info(self, initstates):
         return self.block.get_init_info(initstates)

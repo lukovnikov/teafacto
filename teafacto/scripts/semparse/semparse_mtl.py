@@ -11,7 +11,8 @@ from teafacto.blocks.seq.attention import Attention
 from teafacto.blocks.basic import SMO
 from teafacto.blocks.activations import ReLU, Tanh
 
-from teafacto.core.base import asblock
+from teafacto.core.base import asblock, param, tensorops as T
+
 
 def run(numbats=50,
         epochs=10,
@@ -71,12 +72,17 @@ def run(numbats=50,
     attention = Attention(splitters=splitters) if splitatt else Attention()
     attention.forward_gen(critdim, ctxdim, encdim) if forwardattention else attention.dot_gen()
 
+    init_state_gen_mat = param((encdim, encdim), name="init_state_gen_mat").glorotuniform()
+    addrportion = slice(None, None, None) if splitatt is False else slice(encdim, encdim*2, None)
+    init_state_gen = asblock(lambda x: T.dot(x[:, 0, addrportion], init_state_gen_mat))
+
     decoder = EncDec(encoder=encoder,
                      attention=attention,
                      inpemb=outemb,
                      indim=embdim+encdim,
                      inconcat=inconcat, outconcat=outconcat, concatdecinp=concatdecinp,
                      innerdim=[encdim]*numdeclayers,
+                     init_state_gen=init_state_gen,
                      dropout_h=dropout,
                      dropout_in=dropout,
                      smo=SMO(smodim, max(adic.values()) + 1))
@@ -84,7 +90,7 @@ def run(numbats=50,
     tt.tick("training")
 
     decoder.train([amat_train[:, :-1], qmat_train], amat_train[:, 1:]) \
-        .cross_entropy().adadelta(lr=lr).grad_total_norm(5.) \
+        .cross_entropy().adadelta(lr=lr) \
         .validate_on([amat_test[:, :-1], qmat_test], amat_test[:, 1:]) \
         .cross_entropy().seq_accuracy() \
         .train(numbats, epochs)
