@@ -328,13 +328,16 @@ class ModelTrainer(object):
         self.validsetmode = True
         return self
 
-    def validate_on(self, data, gold, splits=1, random=True):
+    def validate_on(self, data, gold=None, splits=1, random=True):
         self.trainstrategy = self._train_validdata
+        self.validsetmode = True
         self.validdata = data
+        if gold is None:
+            gold = np.ones((data[0].shape[0],), dtype="float32")
+            self.linear_objective()
         self.validgold = gold
         self.validsplits = splits
         self.validrandom = random
-        self.validsetmode = True
         return self
 
     def cross_validate(self, splits=5, random=False):
@@ -658,7 +661,7 @@ class ModelTrainer(object):
             epoch_valid_errors = []
             if validf is not None and self.currentiter % evalinter == 0: # validate and print
                 validf()
-                epoch_valid_errors = [validator.get_agg_error() for validator in self.validators]
+                epoch_valid_errors = [validator.get_agg_error() for validator in self.validation_objectives]
                 ttmsg = "training error: %s \t validation error: %s" \
                        % (" - ".join(map(lambda x: "%.4f" % x, epoch_train_errors)),
                           " - ".join(map(lambda x: "%.4f" % x, epoch_valid_errors)))
@@ -937,8 +940,8 @@ class InterleavedTrainer(object):
 
 class NSModelTrainer(ModelTrainer):
     """ Model trainer using negative sampling """
-    def __init__(self, model, gold, nrate, nsamgen, nrate_valid=None):
-        super(NSModelTrainer, self).__init__(model, gold)
+    def __init__(self, model, nrate, nsamgen, nrate_valid=None):
+        super(NSModelTrainer, self).__init__(model)
         self.ns_nrate = nrate
         self.ns_nrate_valid = nrate if nrate_valid is None else nrate_valid
         self.ns_nsamgen = nsamgen
