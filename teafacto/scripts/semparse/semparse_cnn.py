@@ -14,7 +14,7 @@ from teafacto.blocks.activations import ReLU, Tanh
 from teafacto.core.base import asblock, param, tensorops as T
 
 
-def concat_generate(qmat, amat, rate=1, maskid=0):
+def concat_generate(qmat, amat, rate=1, maskid=0, concat_original=False):
     questions = []
     answers = []
     maxlen = (0, 0)
@@ -39,8 +39,12 @@ def concat_generate(qmat, amat, rate=1, maskid=0):
         np.ones((qmat.shape[0], mat_q.shape[1] - qmat.shape[1]), dtype="int32") * maskid], axis=1)
     amat = np.concatenate([amat,
         np.ones((amat.shape[0], mat_a.shape[1] - amat.shape[1]), dtype="int32") * maskid], axis=1)
-    qmat = np.concatenate([mat_q, qmat], axis=0)
-    amat = np.concatenate([mat_a, amat], axis=0)
+    if concat_original:
+        qmat = np.concatenate([mat_q, qmat], axis=0)
+        amat = np.concatenate([mat_a, amat], axis=0)
+    else:
+        qmat = mat_q
+        amat = mat_a
     return qmat, amat
 
 
