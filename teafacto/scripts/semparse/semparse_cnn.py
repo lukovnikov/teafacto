@@ -85,6 +85,10 @@ def run(numbats=50,
     if concatgen > 0:
         tt.tick("concat gen")
         qmat_train, amat_train = concat_generate(qmat_train, amat_train, rate=concatgen, maskid=maskid)
+        qmat_test = np.concatenate([qmat_test, np.ones((qmat_test.shape[0], qmat_train.shape[1] - qmat_test.shape[1]),
+                                                       dtype="int32") * maskid], axis=1)
+        amat_test = np.concatenate([amat_test, np.ones((amat_test.shape[0], amat_train.shape[1] - amat_test.shape[1]),
+                                                       dtype="int32") * maskid], axis=1)
         tt.tock("concat genned")
     if inspectdata:
         def pp_train(i):
@@ -96,7 +100,7 @@ def run(numbats=50,
     outemb = WordEmb(worddic=adic, maskid=maskid, dim=embdim)
 
     encoder = CNNSeqEncoder(inpemb=inpemb,
-                            numpos=qmat.shape[1],
+                            numpos=qmat_train.shape[1],
                             posembdim=posembdim,
                             innerdim=[encdim] * 4 if not splitatt else [encdim*2] * 4,
                             window=[3, 3, 5, 5],
