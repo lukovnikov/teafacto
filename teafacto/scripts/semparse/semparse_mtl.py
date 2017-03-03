@@ -25,6 +25,7 @@ def run(numbats=50,
         concatdecinp=False,
         forwardattention=False,
         splitatt=False,
+        statetransfer=False,
         preproc=True,
         posembdim=50,
         userelu=False,
@@ -74,7 +75,7 @@ def run(numbats=50,
 
     init_state_gen_mat = param((encdim, encdim), name="init_state_gen_mat").glorotuniform()
     addrportion = slice(None, None, None) if splitatt is False else slice(encdim, encdim*2, None)
-    init_state_gen = asblock(lambda x: T.dot(x[:, 0, addrportion], init_state_gen_mat))
+    init_state_gen = asblock(lambda x: T.dot(x[:, 0, addrportion], init_state_gen_mat)) if statetransfer else None
 
     decoder = EncDec(encoder=encoder,
                      attention=attention,
