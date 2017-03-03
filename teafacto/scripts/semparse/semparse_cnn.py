@@ -35,11 +35,11 @@ def concat_generate(qmat, amat, rate=1, maskid=0, concat_original=False):
         a = answers[i]
         mat_q[i, :len(q)] = q
         mat_a[i, :len(a)] = a
-    qmat = np.concatenate([qmat,
-        np.ones((qmat.shape[0], mat_q.shape[1] - qmat.shape[1]), dtype="int32") * maskid], axis=1)
-    amat = np.concatenate([amat,
-        np.ones((amat.shape[0], mat_a.shape[1] - amat.shape[1]), dtype="int32") * maskid], axis=1)
     if concat_original:
+        qmat = np.concatenate([qmat,
+            np.ones((qmat.shape[0], mat_q.shape[1] - qmat.shape[1]), dtype="int32") * maskid], axis=1)
+        amat = np.concatenate([amat,
+            np.ones((amat.shape[0], mat_a.shape[1] - amat.shape[1]), dtype="int32") * maskid], axis=1)
         qmat = np.concatenate([mat_q, qmat], axis=0)
         amat = np.concatenate([mat_a, amat], axis=0)
     else:
