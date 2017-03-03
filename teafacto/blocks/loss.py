@@ -96,7 +96,6 @@ class CrossEntropy(Loss):
             gold = gold.reshape((-1,))
             seq_ces = T.nnet.categorical_crossentropy(probs, gold)
             o = seq_ces.reshape(origprobshape[:-1], ndim=origprobndim-1)
-            # print "MASK!!" if mask is not None else "NO MASK!!!"
             o = o * mask if mask is not None else o  # (batsize, seqlen)
             o = T.sum(o, axis=1)
             return o  # (batsize,)
