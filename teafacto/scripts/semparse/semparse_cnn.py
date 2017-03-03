@@ -14,6 +14,36 @@ from teafacto.blocks.activations import ReLU, Tanh
 from teafacto.core.base import asblock, param, tensorops as T
 
 
+def concat_generate(qmat, amat, rate=1, maskid=0):
+    questions = []
+    answers = []
+    maxlen = (0, 0)
+    for i in range(len(qmat)):
+        for j in range(rate):
+            new_q = filter(lambda x: x != maskid, list(qmat[i]))
+            new_a = filter(lambda x: x != maskid, list(amat[i]))
+            concatid = random.sample(set(range(len(qmat))).difference({i}), 1)[0]
+            new_q.extend(filter(lambda x: x != maskid, list(qmat[concatid])))
+            new_a.extend(filter(lambda x: x != maskid, list(amat[concatid])))
+            maxlen = (max(maxlen[0], len(new_q)), max(maxlen[1], len(new_a)))
+            questions.append(new_q)
+            answers.append(new_a)
+    mat_q = np.ones((len(questions), maxlen[0]), dtype="int32") * maskid
+    mat_a = np.ones((len(answers), maxlen[1]), dtype="int32") * maskid
+    for i in range(len(questions)):
+        q = questions[i]
+        a = answers[i]
+        mat_q[i, :len(q)] = q
+        mat_a[i, :len(a)] = a
+    qmat = np.concatenate([qmat,
+        np.ones((qmat.shape[0], mat_q.shape[1] - qmat.shape[1]), dtype="int32") * maskid], axis=1)
+    amat = np.concatenate([amat,
+        np.ones((amat.shape[0], mat_a.shape[1] - amat.shape[1]), dtype="int32") * maskid], axis=1)
+    qmat = np.concatenate([mat_q, qmat], axis=0)
+    amat = np.concatenate([mat_a, amat], axis=0)
+    return qmat, amat
+
+
 def run(numbats=50,
         epochs=10,
         lr=0.5,
@@ -30,6 +60,7 @@ def run(numbats=50,
         posembdim=50,
         userelu=False,
         numdeclayers=1,
+        concatgen=0,
         inspectdata=False,
         ):
     tt = ticktock("script")
@@ -51,8 +82,14 @@ def run(numbats=50,
 
     qmat_train, qmat_test = split_train_test(qmat)
     amat_train, amat_test = split_train_test(amat)
-
+    if concatgen > 0:
+        tt.tick("concat gen")
+        qmat_train, amat_train = concat_generate(qmat_train, amat_train, rate=concatgen, maskid=maskid)
+        tt.tock("concat genned")
     if inspectdata:
+        def pp_train(i):
+            print wordids2string(qmat_train[i], {v: k for k, v in qdic.items()}, 0)
+            print wordids2string(amat_train[i], {v: k for k, v in adic.items()}, 0)
         embed()
 
     inpemb = WordEmb(worddic=qdic, maskid=maskid, dim=embdim)
