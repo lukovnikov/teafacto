@@ -11,6 +11,8 @@ from teafacto.blocks.seq.attention import Attention
 from teafacto.blocks.basic import SMO
 from teafacto.blocks.activations import ReLU, Tanh
 
+from teafacto.core.base import asblock
+
 def run(numbats=50,
         epochs=10,
         lr=0.5,
@@ -21,6 +23,7 @@ def run(numbats=50,
         outconcat=True,
         concatdecinp=False,
         forwardattention=False,
+        splitatt=False,
         preproc=True,
         posembdim=50,
         userelu=False,
@@ -56,7 +59,7 @@ def run(numbats=50,
     encoder = CNNSeqEncoder(inpemb=inpemb,
                             numpos=qmat.shape[1],
                             posembdim=posembdim,
-                            innerdim=[encdim] * 4,
+                            innerdim=[encdim] * 4 if not splitatt else [encdim*2] * 4,
                             window=[3, 3, 5, 5],
                             activation=ReLU if userelu else Tanh,
                             dropout=dropout).all_outputs()
@@ -64,7 +67,9 @@ def run(numbats=50,
     smodim = encdim+encdim if not concatdecinp else encdim+encdim+embdim
     ctxdim = encdim
     critdim = encdim if not concatdecinp else encdim + embdim
-    attention = Attention().forward_gen(critdim, ctxdim, 200) if forwardattention else Attention().dot_gen()
+    splitters = (asblock(lambda x: x[:, encdim]), asblock(lambda x: x[:, encdim:encdim*2]))
+    attention = Attention(splitters=splitters) if splitatt else Attention()
+    attention.forward_gen(critdim, ctxdim, encdim) if forwardattention else attention.dot_gen()
 
     decoder = EncDec(encoder=encoder,
                      attention=attention,
