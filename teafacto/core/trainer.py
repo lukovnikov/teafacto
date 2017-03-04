@@ -36,10 +36,9 @@ class thresh_lr(DynamicLearningParam):
         return lr if epoch < self.thresh else 0.
 
 
-class Objective(object):
-    def __init__(self, obj, aggmode="mean"):
-        super(Objective, self).__init__()
-        self.obj = obj
+class ProtoObjective(object):
+    def __init__(self, aggmode="mean"):
+        super(ProtoObjective, self).__init__()
         self.aggmode = aggmode
         self.agg_history = []
         self.current_agg_error = 0.
@@ -57,7 +56,7 @@ class Objective(object):
         err = err * numex if self.aggmode == "mean" else err
         self.current_agg_error += err
 
-    def _reset(self):   # full reset
+    def _reset(self):  # full reset
         self.reset_agg()
         self.agg_history = []
 
@@ -70,6 +69,12 @@ class Objective(object):
 
     def push_agg_to_history(self):
         self.agg_history.append(self.get_agg_error())
+
+
+class Objective(ProtoObjective):
+    def __init__(self, loss, aggmode="mean"):
+        super(Objective, self).__init__(aggmode=aggmode)
+        self.obj = loss
 
 
 class ExternalObjective(Objective):
@@ -124,6 +129,7 @@ class ModelTrainer(object):
         self.learning_rate = None
         self.dynamic_lr = None
         self.training_objectives = []
+        self._model_gives_train_losses = False
         self.regularizer = None
         self._exp_mov_avg_decay = 0.0
         self.optimizer = None
@@ -140,6 +146,7 @@ class ModelTrainer(object):
         self.validgold = None
         self.validation = None
         self.validation_objectives = []
+        self._model_gives_valid_losses = False
         self.external_validators = []
         self.tt = TT("FluentTrainer")
         # taking best
@@ -165,6 +172,21 @@ class ModelTrainer(object):
             self.training_objectives.append(obj)
         else:
             self.validation_objectives.append(obj)
+
+    def model_loss(self, aggmode="mean"):
+        self._set_objective(ProtoObjective(aggmode=aggmode))
+        if self.validsetmode is False:
+            self._model_gives_train_losses = True
+        else:
+            self._model_gives_valid_losses = True
+        return self
+
+    def model_losses(self, number=1, aggmode="mean", aggmodes=None):
+        if aggmodes is None:
+            aggmodes = [aggmode] * number
+        for aggm in aggmodes:
+            self.model_loss(aggm)
+        return self
 
     def linear_objective(self, mode="mean"):
         self._set_objective(Objective(LinearLoss(), aggmode=mode))
@@ -332,9 +354,9 @@ class ModelTrainer(object):
         self.trainstrategy = self._train_validdata
         self.validsetmode = True
         self.validdata = data
-        if gold is None:
-            gold = np.ones((data[0].shape[0],), dtype="float32")
-            self.linear_objective()
+        #if gold is None:
+        #    gold = np.ones((data[0].shape[0],), dtype="float32")
+        #    self.linear_objective()
         self.validgold = gold
         self.validsplits = splits
         self.validrandom = random
@@ -410,8 +432,13 @@ class ModelTrainer(object):
     def buildtrainfun(self, model, batsize):
         self.tt.tick("training - autobuilding")
         with model.trainmode(True):
-            lossblock = self.apply_losses(model, [o.obj for o in self.training_objectives])
-            inps, lossouts = self.autobuild_model(lossblock, *(self.traindata + [self.traingold]), _trainmode=True, _batsize=batsize)
+            if self._model_gives_train_losses:
+                lossblock = model
+                assert(self.traingold is None)
+            else:
+                lossblock = self.apply_losses(model, [o.obj for o in self.training_objectives])
+            concatdata = self.traindata + [self.traingold] if self.traingold is not None else self.traindata
+            inps, lossouts = self.autobuild_model(lossblock, *concatdata, _trainmode=True, _batsize=batsize)
             if not issequence(lossouts):
                 lossouts = [lossouts]
             primarylossout = lossouts[0]
@@ -525,8 +552,13 @@ class ModelTrainer(object):
     def buildvalidfun(self, model, batsize):
         self.tt.tick("validation - autobuilding")
         validators = filter(lambda x: not isinstance(x, ExternalObjective), self.validation_objectives)
-        lossblock = self.apply_losses(model, [o.obj for o in validators])
-        inps, lossouts = self.autobuild_model(lossblock, *(self.traindata + [self.traingold]), _trainmode=False, _batsize=batsize)
+        if self._model_gives_valid_losses:
+            lossblock = model
+            assert(self.validgold is None)
+        else:
+            lossblock = self.apply_losses(model, [o.obj for o in validators])
+        concatdata = self.traindata + [self.traingold] if self.traingold is not None else self.traindata
+        inps, lossouts = self.autobuild_model(lossblock, *concatdata, _trainmode=False, _batsize=batsize)
         if not issequence(lossouts):
             lossouts = [lossouts]
         self.tt.tock("validation - autobuilt")

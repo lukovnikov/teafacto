@@ -642,6 +642,7 @@ class Block(Elem, Saveable): # block with parameters
         self._ownparams = set()     # TODO factor out
         self._pristine = True       # TODO what is this?
         self._param_settings_toprop = {}  # settings are propagated from block to its parts through vars
+        self._predictor = None
 
     @property
     def param(self):
@@ -715,7 +716,13 @@ class Block(Elem, Saveable): # block with parameters
     # may override: -------------------------------------------------
     @property
     def predict(self): # returns callable predictor object
-        return BlockPredictor(self)
+        if self._predictor is None:
+            self._predictor = BlockPredictor(self.get_block_for_prediction())
+        return self._predictor
+
+    def get_block_for_prediction(self): # override this to specify a custom subblock for prediction purposes
+        return self
+
     """
     def predict(self, transform=None, *inputdata, **kwinputdata):
         if self._predictf is None:
@@ -883,9 +890,9 @@ class Block(Elem, Saveable): # block with parameters
     # training
     def train(self, inputdata, gold=None):
         trainer = teafacto.core.ModelTrainer(self)
-        if gold is None:
-            trainer.linear_objective()
-            gold = np.ones((inputdata[0].shape[0],), dtype="float32")
+        #if gold is None:
+        #    trainer.linear_objective()
+        #    gold = np.ones((inputdata[0].shape[0],), dtype="float32")
         trainer.traindata = inputdata
         trainer.traingold = gold
         return trainer
