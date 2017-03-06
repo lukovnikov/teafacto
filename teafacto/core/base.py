@@ -63,12 +63,25 @@ class TWrapper(type):
                       allow_gc=allow_gc, strict=strict)
 
     def softmax(cls, x, mask=None, temperature=1.):     # masked, multidim softmax
+        mask = x.mask if mask is not None else mask
         xndim = x.ndim
         s = x.shape
+        seqmask = None
+        if mask is not None:
+            if mask.ndim == x.ndim:
+                pass
+            elif mask.ndim == x.ndim - 1:
+                seqmask = mask
+                mask = None
+            else:
+                raise Exception("bad shape")
         if xndim > 2:
-            x = x.dimmove(xndim - 1, 0).flatten(2).T
+            x = x.reshape((-1, x.shape[-1]))
+            #x = x.dimmove(xndim - 1, 0).flatten(2).T
             if mask is not None:
-                mask = mask.dimmove(xndim - 1, 0).flatten(2).T
+                maskshape = mask.shape
+                mask = mask.reshape((-1, mask.shape[-1]))
+                #mask = mask.dimmove(xndim - 1, 0).flatten(2).T
         x = x / temperature
         if mask is None:
             z = tensorops.nnet.softmax(x)
@@ -80,6 +93,12 @@ class TWrapper(type):
             z = o_exp / o_exp_sum
         if xndim > 2:
             z = z.reshape(s)
+            if mask is not None:
+                mask = mask.reshape(maskshape)
+                z.mask = mask
+            #mask = mask.reshape()
+        if seqmask is not None:
+            z.mask = seqmask
         return z
 
     def until(cls, expr):

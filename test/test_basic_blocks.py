@@ -62,7 +62,26 @@ class TestLinear(TestCase):
         self.assertEqual(out.shape, (12, 11, 15))
         for i in range(len(data)):
             for j in range(len(data[i])):
+                #print np.sum(out[i, j, :] - np.dot(data[i, j, :], linear.W.d.get_value()) + linear.b.d.get_value())
                 self.assertTrue(np.allclose(out[i, j, :], np.dot(data[i, j, :], linear.W.d.get_value()) + linear.b.d.get_value()))
+
+    def test_linear_over_sequence_with_mask(self):
+        linear = Linear(indim=10, dim=15)
+        data = Val(np.random.random((12, 11, 10)))
+        mask = Val(np.random.random((12, 11)) > 0.2) + 0
+        data.mask = mask
+        out = linear(data)
+        outpred = out.eval()
+        outmaskpred = out.mask.eval()
+        print outpred.shape
+        self.assertEqual(outpred.shape, (12, 11, 15))
+        self.assertEqual(outmaskpred.shape, (12, 11))
+        self.assertTrue(np.allclose(outmaskpred, mask.d.eval()))
+        dataval = data.d.eval()
+        for i in range(len(dataval)):
+            for j in range(len(dataval[i])):
+                #print np.mean(outpred[i, j, :] - np.dot(dataval[i, j, :], linear.W.d.get_value()) + linear.b.d.get_value())
+                self.assertTrue(np.allclose(outpred[i, j, :], np.dot(dataval[i, j, :], linear.W.d.get_value()) + linear.b.d.get_value(), atol=1e-7))
 
     def test_multilevel_set_lr(self):
         l1 = Linear(10, 11)

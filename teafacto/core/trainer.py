@@ -396,7 +396,6 @@ class ModelTrainer(object):
         assert(self.optimizer is not None)
         assert(len(self.training_objectives) > 0)
         assert(self.traindata is not None)
-        assert(self.traingold is not None)
 
     def train(self, numbats, epochs, returnerrors=False, _skiptrain=False):
         self.traincheck()
@@ -557,7 +556,7 @@ class ModelTrainer(object):
             assert(self.validgold is None)
         else:
             lossblock = self.apply_losses(model, [o.obj for o in validators])
-        concatdata = self.traindata + [self.traingold] if self.traingold is not None else self.traindata
+        concatdata = self.validdata + [self.validgold] if self.validgold is not None else self.validdata
         inps, lossouts = self.autobuild_model(lossblock, *concatdata, _trainmode=False, _batsize=batsize)
         if not issequence(lossouts):
             lossouts = [lossouts]
@@ -579,9 +578,21 @@ class ModelTrainer(object):
         return ret
     #endregion
 
+    def _concat_data(self, *data):
+        out = []
+        for x in data:
+            if isinstance(x, list):
+                out += x
+            elif x is None:
+                pass
+            else:
+                out += [x]
+        return out
+
+
     #region ################## TRAINING STRATEGIES ############
     def _train_full(self, _lambda=False, _skiptrain=False): # on all data, no validation
-        df = DataFeeder(*(self.traindata + [self.traingold])).numbats(self.numbats)
+        df = DataFeeder(*self._concat_data(self.traindata, self.traingold)).numbats(self.numbats)
         trainf = self.buildtrainfun(self.model, df.batsize)
         if _lambda:
             return trainf, None, df, None
@@ -592,8 +603,8 @@ class ModelTrainer(object):
             return err, None, None, None
 
     def _train_validdata(self, _lambda=False, _skiptrain=False):
-        df = DataFeeder(*(self.traindata + [self.traingold])).numbats(self.numbats)
-        vdf = DataFeeder(*(self.validdata + [self.validgold]), random=False)
+        df = DataFeeder(*self._concat_data(self.traindata, self.traingold)).numbats(self.numbats)
+        vdf = DataFeeder(*self._concat_data(self.validdata, self.validgold), random=False)
         vdf.batsize = df.batsize
         trainf = self.buildtrainfun(self.model, df.batsize)
         validf = self.getvalidfun(self.model, vdf.batsize)
@@ -609,7 +620,7 @@ class ModelTrainer(object):
             return err, verr, None, None
 
     def _train_split(self, _lambda=False, _skiptrain=False):
-        df = DataFeeder(*(self.traindata + [self.traingold]))
+        df = DataFeeder(*self._concat_data(self.traindata, self.traingold))
         dftrain, dfvalid = df.split(self.validsplits, self.validrandom, df_randoms=(True, False))
         dftrain.numbats(self.numbats)
         dfvalid.batsize = dftrain.batsize
@@ -625,7 +636,7 @@ class ModelTrainer(object):
             return err, verr, None, None
 
     def _train_cross_valid(self, _skiptrain=False):
-        df = DataFeeder(*(self.traindata + [self.traingold]))
+        df = DataFeeder(*self._concat_data(self.traindata, self.traingold))
         splitter = SplitIdxIterator(df.size, split=self.validsplits, random=self.validrandom, folds=self.validsplits)
         err = []
         verr = []

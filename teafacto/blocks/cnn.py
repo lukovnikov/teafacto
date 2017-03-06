@@ -64,13 +64,15 @@ class CNNEnc(Block):
 
 
 class CNNSeqEncoder(CNNEnc):
-    def __init__(self, inpvocsize=500, inpembdim=100, inpemb=None,
+    def __init__(self, inpvocsize=None, inpembdim=None, inpemb=None,
                  numpos=None, posembdim=None, posemb=None,
-                 innerdim=200, stride=1,
+                 innerdim=None, stride=1,
                  window=5, poolmode="max", activation=Tanh, maskid=None,
                  dropout=None, **kw):
         if inpemb is None:
             self.embedder = VectorEmbed(inpvocsize, inpembdim, maskid=maskid)
+        elif inpemb is False:
+            self.embedder = None
         else:
             self.embedder = inpemb
             inpembdim = inpemb.outdim
@@ -95,7 +97,10 @@ class CNNSeqEncoder(CNNEnc):
                                             activation=activation, dropout=dropout, **kw)
 
     def apply(self, x, mask=None):
-        xemb = self.embedder(x)     # (batsize, seqlen, embdim)
+        if self.embedder is not None:
+            xemb = self.embedder(x)     # (batsize, seqlen, embdim)
+        else:
+            xemb = x
         xemb.mask = mask if mask is not None else xemb.mask
         xembndim = xemb.ndim
         origshape = None

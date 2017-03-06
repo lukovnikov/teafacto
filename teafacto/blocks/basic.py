@@ -1,9 +1,10 @@
 from teafacto.core.base import Block, tensorops as T, param, Val, Var, RVal, Parameter
 from teafacto.util import issequence, isfunction
-from teafacto.blocks.activations import Softmax
+from teafacto.blocks.activations import Softmax, Tanh
 import numpy as np
 
 default_carry_bias = 1
+
 
 class ConcatBlock(Block):
     def __init__(self, *blocks, **lw):
@@ -62,12 +63,15 @@ class Linear(Block):
         self.dropout = Dropout(dropout)
 
     def apply(self, inp):
+        mask = inp.mask
         inp = self.dropout(inp)
-        return T.dot(inp, self.W) + self.b
+        ret = T.dot(inp, self.W) + self.b
+        ret.mask = mask
+        return ret
 
 
 class Forward(Linear):
-    def __init__(self, indim, dim, activation=T.tanh, w_init="glorotuniform",
+    def __init__(self, indim, dim, activation=Tanh(), w_init="glorotuniform",
                  b_init="uniform", dropout=False, nobias=False, **kw):
         super(Forward, self).__init__(indim, dim, w_init=w_init, b_init=b_init, dropout=dropout, nobias=nobias, **kw)
         self.activation = activation

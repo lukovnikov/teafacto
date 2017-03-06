@@ -1,6 +1,7 @@
 from unittest import TestCase
 import numpy as np
 from teafacto.blocks.activations import Softmax, GumbelSoftmax
+from teafacto.core import Val
 
 
 class TestSoftmax(TestCase):
@@ -47,6 +48,21 @@ class TestSoftmax(TestCase):
         pred = b.predict(d, m)
         self.assertTrue(np.allclose(np.zeros_like(pred[:, :, 2]), pred[:, :, 2]))
         self.assertEqual(d.shape, pred.shape)
+        predsums = np.sum(pred, axis=-1)
+        self.assertTrue(np.allclose(predsums, np.ones_like(predsums)))
+
+    def test_softmax_3D_prop_seq_mask(self):
+        b = Softmax()
+        d = np.random.random((5, 4, 3))
+        m = np.ones((5, 4))
+        m[:, 2:] = 0
+        d = Val(d) + 0
+        m = Val(m) + 0
+        d.mask = m
+        pred = b(d)
+        predmask = pred.mask.eval()
+        pred = pred.eval()
+        self.assertTrue(np.allclose(predmask, m.eval()))
         predsums = np.sum(pred, axis=-1)
         self.assertTrue(np.allclose(predsums, np.ones_like(predsums)))
 
