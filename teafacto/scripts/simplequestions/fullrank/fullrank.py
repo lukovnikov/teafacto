@@ -774,7 +774,7 @@ def run(negsammode="closest",   # "close" or "random"
         margin=0.5,
         lr=0.1,
         numbats=700,
-        epochs=15,
+        epochs=50,
         gradnorm=1.0,
         wreg=0.0001,
         loadmodel="no",
@@ -782,8 +782,8 @@ def run(negsammode="closest",   # "close" or "random"
         debugtest=False,
         forcesubjincl=False,
         randsameval=0,          # random sampling experiment, not using the candidates pregenerated
-        numtestcans=5,
-        multiprune=-1,
+        numtestcans=400,
+        multiprune=1,
         checkdata=False,
         testnegsam=False,
         testmodel=False,        # just embed
@@ -794,10 +794,11 @@ def run(negsammode="closest",   # "close" or "random"
         inspectloadedmodel=False,
         inspectpredictions=False,
         evalwithgoldsubjs=False,
-        usesurrogates=False,
-        usetraincans=False,
+        usesurrogates=True,
+        usetraincans=True,
         numlayers=1,
         usetestregions=False,
+        validontest=False,
         ):
     maskid = -1
     """
@@ -1143,10 +1144,17 @@ def run(negsammode="closest",   # "close" or "random"
             tt.tock("trained").tick()
             print("SAVED AS: {}".format(saveid))
         else:
+            if validontest:
+                print "VALIDATING ON TEST SET"
+                vd = testdata
+                vg = testgold
+            else:
+                vd = validdata
+                vg = validgold
             nscorer = scorer.nstrain([traindata, traingold]).transform(transf) \
                 .negsamplegen(nig) \
                 .objective(obj).adagrad(lr=lr).l2(wreg).grad_total_norm(gradnorm) \
-                .validate_on([validdata, validgold]).extvalid(extvalidf) \
+                .validate_on([vd, vg]).extvalid(extvalidf) \
                 .autosavethis(scorer, savep).writeresultstofile(savep+".progress.tsv") \
                 .takebest(lambda x: x[2], save=True, smallerbetter=False) \
                 .train(numbats=numbats, epochs=epochs, _skiptrain=debugvalid)
