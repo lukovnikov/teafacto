@@ -1050,7 +1050,10 @@ def run(negsammode="closest",   # "close" or "random"
     def get_validate_acc(savepath):
         predictor = {0: None}
         offset = {0: 0}
-        validsubjcans = pickle.load(open("../../../../data/simplequestions/clean/validcans{}c.pkl".format(numtestcans), "r"))
+        if validontest:
+            validsubjcans = pickle.load(open("../../../../data/simplequestions/clean/testcans{}c.pkl".format(numtestcans), "r"))
+        else:
+            validsubjcans = pickle.load(open("../../../../data/simplequestions/clean/validcans{}c.pkl".format(numtestcans), "r"))
         def validate_acc(*sampleinps):
             if predictor[0] is None:    # reload model for a whole iter
                 if os.path.isfile(savepath):
