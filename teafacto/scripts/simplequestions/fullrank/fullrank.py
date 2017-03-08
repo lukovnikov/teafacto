@@ -1051,6 +1051,7 @@ def run(negsammode="closest",   # "close" or "random"
         predictor = {0: None}
         offset = {0: 0}
         if validontest:
+            print "VALIDONTEST !!!!!!!!!!! WRONG !"
             subjcans = pickle.load(open("../../../../data/simplequestions/clean/testcans{}c.pkl".format(numtestcans), "r"))
             vdata = testdata
         else:
@@ -1092,8 +1093,9 @@ def run(negsammode="closest",   # "close" or "random"
                 #embed()
                 pass
             offset[0] += qmat.shape[0]
-            if offset[0] == vdata.shape[0]:
+            if offset[0] == len(subjcans):
                 #embed()
+                print "RESET OFFSET IN VALIDATOR"
                 offset[0] = 0
                 predictor[0] = None
             return totalacc, subjacc, predacc
