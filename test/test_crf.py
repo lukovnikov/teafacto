@@ -1,5 +1,5 @@
 from unittest import TestCase
-from teafacto.crf import log_sum_exp, forward
+from teafacto.blocks.crf import log_sum_exp, forward
 from teafacto.core.base import Val
 import numpy as np
 

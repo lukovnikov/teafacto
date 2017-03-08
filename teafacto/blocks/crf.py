@@ -1,6 +1,15 @@
-from teafacto.core.base import tensorops as T
+from teafacto.core import T, Block, param
 
 # from glample/tagger
+
+
+class CRF(Block):     # conditional random fields
+    def __init__(self, n_classes, **kw):
+        super(CRF, self).__init__(**kw)
+        self.transitions = param((n_classes, n_classes), name="transitions").glorotuniform()
+
+    def apply(self, emissions, gold=None, _trainmode=False):
+        gold_path_scores = emissions[0]
 
 
 def log_sum_exp(x, axis=None):

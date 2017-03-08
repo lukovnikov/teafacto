@@ -882,7 +882,6 @@ def run(negsammode="closest",   # "close" or "random"
                for x, y in subjrank]
         return ret
 
-
     def inspectboth(hidecorrect=False, hidenotincan=False):
         rwd = {v: k for k, v in worddic.items()}
         for i in range(len(predictor.subjranks)):
