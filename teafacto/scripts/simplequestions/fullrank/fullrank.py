@@ -1051,9 +1051,12 @@ def run(negsammode="closest",   # "close" or "random"
         predictor = {0: None}
         offset = {0: 0}
         if validontest:
-            validsubjcans = pickle.load(open("../../../../data/simplequestions/clean/testcans{}c.pkl".format(numtestcans), "r"))
+            subjcans = pickle.load(open("../../../../data/simplequestions/clean/testcans{}c.pkl".format(numtestcans), "r"))
+            vdata = testdata
         else:
-            validsubjcans = pickle.load(open("../../../../data/simplequestions/clean/validcans{}c.pkl".format(numtestcans), "r"))
+            subjcans = pickle.load(open("../../../../data/simplequestions/clean/validcans{}c.pkl".format(numtestcans), "r"))
+            vdata = validdata
+
         def validate_acc(*sampleinps):
             if predictor[0] is None:    # reload model for a whole iter
                 if os.path.isfile(savepath):
@@ -1071,10 +1074,9 @@ def run(negsammode="closest",   # "close" or "random"
                     raise Exception("could not load model")
             multipru = multiprune
             relspere = relsperent
-            vdata = validdata
             #tt = ticktock("External Accuracy Validator")
             qmat = sampleinps[0]
-            cans = validsubjcans[offset[0]: offset[0] + qmat.shape[0]]
+            cans = subjcans[offset[0]: offset[0] + qmat.shape[0]]
             amat = sampleinps[1]
             #tt.tick("predicting")
             pred = predictor[0].predict(qmat, entcans=cans, relsperent=relspere, multiprune=multipru)
