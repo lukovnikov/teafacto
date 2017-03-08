@@ -591,14 +591,9 @@ class ModelTrainer(object):
                 sampleinps, batsize = datafeeder.nextbatch(withbatchsize=True)
                 numex += batsize
                 sampleinps = sampletransf(*sampleinps)
-                try:
-                    eterr = trainf(*sampleinps)
-                    if len(terr) != len(eterr) and terr.count(0.0) == len(terr):
-                        terr = [0.0]*len(eterr)     # ensure compatible size of terr (number of output scores)
-                except Exception, e:
-                    print e
-                    embed()
-                    raise e
+                eterr = trainf(*sampleinps)
+                if len(terr) != len(eterr) and terr.count(0.0) == len(terr):
+                    terr = [0.0]*len(eterr)     # ensure compatible size of terr (number of output scores)
                 if self.average_err is True:
                     terr = [xterr + xeterr * batsize for xterr, xeterr in zip(terr, eterr)]
                 else:
