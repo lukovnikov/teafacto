@@ -1052,7 +1052,7 @@ def run(negsammode="closest",   # "close" or "random"
         offset = {0: 0}
         if validontest:
             print "VALIDONTEST !!!!!!!!!!! WRONG !"
-            subjcans = pickle.load(open("../../../../data/simplequestions/clean/testcans{}c.pkl".format(numtestcans), "r"))
+            subjcans = testsubjcans     #pickle.load(open("../../../../data/simplequestions/clean/testcans{}c.pkl".format(numtestcans), "r"))
             vdata = testdata
         else:
             subjcans = pickle.load(open("../../../../data/simplequestions/clean/validcans{}c.pkl".format(numtestcans), "r"))
