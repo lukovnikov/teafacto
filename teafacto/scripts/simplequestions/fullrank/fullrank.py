@@ -1046,7 +1046,7 @@ def run(negsammode="closest",   # "close" or "random"
     if debug:
         embed()
 
-    # BEWARE BELOW: extremely ugly
+    # BEWARE: extremely ugly
     def get_validate_acc(savepath):
         predictor = {0: None}
         offset = {0: 0}
@@ -1056,6 +1056,7 @@ def run(negsammode="closest",   # "close" or "random"
         else:
             subjcans = pickle.load(open("../../../../data/simplequestions/clean/validcans{}c.pkl".format(numtestcans), "r"))
             vdata = validdata
+        assert(len(subjcans) == vdata.shape[0])
 
         def validate_acc(*sampleinps):
             if predictor[0] is None:    # reload model for a whole iter
