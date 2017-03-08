@@ -1,15 +1,49 @@
-from teafacto.core import T, Block, param
+from teafacto.core import T, Block, param, Val
+import numpy as np
 
 # from glample/tagger
 
 
 class CRF(Block):     # conditional random fields
-    def __init__(self, n_classes, **kw):
+    def __init__(self, n_classes, maskid=0, **kw):
         super(CRF, self).__init__(**kw)
-        self.transitions = param((n_classes, n_classes), name="transitions").glorotuniform()
+        self.n_classes = n_classes
+        self.transitions = param((n_classes + 2, n_classes + 2), name="transitions").glorotuniform()
+        self.small = -1e3
+        self.maskid = maskid
+        # two extra for start and end tag --> at end of index space
 
-    def apply(self, emissions, gold=None, _trainmode=False):
-        gold_path_scores = emissions[0]
+    def apply(self, scores, gold=None, _trainmode=False):   # (batsize, seqlen, nclasses)
+        numsam = scores.shape[0]
+        seqlen = scores.shape[1]
+        mask = scores.mask
+        if mask is None:
+            mask = T.ones((numsam, seqlen))
+        #gold_path_scores = scores[:, T.arange(scores.shape[1]), gold].sum(axis=1)
+        # pad scores
+        b_s = Val(np.array([[self.small] * self.n_classes] + [0, self.small]).astype("float32"))
+        b_s = T.repeat(b_s.dimadd(0), numsam, axis=0)   # to number of samples
+        e_s = Val(np.array([[self.small] * self.n_classes] + [self.small, 0]).astype("float32"))
+        e_s = T.repeat(e_s.dimadd(0), numsam, axis=0)   # to number of samples
+        paddedscores = T.concatenate([scores, self.small * T.ones((numsam, seqlen, 2))], axis=2)    # account for tag classes expansion
+        paddedscores = T.concatenate([b_s, paddedscores, e_s], axis=1)      # (batsize, seqlen+2, n_classes+2)
+        # pad gold
+        b_id = Val(np.array([self.n_classes], dtype="int32"))
+        b_id = T.repeat(b_id, numsam, axis=0)
+        e_id = Val(np.array([self.n_classes + 1], dtype="int32"))
+        e_id = T.repeat(e_id, numsam, axis=0)
+        paddedgold = T.concatenate([b_id, gold, e_id], axis=1)  # (batsize, seqlen)
+        # pad mask
+        paddedmask = T.concatenate([T.ones((numsam, 1)), mask, T.ones((numsam, 1))], axis=1)
+        # gold path scores
+        gold_path_scores = scores[:, T.arange(paddedscores.shape[1]), paddedgold]   # (batsize, paddedseqlen)
+        gold_path_scores = gold_path_scores * paddedmask
+        gold_path_scores = gold_path_scores.sum(axis=1)     # (batsize, )
+        gold_path_transi = self.transitions[:,
+            paddedgold[T.arange(0, paddedgold.shape[1] - 1)],
+            paddedgold[T.arange(1, paddedgold.shape[1])]
+        ]   # (batsize, paddedseqlen-1)
+
 
 
 def log_sum_exp(x, axis=None):
