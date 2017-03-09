@@ -15,6 +15,7 @@ class TestCRFUtils(TestCase):
         sma = -1e3
         obs = Val(np.array([
             [
+                [0.0, sma, sma],
                 [sma, 1.0, sma],
                 [sma, sma, 1.0],
                 [1.0, sma, sma]
@@ -36,7 +37,8 @@ class TestCRFUtils(TestCase):
             acc = 0
             for i in range(1, len(y)):
                 acc += transval[y[i - 1], y[i]]
-                acc += obsval[i - 1, y[i]]
+            for i in range(len(y)):
+                acc += obsval[i, y[i]]
             return acc
 
         bigacc = []
@@ -47,6 +49,9 @@ class TestCRFUtils(TestCase):
             for j in range(3):
                 y.append(k % 3)
                 k = k // 3
+            if y == [0, 1, 2, 0]:
+                #print y
+                pass
             bigacc.append(sxy(y))
 
         sumexp = np.log(np.sum(np.exp(bigacc)))
@@ -59,6 +64,7 @@ class TestCRFUtils(TestCase):
         sma = -1e3
         obs = Val(np.array([
             [
+                [0.0, sma, sma],
                 [sma, 1.0, sma],
                 [sma, sma, 1.0],
                 [1.0, sma, sma],
@@ -67,7 +73,7 @@ class TestCRFUtils(TestCase):
             ]
         ], dtype="float32"))
         mask = Val(np.array([
-            [1, 1, 1, 0, 0]
+            [1, 1, 1, 1, 0, 0]
         ], dtype="float32"))
         obs.mask = mask
         trans = Val(np.array([
@@ -86,7 +92,8 @@ class TestCRFUtils(TestCase):
             acc = 0
             for i in range(1, len(y)):
                 acc += transval[y[i - 1], y[i]]
-                acc += obsval[i - 1, y[i]]
+            for i in range(len(y)):
+                acc += obsval[i, y[i]]
             return acc
 
         bigacc = []
@@ -108,7 +115,11 @@ class TestCRFUtils(TestCase):
     def test_forward_random_data(self):
         sma = -1e3
         seqlen = 4
-        obs = Val(np.random.random((10, seqlen, 12)).astype("float32"))
+        obs = np.concatenate([
+                np.array([[0] + [sma]*11]*10)[:, np.newaxis, :],
+                np.random.random((10, seqlen, 12))
+            ], axis=1)
+        obs = Val(obs.astype("float32"))
         trans = Val(np.random.random((12, 12)).astype("float32"))
         out = forward(obs, trans)
         outv = out.eval()
@@ -121,7 +132,8 @@ class TestCRFUtils(TestCase):
             acc = 0
             for i in range(1, len(y)):
                 acc += transval[y[i - 1], y[i]]
-                acc += obsval[i - 1, y[i]]
+            for i in range(len(y)):
+                acc += obsval[i, y[i]]
             return acc
 
         bigacc = []
@@ -144,6 +156,7 @@ class TestCRFUtils(TestCase):
         sma = -1e3
         obs = Val(np.array([
             [
+                [0.0, sma, sma],
                 [sma, 1.0, sma],
                 [sma, sma, 1.0],
                 [1.0, 0.5, sma]
@@ -165,7 +178,8 @@ class TestCRFUtils(TestCase):
             acc = 0
             for i in range(1, len(y)):
                 acc += transval[y[i - 1], y[i]]
-                acc += obsval[i - 1, y[i]]
+            for i in range(len(y)):
+                acc += obsval[i, y[i]]
             return acc
 
         bigacc = []
@@ -189,6 +203,7 @@ class TestCRFUtils(TestCase):
         sma = -1e3
         obs = Val(np.array([
             [
+                [0.0, sma, sma],
                 [sma, 1.0, sma],
                 [sma, sma, 1.0],
                 [1.0, 0.5, sma],
@@ -197,7 +212,7 @@ class TestCRFUtils(TestCase):
             ]
         ], dtype="float32"))
         mask = Val(np.array([
-            [1, 1, 1, 0, 0]
+            [1, 1, 1, 1, 0, 0]
         ], dtype="float32"))
         obs.mask = mask
         trans = Val(np.array([
@@ -216,7 +231,8 @@ class TestCRFUtils(TestCase):
             acc = 0
             for i in range(1, len(y)):
                 acc += transval[y[i - 1], y[i]]
-                acc += obsval[i - 1, y[i]]
+            for i in range(len(y)):
+                acc += obsval[i, y[i]]
             return acc
 
         bigacc = []
@@ -240,6 +256,7 @@ class TestCRFUtils(TestCase):
         sma = -1e3
         obs = Val(np.array([
             [
+                [0.0, sma, sma],
                 [sma, 1.0, sma],
                 [sma, sma, 1.0],
                 [1.0, sma, sma],
@@ -262,7 +279,8 @@ class TestCRFUtils(TestCase):
             acc = 0
             for i in range(1, len(y)):
                 acc += transval[y[i - 1], y[i]]
-                acc += obsval[i - 1, y[i]]
+            for i in range(len(y)):
+                acc += obsval[i, y[i]]
             return acc
 
         bestscore = -1e6
@@ -286,6 +304,7 @@ class TestCRFUtils(TestCase):
         sma = -1e3
         obs = Val(np.array([
             [
+                [0.0, sma, sma],
                 [sma, 1.0, sma],
                 [sma, sma, 1.0],
                 [1.0, sma, sma],
@@ -295,7 +314,7 @@ class TestCRFUtils(TestCase):
             ]
         ], dtype="float32"))
         mask = Val(np.array([
-            [1, 1, 1, 1, 0, 0]
+            [1, 1, 1, 1, 1, 0, 0]
         ], dtype="int8"))
         obs.mask = mask
         trans = Val(np.array([
@@ -306,7 +325,7 @@ class TestCRFUtils(TestCase):
         out = forward(obs, trans, viterbi=True, return_best_sequence=True)
         outv = out.eval()
         mask = out.mask.d.eval()
-        print outv
+        print outv, mask
 
         transval = trans.d.eval()
         obsval = obs.d.eval()[0]
@@ -315,7 +334,8 @@ class TestCRFUtils(TestCase):
             acc = 0
             for i in range(1, len(y)):
                 acc += transval[y[i - 1], y[i]]
-                acc += obsval[i - 1, y[i]]
+            for i in range(len(y)):
+                acc += obsval[i, y[i]]
             return acc
 
         bestscore = -1e6
@@ -342,4 +362,33 @@ class TestCRFUtils(TestCase):
         print bestseq, outv, mask
         self.assertTrue(np.allclose(bestseq, outv))
 
+
+from teafacto.blocks.crf import CRF
+
+
+class TestCRF(TestCase):
+    def test_masked_crf_gold_scores(self):
+        np.set_printoptions(suppress=True, precision=3)
+        crf = CRF(2)
+        np.random.seed(123)
+        data = np.random.random((4, 3, 2)).astype("float32")
+        mask = np.array([[1, 1, 1], [1, 1, 0], [1, 0, 0], [0, 0, 0]], dtype="int8")
+        x = Val(data) + 0
+        x.mask = Val(mask) + 0
+        gold = np.array([[0, 1, 0], [1, 1, 1], [0, 0, 0], [1, 0, 1]], dtype="int32")
+        goldscores, paddedscores = crf._get_gold_score(x, gold, _withscores=True)
+        y = goldscores.eval()
+        trans = crf.transitions.d.eval()
+        gs = [[0,1,0],[1,1],[0],[]]
+        for g, k in zip(gs, range(len(gs))):
+            score = 0
+            for i in range(len(g)):
+                score += data[k, i, g[i]]
+            g = [2] + g + [3]
+            for i in range(len(g) - 1):
+                score += trans[g[i], g[i+1]]
+            print score, y[k]
+            self.assertTrue(np.allclose(score, y[k]))
+        print paddedscores.eval()
+        print paddedscores.mask.eval()
 

@@ -14,37 +14,61 @@ class CRF(Block):     # conditional random fields
         # two extra for start and end tag --> at end of index space
 
     def apply(self, scores, gold=None, _trainmode=False):   # (batsize, seqlen, nclasses)
+        gold_path_scores, paddedscores = self._get_gold_score(scores, gold=gold, _withscores=True)
+        all_paths_scores = self._get_all_path_scores(scores)
+
+    def _get_gold_score(self, scores, gold=None, _withscores=False):
         numsam = scores.shape[0]
         seqlen = scores.shape[1]
         mask = scores.mask
         if mask is None:
             mask = T.ones((numsam, seqlen))
-        #gold_path_scores = scores[:, T.arange(scores.shape[1]), gold].sum(axis=1)
+        # pad mask
+        paddedmask = T.concatenate([T.ones((numsam, 1)), mask, T.zeros((numsam, 1))], axis=1)
         # pad scores
-        b_s = Val(np.array([[self.small] * self.n_classes] + [0, self.small]).astype("float32"))
+        b_s = Val(np.array([self.small] * self.n_classes + [0, self.small]).astype("float32"))
         b_s = T.repeat(b_s.dimadd(0), numsam, axis=0)   # to number of samples
-        e_s = Val(np.array([[self.small] * self.n_classes] + [self.small, 0]).astype("float32"))
+        e_s = Val(np.array([self.small] * self.n_classes + [self.small, 0]).astype("float32"))
         e_s = T.repeat(e_s.dimadd(0), numsam, axis=0)   # to number of samples
         paddedscores = T.concatenate([scores, self.small * T.ones((numsam, seqlen, 2))], axis=2)    # account for tag classes expansion
-        paddedscores = T.concatenate([b_s, paddedscores, e_s], axis=1)      # (batsize, seqlen+2, n_classes+2)
+        paddedscores = T.concatenate([b_s.dimadd(1), paddedscores, e_s.dimadd(1)], axis=1)      # (batsize, seqlen+2, n_classes+2)
+        paddedscores = T.switch(paddedmask.dimadd(2) > 0,
+                                paddedscores,
+                                T.repeat(e_s.dimadd(1), paddedscores.shape[1], axis=1))
         # pad gold
         b_id = Val(np.array([self.n_classes], dtype="int32"))
         b_id = T.repeat(b_id, numsam, axis=0)
         e_id = Val(np.array([self.n_classes + 1], dtype="int32"))
         e_id = T.repeat(e_id, numsam, axis=0)
-        paddedgold = T.concatenate([b_id, gold, e_id], axis=1)  # (batsize, seqlen)
-        # pad mask
-        paddedmask = T.concatenate([T.ones((numsam, 1)), mask, T.ones((numsam, 1))], axis=1)
+        paddedgold = T.concatenate([b_id.dimadd(1), gold, e_id.dimadd(1)], axis=1)  # (batsize, seqlen)
         # gold path scores
-        gold_path_scores = scores[:, T.arange(paddedscores.shape[1]), paddedgold]   # (batsize, paddedseqlen)
+        # gold_path_scores = paddedscores[:, T.arange(paddedscores.shape[1]), paddedgold]   # (batsize, paddedseqlen)
+        g = paddedgold.reshape((-1,))
+        gold_path_scores = paddedscores.reshape((-1, paddedscores.shape[-1])) \
+            [T.arange(g.shape[0]), g]
+        gold_path_scores = gold_path_scores.reshape(paddedgold.shape)
         gold_path_scores = gold_path_scores * paddedmask
         gold_path_scores = gold_path_scores.sum(axis=1)     # (batsize, )
-        gold_path_transi = self.transitions[:,
-            paddedgold[T.arange(0, paddedgold.shape[1] - 1)],
-            paddedgold[T.arange(1, paddedgold.shape[1])]
+        # gold transition scores # TODO
+        paddedgold = T.switch(paddedmask > 0, paddedgold, T.ones_like(paddedgold) * (self.n_classes + 1))
+        os = paddedgold[:, :-1].shape
+        gold_path_transi = self.transitions[
+            paddedgold[:, :-1].reshape((-1,)),
+            paddedgold[:, 1:].reshape((-1,))
         ]   # (batsize, paddedseqlen-1)
+        gold_path_transi = gold_path_transi.reshape(os)
+        gold_path_transi *= paddedmask[:, :-1]
+        xtra = gold_path_transi
+        gold_path_transi = gold_path_transi.sum(axis=1)
+        goldscore = gold_path_scores + gold_path_transi
+        if _withscores:
+            paddedscores.mask = paddedmask
+            return goldscore, paddedscores
+        else:
+            return goldscore
 
-
+    def _get_all_path_scores(self, scores):
+        pass
 
 def log_sum_exp(x, axis=None):
     """
@@ -55,7 +79,7 @@ def log_sum_exp(x, axis=None):
     return xmax_ + T.log(T.exp(x - xmax).sum(axis=axis))
 
 
-def forward(observations, transitions, startsymbol=0, viterbi=False,
+def forward(observations, transitions, viterbi=False,
             return_alpha=False, return_best_sequence=False):
     """
     Takes as input:
@@ -121,15 +145,11 @@ def forward(observations, transitions, startsymbol=0, viterbi=False,
 
     mask = observations.mask
 
-    initial = T.concatenate([
-        T.ones((observations.shape[0], startsymbol)) * small,
-        T.ones((observations.shape[0], 1)) * 0.0,
-        T.ones((observations.shape[0], observations.shape[2] - startsymbol - 1)) * small
-        ], axis=1)
+    initial = observations[:, 0]
 
     f = recurrence if mask is None else maskedrecurrence
-    seqs = [observations.dimswap(0, 1)] if mask is None \
-                    else [observations.dimswap(0, 1), mask.dimswap(0, 1)]
+    seqs = [observations[:, 1:].dimswap(0, 1)] if mask is None \
+                    else [observations[:, 1:].dimswap(0, 1), mask[:, 1:].dimswap(0, 1)]
 
     alpha = T.scan(
         fn=f,
@@ -168,10 +188,7 @@ def forward(observations, transitions, startsymbol=0, viterbi=False,
         )
         sequence = T.concatenate([sequence[::-1],
                                   [T.argmax(alpha[:, -1], axis=1)]])
-        if mask is not None:
-            seqmask = T.concatenate([T.ones((1, mask.shape[0]), dtype="int8"), mask], axis=1)
-        else:
-            seqmask = mask
+        seqmask = mask
         sequence = sequence.dimswap(0, 1)
         #seqmask = seqmask.dimswap(0, 1)
         sequence.mask = seqmask
