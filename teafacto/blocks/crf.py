@@ -14,8 +14,13 @@ class CRF(Block):     # conditional random fields
         # two extra for start and end tag --> at end of index space
 
     def apply(self, scores, gold=None, _trainmode=False):   # (batsize, seqlen, nclasses)
-        gold_path_scores, paddedscores = self._get_gold_score(scores, gold=gold, _withscores=True)
-        all_paths_scores = self._get_all_path_scores(scores)
+        if _trainmode:
+            gold_path_scores, paddedscores = self._get_gold_score(scores, gold=gold, _withscores=True)
+            all_paths_scores = self._get_all_path_scores(scores)
+            return - (gold_path_scores - all_paths_scores)  # loss
+        else:
+            # TODO: get padded?, call forward with best seq
+            return None
 
     def _get_gold_score(self, scores, gold=None, _withscores=False):
         numsam = scores.shape[0]
@@ -49,7 +54,7 @@ class CRF(Block):     # conditional random fields
         gold_path_scores = gold_path_scores.reshape(paddedgold.shape)
         gold_path_scores = gold_path_scores * paddedmask
         gold_path_scores = gold_path_scores.sum(axis=1)     # (batsize, )
-        # gold transition scores # TODO
+        # gold transition scores
         paddedgold = T.switch(paddedmask > 0, paddedgold, T.ones_like(paddedgold) * (self.n_classes + 1))
         os = paddedgold[:, :-1].shape
         gold_path_transi = self.transitions[

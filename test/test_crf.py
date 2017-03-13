@@ -392,3 +392,6 @@ class TestCRF(TestCase):
         print paddedscores.eval()
         print paddedscores.mask.eval()
 
+    # TODO: test forward() in context of CRF
+    # TODO: test full CRF as a block, both train and pred
+

@@ -1,11 +1,12 @@
 import numpy as np
 from enum import Enum
 
-from teafacto.blocks.basic import IdxToOneHot, Softmax, MatDot, VectorEmbed, Linear
+from teafacto.blocks.basic import IdxToOneHot, Softmax, MatDot, VectorEmbed, Linear, Forward
 from teafacto.blocks.seq.attention import AttentionConsumer
 from teafacto.blocks.seq.rnu import GRU, ReccableBlock, RecurrentBlock, RNUBase, ReccableWrapper
 from teafacto.core.base import Block, tensorops as T, asblock
 from teafacto.util import issequence
+from teafacto.blocks.activations import *
 
 
 class RecStack(ReccableBlock):
@@ -114,8 +115,7 @@ class FluentSeqEncoderBuilder(object):
         return self
 
     def make(self):
-        if self.embedder is not None and self.layers is not None and \
-            len(self.layers) > 0:
+        if self.layers is not None and len(self.layers) > 0:
             return SeqEncoder(self.embedder, *self.layers)
         else:
             raise Exception("not ready")
@@ -151,6 +151,17 @@ class FluentSeqEncoderBuilder(object):
         self.layers = self.layers + layers
         self.lastdim = lastdim
         return self._return()
+
+    def add_forward_layers(self, dim=None, activation=Tanh, dropout=False, nobias=True):
+        inpdim = self.lastdim
+        if not issequence(dim):
+            dim = [dim]
+        dim = [inpdim] + dim
+        for d1, d2 in zip(dim[:-1], dim[1:]):
+            self.layers += [Forward(d1, d2, activation=activation(), dropout=dropout, nobias=nobias)]
+            self.lastdim = d2
+        return self._return()
+
 
     @staticmethod
     def getemb(emb=None, embdim=None, vocsize=None, maskid=None):
