@@ -57,7 +57,7 @@ def run(numbats=50,
         inconcat=True,
         outconcat=True,
         concatdecinp=False,
-        forwardattention=False,
+        forwardattention=False,     # use forward layer in attention (instead of just dot/cosine)
         splitatt=False,
         statetransfer=False,
         preproc=True,
@@ -139,7 +139,7 @@ def run(numbats=50,
     decoder.train([amat_train[:, :-1], qmat_train], amat_train[:, 1:]) \
         .cross_entropy(cemode="allmean").seq_accuracy().adadelta(lr=lr).grad_total_norm(1.) \
         .validate_on([amat_test[:, :-1], qmat_test], amat_test[:, 1:]) \
-        .cross_entropy().seq_accuracy() \
+        .cross_entropy(cemode="allmean").seq_accuracy() \
         .train(numbats, epochs)
 
     tt.tock("trained")
