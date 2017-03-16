@@ -51,6 +51,7 @@ def concat_generate(qmat, amat, rate=1, maskid=0, concat_original=False):
 def run(numbats=50,
         epochs=10,
         lr=0.5,
+        expmovavg=0.95,
         embdim=50,
         encdim=200,
         dropout=0.3,
@@ -140,6 +141,7 @@ def run(numbats=50,
         .cross_entropy(cemode="allmean").seq_accuracy().adadelta(lr=lr).grad_total_norm(1.) \
         .validate_on([amat_test[:, :-1], qmat_test], amat_test[:, 1:]) \
         .cross_entropy(cemode="allmean").seq_accuracy() \
+        .exp_mov_avg(expmovavg) \
         .train(numbats, epochs)
 
     tt.tock("trained")
