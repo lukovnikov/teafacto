@@ -85,6 +85,10 @@ class SquaredError(Loss):
 
 
 class CrossEntropy(Loss):
+    def __init__(self, mode="sum", **kw):
+        super(CrossEntropy, self).__init__(**kw)
+        self.mode = mode
+
     def apply(self, probs, gold, mask=None):
         if gold.ndim == 1:
             assert(mask is None)
@@ -97,7 +101,16 @@ class CrossEntropy(Loss):
             seq_ces = T.nnet.categorical_crossentropy(probs, gold)
             o = seq_ces.reshape(origprobshape[:-1], ndim=origprobndim-1)
             o = o * mask if mask is not None else o  # (batsize, seqlen)
-            o = T.sum(o, axis=1)
+            if self.mode == "sum":
+                o = o.sum(axis=1)
+            elif self.mode == "allmean":
+                #print "using allmean"
+                div = mask.sum() if mask is not None else o.shape[0] * o.shape[1]
+                o = o.sum() / div
+                o = T.repeat(o.dimadd(1), gold.shape[0], axis=0)
+            elif self.mode == "rowmean":
+                div = mask.sum(axis=1) if mask is not None else o.shape[1]
+                o = o.sum(axis=1) / div
             return o  # (batsize,)
 
 

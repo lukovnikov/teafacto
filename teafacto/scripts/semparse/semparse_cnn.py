@@ -137,7 +137,7 @@ def run(numbats=50,
     tt.tick("training")
 
     decoder.train([amat_train[:, :-1], qmat_train], amat_train[:, 1:]) \
-        .cross_entropy().seq_accuracy().adadelta(lr=lr).grad_total_norm(1.) \
+        .cross_entropy(cemode="allmean").seq_accuracy().adadelta(lr=lr).grad_total_norm(1.) \
         .validate_on([amat_test[:, :-1], qmat_test], amat_test[:, 1:]) \
         .cross_entropy().seq_accuracy() \
         .train(numbats, epochs)

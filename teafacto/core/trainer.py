@@ -13,7 +13,7 @@ from theano import tensor as tensor
 from theano.compile.nanguardmode import NanGuardMode
 
 #from core import Input
-from teafacto.core import asblock
+from teafacto.core import asblock, Block
 from teafacto.core.datafeed import DataFeeder, SplitIdxIterator
 from teafacto.blocks.loss import *
 from teafacto.util import ticktock as TT, issequence
@@ -42,17 +42,17 @@ class ProtoObjective(object):
         self.aggmode = aggmode
         self.agg_history = []
         self.current_agg_error = 0.
-        self.current_agg_numexamples = 0.
+        self.current_agg_norma = 0.
 
     def get_agg_error(self):
         if self.aggmode == "mean":
-            if self.current_agg_numexamples == 0.:
+            if self.current_agg_norma == 0.:
                 return -0.
-            return self.current_agg_error / self.current_agg_numexamples
+            return self.current_agg_error / self.current_agg_norma
         return self.current_agg_error
 
     def update_agg(self, err, numex):
-        self.current_agg_numexamples += numex
+        self.current_agg_norma += numex
         err = err * numex if self.aggmode == "mean" else err
         self.current_agg_error += err
 
@@ -65,7 +65,7 @@ class ProtoObjective(object):
 
     def reset_agg(self):
         self.current_agg_error = 0.
-        self.current_agg_numexamples = 0.
+        self.current_agg_norma = 0.
 
     def push_agg_to_history(self):
         self.agg_history.append(self.get_agg_error())
@@ -192,8 +192,9 @@ class ModelTrainer(object):
         self._set_objective(Objective(LinearLoss(), aggmode=mode))
         return self
 
-    def cross_entropy(self, mode="mean"):
-        self._set_objective(Objective(CrossEntropy(), aggmode=mode))
+    def cross_entropy(self, mode="mean", cemode="sum"):
+        ce = CrossEntropy(mode=cemode)
+        self._set_objective(Objective(ce, aggmode=mode))
         return self
 
     def seq_cross_entropy(self, mode="mean"): # probs (batsize, seqlen, vocsize) + gold: (batsize, seqlen) ==> sum of neg log-probs of correct seq

@@ -25,13 +25,13 @@ class Perplexity(ExternalObjective):
         #ce = -np.log(pred[np.arange(0, len(pred)), gold[np.arange(0, len(pred))]])
         #ce = ce * predmask[..., np.newaxis]
         self.current_agg_error += np.sum(ce)
-        self.current_agg_numexamples += np.sum(predmask)
+        self.current_agg_norma += np.sum(predmask)
         return 2 ** (np.sum(ce) / np.sum(predmask))
 
     def get_agg_error(self):
-        if self.current_agg_numexamples == 0:
+        if self.current_agg_norma == 0:
             return -0.
-        return 2 ** (self.current_agg_error / self.current_agg_numexamples)
+        return 2 ** (self.current_agg_error / self.current_agg_norma)
 
     def update_agg(self, err, numex):
         pass
