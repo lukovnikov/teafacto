@@ -90,6 +90,7 @@ class CrossEntropy(Loss):
         self.mode = mode
 
     def apply(self, probs, gold, mask=None):
+        mask = probs.mask if mask is None else mask
         if gold.ndim == 1:
             assert(mask is None)
             return T.nnet.categorical_crossentropy(probs, gold) #-tensor.log(probs[tensor.arange(gold.shape[0]), gold])
@@ -105,9 +106,10 @@ class CrossEntropy(Loss):
                 o = o.sum(axis=1)
             elif self.mode == "allmean":
                 #print "using allmean"
+                rep = o.shape[0]
                 div = mask.sum() if mask is not None else o.shape[0] * o.shape[1]
                 o = o.sum() / div
-                o = T.repeat(o.dimadd(1), gold.shape[0], axis=0)
+                o = T.repeat(o.dimadd(1), rep, axis=0)
             elif self.mode == "rowmean":
                 div = mask.sum(axis=1) if mask is not None else o.shape[1]
                 o = o.sum(axis=1) / div
