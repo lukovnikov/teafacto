@@ -722,7 +722,7 @@ class ModelTrainer(object):
                 writeresf.write("{}\t{}\n".format(self.currentiter - 1, restowrite))
             # retaining the best
             if self.besttaker is not None:
-                modelscore = self.besttaker((epoch_train_errors + epoch_valid_errors + [self.currentiter]))
+                modelscore = self.besttaker([epoch_train_errors[0]] + epoch_valid_errors + [self.currentiter])
                 smallerbetter = 1 if self.smallerbetter else -1
                 if smallerbetter * modelscore < smallerbetter * self.bestmodel[1]:
                     if self.savebest:
@@ -839,6 +839,7 @@ class ModelTrainer(object):
         return self
 
     def save(self, model=None, filepath=None, suffix="", freeze=False):
+        filepath = False if freeze else filepath
         model = model if model is not None else \
             self.model if self._autosaveblock is None else \
                 self._autosaveblock

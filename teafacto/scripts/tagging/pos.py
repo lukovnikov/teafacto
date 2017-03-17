@@ -153,7 +153,7 @@ def run(
         dropout=0.3,
         embtrainfrac=1.,
         inspectdata=False,
-        mode="words",       # words or concat
+        mode="words",       # words or concat or gate or ctxgate
         gradnorm=5.,
         skiptraining=False,
     ):
@@ -182,6 +182,15 @@ def run(
         emb = g
     elif mode == "concat":
         emb = WordEmbCharEncConcat(g, charenc)
+    elif mode == "gate":
+        emb = WordEmbCharEncGate(g, charenc, gatedim=embdim, dropout=dropout)
+    elif mode == "ctxgate":
+        gate_enc = RNNSeqEncoder.fluent()\
+            .noembedder(embdim * 2)\
+            .addlayers(embdim, bidir=True)\
+            .add_forward_layers(embdim, activation=Sigmoid)\
+            .make().all_outputs()
+        emb = WordEmbCharEncCtxGate(g, charenc, gate_enc=gate_enc)
     else:
         raise Exception("unknown mode in script")
     # tagging model
@@ -200,17 +209,18 @@ def run(
     if mode == "words":
         traindata = traindata[:, :, 0]
         testdata = testdata[:, :, 0]
-    elif mode == "concat":
+    elif mode == "concat" or mode == "gate" or mode == "ctxgate":
         tt.msg("character-level included")
     else:
         raise Exception("unknown mode in script")
 
     if not skiptraining:
-        m.train([traindata], traingold)\
+        m = m.train([traindata], traingold)\
             .cross_entropy().seq_accuracy()\
             .adadelta(lr=lr).grad_total_norm(gradnorm)\
             .validate_on([testdata], testgold)\
             .cross_entropy().seq_accuracy()\
+            .takebest()\
             .train(numbats=numbats, epochs=epochs)
     else:
         tt.msg("skipping training")
