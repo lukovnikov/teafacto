@@ -37,7 +37,7 @@ def loadtxt(p, wdic=None, tdic=None):
                     curdata = []
                     curgold = []
                 continue
-            w, t, _ = line.split()
+            w, pos, t = line.split()
             w = w.lower()
             if w not in wdic:
                 wdic[w] = len(wdic)
