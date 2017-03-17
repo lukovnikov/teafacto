@@ -663,6 +663,11 @@ class Block(Elem, Saveable): # block with parameters
         self._param_settings_toprop = {}  # settings are propagated from block to its parts through vars
         self._predictor = None
 
+    def __getstate__(self):
+        d = self.__dict__
+        d["_predictor"] = None
+        return d
+
     @property
     def param(self):
         return param

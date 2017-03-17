@@ -225,7 +225,7 @@ class CharEncWrap(Block):
 
 
 def run(
-        epochs=20,
+        epochs=50,
         numbats=100,
         lr=0.5,
         embdim=50,
@@ -312,7 +312,7 @@ def run(
             .adadelta(lr=lr).grad_total_norm(gradnorm).exp_mov_avg(0.99)\
             .split_validate(splits=10)\
             .cross_entropy().seq_accuracy().extvalid(extvalid)\
-            .takebest(f=lambda x: x[3], no=True)\
+            .takebest(f=lambda x: x[3])\
             .train(numbats=numbats, epochs=epochs, _skiptrain=debugvalid)
     else:
         tt.msg("skipping training")
