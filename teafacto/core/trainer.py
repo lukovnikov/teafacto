@@ -157,10 +157,10 @@ class ModelTrainer(object):
         # writing
         self._writeresultspath = None
         # early stopping
-        self.earlystop = False
-        self.earlystop_criterium = None
-        self.earlystop_selector = None
-        self.earlystop_select_history = None
+        self._earlystop = False
+        self._earlystop_criterium = None
+        self._earlystop_selector = None
+        self._earlystop_select_history = None
 
 
     #region ====================== settings =============================
@@ -408,15 +408,15 @@ class ModelTrainer(object):
             select = lambda x: x[1]
         if stopcrit is None:
             stopcrit = lambda h: h[-2] < h[-1] if len(h) >= 2 else False
-        self.earlystop_criterium = stopcrit
-        self.earlystop_selector = select
-        self.earlystop_select_history = []
-        self.earlystop = True
+        self._earlystop_criterium = stopcrit
+        self._earlystop_selector = select
+        self._earlystop_select_history = []
+        self._earlystop = True
 
     def earlystop_eval(self, scores):
-        selected = self.earlystop_selector(scores)
-        self.earlystop_select_history.append(selected)
-        ret = self.earlystop_criterium(self.earlystop_select_history)
+        selected = self._earlystop_selector(scores)
+        self._earlystop_select_history.append(selected)
+        ret = self._earlystop_criterium(self._earlystop_select_history)
         return ret
     #endregion
     #endregion
@@ -761,7 +761,7 @@ class ModelTrainer(object):
                     else:
                         #tt.tock("freezing best with score %.3f (prev: %.3f)" % (modelscore, self.bestmodel[1]), prefix="-").tick()
                         self.bestmodel = (self.save(freeze=True, filepath=False), modelscore)
-            if self.earlystop:
+            if self._earlystop:
                 stop = self.earlystop_eval([epoch_train_errors[0]] + epoch_valid_errors + [self.currentiter])
                 if stop:
                     tt.msg("stopping early")
