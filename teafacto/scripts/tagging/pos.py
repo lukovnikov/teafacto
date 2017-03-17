@@ -11,17 +11,17 @@ from teafacto.blocks.word.wordrep import *
 from teafacto.core.trainer import ExternalObjective
 
 
-def loaddata(p="../../../data/pos/", rarefreq=1):
+def loaddata(p="../../../data/pos/", rarefreq=1, task="chunk"):
     trainp = p + "train.txt"
     testp = p + "test.txt"
-    traindata, traingold, wdic, tdic = loadtxt(trainp)
-    testdata, testgold, wdic, tdic = loadtxt(testp, wdic=wdic, tdic=tdic)
+    traindata, traingold, wdic, tdic = loadtxt(trainp, task=task)
+    testdata, testgold, wdic, tdic = loadtxt(testp, task=task, wdic=wdic, tdic=tdic)
     traindata = wordmat2wordchartensor(traindata, worddic=wdic, maskid=0)
     testdata = wordmat2wordchartensor(testdata, worddic=wdic, maskid=0)
     return (traindata, traingold), (testdata, testgold), (wdic, tdic)
 
 
-def loadtxt(p, wdic=None, tdic=None):
+def loadtxt(p, wdic=None, tdic=None, task="chunk"):
     wdic = {"<MASK>": 0, "<RARE>": 1} if wdic is None else wdic
     tdic = {"<MASK>": 0} if tdic is None else tdic
     data, gold = [], []
@@ -38,7 +38,13 @@ def loadtxt(p, wdic=None, tdic=None):
                     curdata = []
                     curgold = []
                 continue
-            w, pos, t = line.split()
+            w, pos, chunk = line.split()
+            if task == "pos":
+                t = pos
+            elif task == "chunk":
+                t = chunk
+            else:
+                raise Exception("unknown task for this dataset")
             w = w.lower()
             if w not in wdic:
                 wdic[w] = len(wdic)
@@ -65,6 +71,7 @@ def dorare(traindata, testdata, glove, rarefreq=1, embtrainfrac=0.0):
     return traindata, testdata
 
 
+# CHUNK EVAL
 def eval_map(model, data, gold, tdic, verbose=True):
     tt = ticktock("eval", verbose=verbose)
     tt.tick("predicting")
@@ -152,6 +159,39 @@ class F1Eval(ExternalObjective):
         return f1
 
 
+# POS EVAL
+def tokenacceval(model, data, gold):
+    pred = model.predict(data)
+    pred = np.argmax(pred, axis=2)
+    mask = gold != 0
+    corr = pred == gold
+    corr *= mask
+    agg = np.sum(corr)
+    num = np.sum(mask)
+    return agg, num
+
+
+class TokenAccEval(ExternalObjective):
+    def __init__(self, model):
+        super(TokenAccEval, self).__init__()
+        self.m = model
+        self.num = 0.
+        self.agg = 0.
+
+    def __call__(self, data, gold):
+        agg, num = tokenacceval(self.m, data, gold)
+        self.agg += agg
+        self.num += num
+
+    def update_agg(self, err, numex):
+        pass
+
+    def get_agg_error(self):
+        if self.num == 0.:
+            return -0.
+        else:
+            return self.agg / self.num
+
 
 class SeqTagger(Block):
     def __init__(self, enc, out, **kw):
@@ -193,11 +233,12 @@ def run(
         gradnorm=5.,
         skiptraining=False,
         debugvalid=False,
+        task="chunk",       # chunk or pos #TODO ner
     ):
     # MAKE DATA
     tt = ticktock("script")
     tt.tick("loading data")
-    (traindata, traingold), (testdata, testgold), (wdic, tdic) = loaddata()
+    (traindata, traingold), (testdata, testgold), (wdic, tdic) = loaddata(task=task)
     tt.tock("data loaded")
     g = Glove(embdim, trainfrac=embtrainfrac, worddic=wdic, maskid=0)
     tt.tick("doing rare")
@@ -251,20 +292,30 @@ def run(
     else:
         raise Exception("unknown mode in script")
 
+    if task == "chunk":
+        extvalid = F1Eval(m, tdic)
+    elif task == "pos":
+        extvalid = TokenAccEval(m)
+    else:
+        raise Exception("unknown task")
+
     if not skiptraining:
         m = m.train([traindata], traingold)\
             .cross_entropy().seq_accuracy()\
             .adadelta(lr=lr).grad_total_norm(gradnorm).exp_mov_avg(0.99)\
             .split_validate(splits=10)\
-            .cross_entropy().seq_accuracy().extvalid(F1Eval(m, tdic))\
+            .cross_entropy().seq_accuracy().extvalid(extvalid)\
             .takebest(f=lambda x: x[3])\
             .train(numbats=numbats, epochs=epochs, _skiptrain=debugvalid)
     else:
         tt.msg("skipping training")
 
-    prec, rec, f1 = evaluate(m, testdata, testgold, tdic)
-
-    print "Precision: {} \n Recall: {} \n F-score: {}".format(prec, rec, f1)
+    if task == "chunk":
+        prec, rec, f1 = evaluate(m, testdata, testgold, tdic)
+        print "Precision: {} \n Recall: {} \n F-score: {}".format(prec, rec, f1)
+    elif task == "pos":
+        acc, num = tokenacceval(m, testdata, testgold)
+        print "Token Accuracy: {}".format(acc / num)
 
 
 if __name__ == "__main__":
@@ -273,6 +324,6 @@ if __name__ == "__main__":
     # Initial results: 10 ep, 200D emb, 2BiGru~300D enc, lr 0.5
     # 91.32, 91.33 F1 just words
     # 92.48, 92.98, 92.59 F1 with concat
-    #   92.76 F1 with concat, 3 layers
+    #   92.76, 92.75 F1 with concat, 3 layers
     # 92.48, 92.25 F1 with gate
-    # 92.92, 92.82 F1 with ctxgate
+    # 92.92, 92.82, 91.52 F1 with ctxgate
