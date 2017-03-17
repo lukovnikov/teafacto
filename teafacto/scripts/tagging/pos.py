@@ -178,7 +178,7 @@ class CharEncWrap(Block):
 
 
 def run(
-        epochs=10,
+        epochs=20,
         numbats=100,
         lr=0.5,
         embdim=50,
