@@ -565,7 +565,10 @@ class ModelTrainer(object):
             assert(self.validgold is None)
         else:
             lossblock = self.apply_losses(model, [o.obj for o in validators])
-        concatdata = self.validdata + [self.validgold] if self.validgold is not None else self.validdata
+        if self.validdata is None:
+            concatdata = self.traindata + [self.traingold] if self.traingold is not None else self.traindata
+        else:
+            concatdata = self.validdata + [self.validgold] if self.validgold is not None else self.validdata
         inps, lossouts = self.autobuild_model(lossblock, *concatdata, _trainmode=False, _batsize=batsize)
         if not issequence(lossouts):
             lossouts = [lossouts]
