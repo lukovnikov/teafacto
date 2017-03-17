@@ -412,6 +412,7 @@ class ModelTrainer(object):
         self._earlystop_selector = select
         self._earlystop_select_history = []
         self._earlystop = True
+        return self
 
     def earlystop_eval(self, scores):
         selected = self._earlystop_selector(scores)
