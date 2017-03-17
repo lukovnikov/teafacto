@@ -307,7 +307,7 @@ def run(
         raise Exception("unknown task")
 
     def earlystopcrit(history):
-        window = 1
+        window = 5
         minval, minpos = 0., 0
         for i, he in enumerate(history):
             if he < minval:
