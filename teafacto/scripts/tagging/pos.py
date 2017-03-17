@@ -65,12 +65,15 @@ def dorare(traindata, testdata, glove, rarefreq=1, embtrainfrac=0.0):
 
 
 def evaluate(model, data, gold, tdic):
+    tt = ticktock("eval")
+    tt.tick("predicting")
     rtd = {v: k for k, v in tdic.items()}
     pred = model.predict(data)
     pred = np.argmax(pred, axis=2)
     mask = gold == 0
     pred[mask] = 0
     tp, fp, fn = 0., 0., 0.
+    tt.tock("predicted")
 
     def getchunks(row):
         chunks = set()
@@ -92,9 +95,7 @@ def evaluate(model, data, gold, tdic):
             chunks.add((curstart, i, curtag))
         return chunks
 
-    tt = ticktock("eval")
     tt.tick("evaluating")
-
     for i in range(len(gold)):
         goldrow = [rtd[x] for x in list(gold[i]) if x > 0]
         predrow = [rtd[x] for x in list(pred[i]) if x > 0]
