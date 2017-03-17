@@ -192,7 +192,7 @@ def run(
 
     prec, rec, f1 = evaluate(m, testdata, testgold, tdic)
 
-    print prec, rec, f1
+    print "Precision: {} \n Recall: {} \n F-score: {}".format(prec, rec, f1)
 
 
 if __name__ == "__main__":
