@@ -56,7 +56,8 @@ class ReccableBlock(RecurrentBlock):    # exposes a rec function
 
     # FWD API IMPLEMENTATION USING REC API
     def innerapply(self, x, mask=None, initstates=None):
-        assert(x.ndim == 3 and (mask is None or mask.ndim == 2))
+        assert(x.ndim == 3)
+        assert(mask is None or mask.ndim == 2)
         if initstates is None:
             infoarg = x.shape[0]    # batsize
         else:

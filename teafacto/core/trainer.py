@@ -197,8 +197,13 @@ class ModelTrainer(object):
         self._set_objective(Objective(ce, aggmode=mode))
         return self
 
-    def seq_cross_entropy(self, mode="mean"): # probs (batsize, seqlen, vocsize) + gold: (batsize, seqlen) ==> sum of neg log-probs of correct seq
-        self._set_objective(Objective(CrossEntropy(), aggmode=mode))
+    def seq_cross_entropy(self, mode="mean", cemode="sum"): # probs (batsize, seqlen, vocsize) + gold: (batsize, seqlen) ==> sum of neg log-probs of correct seq
+        ce = CrossEntropy(mode=cemode)
+        self._set_objective(Objective(ce, aggmode=mode))
+        return self
+
+    def perplexity(self, mode="mean"):
+        self._set_objective(Objective(Perplexity(), aggmode=mode))
         return self
 
     def squared_error(self, mode="mean"):

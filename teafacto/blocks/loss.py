@@ -116,6 +116,18 @@ class CrossEntropy(Loss):
             return o  # (batsize,)
 
 
+class Perplexity(Loss):
+    def __init__(self, **kw):
+        super(Perplexity, self).__init__(**kw)
+        self.ce = CrossEntropy(mode="allmean")
+
+    def apply(self, probs, gold, mask=None):
+        mask = probs.mask if mask is None else mask
+        perwordce = self.ce(probs, gold, mask=mask)
+        ret = 2 ** perwordce
+        return ret
+
+
 class BinaryCrossEntropy(Loss):
     def apply(self, preds, gold):
         return T.nnet.binary_crossentropy(preds, gold)

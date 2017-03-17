@@ -40,6 +40,19 @@ class TestGlove(TestCase):
         self.assertFalse(np.allclose(gblockpred, self.glove % "a"))
 
 
+class TestGloveFromDic(TestCase):
+    def test_glove_load_from_dic(self):
+        Glove.defaultpath = "../../../data/glove/miniglove.%dd.txt"
+        dic = dict(zip("<MASK> <RARE> cat dog zizizizizi smile".split(), range(6)))
+        g = Glove(50, worddic=dic)
+        self.assertEqual(dic, g.D)
+        g2 = Glove(50)
+        self.assertTrue(np.allclose(g["dog"], g2["dog"]))
+        self.assertTrue(np.allclose(g["cat"], g2["cat"]))
+        self.assertTrue(np.allclose(g["smile"], g2["smile"]))
+        self.assertTrue(np.allclose(g["zizizizizi"], g["<RARE>"]))
+
+
 class TestAdaptedGlove(TestCase):
     def setUp(self):
         wdic = {"the": 10, "a": 5, "his": 50, "abracadabrqmsd--qsdfmqgf-": 6}

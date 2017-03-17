@@ -1,5 +1,5 @@
 from teafacto.core.base import Block
-from teafacto.blocks.seq.rnn import SeqEncoder, MakeRNU, MaskMode
+from teafacto.blocks.seq.rnn import SeqEncoder, MakeRNU
 from teafacto.blocks.seq.rnu import GRU
 from teafacto.blocks.basic import VectorEmbed, Linear as Lin, Softmax
 from teafacto.util import issequence
@@ -9,7 +9,7 @@ class SeqTrans(Block):
     def __init__(self, embedder, *layers, **kw):
         super(SeqTrans, self).__init__(**kw)
         self.enc = SeqEncoder(embedder, *layers)
-        self.enc.all_outputs().maskoption(MaskMode.NONE)
+        self.enc.all_outputs()
 
     def apply(self, x):
         return self.enc(x)

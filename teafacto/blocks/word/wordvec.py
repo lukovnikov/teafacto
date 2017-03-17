@@ -239,8 +239,60 @@ class AugmentedWordEmb(WordEmb):    # TODO: RARE TOKEN MGMT
 class Glove(WordEmb):
     defaultpath = "../../../data/glove/glove.6B.%dd.txt"
 
-    def __init__(self, dim, vocabsize=None, path=None, trainfrac=0.0, **kw):     # if dim=None, load all
-        path = self.defaultpath if path is None else path
+    def __init__(self, dim, vocabsize=None, path=None, trainfrac=0.0, worddic=None, **kw):
+        path = self._get_path(dim, path=path)
+        if worddic is None:
+            value, wdic = self.loadvalue(path, dim, indim=vocabsize)
+            self.allwords = wdic.keys()
+        else:
+            value, wdic, self.allwords = self.loadvalue_fromdict(path, dim, worddic)
+        indim = max(wdic.values()) + 1
+        super(Glove, self).__init__(dim=dim, indim=indim, value=value,
+                                    worddic=wdic, trainfrac=trainfrac, **kw)
+
+    @classmethod
+    def _get_path(cls, dim, path=None):
+        # if dim=None, load all
+        path = cls.defaultpath if path is None else path
         relpath = path % dim
         path = os.path.join(os.path.dirname(__file__), relpath)
-        super(Glove, self).__init__(dim=dim, indim=vocabsize, value=path, trainfrac=trainfrac, **kw)
+        return path
+
+    def loadvalue(self, path, dim, indim=None):
+        tt = TT(self.__class__.__name__)
+        tt.tick()
+        W = [np.zeros((1, dim))]
+        D = OrderedDict()
+        i = 1
+        for line in open(path):
+            if indim is not None and i >= (indim + 1):
+                break
+            ls = line.split(" ")
+            word = ls[0]
+            D[word] = i
+            W.append(np.asarray([map(lambda x: float(x), ls[1:])]))
+            i += 1
+        W = np.concatenate(W, axis=0)
+        tt.tock("loaded")
+        return W, D
+
+    def loadvalue_fromdict(self, path, dim, wd):
+        tt = TT(self.__class__.__name__)
+        tt.tick()
+        indim = max(wd.values()) + 1
+        W = np.zeros((indim, dim))
+        D = wd
+        words = set()
+        for line in open(path):
+            ls = line.split(" ")
+            word = ls[0]
+            words.add(word)
+            if word in wd:
+                W[wd[word], :] = map(lambda x: float(x), ls[1:])
+        tt.tock("loaded")
+        return W, D, words
+
+
+
+
+
