@@ -129,6 +129,18 @@ class SeqTagger(Block):
         return outo
 
 
+class CharEncWrap(Block):
+    def __init__(self, charenc, fromdim, todim, **kw):
+        super(CharEncWrap, self).__init__(**kw)
+        self.enc = charenc
+        self.tra = Forward(fromdim, todim, nobias=True)
+
+    def apply(self, x):
+        enco = self.enc(x)
+        ret = self.tra(enco)
+        return ret
+
+
 def run(
         epochs=10,
         numbats=100,
@@ -164,8 +176,8 @@ def run(
         charenc = RNNSeqEncoder.fluent()\
             .vectorembedder(numchars, charembdim, maskid=0)\
             .addlayers(embdim, bidir=True)\
-            .add_forward_layers(embdim)\
             .make()
+        charenc = CharEncWrap(charenc, embdim * 2, embdim)
     if mode == "words":
         emb = g
     elif mode == "concat":
