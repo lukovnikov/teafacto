@@ -9,7 +9,10 @@ class WordEmbCharEncMerge(Block):
         super(WordEmbCharEncMerge, self).__init__(**kw)
         self.embedder = embedder
         self.encoder = encoder      # must output the same dim as embedder
-        self.outdim = self.embedder.outdim
+
+    @property
+    def outdim(self):
+        return self.embedder.outdim
 
     def apply(self, x):     # (batsize, seqlen, charlen + 1)
         wordids = x[:, :, 0]    # (batsize, seqlen)
@@ -37,6 +40,10 @@ class WordEmbCharEncMerge(Block):
 
 
 class WordEmbCharEncConcat(WordEmbCharEncMerge):
+    @property
+    def outdim(self):
+        return self.embedder.outdim * 2
+
     def _merge_word_char(self, wordembs, charembs):
         ret = T.concatenate([wordembs, charembs], axis=-1)
         return ret
