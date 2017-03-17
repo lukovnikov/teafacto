@@ -408,6 +408,21 @@ class ModelTrainer(object):
             select = lambda x: x[1]
         if stopcrit is None:
             stopcrit = lambda h: h[-2] < h[-1] if len(h) >= 2 else False
+        elif isinstance(stopcrit, int):
+            stopcrit_window = stopcrit
+
+            def windowstopcrit(h):
+                window = stopcrit_window
+                minpos = 0
+                minval = np.infty
+                for i, he in enumerate(h):
+                    if he < minval:
+                        minval = he
+                        minpos = i
+                ret = minpos < len(h) - window
+                return ret
+
+            stopcrit = windowstopcrit
         self._earlystop_criterium = stopcrit
         self._earlystop_selector = select
         self._earlystop_select_history = []
