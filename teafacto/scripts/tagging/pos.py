@@ -122,6 +122,8 @@ def eval_map(model, data, gold, tdic, verbose=True):
 
 
 def eval_reduce(tp, fp, fn):
+    if tp + fp == 0. or tp + fn == 0.:
+        return -0., -0., -0.
     prec = tp / (tp + fp)
     rec = tp / (tp + fn)
     f1 = 2. * prec * rec / (prec + rec)
@@ -156,8 +158,6 @@ class F1Eval(ExternalObjective):
         self.tp, self.fp, self.fn = 0., 0., 0.
 
     def get_agg_error(self):
-        if self.tp + self.fp == 0. or self.tp + self.fn == 0.:
-            return -0.
         _, _, f1 = eval_reduce(self.tp, self.fp, self.fn)
         return f1
 
