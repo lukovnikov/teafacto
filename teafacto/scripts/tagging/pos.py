@@ -64,6 +64,52 @@ def dorare(traindata, testdata, glove, rarefreq=1, embtrainfrac=0.0):
     return traindata, testdata
 
 
+def evaluate(model, data, gold, tdic):
+    rtd = {v: k for k, v in tdic.items()}
+    pred = model.predict(data)
+    pred = np.argmax(pred, axis=2)
+    mask = gold == 0
+    pred[mask] = 0
+    tp, fp, fn = 0., 0., 0.
+
+    def getchunks(row):
+        chunks = set()
+        curstart = None
+        curtag = None
+        for i, e in enumerate(row):
+            bio = e[0]
+            tag = e[2:] if len(e) > 2 else None
+            if bio == "B" or bio == "O" or \
+                    (bio == "I" and tag != curtag):     # finalize current tag
+                if curtag is not None:
+                    chunks.add((curstart, i, curtag))
+                curtag = None
+                curstart = None
+            if bio == "B":                    # start new tag
+                curstart = i
+                curtag = e[2:]
+        if curtag is not None:
+            chunks.add((curstart, i, curtag))
+        return chunks
+
+    for i in range(len(gold)):
+        goldrow = [rtd[x] for x in list(gold[i]) if x > 0]
+        predrow = [rtd[x] for x in list(pred[i]) if x > 0]
+        goldchunks = getchunks(goldrow)
+        predchunks = getchunks(predrow)
+        tpp = goldchunks.intersection(predchunks)
+        fpp = predchunks.difference(goldchunks)
+        fnn = goldchunks.difference(predchunks)
+        tp += len(tpp)
+        fp += len(fpp)
+        fn += len(fnn)
+
+    prec = tp / (tp + fp)
+    rec = tp / (tp + fn)
+    f1 = 2. * prec * rec / (prec + rec)
+    return prec, rec, f1
+
+
 class SeqTagger(Block):
     def __init__(self, enc, out, **kw):
         super(SeqTagger, self).__init__(**kw)
@@ -89,6 +135,7 @@ def run(
         inspectdata=False,
         mode="words",
         gradnorm=5.,
+        skiptraining=False,
     ):
     # MAKE DATA
     tt = ticktock("script")
@@ -127,12 +174,19 @@ def run(
     else:
         raise Exception("unknown mode in script")
 
-    m.train([traindata], traingold)\
-        .cross_entropy().seq_accuracy()\
-        .adadelta(lr=lr).grad_total_norm(gradnorm)\
-        .validate_on([testdata], testgold)\
-        .cross_entropy().seq_accuracy()\
-        .train(numbats=numbats, epochs=epochs)
+    if not skiptraining:
+        m.train([traindata], traingold)\
+            .cross_entropy().seq_accuracy()\
+            .adadelta(lr=lr).grad_total_norm(gradnorm)\
+            .validate_on([testdata], testgold)\
+            .cross_entropy().seq_accuracy()\
+            .train(numbats=numbats, epochs=epochs)
+    else:
+        tt.msg("skipping training")
+
+    prec, rec, f1 = evaluate(m, testdata, testgold, tdic)
+
+    print prec, rec, f1
 
 
 if __name__ == "__main__":
