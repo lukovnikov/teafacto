@@ -636,7 +636,7 @@ class ModelTrainer(object):
         dftrain, dfvalid = df.split(self.validsplits, self.validrandom, df_randoms=(True, False))
         dftrain.numbats(self.numbats)
         dfvalid.batsize = dftrain.batsize
-        embed()
+        #embed()
         trainf = self.buildtrainfun(self.model, dftrain.batsize)
         validf = self.getvalidfun(self.model, dfvalid.batsize)
         if _lambda:
