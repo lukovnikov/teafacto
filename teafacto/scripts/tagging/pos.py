@@ -220,7 +220,7 @@ def run(
             .adadelta(lr=lr).grad_total_norm(gradnorm)\
             .validate_on([testdata], testgold)\
             .cross_entropy().seq_accuracy()\
-            .takebest()\
+            .takebest(no=True)\
             .train(numbats=numbats, epochs=epochs)
     else:
         tt.msg("skipping training")
@@ -232,3 +232,8 @@ def run(
 
 if __name__ == "__main__":
     argprun(run)
+
+    # Initial results: 10 ep, 200D emb, 300D enc, lr 0.5
+    # 91.32 F1 just words
+    # 92.48 F1 with concat
+    #

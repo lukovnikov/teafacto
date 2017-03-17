@@ -384,7 +384,10 @@ class ModelTrainer(object):
     #endregion
 
     #region ######################### SELECTING THE BEST ######################
-    def takebest(self, f=None, save=False, smallerbetter=True):
+    def takebest(self, f=None, save=False, smallerbetter=True, no=False):
+        if no:              # disables besttaker
+            print "no best taking"
+            return self
         if f is None:
             f = lambda x: x[1]   # pick the model with the best first validation score
         self.besttaker = f
