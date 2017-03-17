@@ -92,6 +92,9 @@ def evaluate(model, data, gold, tdic):
             chunks.add((curstart, i, curtag))
         return chunks
 
+    tt = ticktock("eval")
+    tt.tick("evaluating")
+
     for i in range(len(gold)):
         goldrow = [rtd[x] for x in list(gold[i]) if x > 0]
         predrow = [rtd[x] for x in list(pred[i]) if x > 0]
@@ -103,6 +106,9 @@ def evaluate(model, data, gold, tdic):
         tp += len(tpp)
         fp += len(fpp)
         fn += len(fnn)
+        tt.progress(i, len(gold), live=True)
+
+    tt.tock("evaluated")
 
     prec = tp / (tp + fp)
     rec = tp / (tp + fn)
