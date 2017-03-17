@@ -322,7 +322,7 @@ def run(
         print "Precision: {} \n Recall: {} \n F-score: {}".format(prec, rec, f1)
     elif task == "pos":
         acc, num = tokenacceval(m, testdata, testgold)
-        print "Token Accuracy: {}".format(acc / num)
+        print "Token Accuracy: {}".format(1. * acc / num)
 
 
 if __name__ == "__main__":
