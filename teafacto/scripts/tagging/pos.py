@@ -313,7 +313,7 @@ def run(
             .split_validate(splits=10)\
             .cross_entropy().seq_accuracy().extvalid(extvalid)\
             .earlystop(select=lambda x: -x[3],
-                       stopcrit=1)\
+                       stopcrit=7)\
             .train(numbats=numbats, epochs=epochs, _skiptrain=debugvalid)
     else:
         tt.msg("skipping training")
