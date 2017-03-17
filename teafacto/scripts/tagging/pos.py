@@ -8,6 +8,7 @@ from teafacto.blocks.seq import RNNSeqEncoder
 from teafacto.blocks.basic import SMO
 from teafacto.blocks.word import Glove
 from teafacto.blocks.word.wordrep import *
+from teafacto.core.trainer import ExternalObjective
 
 
 def loaddata(p="../../../data/pos/", rarefreq=1):
@@ -64,8 +65,8 @@ def dorare(traindata, testdata, glove, rarefreq=1, embtrainfrac=0.0):
     return traindata, testdata
 
 
-def evaluate(model, data, gold, tdic):
-    tt = ticktock("eval")
+def eval_map(model, data, gold, tdic, verbose=True):
+    tt = ticktock("eval", verbose=verbose)
     tt.tick("predicting")
     rtd = {v: k for k, v in tdic.items()}
     pred = model.predict(data)
@@ -83,12 +84,12 @@ def evaluate(model, data, gold, tdic):
             bio = e[0]
             tag = e[2:] if len(e) > 2 else None
             if bio == "B" or bio == "O" or \
-                    (bio == "I" and tag != curtag):     # finalize current tag
+                    (bio == "I" and tag != curtag):  # finalize current tag
                 if curtag is not None:
                     chunks.add((curstart, i, curtag))
                 curtag = None
                 curstart = None
-            if bio == "B":                    # start new tag
+            if bio == "B":  # start new tag
                 curstart = i
                 curtag = e[2:]
         if curtag is not None:
@@ -108,13 +109,48 @@ def evaluate(model, data, gold, tdic):
         fp += len(fpp)
         fn += len(fnn)
         tt.progress(i, len(gold), live=True)
-
     tt.tock("evaluated")
 
+    return tp, fp, fn
+
+
+def eval_reduce(tp, fp, fn):
     prec = tp / (tp + fp)
     rec = tp / (tp + fn)
     f1 = 2. * prec * rec / (prec + rec)
     return prec, rec, f1
+
+
+def evaluate(model, data, gold, tdic):
+    tp, fp, fn = eval_map(model, data, gold, tdic, verbose=True)
+    prec, rec, f1 = eval_reduce(tp, fp, fn)
+    return prec, rec, f1
+
+
+class F1Eval(ExternalObjective):
+    def __init__(self, model, tdic):
+        super(F1Eval, self).__init__()
+        self.m = model
+        self.tdic = tdic
+        self.tp, self.fp, self.fn = 0., 0., 0.
+
+    def __call__(self, data, gold):
+        tp, fp, fn = eval_map(self.m, data, gold, self.tdic, verbose=False)
+        self.tp += tp
+        self.fp += fp
+        self.fn += fn
+        _, _, ret = eval_reduce(tp, fp, fn)
+        return ret
+
+    def update_agg(self, err, numex):
+        pass
+
+    def get_agg_error(self):
+        if self.tp + self.fp == 0. or self.tp + self.fn == 0.:
+            return -0.
+        _, _, f1 = eval_reduce(self.tp, self.fp, self.fn)
+        return f1
+
 
 
 class SeqTagger(Block):
@@ -156,6 +192,7 @@ def run(
         mode="words",       # words or concat or gate or ctxgate
         gradnorm=5.,
         skiptraining=False,
+        debugvalid=False,
     ):
     # MAKE DATA
     tt = ticktock("script")
@@ -217,11 +254,11 @@ def run(
     if not skiptraining:
         m = m.train([traindata], traingold)\
             .cross_entropy().seq_accuracy()\
-            .adadelta(lr=lr).grad_total_norm(gradnorm)\
-            .validate_on([testdata], testgold)\
-            .cross_entropy().seq_accuracy()\
-            .takebest(no=True)\
-            .train(numbats=numbats, epochs=epochs)
+            .adadelta(lr=lr).grad_total_norm(gradnorm).exp_mov_avg(0.99)\
+            .split_validate(splits=10)\
+            .cross_entropy().seq_accuracy().extvalid(F1Eval(m, tdic))\
+            .takebest(f=lambda x: x[3])\
+            .train(numbats=numbats, epochs=epochs, _skiptrain=debugvalid)
     else:
         tt.msg("skipping training")
 
@@ -233,7 +270,9 @@ def run(
 if __name__ == "__main__":
     argprun(run)
 
-    # Initial results: 10 ep, 200D emb, 300D enc, lr 0.5
-    # 91.32 F1 just words
-    # 92.48 F1 with concat
-    #
+    # Initial results: 10 ep, 200D emb, 2BiGru~300D enc, lr 0.5
+    # 91.32, 91.33 F1 just words
+    # 92.48, 92.98, 92.59 F1 with concat
+    #   92.76 F1 with concat, 3 layers
+    # 92.48, 92.25 F1 with gate
+    # 92.92, 92.82 F1 with ctxgate
