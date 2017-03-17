@@ -134,12 +134,13 @@ def run(
         lr=0.5,
         embdim=50,
         encdim=100,
+        charembdim=100,
         layers=2,
         bidir=True,
         dropout=0.3,
         embtrainfrac=1.,
         inspectdata=False,
-        mode="words",
+        mode="words",       # words or concat
         gradnorm=5.,
         skiptraining=False,
     ):
@@ -157,8 +158,17 @@ def run(
 
     # BUILD MODEL
     # Choice of word representation
+    if mode != "words":
+        numchars = traindata[:, :, 1:].max() + 1
+        charenc = RNNSeqEncoder.fluent()\
+            .vectorembedder(numchars, charembdim, maskid=0)\
+            .addlayers(embdim, bidir=True)\
+            .add_forward_layers(embdim)\
+            .make()
     if mode == "words":
         emb = g
+    elif mode == "concat":
+        emb = WordEmbCharEncConcat(g, charenc)
     else:
         raise Exception("unknown mode in script")
     # tagging model
@@ -177,6 +187,8 @@ def run(
     if mode == "words":
         traindata = traindata[:, :, 0]
         testdata = testdata[:, :, 0]
+    elif mode == "concat":
+        tt.msg("character-level included")
     else:
         raise Exception("unknown mode in script")
 
