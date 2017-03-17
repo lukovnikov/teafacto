@@ -306,13 +306,24 @@ def run(
     else:
         raise Exception("unknown task")
 
+    def earlystopcrit(history):
+        window = 1
+        minval, minpos = 0., 0
+        for i, he in enumerate(history):
+            if he < minval:
+                minval = he
+                minpos = i
+        ret = minpos < len(history) - window
+        return ret
+
     if not skiptraining:
         m = m.train([traindata], traingold)\
             .cross_entropy().seq_accuracy()\
             .adadelta(lr=lr).grad_total_norm(gradnorm)\
             .split_validate(splits=10)\
             .cross_entropy().seq_accuracy().extvalid(extvalid)\
-            .takebest(f=lambda x: -x[3])\
+            .earlystop(select=lambda x: -x[3],
+                       stopcrit=earlystopcrit)\
             .train(numbats=numbats, epochs=epochs, _skiptrain=debugvalid)
     else:
         tt.msg("skipping training")
