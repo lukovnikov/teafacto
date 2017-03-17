@@ -152,6 +152,9 @@ class F1Eval(ExternalObjective):
     def update_agg(self, err, numex):
         pass
 
+    def reset_agg(self):
+        self.tp, self.fp, self.fn = 0., 0., 0.
+
     def get_agg_error(self):
         if self.tp + self.fp == 0. or self.tp + self.fn == 0.:
             return -0.
@@ -185,6 +188,10 @@ class TokenAccEval(ExternalObjective):
 
     def update_agg(self, err, numex):
         pass
+
+    def reset_agg(self):
+        self.num = 0.
+        self.agg = 0.
 
     def get_agg_error(self):
         if self.num == 0.:
