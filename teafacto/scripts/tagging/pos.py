@@ -225,7 +225,7 @@ class CharEncWrap(Block):
 
 
 def run(
-        epochs=50,
+        epochs=35,
         numbats=100,
         lr=0.5,
         embdim=50,
@@ -335,3 +335,10 @@ if __name__ == "__main__":
     #   92.76, 92.75 F1 with concat, 3 layers
     # 92.48, 92.25 F1 with gate
     # 92.92, 92.82, 91.52 F1 with ctxgate
+
+    # Proper results (early stopping,...)
+    # 200D emb, 2BiGru-300D enc, lr 0.5
+    # 91.67@ep29 F1 just words
+    # 93.34@ep51 F1 concat
+    # 93.13@ep20 F1 gate
+    # 93.29@ep29, 93.19@ep27 F1 ctxgate

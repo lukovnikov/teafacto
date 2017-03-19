@@ -778,9 +778,10 @@ class ModelTrainer(object):
                         #tt.tock("freezing best with score %.3f (prev: %.3f)" % (modelscore, self.bestmodel[1]), prefix="-").tick()
                         self.bestmodel = (self.save(freeze=True, filepath=False), modelscore)
             if self._earlystop:
-                stop = self.earlystop_eval([epoch_train_errors[0]] + epoch_valid_errors + [self.currentiter])
-                if stop:
+                doearlystop = self.earlystop_eval([epoch_train_errors[0]] + epoch_valid_errors + [self.currentiter])
+                if doearlystop:
                     tt.msg("stopping early")
+                stop = stop or doearlystop
             tt.tock(ttmsg + "\t", prefix="-")
             self._update_lr(self.currentiter,
                             self.maxiter,
