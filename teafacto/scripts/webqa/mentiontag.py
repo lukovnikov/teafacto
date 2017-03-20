@@ -224,6 +224,8 @@ def run(
 
     rwd = {v: k for k, v in wdic.items()}
 
+    testdata = testdata[:, :, 0]
+
     def play(i):
         print " ".join([rwd[x] for x in list(testdata[i]) if x != 0])
         print pred[i]
