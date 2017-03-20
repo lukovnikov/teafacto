@@ -144,7 +144,7 @@ def run(
         embtrainfrac=1.0,
         mode="words",
         debugvalid=False,
-        inspectdata=True,
+        inspectdata=False,
         skiptraining=False,
     ):
     tt = ticktock("script")
