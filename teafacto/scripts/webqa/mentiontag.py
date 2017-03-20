@@ -218,10 +218,16 @@ def run(
     pred = m.predict(testdata)
     pred = np.argmax(pred, axis=-1)
     comp = 1 - (pred == testgold)
-    embed()
     comp[testgold == 0] = 0
     aggs = np.sum(comp, axis=-1) == 0
     print "test accuracy:\n {}".format(np.sum(aggs)*1. / len(aggs))
+
+    rwd = {v: k for k, v in wdic.items()}
+
+    def play(i):
+        print " ".join([rwd[x] for x in testdata[i] if x != 0])
+        print pred[i]
+
 
 
 
