@@ -205,7 +205,7 @@ def run(
     if not skiptraining:
         m = m.train([traindata], traingold) \
             .cross_entropy().seq_accuracy() \
-            .adadelta(lr=lr).grad_total_norm(gradnorm) \
+            .adadelta(lr=lr).grad_total_norm(gradnorm).exp_mov_avg(0.99) \
             .split_validate(splits=10) \
             .cross_entropy().seq_accuracy() \
             .earlystop(select=lambda x: -x[2],
