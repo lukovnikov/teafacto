@@ -339,6 +339,6 @@ if __name__ == "__main__":
     # Proper results (early stopping,...)
     # 200D emb, 2BiGru-300D enc, lr 0.5
     # 91.67@ep29 F1 just words
-    # 93.34@ep51 F1 concat
-    # 93.13@ep20 F1 gate
-    # 93.29@ep29, 93.19@ep27 F1 ctxgate
+    # 93.34@ep51, 93.04@ep34, 92.92@ep20 F1 concat
+    # 93.13@ep20, 93.42@ep43, 93.47@ep33, 92.99@ep20 F1 gate
+    # 93.29@ep29, 93.19@ep27, 93.17@ep35, 93.17@ep35 F1 ctxgate

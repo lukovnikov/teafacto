@@ -60,6 +60,7 @@ def run(numbats=50,
         concatdecinp=False,
         forwardattention=False,     # use forward layer in attention (instead of just dot/cosine)
         splitatt=False,
+        gumbelatt=False,
         statetransfer=False,
         preproc=True,
         posembdim=50,
@@ -118,6 +119,8 @@ def run(numbats=50,
     critdim = encdim if not concatdecinp else encdim + embdim
     splitters = (asblock(lambda x: x[:, :, :encdim]), asblock(lambda x: x[:, :, encdim:encdim*2]))
     attention = Attention(splitters=splitters) if splitatt else Attention()
+    if gumbelatt:
+        attention.attentiongenerator.set_sampler("gumbel")
     attention.forward_gen(critdim, ctxdim, encdim) if forwardattention else attention.dot_gen()
 
     init_state_gen_mat = param((encdim, encdim), name="init_state_gen_mat").glorotuniform()

@@ -17,6 +17,9 @@ class AttGen(Block):
         self.dist = distance
         self.normalizer = normalizer
         self.sampler = sampler
+        self.set_sampler(sampler, sample_temperature)
+
+    def set_sampler(self, sampler=None, sample_temperature=0.2):
         if sampler == "gumbel":
             self.sampler = GumbelSoftmax(temperature=sample_temperature)
 
