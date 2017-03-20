@@ -234,7 +234,9 @@ def run(
         print " ".join([rwd[x] for x in list(testdata[i]) if x != 0])
         print pred[i]
         spanwords = testdata[i] * (pred[i] == 1)
+        goldspanwords = testdata[i] * (testgold[i] == 1)
         print " ".join([rwd[x] for x in list(spanwords) if x != 0])
+        print " ".join([rwd[x] for x in list(goldspanwords) if x != 0])
         last_i[0] = i
 
     embed()
