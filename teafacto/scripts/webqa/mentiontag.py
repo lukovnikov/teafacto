@@ -130,7 +130,7 @@ class CharEncWrap(Block):
 
 
 def run(
-        epochs=10,
+        epochs=25,
         numbats=50,
         lr=0.5,
         gradnorm=5.0,
@@ -208,11 +208,20 @@ def run(
             .adadelta(lr=lr).grad_total_norm(gradnorm) \
             .split_validate(splits=10) \
             .cross_entropy().seq_accuracy() \
-            .earlystop(select=lambda x: -x[3],
+            .earlystop(select=lambda x: -x[2],
                        stopcrit=7) \
             .train(numbats=numbats, epochs=epochs, _skiptrain=debugvalid)
     else:
         tt.msg("skipping training")
+
+    # EVAL
+    pred = m.predict(testdata)
+    pred = np.argmax(pred, axis=-1)
+    comp = 1 - pred == testgold
+    comp[testgold == 0] = 0
+    aggs = np.sum(comp, axis=-1) == 0
+    print "test accuracy:\n {}".format(np.sum(aggs)*1. / len(aggs))
+
 
 
 if __name__ == "__main__":
