@@ -225,10 +225,10 @@ def run(
     rwd = {v: k for k, v in wdic.items()}
 
     def play(i):
-        print " ".join([rwd[x] for x in testdata[i] if x != 0])
+        print " ".join([rwd[x] for x in list(testdata[i]) if x != 0])
         print pred[i]
         spanwords = testdata[i] * (pred[i] == 1)
-        print " ".join([rwd[x] for x in spanwords if x != 0])
+        print " ".join([rwd[x] for x in list(spanwords) if x != 0])
 
     embed()
 
