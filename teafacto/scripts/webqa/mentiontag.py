@@ -228,6 +228,8 @@ def run(
         print " ".join([rwd[x] for x in testdata[i] if x != 0])
         print pred[i]
 
+    embed()
+
 
 
 
