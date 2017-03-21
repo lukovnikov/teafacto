@@ -699,6 +699,7 @@ class AutoMorph(Block):
 
         # MEM INIT
         self.mem_key = param((self._memlen, self._memkeydim), name="memkey").glorotuniform() + 0
+        self.mem_key = 0
         self.mem_val = param((self._memlen, self._memvaldim), name="memval").glorotuniform() + 0
 
         # character RNN layers
