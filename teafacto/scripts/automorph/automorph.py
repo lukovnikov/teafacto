@@ -68,7 +68,7 @@ def run(epochs=10,
                       charemb=charemb, outdim=outdim)
     elif mode == "rnn":
         am = RNNSeqEncoder.fluent().setembedder(charemb)\
-            .addlayers(keydims+valdims+[outdim])\
+            .addlayers(keydims+[memvaldim]+valdims+[outdim])\
             .make().all_outputs()
     else:
         raise Exception("unknown mode: {}".format(mode))
@@ -76,9 +76,9 @@ def run(epochs=10,
     m = SMOWrap(am, outdim=numchars, inneroutdim=outdim, nobias=True)
 
     m.train([traindata[:, :-1]], traindata[:, 1:])\
-        .cross_entropy(cemode="mean").adadelta(lr=lr)\
+        .cross_entropy().adadelta(lr=lr)\
         .validate_on([testdata[:, :-1]], testdata[:, 1:])\
-        .cross_entropy(cemode="mean")\
+        .cross_entropy()\
         .train(numbats=numbats, epochs=epochs)
 
 
