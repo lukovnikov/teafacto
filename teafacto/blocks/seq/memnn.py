@@ -769,8 +769,7 @@ class AutoMorph(Block):
         return [morf_h_t] + charstack_states_t + morfstack_states_t
 
     def get_ctx_t(self, h, mem_k, mem_v):   # (batsize, dim), (memlen, dim)
-        mem_k = mem_k.T
-        w = T.dot(h, mem_k)   # (batsize, memlen)
+        w = T.dot(h, mem_v.T)   # (batsize, memlen)
         w = Softmax()(w)
         ret = mem_v.dimadd(0) * w.dimadd(2)     # (batsize, memlen, memvaldim)
         ret = T.sum(ret, axis=1)                # (batsize, memvaldim)
