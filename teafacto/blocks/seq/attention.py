@@ -46,7 +46,8 @@ class AttentionConsumer(Block):
         :param weights: weights to use to aggregate ->  (batsize, seqlen)
         """
         mask = data.mask if mask is None else mask
-        return self._inner_apply(data, weights * mask)
+        weights = weights * mask if mask is not None else weights
+        return self._inner_apply(data, weights)
 
 
 class WeightedSumAttCon(AttentionConsumer):    # applies attention to sequence while summing up

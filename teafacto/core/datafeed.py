@@ -125,6 +125,27 @@ class DynamicDataFeed(DataFeed): # a dynamic data generator (e.g. for random neg
     def get(self, idxs): # create a new Dynamic Data Feed
         pass # TODO
 
+
+class LMDataFeed(DynamicDataFeed):
+    def __init__(self, seq, window=None, **kw):
+        super(LMDataFeed, self).__init__(seq, **kw)
+        self.window = window
+        assert(self.window is not None)
+        assert(self.data.ndim == 1 and len(self.data) > self.window)
+
+    @property
+    def shape(self):
+        ret = (len(self.data) - self.window, self.window)
+        return ret
+
+    @property
+    def ndim(self):
+        return 2
+
+    def __getitem__(self, item):
+        ret = self.data[item: item+self.window]
+
+
 if __name__ == "__main__":
     x = np.random.random((10, 10))
     dx = DataFeed(x)

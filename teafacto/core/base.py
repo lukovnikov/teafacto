@@ -287,6 +287,11 @@ class Parameter(TensorWrapped):
         self.regmul = regmul
         self.constraints = []
         self.ema_value = None
+        self._mask = None
+
+    @property
+    def mask(self):
+        return self._mask
 
     def oncompleteshape(self, shape):
         self.shape = shape

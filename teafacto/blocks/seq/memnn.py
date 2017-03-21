@@ -677,6 +677,95 @@ class MatParamGen(Block):
         return self.W
 
 
+class AutoMorph(Block):
+    """ Basic Automorph language processor """
+    def __init__(self, memlen=None, memkeydim=None, memvaldim=None,
+                 charemb=None, charencdim=None,
+                 morfencdim=None,
+                 outdim=None,
+                 dropout_in=None, dropout_h=None, **kw):
+        super(AutoMorph, self).__init__(**kw)
+
+        self._memlen = memlen
+        self._memkeydim = memkeydim
+        self._memvaldim = memvaldim
+        self._outdim = outdim
+
+        self.charemb = charemb
+
+        morfencdim = [] if morfencdim is None else morfencdim
+        charencdim = [] if charencdim is None else charencdim
+
+        # MEM INIT
+        self.mem_key = param((self._memlen, self._memkeydim), name="memkey").glorotuniform()
+        self.mem_val = param((self._memlen, self._memvaldim), name="memval").glorotuniform()
+
+        # character RNN layers
+        charenclayerdims = [self.charemb.outdim]
+        charenclayerdims += charencdim
+        charenclayerdims += [self._memkeydim]
+
+        charlayers, _ = MakeRNU.fromdims(charenclayerdims,
+                                         dropout_h=dropout_h, dropout_in=dropout_in)
+        self.charstack = RecStack(*charlayers)
+
+        # char key attention
+        self.charatt = Attention().forward_gen(self._memkeydim, self._memkeydim, self._memkeydim)
+
+        # morpheme RNN layers
+        morfenclayerdims = [self._memvaldim]
+        morfenclayerdims += morfencdim
+        morfenclayerdims += [self._outdim]
+
+        morflayers, _ = MakeRNU.fromdims(morfenclayerdims,
+                                         dropout_h=dropout_h, dropout_in=dropout_in)
+
+        self.morfstack = RecStack(*morflayers)
+
+    @property
+    def outdim(self):
+        return self._outdim
+
+    def apply(self, x):     # sequence of characters (batsize, seqlen)
+                            # outputs (batsize, seqlen, outdim)
+        inpemb = self.charemb(x)        # (batsize, seqlen, charembdim)
+        mask = inpemb.mask
+        batsize = x.shape[0]
+
+        char_init_states = self.charstack.get_init_info(batsize)
+        morf_init_states = self.morfstack.get_init_info(batsize)
+
+        recinp = inpemb.dimswap(1, 0)
+        outputs = T.scan(fn=self.rec,
+                         sequences=recinp,
+                         outputs_info=[None] + char_init_states + morf_init_states,
+                         non_sequences=[self.mem_key.dimadd(0), self.mem_val.dimadd(0)])
+
+        ret = outputs[0].dimswap(1, 0)
+        ret.mask = mask
+        return ret      # (batsize, seqlen, outdim)
+
+    def rec(self, x_t, *args):  # (batsize, inpembdim)
+        mem_key, mem_val = args[-2:]
+        states_tm1 = args[:-2]
+        charstack_states_tm1 = states_tm1[:self.charstack.numstates]
+        morfstack_states_tm1 = states_tm1[-self.morfstack.numstates:]
+
+        charstack_ret = self.charstack.rec(x_t, *charstack_states_tm1)
+        char_h_t = charstack_ret[0]     # (batsize, dim)
+        charstack_states_t = charstack_ret[1:]
+
+        attweights = self.charatt.attentiongenerator(char_h_t, mem_key)
+        memvalctx_t = self.charatt.attentionconsumer(mem_val, attweights)   # (batsize, memvaldim)
+
+        morfstack_ret = self.morfstack.rec(memvalctx_t, *morfstack_states_tm1)
+        morf_h_t = morfstack_ret[0]
+        morfstack_states_t = morfstack_ret[1:]
+
+        return [morf_h_t] + charstack_states_t + morfstack_states_t
+
+
+
 if __name__ == "__main__":
     from teafacto.blocks.seq.rnn import RNNWithoutInput
     m = RNNWithoutInput(3, 2)
