@@ -65,6 +65,7 @@ def run(epochs=10,
 
     charemb = VectorEmbed(numchars, embdim)
     if mode == "morf":
+        print "doing automorf"
         am = AutoMorph(memlen=memlen, memkeydim=memkeydim, memvaldim=memvaldim,
                       charencdim=keydims, morfencdim=valdims,
                       charemb=charemb, outdim=outdim, sampleaddr=sampleaddr)
