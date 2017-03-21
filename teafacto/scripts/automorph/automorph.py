@@ -42,7 +42,7 @@ def run(epochs=10,
         dropout=0.3,
         ):
     traindata, testdata, cdic = loaddata(window=window)
-    numchars = max(np.max(traindata), np.max(testdata))
+    numchars = max(np.max(traindata), np.max(testdata)) + 1
     rcd = {v: k for k, v in cdic.items()}
 
     def pp(s):
