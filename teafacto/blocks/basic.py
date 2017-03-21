@@ -252,11 +252,12 @@ class SMO(Block):
 
 
 class SMOWrap(Block):   # softmax output layer
-    def __init__(self, inner, outdim=2, nobias=False, **kw):
+    def __init__(self, inner, outdim=2, inneroutdim=None, nobias=False, **kw):
         super(SMOWrap, self).__init__(**kw)
         self.inner = inner
         self.outdim = outdim
-        self.outl = Linear(inner.outdim, outdim) if not nobias else MatDot(inner.outdim, outdim)
+        inneroutdim = inner.outdim if inneroutdim is None else inneroutdim
+        self.outl = Linear(inneroutdim, outdim) if not nobias else MatDot(inneroutdim, outdim)
 
     def apply(self, *args, **kwargs):
         vec = self.inner(*args, **kwargs)

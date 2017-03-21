@@ -73,7 +73,7 @@ def run(epochs=10,
     else:
         raise Exception("unknown mode: {}".format(mode))
 
-    m = SMOWrap(am, outdim=numchars, nobias=True)
+    m = SMOWrap(am, outdim=numchars, inneroutdim=outdim, nobias=True)
 
     m.train([traindata[:, :-1]], traindata[:, 1:])\
         .cross_entropy(cemode="mean").adadelta(lr=lr)\
