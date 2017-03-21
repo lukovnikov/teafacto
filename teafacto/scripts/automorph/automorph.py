@@ -1,5 +1,6 @@
 from teafacto.blocks.seq.memnn import AutoMorph
 from teafacto.blocks.basic import VectorEmbed, SMO, SMOWrap
+from teafacto.blocks.seq import RNNSeqEncoder
 from teafacto.util import argprun, ticktock
 from IPython import embed
 import numpy as np
@@ -34,12 +35,10 @@ def run(epochs=10,
         inspectdata=False,
         lr=0.5,
         memlen=1000,
-        embdim=50,
-        keyencdim="100",
-        valencdim="200",
-        outdim=300,
-        memdim=100,
+        chardims="50,100,100",
+        morfdims="100,200",
         dropout=0.3,
+        mode="morf",     # "rnn" or "morf"
         ):
     traindata, testdata, cdic = loaddata(window=window)
     numchars = max(np.max(traindata), np.max(testdata)) + 1
@@ -51,13 +50,28 @@ def run(epochs=10,
     if inspectdata:
         embed()
 
-    keydims = [int(x) for x in keyencdim.split(",")]
-    valdims = [int(x) for x in valencdim.split(",")]
+    keydims = [int(x) for x in chardims.split(",")]
+    valdims = [int(x) for x in morfdims.split(",")]
+
+    embdim = keydims[0]
+    memkeydim = keydims[-1]
+    keydims = keydims[1:-1]
+
+    memvaldim = valdims[0]
+    outdim = valdims[-1]
+    valdims = valdims[1:-1]
 
     charemb = VectorEmbed(numchars, embdim)
-    am = AutoMorph(memlen=memlen, memkeydim=memdim, memvaldim=memdim,
-                  charencdim=keydims, morfencdim=valdims,
-                  charemb=charemb, outdim=outdim)
+    if mode == "morf":
+        am = AutoMorph(memlen=memlen, memkeydim=memkeydim, memvaldim=memvaldim,
+                      charencdim=keydims, morfencdim=valdims,
+                      charemb=charemb, outdim=outdim)
+    elif mode == "rnn":
+        am = RNNSeqEncoder.fluent().setembedder(charemb)\
+            .addlayers(keydims+valdims+[outdim])\
+            .make().all_outputs()
+    else:
+        raise Exception("unknown mode: {}".format(mode))
 
     m = SMOWrap(am, outdim=numchars, nobias=True)
 
