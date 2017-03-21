@@ -332,7 +332,7 @@ from teafacto.blocks.seq.rnu import GRU
 from teafacto.blocks.match import CosineDistance
 from teafacto.blocks.seq.attention import Attention, AttGen
 from teafacto.blocks.basic import MatDot, Linear, Forward, SMO, VectorEmbed
-from teafacto.blocks.activations import GumbelSoftmax
+from teafacto.blocks.activations import GumbelSoftmax, Softmax
 from teafacto.core.base import asblock
 from teafacto.util import issequence
 
@@ -711,7 +711,7 @@ class AutoMorph(Block):
         self.charstack = RecStack(*charlayers)
 
         # char key attention
-        self.charatt = Attention().forward_gen(self._memkeydim, self._memkeydim, self._memkeydim)
+        self.charatt = Attention().dot_gen() #(self._memkeydim, self._memkeydim, self._memkeydim)
         if sampleaddr:
             self.charatt.attentiongenerator.set_sampler("gumbel", sample_temperature=0.3)
 
@@ -742,7 +742,7 @@ class AutoMorph(Block):
         outputs = T.scan(fn=self.rec,
                          sequences=recinp,
                          outputs_info=[None] + char_init_states + morf_init_states,
-                         non_sequences=[self.mem_key.dimadd(0), self.mem_val.dimadd(0)])
+                         non_sequences=[self.mem_key, self.mem_val])
 
         ret = outputs[0].dimswap(1, 0)
         ret.mask = mask
@@ -758,14 +758,22 @@ class AutoMorph(Block):
         char_h_t = charstack_ret[0]     # (batsize, dim)
         charstack_states_t = charstack_ret[1:]
 
-        attweights = self.charatt.attentiongenerator(char_h_t, mem_key)
-        memvalctx_t = self.charatt.attentionconsumer(mem_val, attweights)   # (batsize, memvaldim)
+        #attweights = self.charatt.attentiongenerator(char_h_t, mem_key)
+        #memvalctx_t = self.charatt.attentionconsumer(mem_val, attweights)   # (batsize, memvaldim)
+        memvalctx_t = self.get_ctx_t(char_h_t, mem_key, mem_val)
 
         morfstack_ret = self.morfstack.rec(memvalctx_t, *morfstack_states_tm1)
         morf_h_t = morfstack_ret[0]
         morfstack_states_t = morfstack_ret[1:]
 
         return [morf_h_t] + charstack_states_t + morfstack_states_t
+
+    def get_ctx_t(self, h, mem_k, mem_v):   # (batsize, dim), (memlen, dim)
+        w = T.dot(h, mem_k.T)   # (batsize, memlen)
+        w = Softmax()(w)
+        ret = mem_v.dimadd(0) * w.dimadd(2)     # (batsize, memlen, memvaldim)
+        ret = T.sum(ret, axis=1)                # (batsize, memvaldim)
+        return ret
 
 
 
