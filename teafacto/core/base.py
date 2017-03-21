@@ -121,6 +121,8 @@ def wrapf(attr, root=None):
             innerwrap.push_params(root._params)
             innerwrap.push_updates(root._updates)
             innerwrap.push_extra_outs(root._extra_outs)
+        elif isinstance(root, Parameter):
+            innerwrap.push_params({root})
     else:
         innerwrap = attr
     return innerwrap
