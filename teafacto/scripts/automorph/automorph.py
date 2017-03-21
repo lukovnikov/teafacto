@@ -39,6 +39,8 @@ def run(epochs=10,
         morfdims="100,200",
         dropout=0.3,
         mode="morf",     # "rnn" or "morf"
+        sampleaddr=False,
+        cemode="mean",   # "mean" or "sum"
         ):
     traindata, testdata, cdic = loaddata(window=window)
     numchars = max(np.max(traindata), np.max(testdata)) + 1
@@ -65,7 +67,7 @@ def run(epochs=10,
     if mode == "morf":
         am = AutoMorph(memlen=memlen, memkeydim=memkeydim, memvaldim=memvaldim,
                       charencdim=keydims, morfencdim=valdims,
-                      charemb=charemb, outdim=outdim)
+                      charemb=charemb, outdim=outdim, sampleaddr=sampleaddr)
     elif mode == "rnn":
         am = RNNSeqEncoder.fluent().setembedder(charemb)\
             .addlayers(keydims+[memvaldim]+valdims+[outdim])\
@@ -76,9 +78,10 @@ def run(epochs=10,
     m = SMOWrap(am, outdim=numchars, inneroutdim=outdim, nobias=True)
 
     m.train([traindata[:, :-1]], traindata[:, 1:])\
-        .cross_entropy().adadelta(lr=lr)\
+        .cross_entropy(cemode=cemode).cross_entropy().cross_entropy(cemode="mean")\
+        .adadelta(lr=lr)\
         .validate_on([testdata[:, :-1]], testdata[:, 1:])\
-        .cross_entropy()\
+        .cross_entropy(cemode=cemode).cross_entropy().cross_entropy(cemode="mean")\
         .train(numbats=numbats, epochs=epochs)
 
 

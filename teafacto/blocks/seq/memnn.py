@@ -683,6 +683,7 @@ class AutoMorph(Block):
                  charemb=None, charencdim=None,
                  morfencdim=None,
                  outdim=None,
+                 sampleaddr=False,
                  dropout_in=None, dropout_h=None, **kw):
         super(AutoMorph, self).__init__(**kw)
 
@@ -711,6 +712,8 @@ class AutoMorph(Block):
 
         # char key attention
         self.charatt = Attention().forward_gen(self._memkeydim, self._memkeydim, self._memkeydim)
+        if sampleaddr:
+            self.charatt.attentiongenerator.set_sampler("gumbel", sample_temperature=0.3)
 
         # morpheme RNN layers
         morfenclayerdims = [self._memvaldim]
