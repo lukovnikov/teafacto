@@ -72,10 +72,12 @@ def run(lr=0.5,
         .vectorembedder(numchars, charembdim, maskid=0)\
         .addlayers([200, 200]).make()
 
-    m = DWVAE(charenc, 200, numwords)
+    wordemb = VectorEmbed(numwords, 200)
 
-    m.train([traindata], traingold).adadelta(lr=lr).cross_entropy().accuracy()\
-        .validate_on([validdata], validgold).cross_entropy().accuracy()\
+    m = DWVAE(wordemb, 200, numwords)
+
+    m.train([traingold], traingold).adadelta(lr=lr).cross_entropy().accuracy()\
+        .validate_on([validgold], validgold).cross_entropy().accuracy()\
         .train(numbats=numbats, epochs=epochs)
 
     predf = m.predict
