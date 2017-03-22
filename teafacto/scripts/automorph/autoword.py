@@ -46,7 +46,7 @@ class DWVAE(Block):
     def apply(self, x):
         enc = self.enc(x)
         a = T.dot(enc, self.a)      # (batsize, N*K)
-        a = Softplus()(a)
+        #a = Softplus()(a)
         a = a.reshape((a.shape[0], self.N, self.K))
         a_sm = GumbelSoftmax(temperature=self.temp)(a)
         x = a_sm.reshape((a_sm.shape[0], -1))
