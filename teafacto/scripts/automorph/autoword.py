@@ -3,7 +3,7 @@ from teafacto.blocks.basic import VectorEmbed, SMO, SMOWrap
 from teafacto.blocks.seq import RNNSeqEncoder
 from teafacto.core import Block, param, T
 from teafacto.blocks.word import Glove
-from teafacto.blocks.activations import GumbelSoftmax, Softmax
+from teafacto.blocks.activations import GumbelSoftmax, Softmax, ReLU, Sigmoid
 from teafacto.util import argprun, ticktock
 from IPython import embed
 import numpy as np
@@ -51,6 +51,9 @@ class DWVAE(Block):
         a = T.dot(enc, self.a)
         b = T.dot(enc, self.b)
         c = T.dot(enc, self.c)
+        a = ReLU()(a)
+        b = ReLU()(b)
+        c = ReLU()(c)
         a_sm = GumbelSoftmax()(a)
         b_sm = GumbelSoftmax()(b)
         c_sm = GumbelSoftmax()(c)
