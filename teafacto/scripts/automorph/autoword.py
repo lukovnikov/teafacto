@@ -32,13 +32,14 @@ def loaddata(splits=10):
 
 
 class DWVAE(Block):
-    def __init__(self, enc, encdim, numwords, N=200, K=10, **kw):
+    def __init__(self, enc, encdim, numwords, N=200, K=10, temp=1.0, **kw):
         super(DWVAE, self).__init__(**kw)
         self.enc = enc
         self.numwords = numwords
         self.encdim = encdim
         self.N = N
         self.K = K
+        self.temp = temp
         self.a = param((encdim, N*K), name="dv").glorotuniform()
         self.b = param((N*K, self.numwords), name="outlin").glorotuniform()
 
@@ -47,7 +48,7 @@ class DWVAE(Block):
         a = T.dot(enc, self.a)      # (batsize, N*K)
         a = Softplus()(a)
         a = a.reshape((a.shape[0], self.N, self.K))
-        a_sm = GumbelSoftmax(temperature=1.0)(a)
+        a_sm = GumbelSoftmax(temperature=self.temp)(a)
         x = a_sm.reshape((a_sm.shape[0], -1))
         x_o = T.dot(x, self.b)
         out = Softmax()(x_o)
@@ -59,6 +60,7 @@ def run(lr=0.5,
         epochs=10,
         numbats=5000,
         charembdim=100,
+        temp=5.,
         ):
     tt = ticktock("script")
     tt.tick("loading data")
@@ -74,7 +76,7 @@ def run(lr=0.5,
 
     wordemb = VectorEmbed(numwords, 200)
 
-    m = DWVAE(wordemb, 200, numwords)
+    m = DWVAE(wordemb, 200, numwords, temp=temp)
 
     m.train([traingold], traingold).adadelta(lr=lr).cross_entropy().accuracy()\
         .validate_on([validgold], validgold).cross_entropy().accuracy()\
