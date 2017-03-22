@@ -760,7 +760,7 @@ class AutoMorph(Block):
 
         #attweights = self.charatt.attentiongenerator(char_h_t, mem_key)
         #memvalctx_t = self.charatt.attentionconsumer(mem_val, attweights)   # (batsize, memvaldim)
-        memvalctx_t = self.get_ctx_t(char_h_t, mem_key, mem_val)
+        memvalctx_t, w = self.get_ctx_t(char_h_t, mem_key, mem_val)
 
         morfstack_ret = self.morfstack.rec(memvalctx_t, *morfstack_states_tm1)
         morf_h_t = morfstack_ret[0]
@@ -770,11 +770,10 @@ class AutoMorph(Block):
 
     def get_ctx_t(self, h, mem_k, mem_v):   # (batsize, dim), (memlen, dim)
         w = T.dot(h, mem_k.T)   # (batsize, memlen)
-        w = GumbelSoftmax(temperature=0.01)(Softmax()(w))
+        w = GumbelSoftmax(temperature=0.3)(Softmax()(w))
         ret = mem_v.dimadd(0) * w.dimadd(2)     # (batsize, memlen, memvaldim)
         ret = T.sum(ret, axis=1)                # (batsize, memvaldim)
-        return ret
-
+        return ret, h
 
 
 if __name__ == "__main__":

@@ -90,6 +90,7 @@ class TestGumbelSoftmax(TestCase):
         sampleavg = np.average(samples, axis=1)
         print sampleavg
         np.set_printoptions(precision=5, suppress=True)
+        print d[0]
         print smpred
         print gsmpred
         predsums = np.sum(gsmpred, axis=-1)
@@ -104,7 +105,7 @@ class TestGumbelSoftmax(TestCase):
         sm = Softmax()
         gsm = GumbelSoftmax(temperature=0.3)
         smpred = sm.predict(d)
-        gsmpred = gsm.predict(smpred, m)
+        gsmpred = gsm.predict(d, m)
 
         np.set_printoptions(precision=5, suppress=True)
         print gsmpred
