@@ -9,7 +9,7 @@ import numpy as np
 
 
 def loaddata(splits=10):
-    g = Glove(50)
+    g = Glove(50, 10000)
     words = g.D.keys()
     maxlen = max([len(x) for x in words])
     mat = np.zeros((len(words), maxlen), dtype="int32")
@@ -28,7 +28,6 @@ def loaddata(splits=10):
     traingold = wmat[trainidxs]
     testgold = wmat[testidxs]
     return (trainmat, traingold), (testmat, testgold), wdic
-
 
 
 def run(lr=0.5,
@@ -53,7 +52,6 @@ def run(lr=0.5,
     m.train([traindata], traingold).adadelta(lr=lr).cross_entropy()\
         .validate_on([validdata], validgold).cross_entropy().accuracy()\
         .train(numbats=numbats, epochs=epochs)
-
 
 
 if __name__ == "__main__":
