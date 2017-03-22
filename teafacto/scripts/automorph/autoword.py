@@ -1,8 +1,9 @@
 from teafacto.blocks.seq.memnn import AutoMorph
 from teafacto.blocks.basic import VectorEmbed, SMO, SMOWrap
 from teafacto.blocks.seq import RNNSeqEncoder
-from teafacto.core import Block
+from teafacto.core import Block, param, T
 from teafacto.blocks.word import Glove
+from teafacto.blocks.activations import GumbelSoftmax, Softmax
 from teafacto.util import argprun, ticktock
 from IPython import embed
 import numpy as np
@@ -30,6 +31,39 @@ def loaddata(splits=10):
     return (trainmat, traingold), (testmat, testgold), wdic
 
 
+class DWVAE(Block):
+    def __init__(self, enc, encdim, numwords, **kw):
+        super(DWVAE, self).__init__(**kw)
+        self.enc = enc
+        self.numwords = numwords
+        self.encdim = encdim
+        self.numdc = 100
+        self.a = param((encdim, self.numdc), name="dv_1").glorotuniform()
+        self.b = param((encdim, self.numdc), name="dv_2").glorotuniform()
+        self.c = param((encdim, self.numdc), name="dv_3").glorotuniform()
+        self.d = param((self.numdc, encdim), name="vd_1").glorotuniform()
+        self.e = param((self.numdc, encdim), name="vd_2").glorotuniform()
+        self.f = param((self.numdc, encdim), name="vd_3").glorotuniform()
+        self.x = param((encdim * 3, self.numwords), name="outlin").glorotuniform()
+
+    def apply(self, x):
+        enc = self.enc(x)
+        a = T.dot(enc, self.a)
+        b = T.dot(enc, self.b)
+        c = T.dot(enc, self.c)
+        a_sm = GumbelSoftmax()(Softmax()(a))
+        b_sm = GumbelSoftmax()(Softmax()(b))
+        c_sm = GumbelSoftmax()(Softmax()(c))
+        d = T.dot(a_sm, self.d)
+        e = T.dot(b_sm, self.e)
+        f = T.dot(c_sm, self.f)
+        x = T.concatenate([d, e, f], axis=-1)
+        x_o = T.dot(x, self.x)
+        out = Softmax()(x_o)
+        return out
+
+
+
 def run(lr=0.5,
         epochs=10,
         numbats=5000,
@@ -47,7 +81,7 @@ def run(lr=0.5,
         .vectorembedder(numchars, charembdim, maskid=0)\
         .addlayers([200, 200]).make()
 
-    m = SMOWrap(charenc, outdim=numwords, inneroutdim=200)
+    m = DWVAE(charenc, 200, numwords)
 
     m.train([traindata], traingold).adadelta(lr=lr).cross_entropy().accuracy()\
         .validate_on([validdata], validgold).cross_entropy().accuracy()\
