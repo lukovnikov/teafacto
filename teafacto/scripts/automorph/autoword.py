@@ -78,8 +78,8 @@ def run(lr=0.5,
 
     m = DWVAE(charenc, 200, numwords, temp=temp)
 
-    m.train([traingold], traingold).adadelta(lr=lr).cross_entropy().accuracy()\
-        .validate_on([validgold], validgold).cross_entropy().accuracy()\
+    m.train([traindata], traingold).adadelta(lr=lr).cross_entropy().accuracy()\
+        .validate_on([validdata], validgold).cross_entropy().accuracy()\
         .train(numbats=numbats, epochs=epochs)
 
     predf = m.predict
