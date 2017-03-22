@@ -32,7 +32,7 @@ def loaddata(splits=10):
 
 
 class DWVAE(Block):
-    def __init__(self, enc, encdim, numwords, N=20, K=10, **kw):
+    def __init__(self, enc, encdim, numwords, N=200, K=10, **kw):
         super(DWVAE, self).__init__(**kw)
         self.enc = enc
         self.numwords = numwords
