@@ -51,9 +51,9 @@ class DWVAE(Block):
         a = T.dot(enc, self.a)
         b = T.dot(enc, self.b)
         c = T.dot(enc, self.c)
-        a = ReLU()(a)
-        b = ReLU()(b)
-        c = ReLU()(c)
+        a = ReLU()(a) + 1e-6
+        b = ReLU()(b) + 1e-6
+        c = ReLU()(c) + 1e-6
         a_sm = GumbelSoftmax()(a)
         b_sm = GumbelSoftmax()(b)
         c_sm = GumbelSoftmax()(c)
