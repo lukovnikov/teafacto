@@ -699,7 +699,6 @@ class AutoMorph(Block):
 
         # MEM INIT
         self.mem_key = param((self._memlen, self._memkeydim), name="memkey").glorotuniform() + 0
-        self.mem_key = 0
         self.mem_val = param((self._memlen, self._memvaldim), name="memval").glorotuniform() + 0
 
         # character RNN layers
@@ -770,8 +769,8 @@ class AutoMorph(Block):
         return [morf_h_t] + charstack_states_t + morfstack_states_t
 
     def get_ctx_t(self, h, mem_k, mem_v):   # (batsize, dim), (memlen, dim)
-        w = T.dot(h, mem_v.T)   # (batsize, memlen)
-        w = Softmax()(w)
+        w = T.dot(h, mem_k.T)   # (batsize, memlen)
+        w = GumbelSoftmax()(Softmax()(w))
         ret = mem_v.dimadd(0) * w.dimadd(2)     # (batsize, memlen, memvaldim)
         ret = T.sum(ret, axis=1)                # (batsize, memvaldim)
         return ret

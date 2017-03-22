@@ -26,7 +26,7 @@ class TestAutoMorph(TestCase):
         cost = (-T.log(cost.d)).sum()
         print np.linalg.norm(T.grad(cost, m.outl.W.d).eval())
         print np.linalg.norm(T.grad(cost, m.inner.mem_val.d).eval())
-        #print np.linalg.norm(T.grad(cost, m.inner.mem_key.d).eval())
+        print np.linalg.norm(T.grad(cost, m.inner.mem_key.d).eval())
         print np.linalg.norm(T.grad(cost, charemb.W.d).eval())
 
 
