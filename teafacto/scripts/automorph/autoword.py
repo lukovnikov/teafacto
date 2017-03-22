@@ -53,6 +53,15 @@ def run(lr=0.5,
         .validate_on([validdata], validgold).cross_entropy().accuracy()\
         .train(numbats=numbats, epochs=epochs)
 
+    predf = m.predict
+    rwd = {v: k for k, v in wdic.items()}
+    def play(word):
+        x = np.array([[ord(x) for x in word]])
+        pred = predf(x)
+        print rwd[pred[0]]
+
+    embed()
+
 
 if __name__ == "__main__":
     argprun(run)
