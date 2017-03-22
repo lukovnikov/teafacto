@@ -71,10 +71,10 @@ class GumbelSoftmax(Activation):
         if _trainmode or self._debug:   # TODO pred still not working well
             shap = self._shape if self._shape is not None else x.shape
             g = self.rval.gumbel(shap)
-            y = (T.log(x) + g) / self.temp
+            y = (x + g) / self.temp
             #y = x / self.temp
             ret = T.softmax(y, x.mask)
             ret.mask = x.mask
             return ret
         else:
-            return T.softmax(T.log(x) / self.temp, mask=x.mask, temperature=self._det_sm_temp)
+            return T.softmax(x / self.temp, mask=x.mask, temperature=self._det_sm_temp)
