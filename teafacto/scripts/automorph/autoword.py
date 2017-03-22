@@ -32,36 +32,24 @@ def loaddata(splits=10):
 
 
 class DWVAE(Block):
-    def __init__(self, enc, encdim, numwords, **kw):
+    def __init__(self, enc, encdim, numwords, N=20, K=10, **kw):
         super(DWVAE, self).__init__(**kw)
         self.enc = enc
         self.numwords = numwords
         self.encdim = encdim
-        self.numdc = 100
-        self.a = param((encdim, self.numdc), name="dv_1").glorotuniform()
-        self.b = param((encdim, self.numdc), name="dv_2").glorotuniform()
-        self.c = param((encdim, self.numdc), name="dv_3").glorotuniform()
-        self.d = param((self.numdc, encdim), name="vd_1").glorotuniform()
-        self.e = param((self.numdc, encdim), name="vd_2").glorotuniform()
-        self.f = param((self.numdc, encdim), name="vd_3").glorotuniform()
-        self.x = param((encdim * 3, self.numwords), name="outlin").glorotuniform()
+        self.N = N
+        self.K = K
+        self.a = param((encdim, N*K), name="dv").glorotuniform()
+        self.b = param((N*K, self.numwords), name="outlin").glorotuniform()
 
     def apply(self, x):
         enc = self.enc(x)
-        a = T.dot(enc, self.a)
-        b = T.dot(enc, self.b)
-        c = T.dot(enc, self.c)
+        a = T.dot(enc, self.a)      # (batsize, N*K)
         a = Softplus()(a)
-        b = Softplus()(b)
-        c = Softplus()(c)
+        a = a.reshape((a.shape[0], self.N, self.K))
         a_sm = GumbelSoftmax()(a)
-        b_sm = GumbelSoftmax()(b)
-        c_sm = GumbelSoftmax()(c)
-        d = T.dot(a_sm, self.d)
-        e = T.dot(b_sm, self.e)
-        f = T.dot(c_sm, self.f)
-        x = T.concatenate([d, e, f], axis=-1)
-        x_o = T.dot(x, self.x)
+        x = a_sm.reshape((a_sm.shape[0], -1))
+        x_o = T.dot(x, self.b)
         out = Softmax()(x_o)
         return out
 
