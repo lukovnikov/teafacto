@@ -76,7 +76,7 @@ def run(lr=0.5,
 
     wordemb = VectorEmbed(numwords, 200)
 
-    m = DWVAE(wordemb, 200, numwords, temp=temp)
+    m = DWVAE(charenc, 200, numwords, temp=temp)
 
     m.train([traingold], traingold).adadelta(lr=lr).cross_entropy().accuracy()\
         .validate_on([validgold], validgold).cross_entropy().accuracy()\
