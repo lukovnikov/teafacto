@@ -49,7 +49,7 @@ def run(lr=0.5,
 
     m = SMOWrap(charenc, outdim=numwords, inneroutdim=200)
 
-    m.train([traindata], traingold).adadelta(lr=lr).cross_entropy()\
+    m.train([traindata], traingold).adadelta(lr=lr).cross_entropy().accuracy()\
         .validate_on([validdata], validgold).cross_entropy().accuracy()\
         .train(numbats=numbats, epochs=epochs)
 
