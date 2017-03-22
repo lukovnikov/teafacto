@@ -118,7 +118,7 @@ class TestGumbelSoftmax(TestCase):
         m = np.ones_like(d)
         m[:, :, 2] = 0
         sm = Softmax()
-        gsm = GumbelSoftmax(temperature=0.3)
+        gsm = GumbelSoftmax(temperature=0.3, _alwaysrandom=True)
         smpred = sm.predict(d)
         gsmpred = gsm.predict(smpred, m)
 

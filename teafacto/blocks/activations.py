@@ -51,14 +51,14 @@ class Softmax(Activation):
 
 
 class GumbelSoftmax(Activation):
-    def __init__(self, seed=None, shape=None, temperature=1.0, _alwaysrandom=False, **kw):
+    def __init__(self, seed=None, shape=None, temperature=0.3, _alwaysrandom=False, **kw):
         super(GumbelSoftmax, self).__init__(**kw)
         if seed is None:
             seed = np.random.randint(0, 1e6)
         self.seed = seed
         self.temp = temperature
         self._debug = _alwaysrandom
-        self._det_sm_temp = 1e-3
+        self._det_sm_temp = 1e-2
         self._shape = shape
         self.rval = RVal(self.seed)
 

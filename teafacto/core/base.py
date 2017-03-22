@@ -63,7 +63,7 @@ class TWrapper(type):
                       allow_gc=allow_gc, strict=strict)
 
     def softmax(cls, x, mask=None, temperature=1.):     # masked, multidim softmax
-        mask = x.mask if mask is not None else mask
+        mask = x.mask if mask is None else mask
         xndim = x.ndim
         s = x.shape
         seqmask = None
