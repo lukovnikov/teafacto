@@ -35,6 +35,7 @@ class DataFeeder(object): # contains data feeds
     # batching
     def reset(self):
         if self._random is not False:
+            print "RESHUFFLING"
             np.random.shuffle(self.iteridxs)
         self.offset = 0
 

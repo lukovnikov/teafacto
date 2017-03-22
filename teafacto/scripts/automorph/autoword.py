@@ -58,7 +58,7 @@ def run(lr=0.5,
     def play(word):
         x = np.array([[ord(x) for x in word]])
         pred = predf(x)
-        print rwd[pred[0]]
+        print rwd[np.argmax(pred[0])]
 
     embed()
 
