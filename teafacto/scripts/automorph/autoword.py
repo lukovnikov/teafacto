@@ -47,7 +47,7 @@ class DWVAE(Block):
         a = T.dot(enc, self.a)      # (batsize, N*K)
         a = Softplus()(a)
         a = a.reshape((a.shape[0], self.N, self.K))
-        a_sm = GumbelSoftmax()(a)
+        a_sm = GumbelSoftmax(temperature=1.0)(a)
         x = a_sm.reshape((a_sm.shape[0], -1))
         x_o = T.dot(x, self.b)
         out = Softmax()(x_o)
