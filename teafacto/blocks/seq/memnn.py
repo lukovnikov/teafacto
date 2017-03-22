@@ -770,7 +770,7 @@ class AutoMorph(Block):
 
     def get_ctx_t(self, h, mem_k, mem_v):   # (batsize, dim), (memlen, dim)
         w = T.dot(h, mem_k.T)   # (batsize, memlen)
-        w = GumbelSoftmax()(Softmax()(w))
+        w = GumbelSoftmax(temperature=0.01)(Softmax()(w))
         ret = mem_v.dimadd(0) * w.dimadd(2)     # (batsize, memlen, memvaldim)
         ret = T.sum(ret, axis=1)                # (batsize, memvaldim)
         return ret
