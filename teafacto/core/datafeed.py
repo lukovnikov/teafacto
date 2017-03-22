@@ -53,10 +53,10 @@ class DataFeeder(object): # contains data feeds
         start = self.offset
         end = min(self.offset+self.batsize, self.size)
         sampleidxs = self.iteridxs[start:end]
-        if start == 0:
-            embed()
         self.offset = end
         ret = [x[sampleidxs] for x in self.feeds]
+        if start == 0:
+            embed()
         if withbatchsize:
             return ret, sampleidxs.shape[0]
         else:
