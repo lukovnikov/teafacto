@@ -1,5 +1,6 @@
 import numpy as np
 from math import ceil
+from IPython import embed
 
 
 class DataFeeder(object): # contains data feeds
@@ -35,7 +36,7 @@ class DataFeeder(object): # contains data feeds
     # batching
     def reset(self):
         if self._random is not False:
-            print "RESHUFFLING"
+            #print "RESHUFFLING"
             np.random.shuffle(self.iteridxs)
         self.offset = 0
 
@@ -52,6 +53,8 @@ class DataFeeder(object): # contains data feeds
         start = self.offset
         end = min(self.offset+self.batsize, self.size)
         sampleidxs = self.iteridxs[start:end]
+        if start == 0:
+            embed()
         self.offset = end
         ret = [x[sampleidxs] for x in self.feeds]
         if withbatchsize:
