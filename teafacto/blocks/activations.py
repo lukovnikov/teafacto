@@ -33,6 +33,11 @@ class ReLU(Activation):
     def innerapply(self, x, _trainmode=False):
         return T.nnet.relu(x)
 
+
+class Softplus(Activation):
+    def innerapply(self, x, _trainmode=False):
+        return T.nnet.softplus(x)
+
 '''
 class Softmax(Activation):
     def innerapply(self, x):
