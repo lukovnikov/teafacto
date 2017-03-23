@@ -41,6 +41,7 @@ def run(epochs=10,
         dropout=0.3,
         mode="morf",     # "rnn" or "morf" or "retardis"
         memsize=10,
+        temp=0.5,
         sampleaddr=False,
         cemode="mean",   # "mean" or "sum"
         ):
@@ -79,7 +80,8 @@ def run(epochs=10,
         dims = [embdim] + keydims + [memvaldim] + valdims + [outdim]
         rs = []
         for i in range(len(dims) - 1):
-            rs.append(ReGRU(dims[i], dims[i+1], memsize=memsize, dropout_h=False, dropout_in=dropout))
+            rs.append(ReGRU(dims[i], dims[i+1], memsize=memsize, mem_sample_temp=temp,
+                            dropout_h=False, dropout_in=dropout))
         am = RNNSeqEncoder.fluent().setembedder(charemb)\
             .setlayers(*rs).make().all_outputs()
     else:
