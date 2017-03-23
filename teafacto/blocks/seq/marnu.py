@@ -53,7 +53,7 @@ class ReGRU(ReccableBlock):
                                         # M_tm1: (batsize, memsize, outdim)
         temps = None
         if self.temp is None:
-            temps = Softplus()(T.dot(h_tm1, self.temp_W) + self.temp_b[0]) + 1
+            temps = Softplus()(T.dot(h_tm1, self.temp_W) + self.temp_b[0]) + 0.1
         # place attention over M using h
         h_lookup = h_tm1
         M_lookup = M_tm1

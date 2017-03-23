@@ -236,22 +236,19 @@ class Gate(Block):
     def __init__(self, indims, outdim, activation=Sigmoid(), nobias=False,
                  paraminit="glorotuniform", biasinit="uniform", **kw):
         super(Gate, self).__init__(**kw)
-        self.params = []
         self.outdim = outdim
         self.biasinit = biasinit
         self.activation = activation
-        for i, indim in enumerate(indims):
-            self.params.append(param((indim, outdim), name="gate_param_{}".format(i)).init(paraminit))
+        indim = sum(indims)
+        self.W = param((indim, outdim), name="gate_W").init(paraminit)
         if not nobias:
-            self.b = param((outdim,), name="gate_bias").init(biasinit) + 0
+            self.b = param((outdim,), name="gate_b").init(biasinit) + 0
         else:
             self.b = T.zeros((outdim,))
 
     def apply(self, *inps):
-        x = zip(inps, self.params)
-        val = self.b.dimadd(0)
-        for inp, param in x:
-            val += T.dot(inp, param)
+        inp = T.concatenate(list(inps), axis=-1)
+        val = T.dot(inp, self.W) + self.b.dimadd(0)
         ret = self.activation(val)
         return ret
 

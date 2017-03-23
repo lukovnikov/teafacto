@@ -53,3 +53,5 @@ class TestReGRU(TestCase):
         print pred.shape
         self.assertEqual(pred.shape, (7, 8, 13))
 
+    # TODO: test memory utilization
+
