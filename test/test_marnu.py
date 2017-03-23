@@ -8,7 +8,7 @@ from teafacto.core import Val
 class TestReGRU(TestCase):
     def test_mem_swap(self):
         m = ReGRU(2, 2, 3, _debug=False)
-        m.att.attentiongenerator.normalizer.detpred = True
+        m.att_norm.detpred = True
         h_tm1 = Val(np.array([[1.0, 0.0], [0.0, 1.0]])) + 0
         m_tm1 = Val(np.array([[0.5, 0.5], [0.5, 0.5]])) + 0
         M_tm1 = Val(np.array([[[1.0, 0.0], [0.0, 1.0], [0.0, 0.0]],

@@ -80,7 +80,7 @@ def run(epochs=10,
         dims = [embdim] + keydims + [memvaldim] + valdims + [outdim]
         rs = []
         for i in range(len(dims) - 1):
-            rs.append(ReGRU(dims[i], dims[i+1], memsize=memsize, mem_sample_temp=temp,
+            rs.append(ReGRU(dims[i], dims[i+1], memsize=memsize,
                             dropout_h=False, dropout_in=dropout))
         am = RNNSeqEncoder.fluent().setembedder(charemb)\
             .setlayers(*rs).make().all_outputs()
