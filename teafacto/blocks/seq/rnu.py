@@ -7,6 +7,7 @@ from IPython import embed
 
 default_init_carry_gate_bias = 1
 
+
 class RecurrentBlock(Block):     # ancestor class for everything that consumes sequences f32~(batsize, seqlen, ...)
     def __init__(self, reverse=False, **kw):
         super(RecurrentBlock, self).__init__(**kw)

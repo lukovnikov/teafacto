@@ -56,7 +56,7 @@ class Softmax(Activation):
 
 
 class GumbelSoftmax(Activation):
-    def __init__(self, seed=None, shape=None, temperature=0.3, _alwaysrandom=False, **kw):
+    def __init__(self, seed=None, shape=None, temperature=0.3, _alwaysrandom=False, deterministic_pred=False, **kw):
         super(GumbelSoftmax, self).__init__(**kw)
         if seed is None:
             seed = np.random.randint(0, 1e6)
@@ -66,15 +66,20 @@ class GumbelSoftmax(Activation):
         self._det_sm_temp = 1e-2
         self._shape = shape
         self.rval = RVal(self.seed)
+        self.detpred = deterministic_pred
 
     def innerapply(self, x, _trainmode=False):        # x is probabilities??
-        if _trainmode or self._debug:   # TODO pred still not working well
+        if (not self.detpred) or (_trainmode or self._debug):
             shap = self._shape if self._shape is not None else x.shape
             g = self.rval.gumbel(shap)
             y = (x + g) / self.temp
             #y = x / self.temp
             ret = T.softmax(y, x.mask)
             ret.mask = x.mask
+        if _trainmode or self._debug:
             return ret
-        else:
+        if self.detpred:
             return T.softmax(x / self.temp, mask=x.mask, temperature=self._det_sm_temp)
+        else:
+            retmax = T.max(ret, axis=-1).dimadd(ret.ndim)
+            return T.cast(T.eq(ret, retmax), "float32")

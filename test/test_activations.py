@@ -83,7 +83,7 @@ class TestGumbelSoftmax(TestCase):
         samples = []
         gsmpredf = gsm.predict
         for i in range(100000):
-            gsmpred = gsmpredf(smpred)
+            gsmpred = gsmpredf(d)
             samples.append(gsmpred[0, :])
         samples = np.concatenate([sample[:, np.newaxis] for sample in samples],
                                 axis=1)

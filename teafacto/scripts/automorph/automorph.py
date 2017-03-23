@@ -1,4 +1,5 @@
 from teafacto.blocks.seq.memnn import AutoMorph
+from teafacto.blocks.seq.marnu import ReGRU
 from teafacto.blocks.basic import VectorEmbed, SMO, SMOWrap
 from teafacto.blocks.seq import RNNSeqEncoder
 from teafacto.util import argprun, ticktock
@@ -38,7 +39,8 @@ def run(epochs=10,
         chardims="50,100,100",
         morfdims="100,200",
         dropout=0.3,
-        mode="morf",     # "rnn" or "morf"
+        mode="morf",     # "rnn" or "morf" or "retardis"
+        memsize=10,
         sampleaddr=False,
         cemode="mean",   # "mean" or "sum"
         ):
@@ -73,6 +75,13 @@ def run(epochs=10,
         am = RNNSeqEncoder.fluent().setembedder(charemb)\
             .addlayers(keydims+[memvaldim]+valdims+[outdim])\
             .make().all_outputs()
+    elif mode == "retardis":
+        dims = [embdim] + keydims + [memvaldim] + valdims + [outdim]
+        rs = []
+        for i in range(len(dims) - 1):
+            rs.append(ReGRU(dims[i], dims[i+1], memsize=memsize, dropout_h=False, dropout_in=dropout))
+        am = RNNSeqEncoder.fluent().setembedder(charemb)\
+            .setlayers(*rs).make().all_outputs()
     else:
         raise Exception("unknown mode: {}".format(mode))
 
