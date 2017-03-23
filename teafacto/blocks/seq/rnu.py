@@ -1,8 +1,9 @@
-from teafacto.core.base import Block, param
+from teafacto.core.base import Block, param, Val
 from teafacto.core.base import tensorops as T
 from teafacto.util import getnumargs
 from teafacto.util import issequence
 from teafacto.blocks.basic import Dropout
+from teafacto.blocks.activations import Tanh, Sigmoid
 from IPython import embed
 
 default_init_carry_gate_bias = 1
@@ -229,6 +230,30 @@ class GatedRNU(RNU):
 
     def rec(self, *args):
         raise NotImplementedError("use subclass")
+
+
+class Gate(Block):
+    def __init__(self, indims, outdim, activation=Sigmoid(), nobias=False,
+                 paraminit="glorotuniform", biasinit="uniform", **kw):
+        super(Gate, self).__init__(**kw)
+        self.params = []
+        self.outdim = outdim
+        self.biasinit = biasinit
+        self.activation = activation
+        for i, indim in enumerate(indims):
+            self.params.append(param((indim, outdim), name="gate_param_{}".format(i)).init(paraminit))
+        if not nobias:
+            self.b = param((outdim,), name="gate_bias").init(biasinit) + 0
+        else:
+            self.b = T.zeros((outdim,))
+
+    def apply(self, *inps):
+        x = zip(inps, self.params)
+        val = self.b.dimadd(0)
+        for inp, param in x:
+            val += T.dot(inp, param)
+        ret = self.activation(val)
+        return ret
 
 
 class GRU(GatedRNU):

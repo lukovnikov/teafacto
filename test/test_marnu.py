@@ -15,7 +15,7 @@ class TestReGRU(TestCase):
                               [[1.0, 0.0], [0.0, 0.0], [0.0, 1.0]]])) + 0
         #print M_tm1.eval()
 
-        m_t, M_t, w = m._swap_mem(h_tm1, m_tm1, M_tm1)
+        m_t, M_t, w = m._swap_mem(0, h_tm1, m_tm1, M_tm1)
         np.set_printoptions(suppress=True, precision=3)
         print w.eval()
         print m_t.eval()
@@ -37,8 +37,8 @@ class TestReGRU(TestCase):
         self.assertTrue(np.allclose(inits[1].eval(), np.zeros((batsize, 2 * 2))))
 
     def test_in_seqencoder(self):
-        rnu = ReGRU(10, 11, 12)
-        rnu2 = ReGRU(11, 13, 5)
+        rnu = ReGRU(10, 11, 12, mem_gates=True)
+        rnu2 = ReGRU(11, 13, 5, nobias=True)
         m = RNNSeqEncoder.fluent().vectorembedder(100, 10)\
             .setlayers(rnu, rnu2).make()
         data = np.random.randint(0, 100, (7, 8))
