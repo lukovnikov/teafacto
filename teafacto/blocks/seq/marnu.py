@@ -33,7 +33,7 @@ class ReGRU(ReccableBlock):
             self.writegate = Gate([indim, outdim, outdim, outdim], outdim, nobias=nobias)
         self.util_gate = None
         if util_gate:
-            self.util_gate = Gate([indim, outdim, outdim], outdim)
+            self.util_gate = Gate([indim, outdim, outdim], 1)
         if _debug:
             self.att_norm = _debug
 
