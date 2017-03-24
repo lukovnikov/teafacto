@@ -61,8 +61,7 @@ class ReGRU(ReccableBlock):
         temps = None
         if self.temp is None:
             #temps = Softplus()(T.dot(h_tm1, self.temp_W) + self.temp_b[0]) + 0.1
-            temps = self.temp_gate(h_tm1) + 0.1
-            temps = temps.reshape((-1,))
+            temps = self.temp_gate(h_tm1).reshape((-1,)) + 0.1
         # place attention over M using h
         h_lookup = h_tm1
         M_lookup = M_tm1
@@ -75,10 +74,9 @@ class ReGRU(ReccableBlock):
         w = self.att_dist(h_lookup, M_lookup)   # (batsize, memsize)
         if self.util_gate is not None:
             u_tm1_rescaled = u_tm1 / (u_tm1.norm(1) + 1e-6) * w.norm(1)
-            u_gate = self.util_gate(x_t, h_tm1, m_tm1).reshape((-1,))
+            u_gate = self.util_gate(x_t, h_tm1, m_tm1).reshape((-1,)).dimadd(1)
             w = (1 - u_tm1_rescaled) * (1 - u_gate) + u_gate * w
         w = self.att_norm(w, temps=temps)
-        # TODO: use util vector
         # retrieve m_t using sampled attention from M_tm1
         m_t = self.att_cons(M_tm1, w)
         # store m_tm1 in attended M cells by weight -> M_t
