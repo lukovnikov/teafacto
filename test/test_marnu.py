@@ -13,13 +13,15 @@ class TestReGRU(TestCase):
         m_tm1 = Val(np.array([[0.5, 0.5], [0.5, 0.5]])) + 0
         M_tm1 = Val(np.array([[[1.0, 0.0], [0.0, 1.0], [0.0, 0.0]],
                               [[1.0, 0.0], [0.0, 0.0], [0.0, 1.0]]])) + 0
+        u_tm1 = Val(np.array([[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]])) + 0
         #print M_tm1.eval()
 
-        m_t, M_t, w = m._swap_mem(0, h_tm1, m_tm1, M_tm1)
+        m_t, M_t, w, u_t = m._swap_mem(0, h_tm1, m_tm1, M_tm1, u_tm1)
         np.set_printoptions(suppress=True, precision=3)
         print w.eval()
         print m_t.eval()
         print M_t.eval()
+        print u_t.eval()
         self.assertTrue(np.allclose(m_t.eval(), np.array([[1, 0], [0, 1]])))
         self.assertTrue(np.allclose(w.eval(), np.array([[1, 0, 0], [0, 0, 1]])))
         self.assertTrue(np.allclose(M_t.eval(),
@@ -33,7 +35,7 @@ class TestReGRU(TestCase):
         inits = m.get_init_info(batsize)
         print inits[0].eval()
         print inits[1].eval()
-        self.assertTrue(np.allclose(inits[0].eval(), np.zeros((batsize, 3, 2))))
+        self.assertTrue(np.allclose(inits[0].eval(), np.zeros((batsize, 3, 2+1))))
         self.assertTrue(np.allclose(inits[1].eval(), np.zeros((batsize, 2 * 2))))
 
     def test_in_seqencoder(self):
