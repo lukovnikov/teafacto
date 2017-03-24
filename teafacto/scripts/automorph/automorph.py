@@ -74,14 +74,15 @@ def run(epochs=10,
                       charemb=charemb, outdim=outdim, sampleaddr=sampleaddr)
     elif mode == "rnn":
         am = RNNSeqEncoder.fluent().setembedder(charemb)\
-            .addlayers(keydims+[memvaldim]+valdims+[outdim])\
+            .addlayers(keydims+[memvaldim]+valdims+[outdim],
+                       zoneout=dropout, dropout_in=dropout)\
             .make().all_outputs()
     elif mode == "retardis":
         dims = [embdim] + keydims + [memvaldim] + valdims + [outdim]
         rs = []
         for i in range(len(dims) - 1):
             rs.append(ReGRU(dims[i], dims[i+1], memsize=memsize, mem_gates=True, util_gate=True,
-                            dropout_h=False, dropout_in=dropout))
+                            zoneout=dropout, dropout_in=dropout))
         am = RNNSeqEncoder.fluent().setembedder(charemb)\
             .setlayers(*rs).make().all_outputs()
     else:

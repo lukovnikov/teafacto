@@ -141,13 +141,13 @@ class FluentSeqEncoderBuilder(object):
         self.layers = layers
         return self._return()
 
-    def addlayers(self, dim=None, bidir=False, dropout_in=False, dropout_h=False, rnu=GRU):
+    def addlayers(self, dim=None, bidir=False, dropout_in=False, dropout_h=False, zoneout=False, rnu=GRU):
         inpdim = self.lastdim
         if not issequence(dim):
             dim = [dim]
         #self.outdim = innerdim[-1] if not bidir else innerdim[-1] * 2
         layers, lastdim = MakeRNU.make(inpdim, dim, bidir=bidir, rnu=rnu,
-                                       dropout_in=dropout_in, dropout_h=dropout_h)
+                                       dropout_in=dropout_in, dropout_h=dropout_h, zoneout=zoneout)
         self.layers = self.layers + layers
         self.lastdim = lastdim
         return self._return()
@@ -437,7 +437,7 @@ class MakeRNU(object):
     ''' generates a list of RNU's'''
     @staticmethod
     def make(initdim, specs, rnu=GRU, bidir=False,
-             dropout_in=False, dropout_h=False,
+             dropout_in=False, dropout_h=False, zoneout=False,
              param_init_states=False):
         if not issequence(specs):
             specs = [specs]
@@ -457,12 +457,12 @@ class MakeRNU(object):
             if fspec["bidir"]:
                 assert(not noinput)
                 rnn = BiRNU.fromrnu(fspec["rnu"], dim=prevdim, innerdim=fspec["dim"],
-                                    dropout_in=dropout_in, dropout_h=dropout_h,
+                                    dropout_in=dropout_in, dropout_h=dropout_h, zoneout=zoneout,
                                     param_init_states=param_init_states)
                 prevdim = fspec["dim"] * 2
             else:
                 rnn = fspec["rnu"](dim=prevdim, innerdim=fspec["dim"], noinput=noinput,
-                                   dropout_in=dropout_in, dropout_h=dropout_h,
+                                   dropout_in=dropout_in, dropout_h=dropout_h, zoneout=zoneout,
                                    param_init_states=param_init_states)
                 prevdim = fspec["dim"]
             rnns.append(rnn)

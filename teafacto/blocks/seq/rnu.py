@@ -120,7 +120,7 @@ class RNUBase(ReccableBlock):
 
     def __init__(self, dim=20, innerdim=20, wreg=0.0, noinput=False,
                  initmult=0.1, nobias=False, paraminit="glorotuniform", biasinit="uniform",
-                 dropout_in=False, dropout_h=False, **kw): #layernormalize=False): # dim is input dimensions, innerdim = dimension of internal elements
+                 dropout_in=False, dropout_h=False, zoneout=False, **kw): #layernormalize=False): # dim is input dimensions, innerdim = dimension of internal elements
         super(RNUBase, self).__init__(**kw)
         self.indim = dim
         self.innerdim = innerdim
@@ -138,6 +138,7 @@ class RNUBase(ReccableBlock):
         self.rnuparams = {}
         self.dropout_in = Dropout(dropout_in)
         self.dropout_h = Dropout(dropout_h)
+        self.zoneout = Dropout(zoneout)
     '''
     def normalize_layer(self, vec):     # (batsize, hdim)
         if self.layernormalize:
@@ -290,7 +291,8 @@ class GRU(GatedRNU):
         canh = T.dot(h_tm1_i * hfgate, self.u) + T.dot(x_t, self.w) + self.b
         '''canh = self.normalize_layer(canh)'''
         canh = self.outpactivation(canh)
-        h = mgate * h_tm1 + (1 - mgate) * canh
+        mgate = self.zoneout(mgate)
+        h = (1 - mgate) * h_tm1 + mgate * canh
         #h = self.normalize_layer(h)
         return [h, h]
 

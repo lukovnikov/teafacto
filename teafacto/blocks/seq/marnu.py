@@ -14,7 +14,7 @@ class ReGRU(ReccableBlock):
                  mem_gates=False, util_gate=False, nobias=False,
                  _debug=False, **kw):
         super(ReGRU, self).__init__(**kw)
-        self.gru = GRU(dim=indim, innerdim=outdim * 2,
+        self.gru = GRU(dim=indim, innerdim=outdim * 2, zoneout=zoneout,
                        wreg=wreg, dropout_h=dropout_h, dropout_in=dropout_in)
         self.memsize = memsize
         self.outdim = outdim
