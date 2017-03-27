@@ -802,7 +802,7 @@ def run(negsammode="closest",   # "close" or "random"
         usetestregions=False,
         validontest=False,
         dropoutin=0.2,
-        dropouth=0.07,
+        dropouth=0.05,
         dropoutd=0.1,
         zoneout=0.2,
         ):
