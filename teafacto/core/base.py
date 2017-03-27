@@ -517,6 +517,7 @@ class TrainModeContext(object):
         self.oldtrainmode = None
 
     def __enter__(self):
+        print "ENTERING TRAINING MODE"
         global _TRAINMODE
         self.oldtrainmode = _TRAINMODE
         _TRAINMODE = self.newtrainmode
