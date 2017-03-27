@@ -764,7 +764,6 @@ class Block(Elem, Saveable): # block with parameters
         return p
 
     # training
-    def train(self, inputdata, gold):
         # wrap data in datafeeds, generate gold var
         goldvar = Input(gold.ndim, gold.dtype, name="gold")
         #inps, outp = self.autobuild(*inputdata)
@@ -916,7 +915,7 @@ class NSTrainConfig():
         inputdata = self.datas + self.datas
         # wrap data in datafeeds, generate gold var
         goldvar = Input(gold.ndim, gold.dtype, name="gold")
-        inps, outp = block.autobuild(*inputdata)
+        #inps, outp = block.autobuild(*inputdata)
 
         trainer = NSModelTrainer(block, goldvar.d, self.nrate, self.nsamgen)
         trainer.traindata = self.datas
