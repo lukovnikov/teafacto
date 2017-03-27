@@ -344,13 +344,19 @@ class ModelTrainer(object):
             ret = (ret,) + errors
         return ret
 
+    def autobuild_model(self, model, *data, **kw):
+        return model.autobuild(*data, **kw)
+
     def buildtrainfun(self, model):
         self.tt.tick("compiling training function")
         with model.trainmode(True):
-            params = model.output.allparams
-            inputs = model.inputs
-            scanupdates = model.output.allupdates
-            loss, newinp = self.buildlosses(model, [self.objective])
+            inps, out = self.autobuild_model(model, *self.traindata, _trainmode=True)
+            if issequence(out):
+                out = out[0]
+            params = out.allparams #model.output.allparams
+            inputs = inps #model.inputs
+            scanupdates = out.allupdates #model.output.allupdates
+            loss, newinp = self.buildlosses(out, [self.objective])
             loss = loss[0]
             if newinp is not None:
                 inputs = newinp
@@ -395,8 +401,8 @@ class ModelTrainer(object):
             self.tt.tock("training function compiled")
         return trainf
 
-    def buildlosses(self, model, objs):
-        return [aggregate(obj(model.output.d, self.goldvar), mode='mean' if self.average_err is True else 'sum') for obj in objs], None
+    def buildlosses(self, out, objs):
+        return [aggregate(obj(out.d, self.goldvar), mode='mean' if self.average_err is True else 'sum') for obj in objs], None
 
     def getvalidfun(self, model):
         symbolic_validfun = self.buildvalidfun(model)
@@ -422,8 +428,11 @@ class ModelTrainer(object):
 
     def buildvalidfun(self, model):
         self.tt.tick("compiling validation function")
-        metrics, newinp = self.buildlosses(model, self.validators)
-        inputs = newinp if newinp is not None else model.inputs
+        inps, out = self.autobuild_model(model, *self.traindata, _trainmode=False)
+        if issequence(out):
+            out = out[0]
+        metrics, newinp = self.buildlosses(out, self.validators)
+        inputs = newinp if newinp is not None else inps
         ret = None
         if len(metrics) > 0:
             ret = theano.function(inputs=[x.d for x in inputs] + [self.goldvar],
@@ -662,3 +671,6 @@ class NSModelTrainer(ModelTrainer):
                     ret.append(np.concatenate([x, y], axis=0))
             acc = ret
         return acc
+
+    def autobuild_model(self, model, *data, **kw):
+        return model.autobuild(*(data + data), **kw)

@@ -767,7 +767,7 @@ class Block(Elem, Saveable): # block with parameters
     def train(self, inputdata, gold):
         # wrap data in datafeeds, generate gold var
         goldvar = Input(gold.ndim, gold.dtype, name="gold")
-        inps, outp = self.autobuild(*inputdata)
+        #inps, outp = self.autobuild(*inputdata)
 
         trainer = ModelTrainer(self, goldvar.d)
         trainer.traindata = inputdata
