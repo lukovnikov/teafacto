@@ -391,6 +391,7 @@ class ModelTrainer(object):
             #print updates
             #embed()
             allupdates = updates + scanupdates.items()
+            embed()
             trainf = theano.function(
                 inputs=[x.d for x in inputs]+[self.goldvar],
                 outputs=[cost],
