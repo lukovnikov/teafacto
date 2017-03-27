@@ -200,7 +200,8 @@ class GRU(GatedRNU):
         canh = T.dot(h_tm1 * hfgate, self.u) + T.dot(x_t, self.w) + self.b
         '''canh = self.normalize_layer(canh)'''
         canh = self.outpactivation(canh)
-        h = mgate * h_tm1 + (1-mgate) * canh
+        mgate = self.zoneout(mgate)
+        h = (1 - mgate) * h_tm1 + mgate * canh
         #h = self.normalize_layer(h)
         return [h, h]
 

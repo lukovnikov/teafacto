@@ -802,7 +802,9 @@ def run(negsammode="closest",   # "close" or "random"
         usetestregions=False,
         validontest=False,
         dropoutin=0.3,
-        dropouth=0.3,
+        dropouth=0.05,
+        dropoutd=0.1,
+        zoneout=0.2,
         ):
     maskid = -1
     """
@@ -920,7 +922,7 @@ def run(negsammode="closest",   # "close" or "random"
     elif charenc == "rnn":
         print "using RNN char encoder"
         charenc = RNNSeqEncoder(inpemb=charemb, innerdim=charencdim,
-                                dropout_in=dropoutin, dropout_h=dropouth) \
+                                zoneout=zoneout, dropout_in=dropoutin, dropout_h=dropouth) \
             .maskoptions(maskid, MaskMode.AUTO)
     else:
         raise Exception("no other character encoding modes available")
@@ -933,7 +935,7 @@ def run(negsammode="closest",   # "close" or "random"
 
         wordenc = RNNSeqEncoder(inpemb=False, inpembdim=wordemb.outdim + charencdim,
                                 innerdim=[encdim]*numlayers, bidir=bidir,
-                                dropout_h=dropouth, dropout_in=dropoutin).maskoptions(MaskMode.NONE)
+                                zoneout=zoneout, dropout_in=dropoutin, dropout_h=dropouth).maskoptions(MaskMode.NONE)
 
     question_encoder = TwoLevelEncoder(l1enc=charenc, l2emb=wordemb,
                                        l2enc=wordenc, maskid=maskid)
@@ -943,7 +945,7 @@ def run(negsammode="closest",   # "close" or "random"
                             maskid=maskid,
                             bidir=bidir,
                             layers=1,
-                            dropout_in=dropoutin, dropout_h=dropouth)
+                            zoneout=zoneout, dropout_in=dropoutin, dropout_h=dropouth)
     #predemb.load(relmat)
 
     if usetypes:
@@ -953,14 +955,14 @@ def run(negsammode="closest",   # "close" or "random"
                                    maskid=maskid,
                                    bidir=bidir,
                                    layers=1,
-                                   dropout_h=dropouth, dropout_in=dropoutin)
+                                   zoneout=zoneout, dropout_h=dropouth, dropout_in=dropoutin)
         # encode subject on character level
         subjemb = SimpleSeq2Vec(inpemb=charemb,
                                 innerdim=int(np.floor(decdim * 2./3)),
                                 maskid=maskid,
                                 bidir=bidir,
                                 layers=1,
-                                dropout_h=dropouth, dropout_in=dropoutin)
+                                zoneout=zoneout, dropout_h=dropouth, dropout_in=dropoutin)
         subjemb = TypedSubjBlock(typlen, subjemb, subjtypemb)
     else:
         # encode subject on character level
@@ -969,7 +971,7 @@ def run(negsammode="closest",   # "close" or "random"
                                 maskid=maskid,
                                 bidir=bidir,
                                 layers=1,
-                                dropout_h=dropouth, dropout_in=dropoutin)
+                                zoneout=zoneout, dropout_h=dropouth, dropout_in=dropoutin)
     #subjemb.load(subjmat)
     if testmodel:
         embed()
@@ -987,7 +989,7 @@ def run(negsammode="closest",   # "close" or "random"
         raise Exception("unrecognized mode")
 
     if loss == "margin":
-        scoref = CosineDistance(dropout=dropoutin)
+        scoref = CosineDistance(dropout=dropoutd)
     elif loss == "ce":
         scoref = DotDistance()      # GenDotDistance() ??
     elif loss == "multice":
