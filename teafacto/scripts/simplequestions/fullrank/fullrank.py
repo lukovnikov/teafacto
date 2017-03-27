@@ -987,7 +987,7 @@ def run(negsammode="closest",   # "close" or "random"
         raise Exception("unrecognized mode")
 
     if loss == "margin":
-        scoref = CosineDistance()
+        scoref = CosineDistance(dropout=dropoutin)
     elif loss == "ce":
         scoref = DotDistance()      # GenDotDistance() ??
     elif loss == "multice":
@@ -1039,7 +1039,6 @@ def run(negsammode="closest",   # "close" or "random"
 
         def __call__(self, x):
             return (self.entmat[x],), {}
-
 
     class PreProcMultiCE(object):
         def __init__(self, subjmat, relmat):

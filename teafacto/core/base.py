@@ -963,13 +963,26 @@ class scan(Block):
         def fwrapper(*args): # theano vars
             trueargs = [Var(x, name="innerrecwrapvarwrap") for x in args]
             res = fn(*trueargs) # has the params from inner rec
+            updates = OrderedDict()
+            retupdates = None
+            if isinstance(res[-1], dict):
+                retupdates = res[-1]
+                res = res[0]
             ret = recurmap(lambda x: x.d if hasattr(x, "d") else x, res)
             if issequence(ret):
                 ret = tuple(ret)
             outvars = recurfilter(lambda x: isinstance(x, Var), res)
             for var in outvars:
                 scanblock._recparams.update(var._params)
-            return ret
+            for reswithupdates in recurfilter(lambda x: isinstance(x, Var), res):
+                updates.update(reswithupdates.allupdates)
+            if retupdates is not None:
+                updatesupdate = {k.d: v.d for k, v in retupdates.items()}
+                updates.update(updatesupdate)
+            if len(updates) > 0:
+                return ret, updates
+            else:
+                return ret
         return fwrapper
 
     def apply(self, fn, **kwargs):
