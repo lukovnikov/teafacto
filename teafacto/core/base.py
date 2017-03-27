@@ -1,5 +1,6 @@
 from types import ModuleType
 from collections import OrderedDict
+import inspect
 from IPython import embed
 import theano
 from lasagne.init import *
@@ -10,6 +11,10 @@ from theano.tensor.var import _tensor_py_operators
 from teafacto.core.trainer import ModelTrainer, NSModelTrainer
 from teafacto.util import isstring, issequence, isfunction, Saveable, isnumber
 from teafacto.core.datafeed import DataFeed
+
+
+_TRAINMODE = False
+_DEBUGMODE = False
 
 
 def recurmap(fun, data):
@@ -384,6 +389,66 @@ class Val(Elem, TensorWrapped, Masked):
         return self.value.get_value()
 
 
+from theano.sandbox.rng_mrg import MRG_RandomStreams as RandomStreams
+
+
+class RVal(Elem, TensorWrapped, Masked):  # random value
+    def __init__(self, seed=None, **kw):
+        super(RVal, self).__init__(**kw)
+        if seed is None:
+            seed = np.random.randint(0, 1e6)
+        self.rng = RandomStreams(seed=seed)
+        self.value = None
+
+    def binomial(self, shape, n=1, p=0.5, ndim=None, dtype="int32"):
+        if isinstance(shape, Elem):
+            shape = shape.d
+        self.value = self.rng.binomial(shape, n, p, ndim, dtype)
+        return self
+
+    def normal(self, shape, avg=0.0, std=1.0, ndim=None, dtype=None):
+        if isinstance(shape, Elem):
+            shape = shape.d
+        self.value = self.rng.normal(shape, avg, std, ndim, dtype)
+        return self
+
+    def multinomial(self, shape, n=1, pvals=None, without_replacement=False, ndim=None, dtype="int32"):
+        if isinstance(shape, Elem):
+            shape = shape.d
+        if without_replacement:
+            self.value = self.rng.multinomial_wo_replacement(shape, n, pvals, ndim, dtype)
+        else:
+            self.value = self.rng.multinomial(shape, n, pvals, ndim, dtype)
+        return self
+
+    def gumbel(self, shape, eps=1e-10):
+        if isinstance(shape, Elem):
+            shape = shape.d
+        x = self.rng.uniform(shape, 0.0, 1.0)
+        self.value = -theano.tensor.log(-theano.tensor.log(x + eps) + eps)
+        return self
+
+    @property
+    def d(self):
+        return self.value
+
+    @property
+    def v(self):
+        return self.value.eval()
+
+    @property
+    def allparams(self):
+        return set()
+
+    @property
+    def allupdates(self):
+        return {}
+
+    @property
+    def all_extra_outs(self):
+        return {}
+
+
 ### WORRY ABOUT THIS
 class Var(Elem, TensorWrapped, Masked): # result of applying a block on theano variables
     """ Var has params propagated from all the blocks used to compute it """
@@ -394,9 +459,21 @@ class Var(Elem, TensorWrapped, Masked): # result of applying a block on theano v
         self.value = value
         self._shape = None
         self._params = set()            # params this variable may depend on
+        self._updates = OrderedDict()
 
     def push_params(self, setofparams):
         self._params.update(setofparams)
+
+    def push_updates(self, updates):
+        for updatesrc in updates:
+            updatetgt = updates[updatesrc]
+            if updatesrc in self._updates and updatetgt != self._updates[updatesrc]:
+                raise Exception("update collision")
+            self._updates[updatesrc] = updatetgt
+
+    @property
+    def allupdates(self):
+        return self._updates
 
     @property
     def v(self):
@@ -433,6 +510,23 @@ class Input(Var): # generates feed + creates symbolic vars for input
         self.ndim = ndim # store number of dimensions
 
 
+class TrainModeContext(object):
+    def __init__(self, x, b):
+        self.p = x
+        self.newtrainmode = b
+        self.oldtrainmode = None
+
+    def __enter__(self):
+        global _TRAINMODE
+        self.oldtrainmode = _TRAINMODE
+        _TRAINMODE = self.newtrainmode
+        return self.p
+
+    def __exit__(self, e_type, e_value, traceback):
+        global _TRAINMODE
+        _TRAINMODE = self.oldtrainmode
+
+
 class Block(Elem, Saveable): # block with parameters
     def __init__(self, **kw):
         super(Block, self).__init__(**kw)
@@ -454,6 +548,9 @@ class Block(Elem, Saveable): # block with parameters
     def output(self):
         assert(len(self.outputs) == 1)
         return self.outputs[0]
+
+    def trainmode(self, b):
+        return TrainModeContext(self, b)
 
     def reset(self): # clear all non-param info in whole expression structure that ends in this block
         print "resetting block"
@@ -547,6 +644,26 @@ class Block(Elem, Saveable): # block with parameters
     # TODO: propagate _ownparams to output vars
     def wrapply(self, *args, **kwargs): # is this multi-output compatible?
         transform = None
+        oldtrainmode = None
+        olddebugmode = None
+        global _TRAINMODE
+        global _DEBUGMODE
+        #print "{} train mode (in base.py)".format(_TRAINMODE)
+        if "transform" in kwargs and kwargs["transform"] is not None:
+            transform = kwargs.pop("transform")
+        if "_trainmode" in kwargs:      # changes global _TRAINMODE
+            oldtrainmode = _TRAINMODE
+            _TRAINMODE = kwargs.pop("_trainmode")
+        if "_debugmode" in kwargs:      # changes global _DEBUGMODE
+            olddebugmode = _DEBUGMODE
+            _DEBUGMODE = kwargs.pop("_debugmode")
+        if "_batsize" in kwargs:
+            batsize = kwargs.pop("_batsize")
+        if "_trainmode" in inspect.getargspec(self.apply)[0]:
+            kwargs["_trainmode"] = _TRAINMODE
+        if "_debugmode" in inspect.getargspec(self.apply)[0]:
+            kwargs["_debugmode"] = _DEBUGMODE
+
         if "transform" in kwargs and kwargs["transform"] is not None:
             transform = kwargs.pop("transform")
         paramstopush = set()        # params to transfer from input vars to output vars
@@ -554,11 +671,18 @@ class Block(Elem, Saveable): # block with parameters
             paramstopush.update(var._params)
         if transform is not None and isfunction(transform):
             args, kwargs = transform(*args, **kwargs)
+        updatestopush = _get_updates_from([args, kwargs])
         ret = self.apply(*args, **kwargs)   # ret carries params of its own --> these params have been added in this block
         possiblechildren = recurfilter(lambda x: isinstance(x, Var), ret)
         for p in possiblechildren:
             p.push_params(paramstopush)
             p.push_params(self.ownparams)
+            p.push_updates(updatestopush)
+
+        if oldtrainmode is not None:    # this was where we changed the global _TRAINMODE
+            _TRAINMODE = oldtrainmode   # put it back
+        if olddebugmode is not None:
+            _DEBUGMODE = olddebugmode
         return ret
 
     def build(self): # stores block inputs and block output
@@ -571,8 +695,11 @@ class Block(Elem, Saveable): # block with parameters
 
     def autobuild(self, *inputdata, **kwinputdata):
         transform = None
+        trainmode = False
         if "transform" in kwinputdata:
             transform = kwinputdata.pop("transform")
+        if "_trainmode" in kwinputdata:
+            trainmode = kwinputdata.pop("_trainmode")
         inputdata = map(lambda x:
                         x if isinstance(x, (np.ndarray, DataFeed)) else (np.asarray(x) if x is not None else None),
                         inputdata)
@@ -591,6 +718,7 @@ class Block(Elem, Saveable): # block with parameters
             kwinputs[k] = None if td is None else Input(ndim=td.ndim, dtype=td.dtype, name="kwinp:%s" % k)
 
         kwinputl = kwinputs.items()
+        kwinputl.append(("_trainmode", trainmode))
         if transform is not None:
             kwinputl.append(("transform", transform))
         output = self._build(*inputs, **dict(kwinputl))
@@ -681,6 +809,8 @@ class OpBlock(Block):
         if self.root is not None and isinstance(self.root, Parameter):
             ownparams.add(self.root)
         self.add_params(ownparams)
+        updatestopush = _get_updates_from([args, kwargs] +
+            ([self.root] if self.root is not None and isinstance(self.root, Var) else []))  # gather all updates
         # get theano vars for all args
         trueargs = recurmap(lambda x: x.d if hasattr(x, "d") else x, args)
         truekwargs = recurmap(lambda x: x.d if hasattr(x, "d") else x, kwargs)
@@ -693,6 +823,7 @@ class OpBlock(Block):
         for p in possiblechildren:
             p.push_params(paramstopush)
             p.push_params(ownparams)
+            p.push_updates(updatestopush)
         return ret
 
 
@@ -843,11 +974,25 @@ class scan(Block):
 
     def apply(self, fn, **kwargs):
         trueargs = recurmap(lambda x: x.d if hasattr(x, "d") else x, kwargs)
-        o, updates = theano.scan(self.fnwrap(fn), **trueargs)
+        oldupdates = _get_updates_from(kwargs)
+        o, newupdates = theano.scan(self.fnwrap(fn), **trueargs)
         ret = [Var(oe) for oe in o] if issequence(o) else Var(o)
         for var in recurfilter(lambda x: isinstance(x, Var), ret):
             var.push_params(self._recparams)
-        return ret, updates
+            var.push_updates(oldupdates)
+            var.push_updates(newupdates)
+        return ret, newupdates
+
+
+def _get_updates_from(kwargs):
+    updates = {}
+    for var in recurfilter(lambda x: isinstance(x, Var), kwargs):
+        for updatesrc in var.allupdates:
+            updatetgt = var.allupdates[updatesrc]
+            if updatesrc in updates and updatetgt != updates[updatesrc]:
+                raise Exception("update overwriting same update source")
+            updates[updatesrc] = updatetgt
+    return updates
 
 
 class until(Elem):

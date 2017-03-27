@@ -346,50 +346,53 @@ class ModelTrainer(object):
 
     def buildtrainfun(self, model):
         self.tt.tick("compiling training function")
-        params = model.output.allparams
-        inputs = model.inputs
-        loss, newinp = self.buildlosses(model, [self.objective])
-        loss = loss[0]
-        if newinp is not None:
-            inputs = newinp
-        if self.regularizer is not None:
-            reg = self.regularizer(params)
-            cost = loss+reg
-        else:
-            cost = loss
-        # theano.printing.debugprint(cost)
-        # theano.printing.pydotprint(cost, outfile="pics/debug.png")
-        updates = []
-        print "params:\n " + "".join(map(lambda x: "\t%s\n" % str(x), params)) + "\n\t\t (in Block, base.py)\n"
-        self.tt.msg("computing gradients")
-        #grads = []
-        #for x in params:
-        #    self.tt.msg("computing gradient for %s" % str(x))
-        #    grads.append(tensor.grad(cost, x.d))
-        grads = tensor.grad(cost, [x.d for x in params])  # compute gradient
-        self.tt.msg("computed gradients")
-        grads = self._gradconstrain(grads)
-        for param, grad in zip(params, grads):
-            upds = self.optimizer([grad], [param.d], self.learning_rate*param.lrmul)
-            for upd in upds:
-                broken = False
-                for para in params:
-                    if para.d == upd:
-                        updates.append((upd, para.constraintf()(upds[upd])))
-                        broken = True
-                        break
-                if not broken:
-                    updates.append((upd, upds[upd]))
-        #print updates
-        #embed()
-        trainf = theano.function(
-            inputs=[x.d for x in inputs]+[self.goldvar],
-            outputs=[cost],
-            updates=updates,
-            mode=NanGuardMode(nan_is_error=True, inf_is_error=False, big_is_error=False)
-        )
-        # TODO: add givens for transferring dataset to GPU --> must reimplement parts of trainer (batch generation, givens, ...)
-        self.tt.tock("training function compiled")
+        with model.trainmode(True):
+            params = model.output.allparams
+            inputs = model.inputs
+            scanupdates = model.output.allupdates
+            loss, newinp = self.buildlosses(model, [self.objective])
+            loss = loss[0]
+            if newinp is not None:
+                inputs = newinp
+            if self.regularizer is not None:
+                reg = self.regularizer(params)
+                cost = loss+reg
+            else:
+                cost = loss
+            # theano.printing.debugprint(cost)
+            # theano.printing.pydotprint(cost, outfile="pics/debug.png")
+            updates = []
+            print "params:\n " + "".join(map(lambda x: "\t%s\n" % str(x), params)) + "\n\t\t (in Block, base.py)\n"
+            self.tt.msg("computing gradients")
+            #grads = []
+            #for x in params:
+            #    self.tt.msg("computing gradient for %s" % str(x))
+            #    grads.append(tensor.grad(cost, x.d))
+            grads = tensor.grad(cost, [x.d for x in params])  # compute gradient
+            self.tt.msg("computed gradients")
+            grads = self._gradconstrain(grads)
+            for param, grad in zip(params, grads):
+                upds = self.optimizer([grad], [param.d], self.learning_rate*param.lrmul)
+                for upd in upds:
+                    broken = False
+                    for para in params:
+                        if para.d == upd:
+                            updates.append((upd, para.constraintf()(upds[upd])))
+                            broken = True
+                            break
+                    if not broken:
+                        updates.append((upd, upds[upd]))
+            #print updates
+            #embed()
+            allupdates = updates + scanupdates.items()
+            trainf = theano.function(
+                inputs=[x.d for x in inputs]+[self.goldvar],
+                outputs=[cost],
+                updates=allupdates,
+                mode=NanGuardMode(nan_is_error=True, inf_is_error=False, big_is_error=False)
+            )
+            # TODO: add givens for transferring dataset to GPU --> must reimplement parts of trainer (batch generation, givens, ...)
+            self.tt.tock("training function compiled")
         return trainf
 
     def buildlosses(self, model, objs):

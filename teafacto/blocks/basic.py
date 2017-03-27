@@ -97,6 +97,37 @@ class Masker(Block):
         else:
             return x
 
+from teafacto.core.base import RVal
+
+
+class Dropout(Block):
+    def __init__(self, p=0.3, seed=None, rescale=True, _alwaysrandom=False, **kw):
+        super(Dropout, self).__init__(**kw)
+        if seed is None:
+            seed = np.random.randint(0, 1e6)
+        self.p = 0.0 if (p is False or p is None) else 0.3 if p is True else p
+        self.rescale = rescale
+        self.seed = seed
+        self._debug = _alwaysrandom
+        self.rval = RVal(self.seed)
+
+    def apply(self, x, _trainmode=False):
+        if (_trainmode or self._debug) and self.p > 0:
+            print "Dropout: YES"
+            xmask = x.mask
+            if self.rescale:
+                one = T.constant(1)
+                x /= one - self.p
+            #rng = RVal(self.seed)
+            rv = self.rval.binomial(x.shape, p=1-self.p, dtype=x.dtype)
+            x = x * rv
+            #print "done dropout"
+            x.mask = xmask
+            # x.push_extra_outs({"dropout{}".format(np.random.randint(100, 199)): rv})
+            return x
+        else:
+            print "Dropout: NO"
+            return x
 
 
 class VectorEmbed(Embedder):

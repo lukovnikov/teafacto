@@ -2,6 +2,7 @@ from teafacto.core.base import Block, param
 from teafacto.core.base import tensorops as T
 from teafacto.util import getnumargs
 from teafacto.util import issequence
+from teafacto.blocks.basic import Dropout
 
 
 class RecurrentBlock(Block):     # ancestor class for everything that consumes sequences f32~(batsize, seqlen, ...)
@@ -82,6 +83,7 @@ class RNUBase(ReccableBlock):
 
     def __init__(self, dim=20, innerdim=20, wreg=0.0001,
                  initmult=0.1, nobias=False, paraminit="uniform",
+                 dropout_in=False, dropout_h=False, zoneout=False,
                  **kw): #layernormalize=False): # dim is input dimensions, innerdim = dimension of internal elements
         super(RNUBase, self).__init__(**kw)
         self.indim = dim
@@ -98,6 +100,9 @@ class RNUBase(ReccableBlock):
         self.rnuparams = {}
         if not self._waitforit:
             self.initparams()
+        self.dropout_in = Dropout(dropout_in)
+        self.dropout_h = Dropout(dropout_h)
+        self.zoneout = Dropout(zoneout)
     '''
     def normalize_layer(self, vec):     # (batsize, hdim)
         if self.layernormalize:
@@ -188,6 +193,8 @@ class GRU(GatedRNU):
         :param h_tm1: previous states (nb_samples, out_dim)
         :return: new state (nb_samples, out_dim)
         '''
+        x_t = self.dropout_in(x_t)
+        h_tm1 = self.dropout_h(h_tm1)
         mgate =  self.gateactivation(T.dot(h_tm1, self.um)  + T.dot(x_t, self.wm)  + self.bm)
         hfgate = self.gateactivation(T.dot(h_tm1, self.uhf) + T.dot(x_t, self.whf) + self.bhf)
         canh = T.dot(h_tm1 * hfgate, self.u) + T.dot(x_t, self.w) + self.b

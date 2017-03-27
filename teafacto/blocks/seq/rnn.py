@@ -350,7 +350,8 @@ class SeqEncoder(AttentionConsumer, Block):
 
 class RNNSeqEncoder(SeqEncoder):
     def __init__(self, indim=500, inpembdim=100, inpemb=None,
-                 innerdim=200, bidir=False, maskid=None, **kw):
+                 innerdim=200, bidir=False, maskid=None,
+                 dropout_in=False, dropout_h=False, **kw):
         if inpemb is None:
             inpemb = VectorEmbed(indim=indim, dim=inpembdim, maskid=maskid)
         elif inpemb is False:
@@ -359,7 +360,7 @@ class RNNSeqEncoder(SeqEncoder):
             inpembdim = inpemb.outdim
         if not issequence(innerdim):
             innerdim = [innerdim]
-        layers, _ = MakeRNU.make(inpembdim, innerdim, bidir=bidir)
+        layers, _ = MakeRNU.make(inpembdim, innerdim, bidir=bidir, dropout_in=dropout_in, dropout_h=dropout_h)
         super(RNNSeqEncoder, self).__init__(inpemb, *layers, **kw)
 
 
@@ -632,7 +633,7 @@ class BiRewAttSumDecoder(Block):
 class MakeRNU(object):
     ''' generates a list of RNU's'''
     @staticmethod
-    def make(initdim, specs, rnu=GRU, bidir=False):
+    def make(initdim, specs, rnu=GRU, bidir=False, dropout_in=False, dropout_h=False):
         if not issequence(specs):
             specs = [specs]
         rnns = []
@@ -651,7 +652,7 @@ class MakeRNU(object):
                 rnn = BiRNU.fromrnu(fspec["rnu"], dim=prevdim, innerdim=fspec["dim"])
                 prevdim = fspec["dim"] * 2
             else:
-                rnn = fspec["rnu"](dim=prevdim, innerdim=fspec["dim"])
+                rnn = fspec["rnu"](dim=prevdim, innerdim=fspec["dim"], dropout_h=dropout_h, dropout_in=dropout_in)
                 prevdim = fspec["dim"]
             rnns.append(rnn)
         return rnns, prevdim

@@ -74,7 +74,8 @@ class Seq2Vec(Block):
 
 class SimpleSeq2Vec(Seq2Vec):
     def __init__(self, indim=400, inpembdim=50, inpemb=None,
-                 innerdim=100, maskid=0, bidir=False, pool=False, **kw):
+                 innerdim=100, maskid=0, bidir=False, pool=False,
+                 dropout_in=False, dropout_h=False, **kw):
         if inpemb is None:
             if inpembdim is None:
                 inpemb = IdxToOneHot(indim)
@@ -83,14 +84,16 @@ class SimpleSeq2Vec(Seq2Vec):
                 inpemb = VectorEmbed(indim=indim, dim=inpembdim)
         else:
             inpembdim = inpemb.outdim
-        rnn, lastdim = self.makernu(inpembdim, innerdim, bidir=bidir)
+        rnn, lastdim = self.makernu(inpembdim, innerdim, bidir=bidir,
+                                    dropout_h=dropout_h, dropout_in=dropout_in)
         self.outdim = lastdim
         poolblock = None if pool is False else Pool((None,), axis=(1,), mode="max")
         super(SimpleSeq2Vec, self).__init__(inpemb, rnn, maskid=maskid, pool=poolblock, **kw)
 
     @staticmethod
-    def makernu(inpembdim, innerdim, bidir=False):
-        return MakeRNU.make(inpembdim, innerdim, bidir=bidir)
+    def makernu(inpembdim, innerdim, bidir=False, dropout_h=False, dropout_in=False):
+        return MakeRNU.make(inpembdim, innerdim, bidir=bidir,
+                            dropout_h=dropout_h, dropout_in=dropout_in)
 
 
 class SimpleSeq2MultiVec(Block):

@@ -1,4 +1,5 @@
 from teafacto.core.base import tensorops as T, Block, asblock, param
+from teafacto.blocks.basic import Dropout
 from teafacto.util import issequence
 from IPython import embed
 
@@ -6,16 +7,22 @@ from IPython import embed
 
 #region ######## DISTANCES ########
 class DotDistance(Block):
+    def __init__(self, dropout=False, **kw):
+        super(DotDistance, self).__init__(**kw)
+        self.dropout = Dropout(dropout)
+
     def apply(self, l, r):  # l: f32^(batsize, dim), r: f32^(batsize, dim)
+        l = self.dropout(l)
         return T.batched_dot(l, r)
 
 
-class CosineDistance(Block):
+class CosineDistance(DotDistance):
     def apply(self, l, r):  # l: f32^(batsize, dim), r:f32^(batsize, dim)
+        l = self.dropout(l)
         dots = T.batched_dot(l, r)
         lnorms = l.norm(2, axis=1)
         rnorms = r.norm(2, axis=1)
-        return dots/(lnorms*rnorms + 1e-6)
+        return dots/(lnorms * rnorms + 1e-6)
 
 
 class EuclideanDistance(Block):

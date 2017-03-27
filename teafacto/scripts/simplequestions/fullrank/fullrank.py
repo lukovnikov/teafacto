@@ -183,9 +183,11 @@ def loadsubjsamplespace(p="../../../../data/simplequestions/clean/subjclose.dic.
     d = pickle.load(open(p))
     return d
 
+
 def loadsubjtraincans(p="../../../../data/simplequestions/clean/traincans10c.pkl"):
     t = pickle.load(open(p))
     return t
+
 
 def buildtraincanspace(traindata, maskid=-1):
     cans = loadsubjtraincans()
@@ -799,6 +801,8 @@ def run(negsammode="closest",   # "close" or "random"
         numlayers=1,
         usetestregions=False,
         validontest=False,
+        dropoutin=0.3,
+        dropouth=0.3,
         ):
     maskid = -1
     """
@@ -915,7 +919,8 @@ def run(negsammode="closest",   # "close" or "random"
                                 stride=1)
     elif charenc == "rnn":
         print "using RNN char encoder"
-        charenc = RNNSeqEncoder(inpemb=charemb, innerdim=charencdim) \
+        charenc = RNNSeqEncoder(inpemb=charemb, innerdim=charencdim,
+                                dropout_in=dropoutin, dropout_h=dropouth) \
             .maskoptions(maskid, MaskMode.AUTO)
     else:
         raise Exception("no other character encoding modes available")
@@ -927,7 +932,8 @@ def run(negsammode="closest",   # "close" or "random"
     else:
 
         wordenc = RNNSeqEncoder(inpemb=False, inpembdim=wordemb.outdim + charencdim,
-                                innerdim=[encdim]*numlayers, bidir=bidir).maskoptions(MaskMode.NONE)
+                                innerdim=[encdim]*numlayers, bidir=bidir,
+                                dropout_h=dropouth, dropout_in=dropoutin).maskoptions(MaskMode.NONE)
 
     question_encoder = TwoLevelEncoder(l1enc=charenc, l2emb=wordemb,
                                        l2enc=wordenc, maskid=maskid)
@@ -936,7 +942,8 @@ def run(negsammode="closest",   # "close" or "random"
                             innerdim=decdim,
                             maskid=maskid,
                             bidir=bidir,
-                            layers=1)
+                            layers=1,
+                            dropout_in=dropoutin, dropout_h=dropouth)
     #predemb.load(relmat)
 
     if usetypes:
@@ -945,13 +952,15 @@ def run(negsammode="closest",   # "close" or "random"
                                    innerdim=int(np.ceil(decdim * 1./3)),
                                    maskid=maskid,
                                    bidir=bidir,
-                                   layers=1)
+                                   layers=1,
+                                   dropout_h=dropouth, dropout_in=dropoutin)
         # encode subject on character level
         subjemb = SimpleSeq2Vec(inpemb=charemb,
                                 innerdim=int(np.floor(decdim * 2./3)),
                                 maskid=maskid,
                                 bidir=bidir,
-                                layers=1)
+                                layers=1,
+                                dropout_h=dropouth, dropout_in=dropoutin)
         subjemb = TypedSubjBlock(typlen, subjemb, subjtypemb)
     else:
         # encode subject on character level
@@ -959,7 +968,8 @@ def run(negsammode="closest",   # "close" or "random"
                                 innerdim=decdim,
                                 maskid=maskid,
                                 bidir=bidir,
-                                layers=1)
+                                layers=1,
+                                dropout_h=dropouth, dropout_in=dropoutin)
     #subjemb.load(subjmat)
     if testmodel:
         embed()
