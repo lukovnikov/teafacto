@@ -102,7 +102,7 @@ class RNUBase(ReccableBlock):
             self.initparams()
         self.dropout_in = Dropout(dropout_in)
         self.dropout_h = Dropout(dropout_h)
-        self.zoneout = Dropout(zoneout)
+        self.zoneout = Dropout(zoneout, rescale=False)
     '''
     def normalize_layer(self, vec):     # (batsize, hdim)
         if self.layernormalize:
