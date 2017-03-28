@@ -113,7 +113,7 @@ class Dropout(Block):
 
     def apply(self, x, _trainmode=False):
         if (_trainmode or self._debug) and self.p > 0:
-            print "Dropout: YES"
+            #print "Dropout: YES"
             xmask = x.mask
             if self.rescale:
                 one = T.constant(1)
@@ -126,7 +126,7 @@ class Dropout(Block):
             # x.push_extra_outs({"dropout{}".format(np.random.randint(100, 199)): rv})
             return x
         else:
-            print "Dropout: NO"
+            #print "Dropout: NO"
             return x
 
 
