@@ -803,7 +803,7 @@ def run(negsammode="closest",   # "close" or "random"
         validontest=False,
         dropoutin=0.2,
         dropouth=0.0,
-        dropoutd=0.05,
+        dropoutd=0.0,
         zoneout=0.2,
         ):
     maskid = -1
