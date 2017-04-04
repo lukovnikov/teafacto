@@ -777,7 +777,7 @@ def run(negsammode="closest",   # "close" or "random"
         lr=0.1,
         numbats=700,
         epochs=50,
-        gradnorm=1.0,
+        gradnorm=5.0,
         wreg=0.000000001,
         loadmodel="no",
         debug=False,
@@ -801,10 +801,10 @@ def run(negsammode="closest",   # "close" or "random"
         numlayers=1,
         usetestregions=False,
         validontest=False,
-        dropoutin=0.2,
+        dropoutin=0.1,
         dropouth=0.0,
         dropoutd=0.0,
-        zoneout=0.2,
+        zoneout=0.05,
         ):
     maskid = -1
     """
