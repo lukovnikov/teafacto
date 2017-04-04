@@ -23,11 +23,15 @@ def main(scriptname="testrunscript.py",
                 print filename, modelname
     else:
         print modelfile
-    for filename in os.listdir("."):
-        m = re.match("^{}$".format(modelfilepattern.format("(\d{0,4}\.?(\d{0,3}ep)?)")), filename)
-        if m:
-            modelname = m.group(1)
-            runstuff(modelname, griddict, scriptname)
+    if modelfile == "none":
+        for filename in os.listdir("."):
+            m = re.match("^{}$".format(modelfilepattern.format("(\d{0,4}\.?(\d{0,3}ep)?)")), filename)
+            if m:
+                modelname = m.group(1)
+                runstuff(modelname, griddict, scriptname)
+    else:
+        modelname = modelfile
+        runstuff(modelname, griddict, scriptname)
 
 
 def runstuff(modelname, griddict, scriptname):
