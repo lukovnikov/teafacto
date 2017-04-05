@@ -193,14 +193,14 @@ class GRU(GatedRNU):
         :param h_tm1: previous states (nb_samples, out_dim)
         :return: new state (nb_samples, out_dim)
         '''
-        x_t = self.dropout_in(x_t)
-        h_tm1 = self.dropout_h(h_tm1)
+        #x_t = self.dropout_in(x_t)
+        #h_tm1 = self.dropout_h(h_tm1)
         mgate =  self.gateactivation(T.dot(h_tm1, self.um)  + T.dot(x_t, self.wm)  + self.bm)
         hfgate = self.gateactivation(T.dot(h_tm1, self.uhf) + T.dot(x_t, self.whf) + self.bhf)
         canh = T.dot(h_tm1 * hfgate, self.u) + T.dot(x_t, self.w) + self.b
         '''canh = self.normalize_layer(canh)'''
         canh = self.outpactivation(canh)
-        mgate = self.zoneout(mgate)
+        #mgate = self.zoneout(mgate)
         h = (1 - mgate) * h_tm1 + mgate * canh
         #h = self.normalize_layer(h)
         return [h, h]

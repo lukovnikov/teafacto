@@ -1242,6 +1242,7 @@ def run(negsammode="closest",   # "close" or "random"
             prediction = predictor.predict(testdata, entcans=testsubjcans,
                             relsperent=relsperent, multiprune=multiprune)
         else:
+            print "GOLD SUBJECTS !!!! WRONG !!!!"
             prediction = predictor.predict(testdata, entcans=testsubjcans,
                             relsperent=relsperent, multiprune=0,
                             goldsubjects=list(testgold[:, 0]))
