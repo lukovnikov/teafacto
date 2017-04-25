@@ -1,8 +1,8 @@
-from teafacto.blocks.basic import MatDot as Lin, VectorEmbed, IdxToOneHot
+from teafacto.blocks.basic import MatDot as Lin, VectorEmbed, IdxToOneHot, Forward
 from teafacto.core.base import Block, param, Val
 from teafacto.blocks.match import Distance, CosineDistance, DotDistance, ForwardDistance
 from teafacto.core.base import tensorops as T
-from teafacto.blocks.activations import GumbelSoftmax, Softmax
+from teafacto.blocks.activations import GumbelSoftmax, Softmax, Sigmoid, Tanh
 import numpy as np
 import theano, theano.tensor
 
@@ -18,6 +18,8 @@ class AttGen(Block):
         self.normalizer = normalizer
         self.sampler = sampler
         self.set_sampler(sampler, sample_temperature)
+        self._gated = False
+        self._crit_trans = None
 
     def set_sampler(self, sampler=None, sample_temperature=0.2):
         if sampler == "gumbel":
@@ -25,12 +27,30 @@ class AttGen(Block):
 
     def apply(self, criterion, data, mask=None):
         mask = data.mask if mask is None else mask
+        if self._gated:
+            att_gate = self._gated_gate(criterion)  # (batsize, datadim)
+            att_crit = self._gated_crit(criterion)
+            data = data * att_gate.dimadd(1)
+            criterion = att_crit
+        if self._crit_trans is not None:
+            criterion = self._crit_trans(criterion)
         o = self.dist(criterion, data)
         o_out = self.normalizer(o, mask=mask)
         if self.sampler is not None:
             o_out = self.sampler(o_out, mask=mask)
         o_out.mask = mask
         return o_out
+
+    #fluent
+    def gated(self, critdim, datadim):
+        self._gated_crit = Forward(critdim, datadim, activation=Tanh(), nobias=True)
+        self._gated_gate = Forward(critdim, datadim, activation=Sigmoid(), nobias=True)
+        self._gated = True
+        return self
+
+    def crit_trans(self, critdim, datadim):
+        self._crit_trans = Forward(critdim, datadim, activation=Tanh(), nobias=True)
+        return self
 
 
 ################################ ATTENTION CONSUMERS #####################################
@@ -88,11 +108,15 @@ class Attention(Block):
 
     # fluent
     def dot_gen(self):
-        self.attentiongenerator = AttGen(DotDistance())
+        self.attentiongenerator.dist = DotDistance()
         return self
 
     def forward_gen(self, ldim, rdim, innerdim=100):
-        self.attentiongenerator = AttGen(ForwardDistance(ldim, rdim, aggdim=innerdim))
+        self.attentiongenerator.dist = ForwardDistance(ldim, rdim, aggdim=innerdim)
+        return self
+
+    def gated_gen(self, critdim, datadim):
+        self.attentiongenerator.gated(critdim, datadim)
         return self
 
     def apply(self, criterion, data, mask=None):

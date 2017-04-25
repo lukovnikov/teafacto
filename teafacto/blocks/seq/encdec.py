@@ -1,11 +1,10 @@
-from teafacto.core.base import Block, asblock, Val, issequence, tensorops as T
+from teafacto.blocks.basic import MatDot
+from teafacto.blocks.match import DotDistance
+from teafacto.blocks.seq.attention import Attention, WeightedSumAttCon, AttGen
 from teafacto.blocks.seq.rnn import SeqEncoder, SeqDecoder
 from teafacto.blocks.seq.rnu import GRU
-from teafacto.blocks.seq.attention import Attention, WeightedSumAttCon, AttGen
-from teafacto.blocks.basic import MatDot
-from teafacto.blocks.match import CosineDistance, DotDistance
+from teafacto.core.base import Block, asblock, issequence, tensorops as T
 from teafacto.use.recsearch import SeqEncDecWrapper
-from IPython import embed
 
 
 class SeqEncDec(Block):
@@ -189,15 +188,25 @@ class SimpleSeqEncDecAtt(SeqEncDec):
         self.enc = enc
 
 
+# BELOW NEW PARALLEL ENCDEC STUFF (see also rnn.py)
 from teafacto.blocks.seq.rnn import MakeRNU, RecStack
 
 
 class EncDec(Block):        # doesn't have state transfer, parameterized initial states instead
-    def __init__(self, encoder=None, attention=None,
-                 inpemb=None,
-                 inconcat=True, outconcat=False, concatdecinp=False,
-                 indim=None, innerdim=None, rnu=GRU, dropout_in=False, dropout_h=False,
-                 smo=None,
+    def __init__(self,
+                 encoder=None,      # encoder block
+                 attention=None,    # attention block
+                 inconcat=True,     # concat att result to decoder inp
+                 outconcat=False,   # concat att result to smo
+                 concatdecinp=False,    # directly concat(feed) dec input to att gen and to smo
+                 inpemb=None,       # decoder input embedding block
+                 indim=None,        # decoder input dim
+                 innerdim=None,     # internal dim of dec rnn
+                 rnu=GRU,           # dec rnn type
+                 dropout_in=False,  # dropout dec rnn in
+                 dropout_h=False,   # dropout dec rnn h
+                 zoneout=False,     # zoneout dec rnn
+                 smo=None,          # dec smo block
                  init_state_gen=None,   # block that generates initial state of topmost layer that produces addressing vectors
                  **kw):
         super(EncDec, self).__init__(**kw)
@@ -209,11 +218,15 @@ class EncDec(Block):        # doesn't have state transfer, parameterized initial
         innerdim = innerdim if issequence(innerdim) else [innerdim]
         self.outdim = innerdim[-1]
         if indim is None:
-            indim = inpemb.outdim + encoder.outdim
+            indim = inpemb.outdim
+            if self.inconcat:
+                indim += encoder.outdim
         self.init_state_gen = init_state_gen
         paraminitstates = init_state_gen is None
         layers, lastdim = MakeRNU.fromdims([indim] + innerdim, rnu=rnu,
-                                  dropout_in=dropout_in, dropout_h=dropout_h,
+                                  dropout_in=dropout_in,
+                                  dropout_h=dropout_h,
+                                  zoneout=zoneout,
                                   param_init_states=paraminitstates)
         self.block = RecStack(*layers)
         self.attention = attention
@@ -247,7 +260,6 @@ class EncDec(Block):        # doesn't have state transfer, parameterized initial
             if len(initstates) < self.numstates:  # fill up with batsizes for lower layers
                 initstates = [batsize * (self.numstates - len(initstates))] + initstates
         return self.get_init_info(initstates)
-
 
     def get_init_info(self, initstates):
         return self.block.get_init_info(initstates)

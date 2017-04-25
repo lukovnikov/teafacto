@@ -470,13 +470,13 @@ class MakeRNU(object):
 
     @staticmethod
     def fromdims(innerdim, rnu=GRU, bidir=False,
-                 dropout_in=False, dropout_h=False,
+                 dropout_in=False, dropout_h=False, zoneout=False,
                  param_init_states=False):
         assert(len(innerdim) >= 2)
         initdim = innerdim[0]
         otherdim = innerdim[1:]
         return MakeRNU.make(initdim, otherdim, rnu=rnu, bidir=bidir,
-                            dropout_in=dropout_in, dropout_h=dropout_h,
+                            dropout_in=dropout_in, dropout_h=dropout_h, zoneout=zoneout,
                             param_init_states=param_init_states)
 
 
