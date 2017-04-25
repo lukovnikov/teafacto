@@ -3,7 +3,7 @@ from unittest import TestCase
 
 import numpy as np
 
-from teafacto.blocks.seq.rnu import GRU, LSTM, IFGRU
+from teafacto.blocks.seq.rnu import GRU, LSTM, IFGRU, QRNU
 from teafacto.core.base import param, Input
 
 
@@ -181,6 +181,25 @@ class TestIFGRUnobias(TestIFGRU, TestGRUnobias):
         self.assertEqual(self.rnu.bif, 0)
         self.assertEqual(self.rnu.wif.shape, (self.dim, self.dim))
         self.assertEqual(self.rnu.uif.shape, (self.innerdim, self.dim))
+
+
+class TestQRNU(TestCase):
+    def setUp(self):
+        self.dim = 20
+        self.innerdim = 50
+        self.rnu = self.makernu()
+        self.batsize = 50
+        self.seqlen = 10
+        self.datashape = (self.batsize, self.seqlen, self.dim)
+        self.testdata = np.random.random(self.datashape).astype("float32")
+
+    def makernu(self):
+        return QRNU(dim=self.dim, innerdim=self.innerdim, window_size=3)
+
+    def test_shapes(self):
+        pred = self.rnu.predict(self.testdata)
+        self.assertEqual(pred.shape, (self.batsize, self.seqlen, self.innerdim))
+
 
 
 

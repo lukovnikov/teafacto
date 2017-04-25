@@ -224,10 +224,15 @@ class RNU(RNUBase):
 
 
 class GatedRNU(RNU):
-    def __init__(self, gateactivation=T.nnet.sigmoid, init_carry_bias=False, **kw):
+    def __init__(self, gateactivation=T.nnet.sigmoid,
+                 outpactivation=T.tanh,
+                 param_init_states=False,
+                 init_carry_bias=False, **kw):
         self.gateactivation = gateactivation
         self._init_carry_bias = init_carry_bias
-        super(GatedRNU, self).__init__(**kw)
+        super(GatedRNU, self).__init__(outpactivation=outpactivation,
+                                       param_init_states=param_init_states,
+                                       **kw)
 
     def rec(self, *args):
         raise NotImplementedError("use subclass")
@@ -295,6 +300,64 @@ class GRU(GatedRNU):
         h = (1 - mgate) * h_tm1 + mgate * canh
         #h = self.normalize_layer(h)
         return [h, h]
+
+
+class QRNU(GatedRNU):       # QRNN: https://arxiv.org/pdf/1611.01576.pdf
+
+    def __init__(self, window_size=3, gateactivation=T.nnet.sigmoid,
+                 outpactivation=T.tanh,
+                 param_init_states=False,
+                 init_carry_bias=False,
+                 nobias=True, **kw):
+        self.window_size = window_size
+        super(QRNU, self).__init__(gateactivation=gateactivation,
+                                   outpactivation=outpactivation,
+                                   param_init_states=param_init_states,
+                                   init_carry_bias=init_carry_bias,
+                                   nobias=nobias,
+                                   **kw)
+
+    def makeparams(self):
+        self.w_z = param((self.indim * self.window_size, self.innerdim), name="w_z").init(self.paraminit)
+        self.w_f = param((self.indim * self.window_size, self.innerdim), name="w_f").init(self.paraminit)
+        self.w_o = param((self.indim * self.window_size, self.innerdim), name="w_o").init(self.paraminit)
+        if not self.nobias:
+            self.b_z = param((self.innerdim,), name="b_z").init(self.biasinit)
+            if self._init_carry_bias > 0:
+                amnt = default_init_carry_gate_bias\
+                    if self._init_carry_bias is True else self._init_carry_bias
+                self.b_f = param((self.innerdim,), name="b_f").constant(amnt)
+            else:
+                self.b_f = param((self.innerdim,), name="b_f").init(self.biasinit)
+            self.b_o = param((self.innerdim,), name="b_o").init(self.biasinit)
+        else:
+            self.b_z, self.b_f, self.b_o = 0, 0, 0
+
+    def get_statespec(self, flat=False):
+        return (("state", (self.innerdim,)),)   # TODO
+
+    def get_init_info(self, initstates):  # either a list of init states or the batsize
+        sinit = super(QRNU, self).get_init_info(initstates)
+        assert(len(sinit) == 1)
+        add = T.zeros((sinit[0].shape[0], self.indim * self.window_size))
+        ret = T.concatenate([sinit[0], add], axis=1)
+        return [ret]
+
+    def rec(self, x_t, h_tm1):  # h_tm1: (batsize, innerdim + windowsize * indim)
+        x_t = self.dropout_in(x_t)
+        x_tms = h_tm1[:, self.innerdim+self.indim:]
+        h_tm1 = h_tm1[:, :self.innerdim]
+        h_tm1_i = self.dropout_h(h_tm1)
+        # prepare previous x's
+        x_tms = T.concatenate([x_tms, x_t], axis=1) # (batsize, indim * windowsize)
+        z_t = self.outpactivation(T.dot(x_tms, self.w_z) + self.b_z)
+        f_t = self.gateactivation(T.dot(x_tms, self.w_f) + self.b_f)
+        o_t = self.gateactivation(T.dot(x_tms, self.w_o) + self.b_o)
+        f_t = self.zoneout(f_t)
+        h_t = (1 - f_t) * h_tm1_i + f_t * z_t
+        y_t = o_t * h_t
+        h_ret = T.concatenate([h_t, x_tms], axis=1)
+        return [y_t, h_ret]
 
 
 class RHN(GatedRNU):
