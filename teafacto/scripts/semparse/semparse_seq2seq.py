@@ -50,12 +50,12 @@ def concat_generate(qmat, amat, rate=1, maskid=0, concat_original=False):
 
 
 def run(numbats=50,
-        epochs=10,
-        lr=0.5,
+        epochs=100,
+        lr=0.1,
         expmovavg=0.95,
         embdim=50,
         encdim=200,
-        dropout=0.3,
+        dropout=0.2,
         inconcat=True,
         outconcat=True,
         concatdecinp=False,
