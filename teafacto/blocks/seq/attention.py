@@ -119,6 +119,10 @@ class Attention(Block):
         self.attentiongenerator.gated(critdim, datadim)
         return self
 
+    def crit_trans_gen(self, critdim, datadim):
+        self.attentiongenerator.crit_trans(critdim, datadim)
+        return self
+
     def apply(self, criterion, data, mask=None):
         mask = data.mask if mask is None else mask
         addrdata = data if self.splitters is None else self.splitters[0](data)

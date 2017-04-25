@@ -70,6 +70,7 @@ def run(numbats=50,
         concatgen=0,
         inspectdata=False,
         gatedattention=False,
+        transattention=False,
         ):
     tt = ticktock("script")
 
@@ -133,6 +134,8 @@ def run(numbats=50,
     attention.forward_gen(critdim, ctxdim, encdim) if forwardattention else attention.dot_gen()
     if gatedattention:
         attention.gated_gen(encdim, encdim)
+    if transattention:
+        attention.crit_trans_gen(encdim, encdim)
 
     init_state_gen_mat = param((encdim, encdim), name="init_state_gen_mat").glorotuniform()
     addrportion = slice(None, None, None) if splitatt is False else slice(encdim, encdim*2, None)
