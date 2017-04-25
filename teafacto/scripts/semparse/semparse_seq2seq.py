@@ -133,9 +133,9 @@ def run(numbats=50,
         attention.attentiongenerator.set_sampler("gumbel")
     attention.forward_gen(critdim, ctxdim, encdim) if forwardattention else attention.dot_gen()
     if gatedattention:
-        attention.gated_gen(encdim, encdim)
+        attention.gated_gen(critdim, ctxdim)
     if transattention:
-        attention.crit_trans_gen(encdim, encdim)
+        attention.crit_trans_gen(critdim, ctxdim)
 
     init_state_gen_mat = param((encdim, encdim), name="init_state_gen_mat").glorotuniform()
     addrportion = slice(None, None, None) if splitatt is False else slice(encdim, encdim*2, None)
@@ -157,7 +157,7 @@ def run(numbats=50,
     decoder.train([amat_train[:, :-1], qmat_train], amat_train[:, 1:]) \
         .cross_entropy().cross_entropy(cemode="allmean").seq_accuracy().adadelta(lr=lr).grad_total_norm(1.) \
         .validate_on([amat_test[:, :-1], qmat_test], amat_test[:, 1:]) \
-        .cross_entropy(cemode="allmean").cross_entropy().seq_accuracy() \
+        .cross_entropy().cross_entropy(cemode="allmean").seq_accuracy() \
         .train(numbats, epochs)
 
     tt.tock("trained")
