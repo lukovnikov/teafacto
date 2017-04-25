@@ -69,7 +69,7 @@ def run(numbats=50,
         numdeclayers=1,
         concatgen=0,
         inspectdata=False,
-        gated_attention=True,
+        gatedattention=False,
         ):
     tt = ticktock("script")
 
@@ -131,7 +131,7 @@ def run(numbats=50,
     if gumbelatt:
         attention.attentiongenerator.set_sampler("gumbel")
     attention.forward_gen(critdim, ctxdim, encdim) if forwardattention else attention.dot_gen()
-    if gated_attention:
+    if gatedattention:
         attention.gated_gen(encdim, encdim)
 
     init_state_gen_mat = param((encdim, encdim), name="init_state_gen_mat").glorotuniform()
@@ -158,7 +158,7 @@ def run(numbats=50,
         .train(numbats, epochs)
 
     tt.tock("trained")
-    embed()
+    #embed()
 
 if __name__ == "__main__":
     argprun(run)
