@@ -86,6 +86,12 @@ class ReccableBlock(RecurrentBlock):    # exposes a rec function
         recout = self.rec(x_t, *states)
         y_t = recout[0]
         newstates = recout[1:]
+        if len(states) > 0:
+            states_out = [(a.T * m_t + b.T * (1 - m_t)).T for a, b in
+                          zip(newstates, states)]
+        else:
+            states_out = []
+        ''' TODO: WRONG!!! assumes previous output is first state; this is only for GRU
         y_tm1 = states[0] if len(states) > 0 else None
         if y_tm1 is not None:
             y_t_out_a = y_t.T * m_t
@@ -94,8 +100,8 @@ class ReccableBlock(RecurrentBlock):    # exposes a rec function
             states_out = [(a.T * m_t + b.T * (1 - m_t)).T for a, b in zip(newstates, states)]   # TODO: try replace with switch expression
         else:
             y_t_out = y_t
-            states_out = []
-        return [y_t_out] + states_out
+            states_out = []     '''
+        return [y_t] + states_out
 
 
 class ReccableWrapper(ReccableBlock):
