@@ -310,6 +310,101 @@ class GRU(GatedRNU):
         return [h, h]
 
 
+class mGRU(GatedRNU):       # multiplicative GRU
+    def makeparams(self):
+        if not self.noinput:
+            self.w = param((self.indim, self.innerdim), name="w").init(self.paraminit)
+            self.w_xm = param((self.indim, self.innerdim), name="w_xm").init(self.paraminit)
+            self.w_xhf = param((self.indim, self.innerdim), name="w_xhf").init(self.paraminit)
+            self.w_xmg = param((self.indim, self.innerdim), name="w_xmg").init(self.paraminit)
+        else:
+            self.w , self.w_xm, self.w_xhf, self.w_xmg = 0, 0, 0, 0
+        self.u = param((self.innerdim, self.innerdim), name="u").init(self.paraminit)
+        self.w_hm = param((self.innerdim, self.innerdim), name="w_hm").init(self.paraminit)
+        self.w_hmg = param((self.innerdim, self.innerdim), name="w_hmg").init(self.paraminit)
+        self.w_hhf = param((self.innerdim, self.innerdim), name="w_hhf").init(self.paraminit)
+        if not self.nobias:
+            self.b = param((self.innerdim,), name="b").init(self.biasinit)
+            if self._init_carry_bias > 0:
+                amnt = default_init_carry_gate_bias\
+                    if self._init_carry_bias is True else self._init_carry_bias
+                self.b_mg = param((self.innerdim,), name="b_mg").constant(amnt)
+            else:
+                self.b_mg = param((self.innerdim,), name="b_mg").init(self.biasinit)
+            self.b_hf = param((self.innerdim,), name="b_hf").init(self.biasinit)
+        else:
+            self.b, self.b_mg, self.b_hf = 0, 0, 0
+
+    def rec(self, x_t, h_tm1):
+        x_t = self.dropout_in(x_t) if not self.noinput else 0
+        h_tm1_i = self.dropout_h(h_tm1)
+        m_t = T.dot(x_t, self.w_xm) * T.dot(h_tm1_i, self.w_hm)
+        mgate = self.gateactivation(T.dot(x_t, self.w_xmg) + T.dot(m_t, self.w_hmg) + self.b_mg)
+        hfgate = self.gateactivation(T.dot(x_t, self.w_xhf) + T.dot(m_t, self.w_hhf) + self.b_hf)
+        canh = T.dot(m_t * hfgate, self.u) + T.dot(x_t, self.w) + self.b
+        canh = self.outpactivation(canh)
+        mgate = self.zoneout(mgate)
+        h = (1 - mgate) * h_tm1 + mgate * canh
+        return [h, h]
+
+
+class MIGRU(GatedRNU):      # multiplicative integration GRU
+
+    def makeparams(self):
+        if not self.noinput:
+            self.w = param((self.indim, self.innerdim), name="w").init(self.paraminit)
+            self.w_m = param((self.indim, self.innerdim), name="w_m").init(self.paraminit)
+            self.w_h = param((self.indim, self.innerdim), name="w_h").init(self.paraminit)
+        else:
+            self.w , self.w_m, self.w_h = 0, 0, 0
+        self.u = param((self.innerdim, self.innerdim), name="u").init(self.paraminit)
+        self.u_m = param((self.innerdim, self.innerdim), name="u_m").init(self.paraminit)
+        self.u_h = param((self.innerdim, self.innerdim), name="u_h").init(self.paraminit)
+        if not self.nobias:
+            self.b_1 = param((self.innerdim,), name="b_1").init(self.biasinit)
+            self.b_2 = param((self.innerdim,), name="b_2").init(self.biasinit)
+            self.b_3 = param((self.innerdim,), name="b_3").init(self.biasinit)
+            self.b_4 = param((self.innerdim,), name="b_4").init(self.biasinit)
+            self.b_m1 = param((self.innerdim,), name="b_m1").init(self.biasinit)
+            self.b_m2 = param((self.innerdim,), name="b_m2").init(self.biasinit)
+            self.b_m3 = param((self.innerdim,), name="b_m3").init(self.biasinit)
+            if self._init_carry_bias > 0:
+                amnt = default_init_carry_gate_bias\
+                    if self._init_carry_bias is True else self._init_carry_bias
+                self.b_m4 = param((self.innerdim,), name="b_m4").constant(amnt)
+            else:
+                self.b_m4 = param((self.innerdim,), name="b_m4").init(self.biasinit)
+            self.b_h1 = param((self.innerdim,), name="b_h1").init(self.biasinit)
+            self.b_h2 = param((self.innerdim,), name="b_h2").init(self.biasinit)
+            self.b_h3 = param((self.innerdim,), name="b_h3").init(self.biasinit)
+            self.b_h4 = param((self.innerdim,), name="b_h4").init(self.biasinit)
+        else:
+            self.b_1, self.b_2, self.b_3, self.b_4, \
+            self.b_m1, self.b_m2, self.b_m3, self.b_m4, \
+            self.b_h1, self.b_h2, self.b_h3, self.b_h4 = \
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+
+    def rec(self, x_t, h_tm1):
+        x_t = self.dropout_in(x_t) if not self.noinput else 0
+        h_tm1_i = self.dropout_h(h_tm1)
+        mgate = self.gateactivation(self.b_m1 * T.dot(x_t, self.w_m) * T.dot(h_tm1_i, self.u_m) +
+                                    self.b_m2 * T.dot(x_t, self.w_m) +
+                                    self.b_m3 * T.dot(h_tm1_i, self.u_m) +
+                                    self.b_m4)
+        hfgate = self.gateactivation(self.b_h1 * T.dot(x_t, self.w_h) * T.dot(h_tm1_i, self.u_h) +
+                                    self.b_h2 * T.dot(x_t, self.w_h) +
+                                    self.b_h3 * T.dot(h_tm1_i, self.u_h) +
+                                    self.b_h4)
+        canh = self.b_1 * T.dot(x_t, self.w) * T.dot(h_tm1_i * hfgate, self.u) + \
+               self.b_2 * T.dot(x_t, self.w) + \
+               self.b_3 * T.dot(h_tm1_i * hfgate, self.u) + \
+               self.b_4
+        canh = self.outpactivation(canh)
+        mgate = self.zoneout(mgate)
+        h = (1 - mgate) * h_tm1 + mgate * canh
+        return [h, h]
+
+
 class QRNU(GatedRNU):       # QRNN: https://arxiv.org/pdf/1611.01576.pdf
 
     def __init__(self, window_size=3, gateactivation=T.nnet.sigmoid,
