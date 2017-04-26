@@ -72,7 +72,7 @@ def run(numbats=50,
         inspectdata=False,
         gatedattention=False,
         transattention=False,
-        encodermode="rnn",      # "rnn" or "qrnn" or "cnn" or "migru" or "mgru"
+        mode="rnn",      # "rnn" or "qrnn" or "cnn" or "migru" or "mgru"
         ):
     tt = ticktock("script")
 
@@ -111,7 +111,7 @@ def run(numbats=50,
     inpemb = WordEmb(worddic=qdic, maskid=maskid, dim=embdim)
     outemb = WordEmb(worddic=adic, maskid=maskid, dim=embdim)
 
-    if encodermode == "qrnn":
+    if mode == "qrnn":
         encoder = RNNSeqEncoder.fluent()\
             .setembedder(inpemb)\
             .add_layer(QRNU(window_size=3, dim=embdim, innerdim=encdim,
@@ -119,18 +119,18 @@ def run(numbats=50,
             .add_layer(QRNU(window_size=3, dim=encdim, innerdim=encdim,
                             zoneout=dropout), encdim)\
             .make().all_outputs()
-    elif encodermode == "rnn" or encodermode == "migru" or encodermode == "mgru":
+    elif mode == "rnn" or mode == "migru" or mode == "mgru":
         rnu = GRU
-        if encodermode == "migru":
+        if mode == "migru":
             rnu = MIGRU
-        elif encodermode == "mgru":
+        elif mode == "mgru":
             rnu = mGRU
         encoder = RNNSeqEncoder.fluent()\
             .setembedder(inpemb)\
             .addlayers(dim=encdim, bidir=True, zoneout=dropout, rnu=rnu)\
             .addlayers(dim=encdim, bidir=False, zoneout=dropout, rnu=rnu)\
             .make().all_outputs()
-    elif encodermode == "cnn":
+    elif mode == "cnn":
         encoder = CNNSeqEncoder(inpemb=inpemb,
                                 numpos=qmat_train.shape[1],
                                 posembdim=posembdim,
@@ -158,6 +158,11 @@ def run(numbats=50,
     addrportion = slice(None, None, None) if splitatt is False else slice(encdim, encdim*2, None)
     init_state_gen = asblock(lambda x: T.dot(x[:, 0, addrportion], init_state_gen_mat)) if statetransfer else None
 
+    rnu = GRU
+    if mode == "migru":
+        rnu = MIGRU
+    elif mode == "mgru":
+        rnu = mGRU
     decoder = EncDec(encoder=encoder,
                      attention=attention,
                      inpemb=outemb,
@@ -167,6 +172,7 @@ def run(numbats=50,
                      init_state_gen=init_state_gen,
                      dropout_h=dropout,
                      dropout_in=dropout,
+                     rnu=rnu,
                      smo=SMO(smodim, max(adic.values()) + 1))
 
     tt.tick("training")

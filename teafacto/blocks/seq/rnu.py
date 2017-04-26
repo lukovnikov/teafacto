@@ -310,7 +310,7 @@ class GRU(GatedRNU):
         return [h, h]
 
 
-class mGRU(GatedRNU):       # multiplicative GRU
+class mGRU(GatedRNU):       # multiplicative GRU: https://arxiv.org/pdf/1609.07959.pdf
     def makeparams(self):
         if not self.noinput:
             self.w = param((self.indim, self.innerdim), name="w").init(self.paraminit)
@@ -348,7 +348,7 @@ class mGRU(GatedRNU):       # multiplicative GRU
         return [h, h]
 
 
-class MIGRU(GatedRNU):      # multiplicative integration GRU
+class MIGRU(GatedRNU):      # multiplicative integration GRU: https://arxiv.org/pdf/1606.06630.pdf
 
     def makeparams(self):
         if not self.noinput:
