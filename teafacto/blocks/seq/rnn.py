@@ -141,7 +141,7 @@ class FluentSeqEncoderBuilder(object):
         self.layers = layers
         return self._return()
 
-    def addlayers(self, dim=None, bidir=False, dropout_in=False, dropout_h=False, zoneout=False, rnu=GRU):
+    def addlayers(self, dim=None, bidir=False, dropout_in=False, dropout_h=False, zoneout=False, rnu=GRU, **kw):
         inpdim = self.lastdim
         if not issequence(dim):
             dim = [dim]
@@ -149,6 +149,11 @@ class FluentSeqEncoderBuilder(object):
         layers, lastdim = MakeRNU.make(inpdim, dim, bidir=bidir, rnu=rnu,
                                        dropout_in=dropout_in, dropout_h=dropout_h, zoneout=zoneout)
         self.layers = self.layers + layers
+        self.lastdim = lastdim
+        return self._return()
+
+    def add_layer(self, layer, lastdim=None):
+        self.layers.append(layer)
         self.lastdim = lastdim
         return self._return()
 
@@ -161,7 +166,6 @@ class FluentSeqEncoderBuilder(object):
             self.layers += [Forward(d1, d2, activation=activation(), dropout=dropout, nobias=nobias)]
             self.lastdim = d2
         return self._return()
-
 
     @staticmethod
     def getemb(emb=None, embdim=None, vocsize=None, maskid=None):

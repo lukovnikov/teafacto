@@ -5,6 +5,7 @@ import numpy as np, re, random
 from IPython import embed
 
 from teafacto.blocks.cnn import CNNSeqEncoder
+from teafacto.blocks.seq.rnu import QRNU
 from teafacto.blocks.seq import RNNSeqEncoder
 from teafacto.blocks.seq.encdec import EncDec
 from teafacto.blocks.word import WordEmb
@@ -71,6 +72,7 @@ def run(numbats=50,
         inspectdata=False,
         gatedattention=False,
         transattention=False,
+        encodermode="rnn",      # "rnn" or "qrnn" or "cnn"
         ):
     tt = ticktock("script")
 
@@ -109,20 +111,30 @@ def run(numbats=50,
     inpemb = WordEmb(worddic=qdic, maskid=maskid, dim=embdim)
     outemb = WordEmb(worddic=adic, maskid=maskid, dim=embdim)
 
-    encoder = RNNSeqEncoder.fluent()\
-        .setembedder(inpemb)\
-        .addlayers(dim=encdim, bidir=True, zoneout=dropout)\
-        .addlayers(dim=encdim, bidir=False, zoneout=dropout)\
-        .make().all_outputs()
-
-    '''
-    encoder = CNNSeqEncoder(inpemb=inpemb,
-                            numpos=qmat_train.shape[1],
-                            posembdim=posembdim,
-                            innerdim=[encdim] * 4 if not splitatt else [encdim*2] * 4,
-                            window=[3, 3, 5, 5],
-                            activation=ReLU if userelu else Tanh,
-                            dropout=dropout).all_outputs()'''
+    if encodermode == "qrnn":
+        encoder = RNNSeqEncoder.fluent()\
+            .setembedder(inpemb)\
+            .add_layer(QRNU(window_size=3, dim=embdim, innerdim=encdim,
+                            zoneout=dropout), encdim)\
+            .add_layer(QRNU(window_size=3, dim=encdim, innerdim=encdim,
+                            zoneout=dropout), encdim)\
+            .make().all_outputs()
+    elif encodermode == "rnn":
+        encoder = RNNSeqEncoder.fluent()\
+            .setembedder(inpemb)\
+            .addlayers(dim=encdim, bidir=False, zoneout=dropout)\
+            .addlayers(dim=encdim, bidir=False, zoneout=dropout)\
+            .make().all_outputs()
+    elif encodermode == "cnn":
+        encoder = CNNSeqEncoder(inpemb=inpemb,
+                                numpos=qmat_train.shape[1],
+                                posembdim=posembdim,
+                                innerdim=[encdim] * 4 if not splitatt else [encdim*2] * 4,
+                                window=[3, 3, 5, 5],
+                                activation=ReLU if userelu else Tanh,
+                                dropout=dropout).all_outputs()
+    else:
+        raise Exception("unknown encoder mode")
 
     smodim = encdim+encdim if not concatdecinp else encdim+encdim+embdim
     ctxdim = encdim
