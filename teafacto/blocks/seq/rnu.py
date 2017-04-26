@@ -88,7 +88,9 @@ class ReccableBlock(RecurrentBlock):    # exposes a rec function
         newstates = recout[1:]
         y_tm1 = states[0] if len(states) > 0 else None
         if y_tm1 is not None:
-            y_t_out = (y_t.T * m_t + y_tm1.T * (1 - m_t)).T
+            y_t_out_a = y_t.T * m_t
+            y_t_out_b = y_tm1.T * (1 - m_t)
+            y_t_out = (y_t_out_a + y_t_out_b).T
             states_out = [(a.T * m_t + b.T * (1 - m_t)).T for a, b in zip(newstates, states)]   # TODO: try replace with switch expression
         else:
             y_t_out = y_t

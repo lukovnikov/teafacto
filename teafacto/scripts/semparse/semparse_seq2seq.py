@@ -122,7 +122,7 @@ def run(numbats=50,
     elif encodermode == "rnn":
         encoder = RNNSeqEncoder.fluent()\
             .setembedder(inpemb)\
-            .addlayers(dim=encdim, bidir=False, zoneout=dropout)\
+            .addlayers(dim=encdim, bidir=True, zoneout=dropout)\
             .addlayers(dim=encdim, bidir=False, zoneout=dropout)\
             .make().all_outputs()
     elif encodermode == "cnn":
