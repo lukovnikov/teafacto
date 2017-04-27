@@ -439,7 +439,7 @@ class MuFuRU(GatedRNU):     # https://arxiv.org/pdf/1606.03002.pdf
         repl_t = v_t
         temp_t = T.concatenate([v_t.dimadd(0), h_tm1_i.dimadd(0)], axis=0)
         max_t = T.max(temp_t, axis=0)
-        min_t = T.max(temp_t, axis=0)
+        min_t = T.min(temp_t, axis=0)
         mul_t = v_t * h_tm1_i
         diff_t = 0.5 * abs(v_t - h_tm1_i)
         forg_t = T.zeros_like(v_t)
