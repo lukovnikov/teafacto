@@ -441,7 +441,7 @@ class MuFuRU(GatedRNU):     # https://arxiv.org/pdf/1606.03002.pdf
         max_t = T.max(temp_t, axis=0)
         min_t = T.min(temp_t, axis=0)
         mul_t = v_t * h_tm1_i
-        diff_t = 0.5 * abs(v_t - h_tm1_i)
+        diff_t = v_t #0.5 * abs(v_t - h_tm1_i)
         forg_t = T.zeros_like(v_t)
 
         h = keep_t * u_t[:, :, 0] \
@@ -451,8 +451,8 @@ class MuFuRU(GatedRNU):     # https://arxiv.org/pdf/1606.03002.pdf
             + mul_t * u_t[:, :, 4] \
             + diff_t * u_t[:, :, 5] \
             + forg_t * u_t[:, :, 6]
-        #zoneout = self.zoneout(T.ones_like(h))
-        #h = h * zoneout + (1 - zoneout) * h_tm1_i
+        zoneout = self.zoneout(T.ones_like(h))
+        h = h * zoneout + (1 - zoneout) * h_tm1_i
         return [h, h]
 
 
