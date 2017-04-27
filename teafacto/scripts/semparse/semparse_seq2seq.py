@@ -57,6 +57,7 @@ def run(numbats=50,
         embdim=50,
         encdim=200,
         dropout=0.2,
+        gradnorm=1.,
         inconcat=True,
         outconcat=True,
         concatdecinp=False,
@@ -183,7 +184,7 @@ def run(numbats=50,
     tt.tick("training")
 
     decoder.train([amat_train[:, :-1], qmat_train], amat_train[:, 1:]) \
-        .cross_entropy().cross_entropy(cemode="allmean").seq_accuracy().adadelta(lr=lr).grad_total_norm(5.) \
+        .cross_entropy().cross_entropy(cemode="allmean").seq_accuracy().adadelta(lr=lr).grad_total_norm(gradnorm) \
         .validate_on([amat_test[:, :-1], qmat_test], amat_test[:, 1:]) \
         .cross_entropy().cross_entropy(cemode="allmean").seq_accuracy() \
         .train(numbats, epochs)
