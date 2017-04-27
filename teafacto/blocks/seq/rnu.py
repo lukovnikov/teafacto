@@ -305,7 +305,7 @@ class GRU(GatedRNU):
         '''canh = self.normalize_layer(canh)'''
         canh = self.outpactivation(canh)
         mgate = self.zoneout(mgate)
-        h = (1 - mgate) * h_tm1 + mgate * canh
+        h = (1 - mgate) * h_tm1_i + mgate * canh
         #h = self.normalize_layer(h)
         return [h, h]
 
@@ -344,7 +344,7 @@ class mGRU(GatedRNU):       # multiplicative GRU: https://arxiv.org/pdf/1609.079
         canh = T.dot(m_t * hfgate, self.u) + T.dot(x_t, self.w) + self.b
         canh = self.outpactivation(canh)
         mgate = self.zoneout(mgate)
-        h = (1 - mgate) * h_tm1 + mgate * canh
+        h = (1 - mgate) * h_tm1_i + mgate * canh
         return [h, h]
 
 
@@ -401,7 +401,7 @@ class MIGRU(GatedRNU):      # multiplicative integration GRU: https://arxiv.org/
                self.b_4
         canh = self.outpactivation(canh)
         mgate = self.zoneout(mgate)
-        h = (1 - mgate) * h_tm1 + mgate * canh
+        h = (1 - mgate) * h_tm1_i + mgate * canh
         return [h, h]
 
 
@@ -433,6 +433,8 @@ class MuFuRU(GatedRNU):     # https://arxiv.org/pdf/1606.03002.pdf
               + T.tensordot(x_t, self.w_u, axes=([1], [0]))\
               + self.b_u
         u_t = T.softmax(u_t)        # (batsize, dim, numops)
+        _EPS = 1e-6
+        u_t = T.clip(u_t, _EPS, 1.0 - _EPS)
 
         # ops
         keep_t = h_tm1_i
@@ -456,7 +458,7 @@ class MuFuRU(GatedRNU):     # https://arxiv.org/pdf/1606.03002.pdf
         return [h, h]
 
 
-class FlatMuFuRU(GatedRNU):     # https://arxiv.org/pdf/1606.03002.pdf
+class FlatMuFuRU(GatedRNU):     # flat version of MuFuRu, with concat of Fu's and static weight
     def makeparams(self):
         NUMOPS = 6
         if not self.noinput:
@@ -502,7 +504,7 @@ class FlatMuFuRU(GatedRNU):     # https://arxiv.org/pdf/1606.03002.pdf
             T.concatenate([repl_t, max_t, min_t, mul_t, diff_t, forg_t], axis=1), self.u_op))
 
         u_t = self.zoneout(u_t)
-        h = (1 - u_t) * h_tm1 + u_t * h_t
+        h = (1 - u_t) * h_tm1_i + u_t * h_t
         return [h, h]
 
 

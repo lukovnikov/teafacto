@@ -5,7 +5,7 @@ import numpy as np, re, random
 from IPython import embed
 
 from teafacto.blocks.cnn import CNNSeqEncoder
-from teafacto.blocks.seq.rnu import QRNU, MIGRU, mGRU, GRU, FlatMuFuRU as MuFuRU
+from teafacto.blocks.seq.rnu import QRNU, MIGRU, mGRU, GRU, FlatMuFuRU, MuFuRU
 from teafacto.blocks.seq import RNNSeqEncoder
 from teafacto.blocks.seq.encdec import EncDec
 from teafacto.blocks.word import WordEmb
@@ -57,7 +57,7 @@ def run(numbats=50,
         embdim=50,
         encdim=200,
         dropout=0.2,
-        gradnorm=1.,
+        gradnorm=5.,
         inconcat=True,
         outconcat=True,
         concatdecinp=False,
