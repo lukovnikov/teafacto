@@ -451,8 +451,8 @@ class MuFuRU(GatedRNU):     # https://arxiv.org/pdf/1606.03002.pdf
             + mul_t * u_t[:, :, 4] \
             + diff_t * u_t[:, :, 5] \
             #+ forg_t * u_t[:, :, 6]
-        zoneout = self.zoneout(T.ones_like(h))
-        h = h * zoneout + (1 - zoneout) * h_tm1_i
+        #zoneout = self.zoneout(T.ones_like(h))
+        #h = h * zoneout + (1 - zoneout) * h_tm1_i
         return [h, h]
 
 
