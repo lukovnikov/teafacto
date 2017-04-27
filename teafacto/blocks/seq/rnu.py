@@ -432,7 +432,7 @@ class MuFuRU(GatedRNU):     # https://arxiv.org/pdf/1606.03002.pdf
         u_t = T.tensordot(h_tm1_i, self.u_u, axes=([1], [0])) \
               + T.tensordot(x_t, self.w_u, axes=([1], [0]))\
               + self.b_u
-        u_t = T.softmax(u_t+1e-6)        # (batsize, dim, numops)
+        u_t = T.softmax(u_t)        # (batsize, dim, numops)
 
         # ops
         keep_t = h_tm1_i
