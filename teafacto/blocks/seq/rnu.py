@@ -456,6 +456,56 @@ class MuFuRU(GatedRNU):     # https://arxiv.org/pdf/1606.03002.pdf
         return [h, h]
 
 
+class FlatMuFuRU(GatedRNU):     # https://arxiv.org/pdf/1606.03002.pdf
+    def makeparams(self):
+        NUMOPS = 6
+        if not self.noinput:
+            self.w_v = param((self.indim, self.innerdim), name="w_v").init(self.paraminit)
+            self.w_r = param((self.indim, self.innerdim), name="w_r").init(self.paraminit)
+            self.w_u = param((self.indim, self.innerdim), name="w_u").init(self.paraminit)
+        else:
+            self.w_v , self.w_r, self.w_u = 0, 0, 0
+        self.u_v = param((self.innerdim, self.innerdim), name="u_v").init(self.paraminit)
+        self.u_r = param((self.innerdim, self.innerdim), name="u_r").init(self.paraminit)
+        self.u_u = param((self.innerdim, self.innerdim), name="u_u").init(self.paraminit)
+        self.u_op = param((self.innerdim * NUMOPS, self.innerdim), name="u_op").init(self.paraminit)
+        if not self.nobias:
+            self.b_v = param((self.innerdim,), name="b_v").init(self.biasinit)
+            if self._init_carry_bias > 0:
+                amnt = default_init_carry_gate_bias\
+                    if self._init_carry_bias is True else self._init_carry_bias
+                self.b_u = param((self.innerdim,), name="b_u").constant(amnt)
+            else:
+                self.b_u = param((self.innerdim,), name="b_u").init(self.biasinit)
+            self.b_r = param((self.innerdim,), name="b_r").init(self.biasinit)
+        else:
+            self.b_v, self.b_r, self.b_u = 0, 0, 0
+
+    def rec(self, x_t, h_tm1):
+        x_t = self.dropout_in(x_t) if not self.noinput else T.zeros_like(x_t)
+        h_tm1_i = self.dropout_h(h_tm1)
+        r_t = self.gateactivation(T.dot(h_tm1_i, self.u_r) + T.dot(x_t, self.w_r) + self.b_r)
+        v_t = self.outpactivation(T.dot(h_tm1_i * r_t, self.u_v) + T.dot(x_t, self.w_v) + self.b_v)
+        u_t = self.gateactivation(T.dot(h_tm1_i, self.u_u) + T.dot(x_t, self.w_u) + self.b_u)
+
+        # ops
+        keep_t = h_tm1_i
+        repl_t = v_t
+        temp_t = T.concatenate([v_t.dimadd(0), h_tm1_i.dimadd(0)], axis=0)
+        max_t = T.max(temp_t, axis=0)
+        min_t = T.min(temp_t, axis=0)
+        mul_t = v_t * h_tm1_i
+        diff_t = 0.5 * abs(v_t - h_tm1_i)
+        forg_t = T.zeros_like(v_t)
+
+        h_t = self.outpactivation(T.dot(
+            T.concatenate([repl_t, max_t, min_t, mul_t, diff_t, forg_t], axis=1), self.u_op))
+
+        u_t = self.zoneout(u_t)
+        h = (1 - u_t) * h_tm1 + u_t * h_t
+        return [h, h]
+
+
 class QRNU(GatedRNU):       # QRNN: https://arxiv.org/pdf/1611.01576.pdf
 
     def __init__(self, window_size=3, gateactivation=T.nnet.sigmoid,
