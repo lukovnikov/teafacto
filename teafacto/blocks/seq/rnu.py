@@ -297,7 +297,7 @@ class GRU(GatedRNU):
         :param h_tm1: previous states (nb_samples, out_dim)
         :return: new state (nb_samples, out_dim)
         '''
-        x_t = self.dropout_in(x_t) if not self.noinput else 0
+        x_t = self.dropout_in(x_t) if not self.noinput else T.zeros_like(x_t)
         h_tm1_i = self.dropout_h(h_tm1)
         mgate =  self.gateactivation(T.dot(h_tm1_i, self.um)  + T.dot(x_t, self.wm)  + self.bm)
         hfgate = self.gateactivation(T.dot(h_tm1_i, self.uhf) + T.dot(x_t, self.whf) + self.bhf)
@@ -402,6 +402,57 @@ class MIGRU(GatedRNU):      # multiplicative integration GRU: https://arxiv.org/
         canh = self.outpactivation(canh)
         mgate = self.zoneout(mgate)
         h = (1 - mgate) * h_tm1 + mgate * canh
+        return [h, h]
+
+
+class MuFuRU(GatedRNU):     # https://arxiv.org/pdf/1606.03002.pdf
+    def makeparams(self):
+        if not self.noinput:
+            self.w_v = param((self.indim, self.innerdim), name="w_v").init(self.paraminit)
+            self.w_r = param((self.indim, self.innerdim), name="w_r").init(self.paraminit)
+            self.w_u = param((self.indim, self.innerdim, 7), name="w_u").init(self.paraminit)
+        else:
+            self.w_v , self.w_r, self.w_u = 0, 0, 0
+        self.u_v = param((self.innerdim, self.innerdim), name="u_v").init(self.paraminit)
+        self.u_r = param((self.innerdim, self.innerdim), name="u_r").init(self.paraminit)
+        self.u_u = param((self.innerdim, self.innerdim, 7), name="u_u").init(self.paraminit)
+        if not self.nobias:
+            self.b_v = param((self.innerdim,), name="b_v").init(self.biasinit)
+            self.b_r = param((self.innerdim,), name="b_r").init(self.biasinit)
+            self.b_u = param((self.innerdim, 7), name="b_u").init(self.biasinit)
+        else:
+            self.b_v, self.b_r, self.b_u = 0, 0, 0
+
+    def rec(self, x_t, h_tm1):
+        x_t = self.dropout_in(x_t) if not self.noinput else T.zeros_like(x_t)
+        h_tm1_i = self.dropout_h(h_tm1)
+        r_t = self.gateactivation(T.dot(h_tm1_i, self.u_r) + T.dot(x_t, self.w_r) + self.b_r)
+        v_t = self.outpactivation(T.dot(h_tm1_i * r_t, self.u_v) + T.dot(x_t, self.w_v) + self.b_v)
+
+        u_t = T.tensordot(h_tm1_i, self.u_u, axes=([1], [0])) \
+              + T.tensordot(x_t, self.w_u, axes=([1], [0]))\
+              + self.b_u
+        u_t = T.softmax(u_t)        # (batsize, dim, numops)
+
+        # ops
+        keep_t = h_tm1_i
+        repl_t = v_t
+        temp_t = T.concatenate([v_t.dimadd(0), h_tm1_i.dimadd(0)], axis=0)
+        max_t = T.max(temp_t, axis=0)
+        min_t = T.max(temp_t, axis=0)
+        mul_t = v_t * h_tm1_i
+        diff_t = 0.5 * T.abs(v_t - h_tm1_i)
+        forg_t = T.zeros_like(v_t)
+
+        h = keep_t * u_t[:, :, 0] \
+            + repl_t * u_t[:, :, 1] \
+            + max_t * u_t[:, :, 2] \
+            + min_t * u_t[:, :, 3] \
+            + mul_t * u_t[:, :, 4] \
+            + diff_t * u_t[:, :, 5] \
+            + forg_t * u_t[:, :, 6]
+        zoneout = self.zoneout(T.ones_like(h))
+        h = h * zoneout + (1 - zoneout) * h_tm1_i
         return [h, h]
 
 
