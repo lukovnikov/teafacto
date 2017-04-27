@@ -84,7 +84,11 @@ class TWrapper(type):
                 #mask = mask.dimmove(xndim - 1, 0).flatten(2).T
         x = x / temperature
         if mask is None:
-            z = tensorops.nnet.softmax(x)
+            o_exp = tensorops.exp(x - tensorops.max(x, axis=1).dimshuffle(0, 'x'))
+            o_exp_sum = tensorops.sum(o_exp, axis=1)
+            o_exp_sum = o_exp_sum.dimshuffle(0, 'x')
+            z = o_exp / o_exp_sum
+            #z = tensorops.nnet.softmax(x)
         else:
             o_exp = tensorops.exp(x - tensorops.max(x, axis=1).dimshuffle(0, 'x'))
             o_exp *= mask
