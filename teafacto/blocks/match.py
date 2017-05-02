@@ -39,13 +39,14 @@ class EuclideanDistance(Distance):
 
 
 class LinearDistance(Distance):
-    def __init__(self, ldim, rdim, aggdim=100, **kw):
+    def __init__(self, ldim, rdim, aggdim=100, nobias=True, **kw):
+        self.nobias = nobias
         super(LinearDistance, self).__init__(**kw)
         self.make(ldim, rdim, aggdim)
 
     def make(self, ldim, rdim, aggdim):
-        self.leftblock = Linear(indim=ldim, dim=aggdim, nobias=True)
-        self.rightblock = Linear(indim=rdim, dim=aggdim, nobias=True)
+        self.leftblock = Linear(indim=ldim, dim=aggdim, nobias=self.nobias)
+        self.rightblock = Linear(indim=rdim, dim=aggdim, nobias=self.nobias)
         self.agg = param((aggdim,), name="attention_agg").uniform()
 
     def apply(self, l, r):      # (batsize, dim)

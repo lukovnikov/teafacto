@@ -20,7 +20,7 @@ class TestRecurrentStack(TestCase):
 
     def test_rnu_stack_parameter_propagation(self):
         o = self.s(Input(ndim=3, dtype="float32", name="stack_input"))
-        allps = [x.name for x in o.allparams]
+        allps = [x.name for x in o[0].allparams]
         for paramname in self.paramnames:
             self.assertEqual(allps.count(paramname), len(self.dims)-1)
 

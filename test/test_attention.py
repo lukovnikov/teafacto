@@ -122,10 +122,12 @@ class DummyAttentionGeneratorConsumerTest(TestCase):
 
 class LinearGateAttentionGenTest(DummyAttentionGeneratorConsumerTest):
     def getattgenc(self, critdim=None, datadim=None, attdim=None):
-        return AttGen(LinearGateDistance(critdim, datadim, attdim))
+        return AttGen(LinearGateDistance(critdim, datadim, attdim, nobias=False))
 
     def getattgenparams(self):
-        return {self.attgen.dist.lin.W, self.attgen.dist.lin.b, self.attgen.dist.lin2.W, self.attgen.dist.lin2.b, self.attgen.dist.agg}
+        return {self.attgen.dist.leftblock.W, self.attgen.dist.leftblock.b,
+                self.attgen.dist.rightblock.W, self.attgen.dist.rightblock.b,
+                self.attgen.dist.agg}
 
 
 class TestAttentionRNNDecoder(TestCase):

@@ -75,18 +75,22 @@ class TestSeqEncoder(TestCase):
         seqlen = 3
         dim = 7
         indim = 5
-        m = SeqEncoder(IdxToOneHot(indim, maskid=-1), GRU(dim=indim, innerdim=dim)).all_outputs()
+        m = SeqEncoder(IdxToOneHot(indim, maskid=-1), GRU(dim=indim, innerdim=dim))\
+            .all_outputs().with_states()
         data = np.random.randint(0, indim, (batsize, seqlen)).astype("int32")
         data[:, 1] = 0
         ndata = np.ones_like(data) * -1
         data = np.concatenate([data, ndata], axis=1)
-        pred = m.predict(data)
-        for i in range(1, pred.shape[1]):
-            print np.linalg.norm(pred[:, i - 1, :] - pred[:, i, :])
+        pred, states = m.predict(data)
+        print pred.shape
+        print states[0].shape, len(states)
+        state = states[0]
+        for i in range(1, state.shape[1]):
+            print np.linalg.norm(state[:, i - 1, :] - state[:, i, :])
             if i < seqlen:
-                self.assertTrue(not np.allclose(pred[:, i - 1, :], pred[:, i, :]))
+                self.assertTrue(not np.allclose(state[:, i - 1, :], state[:, i, :]))
             else:
-                self.assertTrue(np.allclose(pred[:, i - 1, :], pred[:, i, :]))
+                self.assertTrue(np.allclose(state[:, i - 1, :], state[:, i, :]))
 
     def test_mask_propagation_all_states(self):
         m = SeqEncoder(VectorEmbed(maskid=0, indim=100, dim=7),

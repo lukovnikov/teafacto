@@ -1,7 +1,7 @@
 import numpy as np
 from enum import Enum
 
-from teafacto.blocks.basic import IdxToOneHot, Softmax, MatDot, VectorEmbed, Linear, Forward
+from teafacto.blocks.basic import IdxToOneHot, Softmax, MatDot, VectorEmbed, Linear, Forward, SMO
 from teafacto.blocks.seq.attention import AttentionConsumer
 from teafacto.blocks.seq.rnu import GRU, ReccableBlock, RecurrentBlock, RNUBase, ReccableWrapper
 from teafacto.core.base import Block, tensorops as T, asblock
@@ -43,15 +43,16 @@ class RecStack(ReccableBlock):
     # FWD API IMPLEMENTED USING FWD API
     def innerapply(self, seq, mask=None, initstates=None):
         states = []     # bottom states first
+        seqs = [seq]
         for layer in self.layers:
             if initstates is not None:
                 layerinpstates = initstates[:layer.numstates]
                 initstates = initstates[layer.numstates:]
             else:
                 layerinpstates = None
-            final, seq, layerstates = layer.innerapply(seq, mask=mask, initstates=layerinpstates)
+            finals, seqs, layerstates = layer.innerapply(*seqs, mask=mask, initstates=layerinpstates)
             states.extend(layerstates)
-        return final, seq, states           # full history of final output and all states (ordered from bottom layer to top)
+        return finals, seqs, states           # full history of final output and all states (ordered from bottom layer to top)
 
     @classmethod
     def apply_mask(cls, xseq, maskseq=None):
@@ -221,18 +222,24 @@ class SeqEncoder(AttentionConsumer, Block):
         if weights is not None:
             fullmask = weights if fullmask is None else weights * fullmask
         #embed()
-        final, outputs, states = self.block.innerapply(seqemb, mask=fullmask)   # bottom states first
-        outputs.mask = mask
-        return self._get_apply_outputs(final, outputs, states, mask)
+        finals, outputs, states = self.block.innerapply(seqemb, mask=fullmask)   # bottom states first
+        for output in outputs:
+            output.mask = mask
+        return self._get_apply_outputs(finals, outputs, states, mask)
 
-    def _get_apply_outputs(self, final, outputs, states, mask):
+    def _get_apply_outputs(self, finals, outputs, states, mask):
         ret = []
         if "enc" in self._returnings:       # final states of topmost layer
-            ret.append(final)
+            if len(finals) == 1:
+                finals = finals[0]
+            ret.append(finals)
         if "all" in self._returnings:       # states (over all time) of topmost layer
-            rete = outputs       # (batsize, seqlen, dim) --> zero-fy according to mask
-            rete.mask = mask
-            ret.append(rete)
+            for output in outputs:
+                output.mask = mask
+            if len(outputs) == 1:
+                outputs = outputs[0]
+            # (batsize, seqlen, dim) --> zero-fy according to mask
+            ret.append(outputs)
         if "mask" in self._returnings:
             ret.append(mask)
             pass
@@ -329,9 +336,7 @@ class SeqDecoder(Block):
         self._attention = None
         assert (isinstance(self.block, ReccableBlock))
         if softmaxoutblock is None:  # default softmax out block
-            sm = Softmax()
-            self.lin = Linear(indim=self.outdim, dim=self.embedder.indim, dropout=dropout)
-            self.softmaxoutblock = asblock(lambda x: sm(self.lin(x)))
+            self.softmaxoutblock = SMO(self.outdim, self.embedder.indim, dropout=dropout)
         elif softmaxoutblock is False:
             self.softmaxoutblock = asblock(lambda x: x)
         else:
@@ -522,15 +527,15 @@ class BiRNU(RecurrentBlock): # TODO: optimizer can't process this
         initstates = initstates[self.fwd.numstates:] if initstates is not None else initstates
         assert(initstates is None or len(initstates) == self.rew.numstates)
         initstatesrew = initstates
-        fwdfinal, fwdout, fwdstates = self.fwd.innerapply(seq, mask=mask, initstates=initstatesfwd)   # (batsize, seqlen, innerdim)
-        rewfinal, rewout, rewstates = self.rew.innerapply(seq, mask=mask, initstates=initstatesrew) # TODO: reverse?
+        fwdfinals, fwdouts, fwdstates = self.fwd.innerapply(seq, mask=mask, initstates=initstatesfwd)   # (batsize, seqlen, innerdim)
+        rewfinals, rewouts, rewstates = self.rew.innerapply(seq, mask=mask, initstates=initstatesrew) # TODO: reverse?
         # concatenate: fwdout, rewout: (batsize, seqlen, feats) ==> (batsize, seqlen, feats_fwd+feats_rew)
-        finalout = T.concatenate([fwdfinal, rewfinal], axis=1)
-        out = T.concatenate([fwdout, rewout.reverse(1)], axis=2)
+        finalouts = [T.concatenate([fwdfinal, rewfinal], axis=1) for fwdfinal, rewfinal in zip(fwdfinals, rewfinals)]
+        outs = [T.concatenate([fwdout, rewout.reverse(1)], axis=2) for fwdout, rewout in zip(fwdouts, rewouts)]
         states = []
         for fwdstate, rewstate in zip(fwdstates, rewstates):
             states.append(T.concatenate([fwdstate, rewstate], axis=2))      # for taking both final states, we need not reverse
-        return finalout, out, states
+        return finalouts, outs, states
 
 
 class EncLastDim(Block):

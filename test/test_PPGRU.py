@@ -25,8 +25,8 @@ class TestPPGRU(TestCase):
         rnu = PPGRU(dim=indim, innerdim=innerdim, push_gates_extra_out=True)
         data = np.random.random((batsize, seqlen, indim)).astype("float32")
 
-        pred, extra = rnu.predict(data, _extra_outs=["pushgates"])
+        pred, extra = rnu.predict(data)
         print pred.shape
-        print extra["pushgates"].shape
+        print extra.shape
         self.assertEqual(pred.shape, (batsize, seqlen, innerdim))
-        self.assertEqual(extra["pushgates"].shape, (seqlen, batsize, 2, innerdim))
+        self.assertEqual(extra.shape, (batsize, seqlen, 2, innerdim))

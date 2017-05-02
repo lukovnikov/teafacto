@@ -13,7 +13,6 @@ class TestSeqDecoder(TestCase):
         decdim = 50
         outvocsize = 17
         outemb = IdxToOneHot(outvocsize)
-        outembdim = outvocsize
         decrnus = [GRU(dim=outvocsize, innerdim=decdim)]
         dec = SeqDecoder([outemb]+decrnus, innerdim=decdim*2, outconcat=True, inconcat=False)
 

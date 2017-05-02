@@ -23,6 +23,10 @@ class RecurrentBlock(Block):     # ancestor class for everything that consumes s
     def numstates(self):
         raise NotImplementedError("use subclass")
 
+    @property
+    def numrecouts(self):
+        return 1
+
     def get_statespec(self, flat=False):
         raise NotImplementedError("use subclass")
 
@@ -31,17 +35,14 @@ class RecurrentBlock(Block):     # ancestor class for everything that consumes s
 
     # FWD API
     def apply(self, x, mask=None, initstates=None):
-        final, output, states = self.innerapply(x, mask, initstates)
-        return output  # return is (batsize, seqlen, dim)
+        finals, outputs, states = self.innerapply(x, mask, initstates)
+        return outputs  # return is [(batsize, seqlen, dim)] * numrecouts
 
     def innerapply(self, x, mask=None, initstates=None):
         raise NotImplementedError("use subclass")
 
 
 class ReccableBlock(RecurrentBlock):    # exposes a rec function
-    def __init__(self, **kw):
-        super(ReccableBlock, self).__init__(**kw)
-
     @property
     def numstates(self):
         return getnumargs(self.rec) - 2
@@ -70,23 +71,25 @@ class ReccableBlock(RecurrentBlock):    # exposes a rec function
         if mask is None:
             outputs = T.scan(fn=self.rec,
                                 sequences=inputs,
-                                outputs_info=[None]+init_info,
+                                outputs_info=[None]*self.numrecouts + init_info,
                                 go_backwards=self._reverse)
         else:
             outputs = T.scan(fn=self.recwmask,
                                 sequences=[inputs, mask.dimswap(1, 0)],
-                                outputs_info=[None] + init_info,
+                                outputs_info=[None]*self.numrecouts + init_info,
                                 go_backwards=self._reverse)
         if not issequence(outputs):
             outputs = [outputs]
         outputs = [x.dimswap(1, 0) for x in outputs]
-        return outputs[0][:, -1, :], outputs[0], outputs[1:]
+        return [outputs[i][:, -1, :] for i in range(self.numrecouts)],\
+               [outputs[i] for i in range(self.numrecouts)],\
+               outputs[self.numrecouts:]
 
     def recwmask(self, x_t, m_t, *states):   # m_t: (batsize, ), x_t: (batsize, dim), states: (batsize, **somedim**)
         # make sure masked elements do not affect state
         recout = self.rec(x_t, *states)
-        y_t = recout[0]
-        newstates = recout[1:]
+        recouts = recout[0:self.numrecouts]
+        newstates = recout[self.numrecouts:]
         if len(states) > 0:
             states_out = [(a.T * m_t + b.T * (1 - m_t)).T for a, b in
                           zip(newstates, states)]
@@ -102,7 +105,7 @@ class ReccableBlock(RecurrentBlock):    # exposes a rec function
         else:
             y_t_out = y_t
             states_out = []     '''
-        return [y_t] + states_out
+        return recouts + states_out
 
 
 class ReccableWrapper(ReccableBlock):
@@ -161,7 +164,7 @@ class RNUBase(ReccableBlock):
         return ret
     '''
 
-    def recappl(self, inps, states):
+    def recappl(self, inps, states):    # TODO: might not work after change to multiple rec outs
         numrecargs = getnumargs(self.rec) - 2       # how much to pop from states
         mystates = states[:numrecargs]
         tail = states[numrecargs:]
@@ -324,6 +327,10 @@ class PPGRU(GatedRNU):
                                     nobias=nobias,
                                     **kw)
 
+    @property
+    def numrecouts(self):
+        return 2 if self.push_gates_extra_out else 1
+
     def get_init_info(self, initstates):
         sinit = super(PPGRU, self).get_init_info(initstates)
         add = T.zeros((sinit[0].shape[0], self.nstates - 1, sinit[0].shape[1]))
@@ -372,8 +379,9 @@ class PPGRU(GatedRNU):
         # TODO: doing push after updates
         h_t, g_t_l = self.do_push(T.concatenate([h_t.dimadd(1), upper_h_tm1], axis=1))
         if self.push_gates_extra_out:
-            h_t.push_extra_outs({"pushgates": g_t_l})
-        return [h_t[:, 0, :], h_t]
+            return [h_t[:, 0, :], g_t_l, h_t]
+        else:
+            return [h_t[:, 0, :], h_t]
 
     def do_push(self, h_tm1):      # (batsize, nstates, innerdim)
         h_t = []
@@ -403,8 +411,6 @@ class PPGRU(GatedRNU):
             h_t.append(h_t_l.dimadd(1))
         h_t = T.concatenate(h_t[::-1], axis=1)        # (batsize, nstates, innerdim)
         return h_t
-
-
 
 
 class mGRU(GatedRNU):       # multiplicative GRU: https://arxiv.org/pdf/1609.07959.pdf

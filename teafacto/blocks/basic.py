@@ -237,11 +237,11 @@ class VectorEmbed(Embedder):
 
 
 class SMO(Block):
-    def __init__(self, indim, outdim, nobias=False, **kw):
+    def __init__(self, indim, outdim, nobias=False, dropout=None, **kw):
         super(SMO, self).__init__(**kw)
         self.indim = indim
         self.outdim = outdim
-        self.l = Linear(indim, outdim) if not nobias else MatDot(indim, outdim)
+        self.l = Linear(indim, outdim, dropout=dropout) if not nobias else MatDot(indim, outdim, dropout=dropout)
 
     def apply(self, x):
         mask = x.mask

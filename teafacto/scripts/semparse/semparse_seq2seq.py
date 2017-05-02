@@ -176,7 +176,7 @@ def run(numbats=50,
                      inconcat=inconcat, outconcat=outconcat, concatdecinp=concatdecinp,
                      innerdim=[encdim]*numdeclayers,
                      init_state_gen=init_state_gen,
-                     dropout_h=dropout,
+                     zoneout=dropout,
                      dropout_in=dropout,
                      rnu=rnu,
                      smo=SMO(smodim, max(adic.values()) + 1))
