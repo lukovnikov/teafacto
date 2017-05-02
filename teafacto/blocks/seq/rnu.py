@@ -363,6 +363,7 @@ class PPGRU(GatedRNU):
             self.b_push, self.b_pull = 0, 0
 
     def rec(self, x_t, h_tm1):      # (batsize, indim), (batsize, nstates, innerdim)
+        h_tm1_orig = h_tm1
         # TODO: doing pull before updates
         h_tm1 = self.do_pull(h_tm1)
         # prepare
@@ -374,10 +375,13 @@ class PPGRU(GatedRNU):
         u_t = self.gateactivation(T.dot(h_tm1_i, self.u_u) + T.dot(x_t, self.w_u) + self.b_u)
         r_t = self.gateactivation(T.dot(h_tm1_i, self.u_r) + T.dot(x_t, self.w_r) + self.b_r)
         v_t = self.outpactivation(T.dot(h_tm1_i * r_t, self.u_v) + T.dot(x_t, self.w_v) + self.b_v)
-        u_t = self.zoneout(u_t)
         h_t = (1 - u_t) * h_tm1_i + u_t * v_t
         # TODO: doing push after updates
         h_t, g_t_l = self.do_push(T.concatenate([h_t.dimadd(1), upper_h_tm1], axis=1))
+        # zoneout
+        zoneout = self.zoneout(T.ones_like(h_tm1_orig))
+        h_t = zoneout * h_t + (1 - zoneout) * h_tm1_orig
+        # return
         if self.push_gates_extra_out:
             return [h_t[:, 0, :], g_t_l, h_t]
         else:
