@@ -171,7 +171,7 @@ def run(numbats=50,
     elif mode == "mufuru":
         rnu = MuFuRU
     elif mode == "ppgru":
-        rnu = PPGRU
+        rnu = GRU
 
     decoder = EncDec(encoder=encoder,
                      attention=attention,
