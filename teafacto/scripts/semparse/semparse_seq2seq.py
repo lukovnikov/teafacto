@@ -73,7 +73,7 @@ def run(numbats=50,
         inspectdata=False,
         gatedattention=False,
         transattention=False,
-        mode="rnn",      # "rnn" or "qrnn" or "cnn" or "migru" or "mgru" or "mufuru"
+        mode="gru",      # "gru" or "qrnn" or "cnn" or "migru" or "mgru" or "mufuru"
         ):
     tt = ticktock("script")
 
@@ -120,7 +120,7 @@ def run(numbats=50,
             .add_layer(QRNU(window_size=3, dim=encdim, innerdim=encdim,
                             zoneout=dropout), encdim)\
             .make().all_outputs()
-    elif mode == "rnn" or mode == "migru" or mode == "mgru" or mode == "mufuru":
+    elif mode == "gru" or mode == "migru" or mode == "mgru" or mode == "mufuru":
         rnu = GRU
         if mode == "migru":
             rnu = MIGRU

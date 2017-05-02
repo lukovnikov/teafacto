@@ -83,6 +83,7 @@ class ReccableBlock(RecurrentBlock):    # exposes a rec function
         return outputs[0][:, -1, :], outputs[0], outputs[1:]
 
     def recwmask(self, x_t, m_t, *states):   # m_t: (batsize, ), x_t: (batsize, dim), states: (batsize, **somedim**)
+        # make sure masked elements do not affect state
         recout = self.rec(x_t, *states)
         y_t = recout[0]
         newstates = recout[1:]
@@ -308,6 +309,102 @@ class GRU(GatedRNU):
         h = (1 - mgate) * h_tm1_i + mgate * canh
         #h = self.normalize_layer(h)
         return [h, h]
+
+
+class PPGRU(GatedRNU):
+    def __init__(self, nstates=3, gateactivation=Sigmoid(), outpactivation=Tanh(),
+                 param_init_states=False, init_carry_bias=False, nobias=False,
+                 push_gates_extra_out=False, **kw):
+        self.nstates = nstates
+        self.push_gates_extra_out = push_gates_extra_out
+        super(PPGRU, self).__init__(gateactivation=gateactivation,
+                                    outpactivation=outpactivation,
+                                    param_init_states=param_init_states,
+                                    init_carry_bias=init_carry_bias,
+                                    nobias=nobias,
+                                    **kw)
+
+    def get_init_info(self, initstates):
+        sinit = super(PPGRU, self).get_init_info(initstates)
+        add = T.zeros((sinit[0].shape[0], self.nstates - 1, sinit[0].shape[1]))
+        ret = T.concatenate([sinit[0].dimadd(1), add], axis=1)
+        return [ret]
+
+    def makeparams(self):
+        # make normal GRU params
+        self.w_v = param((self.indim, self.innerdim), name="w_v").init(self.paraminit)
+        self.w_r = param((self.indim, self.innerdim), name="w_r").init(self.paraminit)
+        self.w_u = param((self.indim, self.innerdim), name="w_u").init(self.paraminit)
+        self.u_v = param((self.innerdim, self.innerdim), name="u_v").init(self.paraminit)
+        self.u_r = param((self.innerdim, self.innerdim), name="u_r").init(self.paraminit)
+        self.u_u = param((self.innerdim, self.innerdim), name="u_u").init(self.paraminit)
+        if not self.nobias:
+            self.b_v = param((self.innerdim,), name="b_v").init(self.biasinit)
+            self.b_r = param((self.innerdim,), name="b_r").init(self.biasinit)
+            self.b_u = param((self.innerdim,), name="b_u").init(self.biasinit)
+        else:
+            self.b_v, self.b_r, self.b_u = 0, 0, 0
+        # make push-pull gates
+        self.w_push = param((self.nstates - 1, self.innerdim, self.innerdim), name="w_push").init(self.paraminit)
+        self.w_pull = param((self.nstates - 1, self.innerdim, self.innerdim), name="w_pull").init(self.paraminit)
+        self.u_push = param((self.nstates - 1, self.innerdim, self.innerdim), name="u_push").init(self.paraminit)
+        self.u_pull = param((self.nstates - 1, self.innerdim, self.innerdim), name="u_pull").init(self.paraminit)
+        if not self.nobias:
+            self.b_push = param((self.nstates - 1, self.innerdim,), name="b_push").init(self.biasinit)
+            self.b_pull = param((self.nstates - 1, self.innerdim,), name="b_pull").init(self.biasinit)
+        else:
+            self.b_push, self.b_pull = 0, 0
+
+    def rec(self, x_t, h_tm1):      # (batsize, indim), (batsize, nstates, innerdim)
+        # TODO: doing pull before updates
+        h_tm1 = self.do_pull(h_tm1)
+        # prepare
+        upper_h_tm1 = h_tm1[:, 1:, :]
+        h_tm1 = h_tm1[:, 0, :]
+        # normal GRU update equations
+        x_t = self.dropout_in(x_t)
+        h_tm1_i = self.dropout_h(h_tm1)
+        u_t = self.gateactivation(T.dot(h_tm1_i, self.u_u) + T.dot(x_t, self.w_u) + self.b_u)
+        r_t = self.gateactivation(T.dot(h_tm1_i, self.u_r) + T.dot(x_t, self.w_r) + self.b_r)
+        v_t = self.outpactivation(T.dot(h_tm1_i * r_t, self.u_v) + T.dot(x_t, self.w_v) + self.b_v)
+        u_t = self.zoneout(u_t)
+        h_t = (1 - u_t) * h_tm1_i + u_t * v_t
+        # TODO: doing push after updates
+        h_t, g_t_l = self.do_push(T.concatenate([h_t.dimadd(1), upper_h_tm1], axis=1))
+        if self.push_gates_extra_out:
+            h_t.push_extra_outs({"pushgates": g_t_l})
+        return [h_t[:, 0, :], h_t]
+
+    def do_push(self, h_tm1):      # (batsize, nstates, innerdim)
+        h_t = []
+        h_t_l = h_tm1[:, 0, :]
+        h_t.append(h_t_l.dimadd(1))
+        gls = []
+        for l in range(self.nstates - 1):
+            g_push_l = self.gateactivation(T.dot(h_t_l, self.w_push[l])
+                                           + T.dot(h_tm1[:, l+1, :], self.u_push[l])
+                                           + self.b_push[l])
+            gls.append(g_push_l.dimadd(1))
+            h_t_l = h_t_l * g_push_l + h_tm1[:, l+1, :] * (1 - g_push_l)
+            h_t.append(h_t_l.dimadd(1))
+        h_t = T.concatenate(h_t, axis=1)        # (batsize, nstates, innerdim)
+        g_l = T.concatenate(gls, axis=1)
+        return h_t, g_l
+
+    def do_pull(self, h_tm1):      # (batsize, nstates, innerdim)
+        h_t = []
+        h_t_l = h_tm1[:, self.nstates - 1, :]       # take top state
+        h_t.append(h_t_l.dimadd(1))         # !!! states appended in reverse layer order
+        for l in range(self.nstates - 1)[::-1]:
+            g_pull_l = self.gateactivation(T.dot(h_tm1[:, l, :], self.w_pull[l])
+                                           + T.dot(h_t_l, self.u_pull[l])
+                                           + self.b_pull[l])
+            h_t_l = h_t_l * g_pull_l + h_tm1[:, l, :] * (1 - g_pull_l)
+            h_t.append(h_t_l.dimadd(1))
+        h_t = T.concatenate(h_t[::-1], axis=1)        # (batsize, nstates, innerdim)
+        return h_t
+
+
 
 
 class mGRU(GatedRNU):       # multiplicative GRU: https://arxiv.org/pdf/1609.07959.pdf
