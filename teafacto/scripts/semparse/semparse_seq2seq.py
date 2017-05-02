@@ -5,7 +5,7 @@ import numpy as np, re, random
 from IPython import embed
 
 from teafacto.blocks.cnn import CNNSeqEncoder
-from teafacto.blocks.seq.rnu import QRNU, MIGRU, mGRU, GRU, FlatMuFuRU, MuFuRU
+from teafacto.blocks.seq.rnu import QRNU, MIGRU, mGRU, GRU, FlatMuFuRU, MuFuRU, PPGRU
 from teafacto.blocks.seq import RNNSeqEncoder
 from teafacto.blocks.seq.encdec import EncDec
 from teafacto.blocks.word import WordEmb
@@ -73,7 +73,7 @@ def run(numbats=50,
         inspectdata=False,
         gatedattention=False,
         transattention=False,
-        mode="gru",      # "gru" or "qrnn" or "cnn" or "migru" or "mgru" or "mufuru"
+        mode="gru",      # "gru" or "qrnn" or "cnn" or "migru" or "mgru" or "mufuru" or "ppgru"
         ):
     tt = ticktock("script")
 
@@ -120,7 +120,7 @@ def run(numbats=50,
             .add_layer(QRNU(window_size=3, dim=encdim, innerdim=encdim,
                             zoneout=dropout), encdim)\
             .make().all_outputs()
-    elif mode == "gru" or mode == "migru" or mode == "mgru" or mode == "mufuru":
+    elif mode == "gru" or mode == "migru" or mode == "mgru" or mode == "mufuru" or mode == "ppgru":
         rnu = GRU
         if mode == "migru":
             rnu = MIGRU
@@ -128,6 +128,8 @@ def run(numbats=50,
             rnu = mGRU
         elif mode == "mufuru":
             rnu = MuFuRU
+        elif mode == "ppgru":
+            rnu = PPGRU
         encoder = RNNSeqEncoder.fluent()\
             .setembedder(inpemb)\
             .addlayers(dim=encdim, bidir=True, zoneout=dropout, rnu=rnu)\
@@ -168,6 +170,8 @@ def run(numbats=50,
         rnu = mGRU
     elif mode == "mufuru":
         rnu = MuFuRU
+    elif mode == "ppgru":
+        rnu = PPGRU
 
     decoder = EncDec(encoder=encoder,
                      attention=attention,
