@@ -74,6 +74,7 @@ def run(window=100, subsample=10000, inspectdata=False,
         numbats=100,
         epochs=100,
         ):
+    np.random.seed(1337)
     trainmat, validmat, testmat, rcd, pp = loaddata(window=window, subsample=subsample)
     #for x in pp(trainmat[:10]): print x
     if inspectdata:
