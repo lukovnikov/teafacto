@@ -128,6 +128,15 @@ class Perplexity(Loss):
         return ret
 
 
+class BitsPerSym(Loss):
+    def apply(self, probs, gold):
+        assert(probs.ndim == 2)
+        assert(gold.ndim == 1)
+        trueprobs = probs[T.arange(0, gold.shape[0]), gold]
+        ret = -T.log2(trueprobs)
+        return ret
+
+
 class BinaryCrossEntropy(Loss):
     def apply(self, preds, gold):
         return T.nnet.binary_crossentropy(preds, gold)

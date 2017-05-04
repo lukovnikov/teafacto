@@ -211,6 +211,10 @@ class ModelTrainer(object):
         self._set_objective(Objective(Perplexity(), aggmode=mode))
         return self
 
+    def bitspersym(self, mode="mean"):
+        self._set_objective(Objective(BitsPerSym(), aggmode=mode))
+        return self
+
     def squared_error(self, mode="mean"):
         self._set_objective(Objective(SquaredError(), aggmode=mode))
         return self

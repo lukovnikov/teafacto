@@ -95,10 +95,10 @@ def run(window=100, subsample=10000, inspectdata=False,
 
     # train model
     m.train([trainmat[:, :-1]], trainmat[:, -1])\
-        .cross_entropy().perplexity()\
+        .cross_entropy().bitspersym()\
         .adadelta(lr=lr).grad_total_norm(gradnorm)\
         .validate_on([validmat[:, :-1]], validmat[:, -1])\
-        .cross_entropy().perplexity()\
+        .cross_entropy().bitspersym()\
         .train(numbats=numbats, epochs=epochs)
 
 
