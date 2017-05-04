@@ -60,6 +60,6 @@ def loaddata(p="enwik8.h5"):
 
 
 if __name__ == "__main__":
-    #run()
-    train, valid, test, cd = loaddata()
-    embed()
+    run()
+    #train, valid, test, cd = loaddata()
+    #embed()
