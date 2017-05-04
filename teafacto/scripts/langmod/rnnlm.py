@@ -62,10 +62,10 @@ class CLM(Block):
         return out
 
 
-def run(window=150, subsample=10000, inspectdata=False,
-        embdim=100,
-        encdim=200,
-        layers=1,
+def run(window=100, subsample=10000, inspectdata=False,
+        embdim=200,
+        encdim=300,
+        layers=2,
         rnu="gru",      # "gru" or "ppgru"
         zoneout=0.2,
         dropout=0.1,
