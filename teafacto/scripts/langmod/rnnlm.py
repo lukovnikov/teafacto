@@ -9,26 +9,38 @@ from teafacto.util import ticktock, argprun
 from IPython import embed
 
 
-def loaddata(p="../../../data/hutter/enwik8.h5", window=200, subsample=1000):
+def makemat(data, window, subsample):
+    startpositions = np.arange(0, data.shape[0] - window)
+    np.random.shuffle(startpositions)
+    numex = startpositions.shape[0] // subsample
+    startpositions = startpositions[:numex]
+    mat = np.zeros((startpositions.shape[0], window), dtype="int32")
+    for i in range(startpositions.shape[0]):
+        startpos = startpositions[i]
+        mat[i, :] = data[startpos:startpos + window]
+    return mat
+
+
+def loaddata_hutter(p="../../../data/hutter/enwik8.h5", window=200, subsample=1000):
+    return loaddata(p=p, window=window, subsample=subsample, utfdic=True)
+
+
+def loaddata_text8(p="../../../data/text8/text8.h5", window=200, subsample=1000):
+    return loaddata(p=p, window=window, subsample=subsample, utfdic=False)
+
+
+def loaddata(p="../../../data/hutter/enwik8.h5", window=200, subsample=1000, utfdic=True):
     tt = ticktock("dataloader")
     tt.tick("loading data")
     with h5py.File(p, "r") as f:
-        charlist = [x.decode("unicode-escape") for x in list(f["dict"][:, 0])]
+        if utfdic:
+            charlist = [x.decode("unicode-escape") for x in list(f["dict"][:, 0])]
+        else:
+            charlist = list(f["dict"][:, 0])
         chardic = dict(zip(range(len(charlist)), charlist))
         train, valid, test = f["train"][:], f["valid"][:], f["test"][:]
     tt.tock("data loaded")
     tt.tick("making mats")
-
-    def makemat(data, window, subsample):
-        startpositions = np.arange(0, data.shape[0] - window)
-        np.random.shuffle(startpositions)
-        numex = startpositions.shape[0] // subsample
-        startpositions = startpositions[:numex]
-        mat = np.zeros((startpositions.shape[0], window), dtype="int32")
-        for i in range(startpositions.shape[0]):
-            startpos = startpositions[i]
-            mat[i, :] = data[startpos:startpos+window]
-        return mat
 
     def pp(charseq):
         if charseq.ndim == 1:
@@ -75,7 +87,7 @@ def run(window=100, subsample=10000, inspectdata=False,
         epochs=100,
         ):
     np.random.seed(1337)
-    trainmat, validmat, testmat, rcd, pp = loaddata(window=window, subsample=subsample)
+    trainmat, validmat, testmat, rcd, pp = loaddata_text8(window=window, subsample=subsample)
     #for x in pp(trainmat[:10]): print x
     if inspectdata:
         embed()
