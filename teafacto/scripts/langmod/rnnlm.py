@@ -79,12 +79,12 @@ def run(window=100, subsample=10000, inspectdata=False,
         embdim=200,
         encdim=300,
         layers=2,
-        rnu="memgru",      # "gru" or "ppgru" or "memgru"
+        rnu="gru",      # "gru" or "ppgru" or "memgru"
         zoneout=0.2,
         dropout=0.1,
         lr=0.1,
         gradnorm=5.,
-        numbats=1000,
+        numbats=100,
         epochs=100,
         hardmem=True
         ):
