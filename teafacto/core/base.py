@@ -742,7 +742,8 @@ class Block(Elem, Saveable): # block with parameters
         trueargs = recurmap(lambda x: x.d if hasattr(x, "d") else x, vars)
         truekwargs = recurmap(lambda x: x.d if hasattr(x, "d") else x, kwargs)
         result = self._apply(*trueargs, **truekwargs)
-        return Var(result)#, parent=self)
+        ret = Var(result) if not isinstance(result, tuple) else tuple([Var(res) for res in result])
+        return ret
 
     # may override: -------------------------------------------------
     @property

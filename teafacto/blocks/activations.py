@@ -1,4 +1,5 @@
-from teafacto.core.base import Block, tensorops as T, RVal
+from teafacto.core.base import Block, tensorops as T, RVal, asblock
+from teafacto.customops import STE_MaxHot, STE_Threshold
 import numpy as np
 
 
@@ -38,6 +39,27 @@ class Softplus(Activation):
     def innerapply(self, x, _trainmode=False, **kw):
         return T.nnet.softplus(x)
 
+
+class Threshold(Activation):
+    def __init__(self, value, ste=False, **kw):
+        """
+        Threshold function
+        :param value:
+        :param ste: use straight-through for diff
+        :param kw:
+        """
+        self.ste = ste
+        if self.ste:
+            self.ste = STE_Threshold(value)
+        self.value = value
+        super(Threshold, self).__init__(**kw)
+
+    def innerapply(self, x, _trainmode=False, **kw):
+        if self.ste is False:
+            return (x > self.value) * 1.
+        else:
+            return self.ste(x)
+
 '''
 class Softmax(Activation):
     def innerapply(self, x):
@@ -56,8 +78,9 @@ class Softmax(Activation):
 
 
 class GumbelSoftmax(Activation):
-    def __init__(self, seed=None, shape=None, temperature=0.3,
-                 _alwaysrandom=False, deterministic_pred=False, **kw):
+    def __init__(self, seed=None, shape=None, temperature=1.,
+                 _alwaysrandom=False, deterministic_pred=False,
+                 maxhot=False, ste=True, **kw):
         super(GumbelSoftmax, self).__init__(**kw)
         if seed is None:
             seed = np.random.randint(0, 1e6)
@@ -68,6 +91,9 @@ class GumbelSoftmax(Activation):
         self._shape = shape
         self.rval = RVal(self.seed)
         self.detpred = deterministic_pred
+        self.maxhot = maxhot
+        if self.maxhot:
+            self.maxhot = MaxHot(ste=ste)
 
     def innerapply(self, x, temps=None, _trainmode=False, **kw):        # x is probabilities??
         temp = temps.dimadd(temps.ndim) if temps is not None else self.temp
@@ -78,10 +104,29 @@ class GumbelSoftmax(Activation):
             #y = x / self.temp
             ret = T.softmax(y, x.mask)
             ret.mask = x.mask
-        if _trainmode or self._debug:
+        else:   # deterministic prediction
+            ret = T.softmax(x / temp, mask=x.mask, temperature=self._det_sm_temp)
+            ret.mask = x.mask
+        if self.maxhot is False:
             return ret
-        if self.detpred:
-            return T.softmax(x / temp, mask=x.mask, temperature=self._det_sm_temp)
         else:
-            retmax = T.max(ret, axis=-1).dimadd(ret.ndim)
-            return T.cast(T.eq(ret, retmax), "float32")
+            ret = self.maxhot(ret)
+            return ret
+
+
+class MaxHot(Activation):
+    def __init__(self, axes=-1, ste=False, **kw):
+        self.axes = axes
+        self.ste = ste
+        if self.ste:
+            self.ste = STE_MaxHot(axes=self.axes)
+        super(MaxHot, self).__init__(**kw)
+
+    def innerapply(self, x, _trainmode=False, **kw):
+        if self.ste is False:
+            retmax = T.max(x, axis=self.axes, keepdims=True)
+            ret = T.cast((x == retmax), x.dtype)
+            return ret
+        else:
+            ret = self.ste(x)
+            return ret

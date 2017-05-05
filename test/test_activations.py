@@ -1,7 +1,7 @@
 from unittest import TestCase
 import numpy as np
-from teafacto.blocks.activations import Softmax, GumbelSoftmax
-from teafacto.core import Val
+from teafacto.blocks.activations import *
+from teafacto.core import Val, param
 
 
 class TestSoftmax(TestCase):
@@ -130,5 +130,49 @@ class TestGumbelSoftmax(TestCase):
         self.assertEqual(d.shape, gsmpred.shape)
         self.assertTrue(np.allclose(np.zeros_like(gsmpred[:, :, 2]), gsmpred[:, :, 2]))
 
+
+class TestMaxHot(TestCase):
+    def test_forward(self):
+        x = Val(np.random.random((10, 5)))
+        y = MaxHot(ste=True)(x)
+        xval = x.d.eval()
+        xmaxhot = (xval == np.max(xval, axis=-1, keepdims=True))*1.
+        self.assertTrue(np.allclose(xmaxhot, y.eval()))
+
+    def test_train(self):
+        p = param((5,), name="testparam").uniform()
+        maxhot = MaxHot(ste=True)
+        m = asblock(lambda x: maxhot(x + p) + 1e-6)
+        data = np.random.random((100, 5)).astype("float32")
+        gold = np.ones((100,)).astype("int32") * 4
+        res = m(Val(data))
+        print res.eval()
+        m.train([data], gold).bitspersym().adadelta(lr=1).train(10, 100)
+        np.set_printoptions(suppress=True, precision=2)
+        print p.d.eval()
+        print np.max(data[:, :4]) - np.max(data[:, 4])
+        self.assertTrue(p.d.eval()[4] + np.max(data[:, 4]) > np.max(data[:, :4]))
+
+
+class TestThreshold(TestCase):
+    def test_forward(self):
+        x = Val(np.random.random((10, 5)))
+        y = Threshold(0.5, ste=True)(x)
+        xval = x.d.eval()
+        xt = (xval > 0.5) * 1.
+        self.assertTrue(np.allclose(xt, y.eval()))
+
+    def test_train(self):
+        p = param((1,), name="testparam").uniform()
+        thresh = Threshold(0.5, ste=True)
+        m = asblock(lambda x: thresh(x+0.2+T.repeat(p, x.shape[0], axis=0)))
+        data = np.random.random((100,)).astype("float32")
+        data -= np.min(data)
+        gold = np.ones((100,))
+        res = m(Val(data))
+        print res.eval()
+        m.train([data], gold).squared_error().adadelta(lr=1).train(10, 25)
+        print p.d.eval()
+        self.assertTrue(np.allclose(p.d.eval()[0], 0.3, atol=0.01))
 
 

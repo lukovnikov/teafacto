@@ -766,7 +766,7 @@ class ModelTrainer(object):
                           " - ".join(map(lambda x: "%.4f" % x, epoch_valid_errors)))
                 restowrite = "\t".join(map(str, [epoch_train_errors] + epoch_valid_errors))
             else:
-                ttmsg = "training error: %s" % " - ".join(map(lambda x: "%.4f" % x, [epoch_train_errors]))
+                ttmsg = "training error: %s" % " - ".join(map(lambda x: "%.4f" % x, epoch_train_errors))
                 restowrite = str(epoch_train_errors)
             if writeresf is not None:
                 writeresf.write("{}\t{}\n".format(self.currentiter - 1, restowrite))
