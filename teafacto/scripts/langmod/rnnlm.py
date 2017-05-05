@@ -3,6 +3,7 @@ import h5py, numpy as np
 from teafacto.blocks.seq import RNNSeqEncoder
 from teafacto.blocks.seq.rnn import MakeRNU, RecStack
 from teafacto.blocks.seq.rnu import GRU, PPGRU
+from teafacto.blocks.seq.marnu import MemSwapGRU
 from teafacto.blocks.basic import VectorEmbed, SMO
 from teafacto.core.base import Block
 from teafacto.util import ticktock, argprun
@@ -78,13 +79,14 @@ def run(window=100, subsample=10000, inspectdata=False,
         embdim=200,
         encdim=300,
         layers=2,
-        rnu="gru",      # "gru" or "ppgru"
+        rnu="memgru",      # "gru" or "ppgru" or "memgru"
         zoneout=0.2,
         dropout=0.1,
         lr=0.1,
         gradnorm=5.,
-        numbats=100,
+        numbats=1000,
         epochs=100,
+        hardmem=True
         ):
     np.random.seed(1337)
     trainmat, validmat, testmat, rcd, pp = loaddata_text8(window=window, subsample=subsample)
@@ -98,10 +100,19 @@ def run(window=100, subsample=10000, inspectdata=False,
         rnu = GRU
     elif rnu == "ppgru":
         rnu = PPGRU
+    elif rnu == "memgru":
+        rnu = MemSwapGRU
 
     # make model
     emb = VectorEmbed(vocsize, embdim)
-    rnnlayers, lastdim = MakeRNU.fromdims([embdim]+[encdim]*layers, rnu=rnu, zoneout=zoneout, dropout_in=dropout)
+    if rnu in (GRU, PPGRU):
+        rnnlayers, lastdim = MakeRNU.fromdims([embdim]+[encdim]*layers, rnu=rnu, zoneout=zoneout, dropout_in=dropout)
+    elif rnu in (MemSwapGRU,):
+        rnnlayers = [rnu(indim=embdim, outdim=encdim,
+                        zoneout=zoneout, dropout_h=dropout,
+                        memsize=10, mem_hard=hardmem)]
+    else:
+        raise Exception("unrecognized rnu mode: {}".format(rnu))
     rnn = RecStack(*rnnlayers)
     smo = SMO(encdim, vocsize, dropout=dropout)
     m = CLM(emb, rnn, smo)

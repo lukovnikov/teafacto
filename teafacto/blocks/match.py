@@ -8,20 +8,20 @@ from IPython import embed
 #region ######## DISTANCES ########
 
 class Distance(Block):
-    def apply(self, l, r):
+    def apply(self, l, r, gates=None):
         raise NotImplementedError("use subclass")
 
     def apply_argspec(self):
-        return ((2, "float"), (2, "float"))
+        return ((2, "float"), (2, "float"), (2, "float"))
 
 
 class DotDistance(Distance):
-    def apply(self, l, r):  # l: f32^(batsize, dim), r: f32^(batsize, dim)
+    def apply(self, l, r, gates=None):  # l: f32^(batsize, dim), r: f32^(batsize, dim)
         return T.batched_dot(r, l)
 
 
 class CosineDistance(Distance):
-    def apply(self, l, r):  # l: f32^(batsize, dim), r:f32^(batsize, dim)
+    def apply(self, l, r, gates=None):  # l: f32^(batsize, dim), r:f32^(batsize, dim)
         dots = T.batched_dot(r, l)
         lnorms = T.sqrt(T.maximum(T.sum(l ** 2, axis=-1), 1e-6))
         rnorms = T.sqrt(T.maximum(T.sum(r ** 2, axis=-1), 1e-6))
@@ -34,8 +34,17 @@ class CosineDistance(Distance):
 
 
 class EuclideanDistance(Distance):
-    def apply(self, l, r):
-        return T.sqrt(T.maximum(T.sum((l-r)**2, axis=1), 1e-6))
+    def apply(self, l, r, gates=None):
+        if l.ndim == r.ndim + 1:  a = r; r = l; l = a
+        assert(l.ndim == 2)
+        assert(r.ndim == 2 or r.ndim == 3)
+        if r.ndim == 3:
+            l = l.dimadd(1)
+            gates = gates.dimadd(1) if gates is not None else gates
+        temp = (r - l) ** 2
+        if gates is not None:
+            temp = gates * temp
+        return T.sqrt(T.maximum(T.sum(temp, axis=-1), 1e-6))
 
 
 class LinearDistance(Distance):
@@ -49,7 +58,7 @@ class LinearDistance(Distance):
         self.rightblock = Linear(indim=rdim, dim=aggdim, nobias=self.nobias)
         self.agg = param((aggdim,), name="attention_agg").uniform()
 
-    def apply(self, l, r):      # (batsize, dim)
+    def apply(self, l, r, gates=None):      # (batsize, dim)
         a = self.leftblock(l)     # (batsize, dim)
         b = self.rightblock(r)    # (batsize, dim) or (batsize, seqlen, dim)
         x, s = a, b
@@ -91,7 +100,7 @@ class BilinearDistance(Distance):
         super(BilinearDistance, self).__init__(**kw)
         self.W = param((rdim, ldim), name="gendotdist").glorotuniform()
 
-    def apply(self, l, r):  # (batsize, dims)
+    def apply(self, l, r, gates=None):  # (batsize, dims)
         ldot = T.dot(r, self.W) # (batsize, rdim)
         ret = T.batched_dot(ldot, l)  # (batsize, )
         return ret

@@ -1,10 +1,85 @@
 from teafacto.blocks.seq.rnu import GRU, ReccableBlock, Gate
 from teafacto.blocks.seq.attention import WeightedSumAttCon
-from teafacto.blocks.match import DotDistance
+from teafacto.blocks.match import DotDistance, EuclideanDistance
 from teafacto.core import T, param
-from teafacto.blocks.activations import GumbelSoftmax, Softplus
+from teafacto.blocks.activations import GumbelSoftmax, Softplus, Softmax
 from teafacto.util import argprun
 from IPython import embed
+
+
+class MemSwapGRU(GRU):
+    def __init__(self, indim=None, outdim=None, memsize=10,
+                 mem_temp=None, mem_hard=True,
+                 wreg=0.0, dropout_in=False, dropout_h=False, zoneout=False,
+                 nobias=False):
+        innerdim = outdim * 2
+        self.outdim = outdim
+        super(MemSwapGRU, self).__init__(dim=indim, innerdim=innerdim, wreg=wreg,
+                                         dropout_in=dropout_in, dropout_h=dropout_h, zoneout=zoneout,
+                                         nobias=nobias)
+        self.memsize = memsize
+        self.memtemp = mem_temp
+        self.memhard = mem_hard
+        self._init_attention()
+
+    def _init_attention(self):
+        self.attdist = EuclideanDistance()
+        self.attnorm = Softmax(maxhot=self.memhard, maxhot_ste=True) if self.memtemp is None \
+            else GumbelSoftmax(temperature=self.memtemp, maxhot=self.memhard, ste=True)
+        self.attcons = WeightedSumAttCon()
+        self.memaddrs = param((self.memsize, self.outdim), name="mem_addr").glorotuniform()
+        # gates
+        self.memaddrgate = Gate([self.indim, self.outdim, self.outdim], self.innerdim, nobias=self.nobias)
+        self.memfiltgate = Gate([self.indim, self.outdim, self.outdim], self.innerdim, nobias=self.nobias)
+
+    def get_init_info(self, initstates):
+        gru_h_0 = super(MemSwapGRU, self).get_init_info(initstates)
+        gru_h_0 = gru_h_0[0][:, self.outdim:]
+        batsize = gru_h_0.shape[0]
+        m_0 = T.zeros((batsize, self.outdim))
+        M_0 = T.zeros((batsize, self.memsize, self.outdim))
+        ret = T.concatenate([gru_h_0.dimadd(1), m_0.dimadd(1), M_0], axis=1)
+        ret = T.concatenate([T.zeros((batsize, ret.shape[1], 1)), ret], axis=2)    # usage vector
+        return [ret]
+
+    def rec(self, x_t, M_tm1):
+        # unpack
+        u_tm1 = M_tm1[:, 2:, 0]
+        M_tm1 = M_tm1[:, :, 1:]
+        h_tm1 = M_tm1[:, 0, :]      # RNU state
+        m_tm1 = M_tm1[:, 1, :]      # selected mem
+        M_tm1 = M_tm1[:, 2:, :]     # all mem
+        # compute
+        m_t, M_t, mem_weights, u_t = self._swap_mem(x_t, h_tm1, m_tm1, M_tm1, u_tm1)
+        c_tm1 = T.concatenate([m_t, h_tm1], axis=-1)
+        _, c_t = super(MemSwapGRU, self).rec(x_t, c_tm1)
+        # repack
+        h_t = c_t[:, self.outdim:]
+        m_t = c_t[:, :self.outdim]
+        M_t = T.concatenate([h_t.dimadd(1), m_t.dimadd(1), M_t], axis=1)
+        u_t = T.concatenate([T.zeros((u_t.shape[0], 2)), u_t], axis=1)
+        M_t = T.concatenate([u_t.dimadd(2), M_t], axis=2)
+        return [h_t, M_t]
+
+    def _swap_mem(self, x_t, h_tm1, m_tm1, M_tm1, u_tm1):
+        # compute memory addressing gates
+        memaddr = self.memaddrgate(x_t, m_tm1, h_tm1)
+        memfilt = self.memfiltgate(x_t, m_tm1, h_tm1)
+        # prepare memory for addressing
+        addrs = T.repeat(self.memaddrs.dimadd(0), M_tm1.shape[0], axis=0)
+        AM = T.concatenate([M_tm1, addrs], axis=2)
+        # => memory + memaddrs: (batsize, memsize, outdim*2)
+        mem_weights = self.attdist(memaddr, AM, gates=memfilt)
+        # TODO: util vector?
+        mem_weights = self.attnorm(mem_weights)
+        m_t = self.attcons(M_tm1, mem_weights)
+        # store m_tm1 in attended M cells by weight -> M_t
+        m_write = m_tm1
+        M_t = M_tm1 * (1 - mem_weights.dimadd(2)) \
+              + m_write.dimadd(1) * mem_weights.dimadd(2)
+        u_t = u_tm1 + mem_weights
+        return m_t, M_t, mem_weights, u_t
+
 
 
 class ReGRU(ReccableBlock):

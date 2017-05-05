@@ -1,6 +1,63 @@
 from unittest import TestCase
-from teafacto.blocks.match import BilinearDistance, LinearDistance, CosineDistance, DotDistance, ForwardDistance
+from teafacto.blocks.match import *
 import numpy as np
+
+
+class TestEuclideanDistance(TestCase):
+    def test_seq(self):
+        batsize = 10
+        ldim = 5
+        rdim = 5
+        seqlen = 6
+        l = np.random.random((batsize, ldim))
+        r = np.random.random((batsize, seqlen, rdim))
+        b = EuclideanDistance()
+        pred = b.predict(l, r)
+        print pred.shape
+        self.assertEqual(pred.shape, (batsize, seqlen))
+
+    def test_seq_gated(self):
+        batsize = 10
+        ldim = 5
+        rdim = 5
+        seqlen = 6
+        l = np.random.random((batsize, ldim))
+        r = np.random.random((batsize, seqlen, rdim))
+        g = np.random.random((batsize, ldim))
+        b = EuclideanDistance()
+        pred = b.predict(l, r, g)
+        print pred.shape
+        self.assertEqual(pred.shape, (batsize, seqlen))
+
+    def test_seq_gated_values(self):
+        batsize = 10
+        ldim = 5
+        rdim = 5
+        seqlen = 6
+        l = np.ones((batsize, ldim))
+        r = np.zeros((batsize, seqlen, rdim))
+        g = np.random.random((batsize, ldim))
+        b = EuclideanDistance()
+        pred = b.predict(l, r, g)
+        print pred
+        print np.sqrt(np.sum(g, axis=-1))
+        print pred.shape
+        self.assertEqual(pred.shape, (batsize, seqlen))
+        self.assertTrue(np.allclose(np.sqrt(np.sum(g, axis=-1)), pred[:, 0]))
+
+    def test_gated(self):
+        batsize = 10
+        dim = 5
+        l = np.random.random((batsize, dim))
+        r = np.random.random((batsize, dim))
+        g = np.random.random((batsize, dim))
+        b = EuclideanDistance()
+        pred = b.predict(l, r, g)
+        print pred
+        b2 = EuclideanDistance()
+        prednogate = b2.predict(l, r)
+        print prednogate
+        self.assertEqual(pred.shape, (batsize,))
 
 
 class TestBilinearDistance(TestCase):
@@ -57,6 +114,17 @@ class TestDotDistance(TestCase):
         b = DotDistance()
         pred = b.predict(l, r)
         self.assertEqual(pred.shape, (batsize,))
+
+    def test_shape_seq(self):
+        batsize = 10
+        ldim = 5
+        rdim = 5
+        seqlen = 6
+        l = np.random.random((batsize, ldim))
+        r = np.random.random((batsize, seqlen, rdim))
+        b = DotDistance()
+        pred = b.predict(l, r)
+        print pred.shape
 
 
 class TestLinearDistance(TestCase):

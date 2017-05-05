@@ -35,6 +35,19 @@ class TestSoftmax(TestCase):
         m = np.ones_like(d)
         m[:, 2] = 0
         pred = b.predict(d, m)
+        print pred
+        self.assertTrue(np.allclose(np.zeros_like(pred[:, 2]), pred[:, 2]))
+        self.assertEqual(d.shape, pred.shape)
+        predsums = np.sum(pred, axis=-1)
+        self.assertTrue(np.allclose(predsums, np.ones_like(predsums)))
+
+    def test_softmax_normal_masked_maxhot(self):
+        b = Softmax(maxhot=True)
+        d = np.random.random((5, 3))
+        m = np.ones_like(d)
+        m[:, 2] = 0
+        pred = b.predict(d, m)
+        print pred
         self.assertTrue(np.allclose(np.zeros_like(pred[:, 2]), pred[:, 2]))
         self.assertEqual(d.shape, pred.shape)
         predsums = np.sum(pred, axis=-1)
@@ -46,6 +59,18 @@ class TestSoftmax(TestCase):
         m = np.ones_like(d)
         m[:, :, 2] = 0
         pred = b.predict(d, m)
+        self.assertTrue(np.allclose(np.zeros_like(pred[:, :, 2]), pred[:, :, 2]))
+        self.assertEqual(d.shape, pred.shape)
+        predsums = np.sum(pred, axis=-1)
+        self.assertTrue(np.allclose(predsums, np.ones_like(predsums)))
+
+    def test_softmax_3D_masked_maxhot(self):
+        b = Softmax(maxhot=True)
+        d = np.random.random((5, 4, 3))
+        m = np.ones_like(d)
+        m[:, :, 2] = 0
+        pred = b.predict(d, m)
+        print pred
         self.assertTrue(np.allclose(np.zeros_like(pred[:, :, 2]), pred[:, :, 2]))
         self.assertEqual(d.shape, pred.shape)
         predsums = np.sum(pred, axis=-1)
@@ -129,6 +154,13 @@ class TestGumbelSoftmax(TestCase):
         self.assertTrue(np.allclose(predsums, np.ones_like(predsums)))
         self.assertEqual(d.shape, gsmpred.shape)
         self.assertTrue(np.allclose(np.zeros_like(gsmpred[:, :, 2]), gsmpred[:, :, 2]))
+
+    def test_maxhot(self):
+        d = np.random.random((5,4))
+        sm = GumbelSoftmax(maxhot=True)
+        pred = sm.predict(d)
+
+        print pred
 
 
 class TestMaxHot(TestCase):
