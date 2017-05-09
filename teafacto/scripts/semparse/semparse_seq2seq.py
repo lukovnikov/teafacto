@@ -56,6 +56,7 @@ def run(numbats=50,
         expmovavg=0.95,
         embdim=50,
         encdim=300,
+        decdim=300,
         dropout=0.2,
         gradnorm=5.,
         inconcat=True,
@@ -147,9 +148,9 @@ def run(numbats=50,
     else:
         raise Exception("unknown encoder mode")
 
-    smodim = encdim+encdim if not concatdecinp else encdim+encdim+embdim
+    smodim = encdim+decdim if not concatdecinp else encdim+decdim+embdim
     ctxdim = encdim
-    critdim = encdim if not concatdecinp else encdim + embdim
+    critdim = decdim if not concatdecinp else decdim + embdim
     splitters = (asblock(lambda x: x[:, :, :encdim]), asblock(lambda x: x[:, :, encdim:encdim*2]))
     attention = Attention(splitters=splitters) if splitatt else Attention()
     if gumbelatt:
@@ -162,13 +163,13 @@ def run(numbats=50,
     if attdist == "dot":
         attention.dot_gen()
     elif attdist == "fwd":
-        attention.forward_gen(critdim, ctxdim, encdim)
+        attention.forward_gen(critdim, ctxdim, decdim)
     elif attdist == "eucl":
         attention.eucl_gen()
     else:
         raise Exception("unrecognized attention distance")
 
-    init_state_gen_mat = param((encdim, encdim), name="init_state_gen_mat").glorotuniform()
+    init_state_gen_mat = param((encdim, decdim), name="init_state_gen_mat").glorotuniform()
     addrportion = slice(None, None, None) if splitatt is False else slice(encdim, encdim*2, None)
     init_state_gen = asblock(lambda x: T.dot(x[:, 0, addrportion], init_state_gen_mat)) if statetransfer else None
 
@@ -185,9 +186,9 @@ def run(numbats=50,
     decoder = EncDec(encoder=encoder,
                      attention=attention,
                      inpemb=outemb,
-                     indim=embdim+encdim,
+                     indim=embdim+decdim,
                      inconcat=inconcat, outconcat=outconcat, concatdecinp=concatdecinp,
-                     innerdim=[encdim]*numdeclayers,
+                     innerdim=[decdim]*numdeclayers,
                      init_state_gen=init_state_gen,
                      zoneout=dropout,
                      dropout_in=dropout,
