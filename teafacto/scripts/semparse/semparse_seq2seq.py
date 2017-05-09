@@ -64,6 +64,9 @@ def run(numbats=50,
         forwardattention=False,     # use forward layer in attention (instead of just dot/cosine)
         splitatt=False,
         gumbelatt=False,
+        hardatt=False,
+        gatedattention=False,       # uses gated euclidean distance in attgen
+        transattention=False,
         statetransfer=False,
         preproc=True,
         posembdim=50,
@@ -71,8 +74,6 @@ def run(numbats=50,
         numdeclayers=1,
         concatgen=0,
         inspectdata=False,
-        gatedattention=False,
-        transattention=False,
         mode="gru",      # "gru" or "qrnn" or "cnn" or "migru" or "mgru" or "mufuru" or "ppgru"
         ):
     tt = ticktock("script")
@@ -155,6 +156,7 @@ def run(numbats=50,
         attention.attentiongenerator.set_sampler("gumbel")
     attention.forward_gen(critdim, ctxdim, encdim) if forwardattention else attention.dot_gen()
     if gatedattention:
+        attention.eucl_gen()
         attention.gated_gen(critdim, ctxdim)
     if transattention:
         attention.crit_trans_gen(critdim, ctxdim)
