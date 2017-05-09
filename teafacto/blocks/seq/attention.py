@@ -21,7 +21,8 @@ class AttGen(Block):
         self.dist = distance
         self.normalizer = normalizer
         self.sampler = sampler
-        self.set_sampler(sampler, sample_temperature)
+        if sampler is not None:
+            self.set_sampler(sampler, sample_temperature)
         self._gated_crit = None
         self._gated_gate = None
         self._crit_trans = None
@@ -55,19 +56,19 @@ class AttGen(Block):
         return self
 
     def set_sampler(self, sampler=None, sample_temperature=0.2):
-        print "DO NOT USE THIS"
         if sampler == "gumbel":
+            print "DO NOT USE THIS"
             self.sampler = GumbelSoftmax(temperature=sample_temperature)
         return self
 
     #fluent API for gating in attention addressing
     def gated(self, critdim, datadim):
-        self._gated_crit = Forward(critdim, datadim, activation=Tanh(), nobias=True)
-        self._gated_gate = Forward(critdim, datadim, activation=Sigmoid(), nobias=True)
+        self._gated_crit = Forward(critdim, datadim, activation=Tanh(), nobias=False)
+        self._gated_gate = Forward(critdim, datadim, activation=Sigmoid(), nobias=False)
         return self
 
     def crit_trans(self, critdim, datadim):
-        self._crit_trans = Forward(critdim, datadim, activation=Tanh(), nobias=True)
+        self._crit_trans = Forward(critdim, datadim, activation=Tanh(), nobias=False)
         return self
 
 

@@ -55,13 +55,13 @@ def run(numbats=50,
         lr=0.1,
         expmovavg=0.95,
         embdim=50,
-        encdim=200,
+        encdim=300,
         dropout=0.2,
         gradnorm=5.,
         inconcat=True,
         outconcat=True,
         concatdecinp=False,
-        forwardattention=False,     # use forward layer in attention (instead of just dot/cosine)
+        attdist="dot",     # "dot" or "fwd" or "eucl"
         splitatt=False,
         gumbelatt=False,
         hardatt=False,
@@ -154,12 +154,19 @@ def run(numbats=50,
     attention = Attention(splitters=splitters) if splitatt else Attention()
     if gumbelatt:
         attention.attentiongenerator.set_sampler("gumbel")
-    attention.forward_gen(critdim, ctxdim, encdim) if forwardattention else attention.dot_gen()
     if gatedattention:
-        attention.eucl_gen()
         attention.gated_gen(critdim, ctxdim)
+        attdist = "eucl"    # Euclidean distance default
     if transattention:
         attention.crit_trans_gen(critdim, ctxdim)
+    if attdist == "dot":
+        attention.dot_gen()
+    elif attdist == "fwd":
+        attention.forward_gen(critdim, ctxdim, encdim)
+    elif attdist == "eucl":
+        attention.eucl_gen()
+    else:
+        raise Exception("unrecognized attention distance")
 
     init_state_gen_mat = param((encdim, encdim), name="init_state_gen_mat").glorotuniform()
     addrportion = slice(None, None, None) if splitatt is False else slice(encdim, encdim*2, None)
