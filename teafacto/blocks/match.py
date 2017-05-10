@@ -44,7 +44,7 @@ class EuclideanDistance(Distance):
         temp = (r - l) ** 2
         if gates is not None:
             temp = gates * temp
-        return T.sqrt(T.maximum(T.sum(temp, axis=-1), 1e-6))
+        return -T.sqrt(T.maximum(T.sum(temp, axis=-1), 1e-6))
 
 
 class LinearDistance(Distance):

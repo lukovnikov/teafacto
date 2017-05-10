@@ -79,6 +79,8 @@ def run(numbats=50,
         ):
     tt = ticktock("script")
 
+    np.random.seed(1337)
+
     tt.tick("loading data")
     maskid = 0
     qmat, amat, qdic, adic, qwc, awc = loadgeo(reverse=False)
@@ -157,7 +159,6 @@ def run(numbats=50,
         attention.attentiongenerator.set_sampler("gumbel")
     if gatedattention:
         attention.gated_gen(critdim, ctxdim)
-        attdist = "eucl"    # Euclidean distance default
     if transattention:
         attention.crit_trans_gen(critdim, ctxdim)
     if attdist == "dot":
