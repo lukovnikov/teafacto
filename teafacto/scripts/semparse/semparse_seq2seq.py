@@ -169,6 +169,8 @@ def run(numbats=50,
         attention.eucl_gen()
     elif attdist == "l1norm":
         attention.lnorm_gen(L=1)
+    elif attdist == "l2norm":
+        attention.lnorm_gen(L=2)
     else:
         raise Exception("unrecognized attention distance")
 
