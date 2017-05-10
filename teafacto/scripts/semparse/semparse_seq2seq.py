@@ -62,7 +62,7 @@ def run(numbats=50,
         inconcat=True,
         outconcat=True,
         concatdecinp=False,
-        attdist="dot",     # "dot" or "fwd" or "eucl"
+        attdist="dot",     # "dot" or "fwd" or "eucl" or "l1norm"
         splitatt=False,
         gumbelatt=False,
         hardatt=False,
@@ -167,6 +167,8 @@ def run(numbats=50,
         attention.forward_gen(critdim, ctxdim, decdim)
     elif attdist == "eucl":
         attention.eucl_gen()
+    elif attdist == "l1norm":
+        attention.lnorm_gen(L=1)
     else:
         raise Exception("unrecognized attention distance")
 

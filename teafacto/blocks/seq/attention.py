@@ -1,6 +1,6 @@
 from teafacto.blocks.basic import MatDot as Lin, VectorEmbed, IdxToOneHot, Forward
 from teafacto.core.base import Block, param, Val
-from teafacto.blocks.match import Distance, CosineDistance, DotDistance, ForwardDistance, EuclideanDistance
+from teafacto.blocks.match import Distance, CosineDistance, DotDistance, ForwardDistance, EuclideanDistance, LNormSimilarity
 from teafacto.core.base import tensorops as T
 from teafacto.blocks.activations import GumbelSoftmax, Softmax, Sigmoid, Tanh
 from teafacto.blocks.seq.rnu import Gate
@@ -45,6 +45,10 @@ class AttGen(Block):
     # fluent API for distances
     def eucl_dist(self):
         self.dist = EuclideanDistance()
+        return self
+
+    def lnorm_dist(self, L=2):
+        self.dist = LNormSimilarity(L=L)
         return self
 
     def dot_dist(self):
@@ -140,6 +144,10 @@ class Attention(Block):
 
     def eucl_gen(self):
         self.attentiongenerator.eucl_dist()
+        return self
+
+    def lnorm_gen(self, L=2):
+        self.attentiongenerator.lnorm_dist(L=L)
         return self
 
     def forward_gen(self, ldim, rdim, innerdim=100):
