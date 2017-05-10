@@ -59,11 +59,16 @@ class LNormSimilarity(Distance):
         if r.ndim == 3:
             l = l.dimadd(1)
             gates = gates.dimadd(1) if gates is not None else gates
-        temp = T.log(abs(r - l))
+        #temp = T.log(abs(r - l))
+        temp = abs(r - l)
+        maximum = T.max(temp, axis=-1, keepdims=True)
+        maximum_red = T.max(temp, axis=-1, keepdims=False)
+        temp = (temp / maximum) ** self.L
         if gates is not None:
             temp = gates * temp
-        lognorm = T.logsumexp(temp * self.L, axis=-1) / self.L
-        return -T.exp(lognorm)
+        #lognorm = T.logsumexp(temp * self.L, axis=-1) / self.L
+        ret = maximum_red * (T.maximum(T.sum(temp, axis=-1), 1e-6) ** (1./self.L))
+        return -ret
 
 
 class LinearDistance(Distance):
