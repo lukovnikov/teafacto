@@ -41,10 +41,29 @@ class EuclideanDistance(Distance):
         if r.ndim == 3:
             l = l.dimadd(1)
             gates = gates.dimadd(1) if gates is not None else gates
-        temp = (r - l) ** 2
+        temp = abs(r - l) ** 2
         if gates is not None:
             temp = gates * temp
         return -T.sqrt(T.maximum(T.sum(temp, axis=-1), 1e-6))
+
+
+class LNormSimilarity(Distance):
+    def __init__(self, L=2, **kw):
+        super(LNormSimilarity, self).__init__(**kw)
+        self.L = L
+
+    def apply(self, l, r, gates=None):
+        if l.ndim == r.ndim + 1: a = r; r = l; l = a
+        assert(l.ndim == 2)
+        assert(r.ndim == 2 or r.ndim == 3)
+        if r.ndim == 3:
+            l = l.dimadd(1)
+            gates = gates.dimadd(1) if gates is not None else gates
+        temp = T.log(abs(r - l))
+        if gates is not None:
+            temp = gates * temp
+        lognorm = T.logsumexp(temp * self.L, axis=-1) / self.L
+        return -T.exp(lognorm)
 
 
 class LinearDistance(Distance):

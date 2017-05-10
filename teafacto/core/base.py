@@ -62,6 +62,17 @@ class TWrapper(type):
                       truncate_gradient=truncate_gradient, go_backwards=go_backwards,mode=mode, name=name, profile=profile,
                       allow_gc=allow_gc, strict=strict)
 
+    def logsumexp(cls, x, axis=None):
+        maximum = tensorops.max(x, axis=axis, keepdims=True)
+        maximum_red = tensorops.max(x, axis=axis)
+        dx = x - maximum
+        sumofexp = tensorops.sum(tensorops.exp(dx), axis=axis)
+        return maximum_red + np.log(sumofexp)
+
+    def lognorm(cls, x, L=2, axis=None):
+        lognorm = tensorops.logsumexp(tensorops.log(abs(x)) * L, axis=axis) / L
+        return lognorm
+
     def softmax(cls, x, mask=None, temperature=1.):     # masked, multidim softmax
         mask = x.mask if mask is None else mask
         xndim = x.ndim

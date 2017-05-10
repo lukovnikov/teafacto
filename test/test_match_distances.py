@@ -60,6 +60,22 @@ class TestEuclideanDistance(TestCase):
         self.assertEqual(pred.shape, (batsize,))
 
 
+class TestLNormSim(TestCase):
+    def test_eucl(self):
+        x = np.random.random((2, 10,))
+        y = np.random.random((2, 10,))
+        dist_numpy = np.linalg.norm(abs(x - y), axis=-1)
+        print dist_numpy
+        ed = EuclideanDistance()
+        dist_eucl = ed.predict(x, y)
+        print dist_eucl
+        ld = LNormSimilarity(L=2)
+        dist_norm = ld.predict(x, y)
+        print dist_norm
+        self.assertTrue(np.allclose(dist_numpy, -dist_eucl))
+        self.assertTrue(np.allclose(dist_eucl, dist_norm))
+
+
 class TestBilinearDistance(TestCase):
     def test_shape_normal(self):
         batsize = 10
