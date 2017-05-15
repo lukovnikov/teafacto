@@ -78,6 +78,10 @@ def get_mids_info(p="../../../data/WebQSP/data/WebQSP.allmids.withcans.pkl"):
         allinfo[mid] = midinfo
         typemids.update(set(midinfo.notable_types))
         typemids.update(set(midinfo.types))
+    print len(typemids)
+    for mid in typemids:
+        midinfo = eig.get_info(mid).values()[0]
+        allinfo[mid] = midinfo
     embed()
 
 
