@@ -201,6 +201,7 @@ class EntityInfo(object):
                 setattr(self, slot, slotvalue[0])
             else:
                 setattr(self, slot, None)
+        return self
 
 
 if __name__ == "__main__":
