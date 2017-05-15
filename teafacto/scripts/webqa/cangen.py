@@ -80,7 +80,7 @@ def get_mids_info(p="../../../data/WebQSP/data/WebQSP.allmids.withcans.pkl",
         typemids.update(set(midinfo.notable_types))
         typemids.update(set(midinfo.types))
         if len(allinfo) % 100 == 0:
-            break
+            #break
             pass
     print len(typemids)
     """
