@@ -1,7 +1,8 @@
-from teafacto.scripts.webqa.search import Searcher, EntityInfoGetter
+from teafacto.scripts.webqa.search import Searcher, EntityInfoGetter, EntityInfo
 import json, re, pickle
 from IPython import embed
 from teafacto.util import argprun, ticktock
+from SPARQLWrapper import SPARQLWrapper, JSON
 
 
 def cangen_run(trainp="../../../data/WebQSP/data/WebQSP.train.json",
@@ -72,27 +73,29 @@ def get_mids_info(p="../../../data/WebQSP/data/WebQSP.allmids.withcans.pkl",
     tt = ticktock("mid info getter")
     tt.tick()
     for mid in allmids:
-        if len(allinfo) % 10 == 0:
+        if len(allinfo) % 100 == 0:
             tt.tock("{:6}/{:6}".format(len(allinfo), len(allmids)))
             tt.tick()
         midinfo = eig.get_info(mid).values()[0]
         allinfo[mid] = midinfo
         typemids.update(set(midinfo.notable_types))
         typemids.update(set(midinfo.types))
-        if len(allinfo) % 100 == 0:
+        if len(allinfo) % 1000 == 0:
             #break
             pass
     print len(typemids)
-    """
-    tt.tick()
-    for mid in typemids:
-        if len(allinfo) % 10 == 0:
-            tt.tock("{:6}/{:6}".format(len(allinfo), len(allmids)))
-            tt.tick()
-        midinfo = eig.get_info(mid).values()[0]
-        allinfo[mid] = midinfo
-    """
     print "dumping"
+    for mid in typemids:
+        ei = EntityInfo()
+        ei.mid = mid
+        labels = eig.searcher.search_mid(mid)
+        for label in labels:
+            if label[1] == "alias":
+                ei.aliases.append(label[0])
+            elif label[1] == "name":
+                ei.name = label[0]
+        allinfo[mid] = ei
+
     todump = map(lambda x: x.finalize(), allinfo.values())
     pickle.dump(todump, open(outp, "w"), -1)
     embed()
