@@ -167,7 +167,7 @@ class EntityInfoGetter(object):
 
 class EntityInfo(object):
     __slots__ = ("mid", "types", "notable_types", "aliases", "name", "description",
-                 "numoutedges", "numinedges", "outrels", "inrels", "types_names", "notable_types_names")
+                 "numoutedges", "numinedges", "outrels", "inrels")
 
     def __init__(self):
         for slot in self.__slots__:
