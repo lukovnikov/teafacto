@@ -192,6 +192,16 @@ class EntityInfo(object):
     def __getitem__(self, item):
         return getattr(self, EntityInfo.mapper[item])
 
+    def finalize(self):
+        for slot in self.__slots__:
+            slotvalue = getattr(self, slot)
+            if len(slotvalue) > 1:
+                setattr(self, slot, tuple(slotvalue))
+            elif len(slotvalue) == 1:
+                setattr(self, slot, slotvalue[0])
+            else:
+                setattr(self, slot, None)
+
 
 if __name__ == "__main__":
     info = EntityInfoGetter()

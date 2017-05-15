@@ -62,7 +62,8 @@ def collect_mids(p):
     return mids
 
 
-def get_mids_info(p="../../../data/WebQSP/data/WebQSP.allmids.withcans.pkl"):
+def get_mids_info(p="../../../data/WebQSP/data/WebQSP.allmids.withcans.pkl",
+                  outp="../../../data/WebQSP/data/WebQSP.allmids.withcans.info.pkl"):
     mids = pickle.load(open(p))
     eig = EntityInfoGetter()
     allmids = mids["trainmids"].union(mids["testmids"])
@@ -78,10 +79,15 @@ def get_mids_info(p="../../../data/WebQSP/data/WebQSP.allmids.withcans.pkl"):
         allinfo[mid] = midinfo
         typemids.update(set(midinfo.notable_types))
         typemids.update(set(midinfo.types))
+        if len(allinfo) % 100 == 0:
+            break
+            pass
     print len(typemids)
     for mid in typemids:
         midinfo = eig.get_info(mid).values()[0]
         allinfo[mid] = midinfo
+    todump = map(lambda x: x.finalize(), allinfo.values())
+    pickle.dump(todump, open(outp, "w"))
     embed()
 
 
