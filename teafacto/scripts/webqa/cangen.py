@@ -94,7 +94,7 @@ def get_mids_info(p="../../../data/WebQSP/data/WebQSP.allmids.withcans.pkl",
     """
     print "dumping"
     todump = map(lambda x: x.finalize(), allinfo.values())
-    pickle.dump(todump, open(outp, "w"))
+    pickle.dump(todump, open(outp, "w"), -1)
     embed()
 
 
