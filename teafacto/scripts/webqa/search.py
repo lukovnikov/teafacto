@@ -195,12 +195,14 @@ class EntityInfo(object):
     def finalize(self):
         for slot in self.__slots__:
             slotvalue = getattr(self, slot)
-            if len(slotvalue) > 1:
+            if isinstance(slotvalue, list) and len(slotvalue) > 1:
                 setattr(self, slot, tuple(slotvalue))
-            elif len(slotvalue) == 1:
+            elif isinstance(slotvalue, list) and len(slotvalue) == 1:
                 setattr(self, slot, slotvalue[0])
-            else:
+            elif isinstance(slotvalue, list):
                 setattr(self, slot, None)
+            else:
+                pass
         return self
 
 
