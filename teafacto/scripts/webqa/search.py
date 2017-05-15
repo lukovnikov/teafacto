@@ -203,8 +203,8 @@ class EntityInfo(object):
                 setattr(self, slot, None)
             else:
                 pass
-        self.numoutedges = int(self.numoutedges)
-        self.numinedges = int(self.numinedges)
+        self.numoutedges = int(self.numoutedges) if self.numoutedges is not None else None
+        self.numinedges = int(self.numinedges) if self.numinedges is not None else None
         return self
 
 
