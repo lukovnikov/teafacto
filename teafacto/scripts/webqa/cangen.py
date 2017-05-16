@@ -74,7 +74,7 @@ def get_mids_info(p="../../../data/WebQSP/data/WebQSP.allmids.withcans.pkl",
     tt.tick()
     badmids = set()
     for mid in allmids:
-        if len(allinfo) % 100 == 0:
+        if len(allinfo) % 1000 == 0:
             tt.tock("{:6}/{:6}".format(len(allinfo), len(allmids)))
             tt.tick()
         midinfo = eig.get_info(mid)
