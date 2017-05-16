@@ -72,6 +72,7 @@ def get_mids_info(p="../../../data/WebQSP/data/WebQSP.allmids.withcans.pkl",
     typemids = set()
     tt = ticktock("mid info getter")
     tt.tick()
+    badmids = set()
     for mid in allmids:
         if len(allinfo) % 100 == 0:
             tt.tock("{:6}/{:6}".format(len(allinfo), len(allmids)))
@@ -85,6 +86,8 @@ def get_mids_info(p="../../../data/WebQSP/data/WebQSP.allmids.withcans.pkl",
             if len(allinfo) % 1000 == 0:
                 #break
                 pass
+        else:
+            badmids.add(mid)
     print len(typemids)
     print "dumping"
     for mid in typemids:
