@@ -76,13 +76,15 @@ def get_mids_info(p="../../../data/WebQSP/data/WebQSP.allmids.withcans.pkl",
         if len(allinfo) % 100 == 0:
             tt.tock("{:6}/{:6}".format(len(allinfo), len(allmids)))
             tt.tick()
-        midinfo = eig.get_info(mid).values()[0]
-        allinfo[mid] = midinfo
-        typemids.update(set(midinfo.notable_types))
-        typemids.update(set(midinfo.types))
-        if len(allinfo) % 1000 == 0:
-            #break
-            pass
+        midinfo = eig.get_info(mid)
+        if midinfo is not None:
+            midinfo = midinfo.values()[0]
+            allinfo[mid] = midinfo
+            typemids.update(set(midinfo.notable_types))
+            typemids.update(set(midinfo.types))
+            if len(allinfo) % 1000 == 0:
+                #break
+                pass
     print len(typemids)
     print "dumping"
     for mid in typemids:

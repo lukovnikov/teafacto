@@ -1,8 +1,9 @@
 from elasticsearch import Elasticsearch
 from elasticsearch_dsl import Search, Q
-import re, nltk, numpy as np
+import re, nltk, numpy as np, time
 from teafacto.util import ticktock
 from SPARQLWrapper import SPARQLWrapper, JSON
+from SPARQLWrapper.SPARQLExceptions import *
 from IPython import embed
 
 
@@ -139,29 +140,49 @@ class EntityInfoGetter(object):
                         FILTER (?s IN (""" + entities + """)).
                     }"""
         self.sparqler.setQuery(qstring)
-        results = self.sparqler.query().convert()
-
-        ret = dict(zip(mids, [EntityInfo()] * len(mids)))
-        entre = re.compile("^http://rdf\.freebase\.com/ns/(.+)$")
-
-        for result in results["results"]["bindings"]:
-            s, p, o = map(lambda x: entre.match(x["value"]).group(1) if x["type"] == "uri" and entre.match(x["value"]) else x["value"],
-                          (result["s"], result["p"], result["o"]))
-            ret[s][p].append(o)
-        for mid in mids:
-            name = None
-            aliases = []
-            for res in self.searcher.search_mid(mid):
-                if res[1] == "alias":
-                    aliases.append(res[0])
-                elif res[1] == "name":
-                    #assert(name == None)
-                    name = res[0]
+        retries = 50
+        results = None
+        ret = None
+        while retries > 0:
+            try:
+                results = self.sparqler.query().convert()
+            except EndPointNotFound, e:
+                print "endpoint not found, retrying {}".format(retries)
+                time.sleep(10)
+            except EndPointInternalError, e:
+                if "Transaction timed out" in e.message:
+                    print "timeout"
+                    break
                 else:
-                    raise Exception("unknown label type")
-            ret[mid].name = name
-            ret[mid].aliases = aliases
-            ret[mid].mid = mid
+                    print "internal endpoint error, retrying {}".format(retries)
+                    time.sleep(10)
+            except QueryBadFormed, e:
+                print "bad query"
+                break
+            finally:
+                retries -= 1
+        if results is not None:
+            ret = dict(zip(mids, [EntityInfo()] * len(mids)))
+            entre = re.compile("^http://rdf\.freebase\.com/ns/(.+)$")
+
+            for result in results["results"]["bindings"]:
+                s, p, o = map(lambda x: entre.match(x["value"]).group(1) if x["type"] == "uri" and entre.match(x["value"]) else x["value"],
+                              (result["s"], result["p"], result["o"]))
+                ret[s][p].append(o)
+            for mid in mids:
+                name = None
+                aliases = []
+                for res in self.searcher.search_mid(mid):
+                    if res[1] == "alias":
+                        aliases.append(res[0])
+                    elif res[1] == "name":
+                        #assert(name == None)
+                        name = res[0]
+                    else:
+                        raise Exception("unknown label type")
+                ret[mid].name = name
+                ret[mid].aliases = aliases
+                ret[mid].mid = mid
         return ret
 
 
@@ -210,7 +231,7 @@ class EntityInfo(object):
 
 if __name__ == "__main__":
     info = EntityInfoGetter()
-    ret = info.get_info("m.0kpv1m")
+    ret = info.get_info("common.topic")
     embed()
 
 
