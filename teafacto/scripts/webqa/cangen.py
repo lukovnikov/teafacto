@@ -106,8 +106,27 @@ def get_mids_info(p="../../../data/WebQSP/data/WebQSP.allmids.withcans.pkl",
     embed()
 
 
+def load_mids_info(p="../../../data/WebQSP/data/WebQSP.allmids.withcans.info.pkl"):
+    tt = ticktock("loader")
+    tt.tick("loading mids info")
+    l = pickle.load(open(p))
+    tt.tock("pickle loaded")
+    tt.tick("dictionarizing")
+    r = {}
+    for le in l:
+        r[le.mid] = le
+    tt.tock("dictionarized")
+    return r
+
+
+def load_mids_info_and_test():
+    i = load_mids_info()
+    embed()
+
+
 if __name__ == "__main__":
-    argprun(get_mids_info)
+    argprun(load_mids_info_and_test())
+
 
 
 
