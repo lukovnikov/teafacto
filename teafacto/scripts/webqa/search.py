@@ -146,6 +146,7 @@ class EntityInfoGetter(object):
         while retries > 0:
             try:
                 results = self.sparqler.query().convert()
+                retries = 0
             except EndPointNotFound, e:
                 print "endpoint not found, retrying {}".format(retries)
                 time.sleep(10)
