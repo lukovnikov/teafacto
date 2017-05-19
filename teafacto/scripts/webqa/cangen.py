@@ -170,9 +170,16 @@ def get_all_can_mentions(
         canidsp="../../../data/WebQSP/data/WebQSP.canids.info.pkl",
         infop="../../../data/WebQSP/data/WebQSP.allmids.withcans.info.pkl",
 ):
+    tt = ticktock("script")
+    tt.tick("loading candic")
     candic = pickle.load(open(canidsp))
+    tt.tock("candic loaded")
+    tt.tick("loading info")
     info = pickle.load(open(infop))
+    tt.tock("info loaded")
+    ret = OrderedDict()
 
+    tt.tick("enriching candic")
     info = build_info_dict(info)
     for k, v in candic.items():
         entinf = info[k[0]]
@@ -181,8 +188,11 @@ def get_all_can_mentions(
         types = entinf.types
         types = [info[typ].name for typ in types]
         typ = " :: ".join(types)
-        fullv = (entinf.mid, entinf.name, notable_type, typ)
-        embed()
+        fullk = (entinf.mid, entinf.name, notable_type, typ)
+        ret[fullk] = v
+        assert(len(ret) - 1 == v)
+    tt.tock("candic enriched")
+    return ret
 
 
 
