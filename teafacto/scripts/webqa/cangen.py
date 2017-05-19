@@ -192,9 +192,9 @@ def get_all_can_mentions(
             types = entinf.types
             if isinstance(types, basestring):
                 types = [types]
-            types = [info[typ].name for typ in types] if types is not None else None
+            types = [info[typ].name for typ in types] if types is not None else []
             types = [typ for typ in types if typ is not None]
-            typ = " :: ".join(types) if types is not None else ""
+            typ = " :: ".join(types)
             fullk = (entinf.mid, entinf.name, notable_type, typ)
             ret[fullk] = v
             assert(len(ret) - 1 == v)
