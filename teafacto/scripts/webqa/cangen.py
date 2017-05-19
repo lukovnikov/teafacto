@@ -196,6 +196,7 @@ def get_all_can_mentions(
             types = [typ for typ in types if typ is not None]
             typ = " :: ".join(types)
             fullk = (entinf.mid, entinf.name, notable_type, typ)
+            assert(fullk not in ret)
             ret[fullk] = v
             assert(len(ret) - 1 == v)
         except Exception, e:
