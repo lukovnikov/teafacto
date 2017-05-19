@@ -166,6 +166,28 @@ def collect_entity_mention_candidates(
     pickle.dump(candic, open(canidsp, "w"))
 
 
+def get_all_can_mentions(
+        trainp="../../../WebQSP/data/WebQSP.train.json.withcanids",
+        testp="../../../WebQSP/data/WebQSP.test.json.withcanids",
+        canidsp="../../../data/WebQSP/data/WebQSP.canids.info.pkl",
+        infop="../../../WebQSP/data/WebQSP.allmids.withcans.info.pkl",
+):
+    traindata = json.load(open(trainp))
+    testdata = json.load(open(testp))
+    candic = pickle.load(open(canidsp))
+    info = pickle.load(open(infop))
+
+    info = build_info_dict(info)
+    for k, v in candic.items():
+        entinf = info[v[0]]
+        notable_type = entinf.notable_types
+        notable_type = info[notable_type].name
+        types = entinf.types
+        types = [info[typ].name for typ in types]
+        typ = " :: ".join(types)
+        fullv = (entinf.mid, entinf.name, notable_type, typ)
+        embed()
+
 
 
 
