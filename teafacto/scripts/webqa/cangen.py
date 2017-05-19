@@ -168,7 +168,7 @@ def collect_entity_mention_candidates(
 
 def get_all_can_mentions(
         canidsp="../../../data/WebQSP/data/WebQSP.canids.info.pkl",
-        infop="../../../WebQSP/data/WebQSP.allmids.withcans.info.pkl",
+        infop="../../../data/WebQSP/data/WebQSP.allmids.withcans.info.pkl",
 ):
     candic = pickle.load(open(canidsp))
     info = pickle.load(open(infop))
