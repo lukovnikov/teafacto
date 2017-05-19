@@ -172,7 +172,7 @@ def collect_entity_mention_candidates(
 
 
 if __name__ == "__main__":
-    argprun(load_mids_info_and_test())
+    argprun(collect_entity_mention_candidates())
 
 
 
