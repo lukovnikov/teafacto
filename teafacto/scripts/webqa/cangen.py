@@ -170,6 +170,8 @@ def get_all_can_mentions(
         canidsp="../../../data/WebQSP/data/WebQSP.canids.info.pkl",
         infop="../../../data/WebQSP/data/WebQSP.allmids.withcans.info.pkl",
         inspect=False,
+        save=False,
+        savep="../../../data/WebQSP/data/WebQSP.canids.allinfo.pkl",
 ):
     tt = ticktock("script")
     tt.tick("loading candic")
@@ -195,6 +197,8 @@ def get_all_can_mentions(
     tt.tock("candic enriched")
     if inspect:
         embed()
+    if save:
+        pickle.dump(ret, open(savep, "w"))
     return ret
 
 
