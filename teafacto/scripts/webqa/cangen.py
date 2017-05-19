@@ -169,6 +169,7 @@ def collect_entity_mention_candidates(
 def get_all_can_mentions(
         canidsp="../../../data/WebQSP/data/WebQSP.canids.info.pkl",
         infop="../../../data/WebQSP/data/WebQSP.allmids.withcans.info.pkl",
+        inspect=False,
 ):
     tt = ticktock("script")
     tt.tick("loading candic")
@@ -184,14 +185,16 @@ def get_all_can_mentions(
     for k, v in candic.items():
         entinf = info[k[0]]
         notable_type = entinf.notable_types
-        notable_type = info[notable_type].name if notable_type is not None else None
+        notable_type = info[notable_type].name if notable_type is not None else ""
         types = entinf.types
-        types = [info[typ].name for typ in types]
-        typ = " :: ".join(types)
+        types = [info[typ].name for typ in types] if types is not None else None
+        typ = " :: ".join(types) if types is not None else ""
         fullk = (entinf.mid, entinf.name, notable_type, typ)
         ret[fullk] = v
         assert(len(ret) - 1 == v)
     tt.tock("candic enriched")
+    if inspect:
+        embed()
     return ret
 
 
