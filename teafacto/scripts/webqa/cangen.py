@@ -1,5 +1,6 @@
 from teafacto.scripts.webqa.search import Searcher, EntityInfoGetter, EntityInfo
 import json, re, pickle
+from collections import OrderedDict
 from IPython import embed
 from teafacto.util import argprun, ticktock
 from SPARQLWrapper import SPARQLWrapper, JSON
@@ -120,8 +121,54 @@ def load_mids_info(p="../../../data/WebQSP/data/WebQSP.allmids.withcans.info.pkl
 
 
 def load_mids_info_and_test():
-    i = load_mids_info()
+    d = load_mids_info()
     embed()
+
+
+def build_info_dict(infolist):
+    d = {}
+    for infoitem in infolist:
+        d[infoitem.mid] = infoitem
+    return d
+
+
+def collect_entity_mention_candidates(
+        trainp="../../../data/WebQSP/data/WebQSP.train.json.withcans",
+        testp="../../../data/WebQSP/data/WebQSP.test.json.withcans",
+        trainoutp="../../../data/WebQSP/data/WebQSP.train.json.withcanids",
+        testoutp="../../../data/WebQSP/data/WebQSP.test.json.withcanids",
+        canidsp="../../../data/WebQSP/data/WebQSP.canids.info.pkl"):
+    traindata = json.load(open(trainp))
+    testdata = json.load(open(testp))
+
+    candic = OrderedDict()
+
+    def _process_questions(data, candic):
+        for question in data:
+            canids = set()      # set of tuples (canid, partial, positions)
+            for mid, matchinfo in question["CandidateEntities"].items():
+                name, oname, partial, positions = matchinfo
+                canentry = (mid, name)
+                if canentry not in candic:
+                    candic[canentry] = len(candic)
+                canid = candic[canentry]
+                canidadd = (canid, partial, tuple([tuple(position) for position in positions]))
+                canids.add(canidadd)
+            question["CandidateEntities"] = canids
+
+    _process_questions(traindata, candic)
+    _process_questions(testdata, candic)
+
+    embed()
+
+    json.dump(traindata, open(trainoutp, "w"))
+    json.dump(testdata, open(testoutp, "w"))
+    pickle.dump(candic, open(canidsp, "w"))
+
+
+
+
+
 
 
 if __name__ == "__main__":
