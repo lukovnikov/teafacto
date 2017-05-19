@@ -184,7 +184,7 @@ def get_all_can_mentions(
     for k, v in candic.items():
         entinf = info[k[0]]
         notable_type = entinf.notable_types
-        notable_type = info[notable_type].name
+        notable_type = info[notable_type].name if notable_type is not None else None
         types = entinf.types
         types = [info[typ].name for typ in types]
         typ = " :: ".join(types)
