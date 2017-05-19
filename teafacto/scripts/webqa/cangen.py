@@ -185,15 +185,19 @@ def get_all_can_mentions(
     tt.tick("enriching candic")
     info = build_info_dict(info)
     for k, v in candic.items():
-        entinf = info[k[0]]
-        notable_type = entinf.notable_types
-        notable_type = info[notable_type].name if notable_type is not None else ""
-        types = entinf.types
-        types = [info[typ].name for typ in types] if types is not None else None
-        typ = " :: ".join(types) if types is not None else ""
-        fullk = (entinf.mid, entinf.name, notable_type, typ)
-        ret[fullk] = v
-        assert(len(ret) - 1 == v)
+        try:
+            entinf = info[k[0]]
+            notable_type = entinf.notable_types
+            notable_type = info[notable_type].name if notable_type is not None else ""
+            types = entinf.types
+            types = [info[typ].name for typ in types] if types is not None else None
+            typ = " :: ".join(types) if types is not None else ""
+            fullk = (entinf.mid, entinf.name, notable_type, typ)
+            ret[fullk] = v
+            assert(len(ret) - 1 == v)
+        except Exception, e:
+            if inspect:
+                embed()
     tt.tock("candic enriched")
     if inspect:
         embed()
