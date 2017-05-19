@@ -187,13 +187,19 @@ def get_all_can_mentions(
     for k, v in candic.items():
         try:
             entinf = info[k[0]]
-            notable_type = entinf.notable_types
-            notable_type = info[notable_type].name if notable_type is not None else ""
+            notable_types = entinf.notable_types
+            if isinstance(notable_types, basestring):
+                notable_types = [notable_types]
+            notable_types = [info[notable_type].name for notable_type in notable_types] if notable_types is not None else []
+            notable_types = [typ for typ in notable_types if typ is not None]
+            notable_types = set(notable_types)
+            notable_type = " :: ".join(notable_types)
             types = entinf.types
             if isinstance(types, basestring):
                 types = [types]
             types = [info[typ].name for typ in types] if types is not None else []
             types = [typ for typ in types if typ is not None]
+            types = set(types)
             typ = " :: ".join(types)
             fullk = (entinf.mid, k[1], entinf.name, notable_type, typ)
             assert(fullk not in ret)
