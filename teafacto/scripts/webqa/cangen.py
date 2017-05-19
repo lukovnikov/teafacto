@@ -195,7 +195,7 @@ def get_all_can_mentions(
             types = [info[typ].name for typ in types] if types is not None else []
             types = [typ for typ in types if typ is not None]
             typ = " :: ".join(types)
-            fullk = (entinf.mid, entinf.name, notable_type, typ)
+            fullk = (entinf.mid, k[1], entinf.name, notable_type, typ)
             assert(fullk not in ret)
             ret[fullk] = v
             assert(len(ret) - 1 == v)
