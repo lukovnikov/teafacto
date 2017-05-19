@@ -154,12 +154,12 @@ def collect_entity_mention_candidates(
                 canid = candic[canentry]
                 canidadd = (canid, partial, tuple([tuple(position) for position in positions]))
                 canids.add(canidadd)
-            question["CandidateEntities"] = canids
+            question["CandidateEntities"] = list(canids)
 
     _process_questions(traindata, candic)
     _process_questions(testdata, candic)
 
-    embed()
+    #embed()
 
     json.dump(traindata, open(trainoutp, "w"))
     json.dump(testdata, open(testoutp, "w"))
