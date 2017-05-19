@@ -190,6 +190,8 @@ def get_all_can_mentions(
             notable_type = entinf.notable_types
             notable_type = info[notable_type].name if notable_type is not None else ""
             types = entinf.types
+            if isinstance(types, basestring):
+                types = [types]
             types = [info[typ].name for typ in types] if types is not None else None
             typ = " :: ".join(types) if types is not None else ""
             fullk = (entinf.mid, entinf.name, notable_type, typ)
@@ -203,6 +205,11 @@ def get_all_can_mentions(
         embed()
     if save:
         pickle.dump(ret, open(savep, "w"))
+    return ret
+
+
+def load_cans_with_info(p="../../../data/WebQSP/data/WebQSP.canids.allinfo.pkl"):
+    ret = pickle.load(open(p))
     return ret
 
 
