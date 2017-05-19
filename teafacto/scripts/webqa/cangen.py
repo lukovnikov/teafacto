@@ -167,13 +167,9 @@ def collect_entity_mention_candidates(
 
 
 def get_all_can_mentions(
-        trainp="../../../WebQSP/data/WebQSP.train.json.withcanids",
-        testp="../../../WebQSP/data/WebQSP.test.json.withcanids",
         canidsp="../../../data/WebQSP/data/WebQSP.canids.info.pkl",
         infop="../../../WebQSP/data/WebQSP.allmids.withcans.info.pkl",
 ):
-    traindata = json.load(open(trainp))
-    testdata = json.load(open(testp))
     candic = pickle.load(open(canidsp))
     info = pickle.load(open(infop))
 
@@ -194,7 +190,7 @@ def get_all_can_mentions(
 
 
 if __name__ == "__main__":
-    argprun(collect_entity_mention_candidates)
+    argprun(get_all_can_mentions)
 
 
 
