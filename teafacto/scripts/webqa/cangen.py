@@ -175,7 +175,7 @@ def get_all_can_mentions(
 
     info = build_info_dict(info)
     for k, v in candic.items():
-        entinf = info[v[0]]
+        entinf = info[k[0]]
         notable_type = entinf.notable_types
         notable_type = info[notable_type].name
         types = entinf.types
