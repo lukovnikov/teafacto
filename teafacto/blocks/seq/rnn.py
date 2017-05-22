@@ -321,6 +321,107 @@ class RNNSeqEncoder(SeqEncoder):
         return FluentSeqEncoderBuilder()
 
 
+class RiboRNN(Block):
+    numcontrols = 2     # input shift and output shift
+
+    def __init__(self,
+                 inpemb=None,
+                 innerdim=None, rnu=GRU,
+                 dropout_in=False, dropout_h=False, zoneout=False,
+                 smo=None,
+                 nsteps=None, **kw):
+        super(RiboRNN, self).__init__(**kw)
+        self.inpemb = inpemb
+        indim = inpemb.outdim
+        self.nsteps = nsteps
+        self.smo = smo
+        innerdim = innerdim if issequence(innerdim) else [innerdim]
+        self.outdim = innerdim[-1]
+        self.outvocsize = self.smo.outdim
+        #innerdim[-1] += 1
+        # make the layers
+        layers, lastdim = MakeRNU.fromdims([indim] + innerdim,
+                                           rnu=rnu,
+                                           dropout_h=dropout_h,
+                                           dropout_in=dropout_in,
+                                           zoneout=zoneout,
+                                           )
+        self.rnublock = RecStack(*layers)
+        self.control_block = Forward(lastdim, self.numcontrols, activation=Sigmoid())
+        self.control_threshold = Threshold(0.0, ste=True)
+        self.control_maxhot = MaxHot(ste=True)
+
+    def apply(self, seq):   # (batsize, seqlen) - int^vocsize
+        batsize = seq.shape[0]
+        seq_emb = self.inpemb(seq)
+        mask = seq_emb.mask     # (batsize, seqlen, embdim) ~ float
+        init_states = self.rnublock.get_init_info(batsize)  # init rnu's from zero
+        # initialize output memory, slides
+        outmem_0 = T.zeros(batsize, self.nsteps, self.outvocsize)
+        control_acc_0 = T.zeros(batsize, self.numcontrols)
+        timestep = T.zeros(batsize,)
+        outputs = T.scan(fn=self.inner_rec,
+                         sequences=None,
+                         outputs_info=[None] + [outmem_0, control_acc_0, timestep] + init_states,
+                         non_sequences=seq_emb)
+        ret = outputs[0][:, -1, :]      # last state of outmem
+        ret.mask = mask
+        return ret
+
+    def inner_rec(self, outmem_tm1, control_acc_tm1, timestep, *states_tm1):
+        x = states_tm1[-1]      # (batsize, seqlen, inpembdim)
+        states_tm1 = states_tm1[:-1]    # !!! top state may have few extra elems
+        x_t = self._get_x_t(x, control_acc_tm1)
+        o_t, states_t = self.rnublock.rec(x_t, *states_tm1)
+        y_t = self._get_y_t(o_t)
+        control_t = self._get_control(states_t, o_t, y_t)    # (batsize, numcontrols)
+        control_acc_t = self._update_control(control_acc_tm1, control_t)
+        outmem_t = self._update_outmem(y_t, outmem_tm1, control_acc_tm1) # (batsize, outseqlen, outvocsize)
+        timestep += 1
+        return outmem_t, control_acc_t, timestep, states_t
+
+    # used by rec api, can deviate
+    def _get_y_t(self, o_t):
+        return self.smo(o_t)
+
+    # used by rec api, can deviate
+    def _get_control(self, states_t, o_t, y_t):
+        # given states, output vector and output symbol probs, get control vector
+        ret = self.control_block(o_t)   # (batsize, numcontrols)
+        shift = self.control_threshold(ret[:, 0:1])
+        ret = T.concatenate([shift, shift], axis=-1)    # same shift for input and output
+        return ret      # (batsize, numcontrols)
+
+    ### keep standard below
+    # is simulated outside rec api, keep standard and simple
+    def _get_x_t(self, x, control_acc_tm1):  # (batsize, seqlen, inpembdim) and (batsize, ctrldim)
+        # given input over all timesteps and control vectors, get current input
+        crit = control_acc_tm1[:, 0]
+        # 1. get address in the input   (attention weights)
+        # 2. get summary of x using the addressing
+        # TODO
+        return x  # (batsize, inpembdim)
+
+    # is simulated outside rec api, keep standard and simple
+    def _update_outmem(self, y_t, outmem_tm1,
+                       control_acc_tm1):  # (batsize, outvocsize) and (batsize, maxoutseqlen, outvocsize) and (batsize, numcontrols)
+        crit = control_acc_tm1[:, 1]
+        # 1. get address in the output (attention weights) based on control
+        # 2. update outmem with y_t based on the addressing
+        # TODO
+        return outmem_tm1
+
+    # is simulated outside rec api, keep standard and simple
+    def _update_control(self, control_acc_tm1, control_t):  # don't override this
+        return control_acc_tm1 + control_t
+
+    def rec(self, x_t, *args):
+        """ takes current input, outputs output and shift control scalars"""
+        pass        # TODO
+
+
+
+
 class SeqDecoder(Block):
 
     def __init__(self, layers, softmaxoutblock=None, innerdim=None,

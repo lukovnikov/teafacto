@@ -209,10 +209,12 @@ def get_all_can_mentions(
             if inspect:
                 embed()
     tt.tock("candic enriched")
+    if save:
+        tt.tick("saving")
+        pickle.dump(ret, open(savep, "w"))
+        tt.tock("saved in {}".format(savep))
     if inspect:
         embed()
-    if save:
-        pickle.dump(ret, open(savep, "w"))
     return ret
 
 
