@@ -396,20 +396,34 @@ class RiboRNN(Block):
     # is simulated outside rec api, keep standard and simple
     def _get_x_t(self, x, control_acc_tm1):  # (batsize, seqlen, inpembdim) and (batsize, ctrldim)
         # given input over all timesteps and control vectors, get current input
-        crit = control_acc_tm1[:, 0]
+        crit = control_acc_tm1[:, 0]    # (batsize,)
         # 1. get address in the input   (attention weights)
+        pos = self.__get_positions(crit, x.shape[1])    # (batsize, seqlen)
         # 2. get summary of x using the addressing
-        # TODO
-        return x  # (batsize, inpembdim)
+        pos = pos.dimadd(2)
+        summary = T.sum(x * pos, axis=1)
+        return summary  # (batsize, inpembdim)
 
     # is simulated outside rec api, keep standard and simple
     def _update_outmem(self, y_t, outmem_tm1,
                        control_acc_tm1):  # (batsize, outvocsize) and (batsize, maxoutseqlen, outvocsize) and (batsize, numcontrols)
-        crit = control_acc_tm1[:, 1]
+        crit = control_acc_tm1[:, 1]    # (batsize,)
         # 1. get address in the output (attention weights) based on control
+        pos = self.__get_positions(crit, outmem_tm1.shape[1])
         # 2. update outmem with y_t based on the addressing
-        # TODO
-        return outmem_tm1
+        pos = pos.dimadd(2) # (batsize, maxoutseqlen, 1)
+        y = y_t.dimadd(1)   # (batsize, 1, outvocsize)
+        outmem_t = outmem_tm1 * (1 - pos) + pos * y
+        return outmem_t
+
+    def __get_positions(self, crit, maxlen):    # (batsize,)
+        # max hot
+        positions = T.arange(0, maxlen)  # (maxlen,)
+        positions = positions.dimadd(0)
+        crit = crit.dimadd(1)
+        dist = abs(positions - crit) ** 2   # (batsize, maxlen)
+        ret = self.control_maxhot( -dist )
+        return ret
 
     # is simulated outside rec api, keep standard and simple
     def _update_control(self, control_acc_tm1, control_t):  # don't override this
@@ -418,8 +432,6 @@ class RiboRNN(Block):
     def rec(self, x_t, *args):
         """ takes current input, outputs output and shift control scalars"""
         pass        # TODO
-
-
 
 
 class SeqDecoder(Block):
