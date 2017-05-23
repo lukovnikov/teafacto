@@ -33,7 +33,7 @@ def load_data(p="../../../data/lcquad/data_v2.json"):
         amat[c, :len(a)] = a
         c += 1
     # dictionary
-    uniquechars = set(np.unique(qmat)) & set(np.unique(amat))
+    uniquechars = set(np.unique(qmat)) | set(np.unique(amat))
     dic = dict([(chr(char), char) for char in uniquechars])
 
     # split
@@ -56,7 +56,7 @@ def run(
         inspectdata=False,
 ):
     qmat_train, amat_train, qmat_test, amat_test, dic, pp = load_data()
-    vocsize = max(dic.values())
+    vocsize = max(dic.values()) + 1
     if inspectdata:
         embed()
 
