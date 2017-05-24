@@ -79,7 +79,7 @@ def run(
                      smo=SMO(encdim + encdim, vocsize)
                      )
 
-    pred = decoder.predict(qmat_train, amat_train)
+    pred = decoder.predict(qmat_train[:5], amat_train[:5, :-1])
     print pred.shape
     if inspectdata:
         embed()
