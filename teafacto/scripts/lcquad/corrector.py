@@ -54,6 +54,7 @@ def run(
         encdim=200,
         dropout=0.2,
         inspectdata=False,
+        inspectpred=False,
 ):
     qmat_train, amat_train, qmat_test, amat_test, dic, pp = load_data()
     vocsize = max(dic.values()) + 1
@@ -79,16 +80,16 @@ def run(
                      smo=SMO(encdim + encdim, vocsize)
                      )
 
-    pred = decoder.predict(qmat_train[:5], amat_train[:5, :-1])
-    print pred.shape
-    if inspectdata:
+    if inspectpred:
+        pred = decoder.predict(qmat_train[:5], amat_train[:5, :-1])
+        print pred.shape
         embed()
 
     # train
-    decoder.train([qmat_train, amat_train[:, :-1]], amat_train[:, 1:])\
+    decoder.train([amat_train[:, :-1], qmat_train], amat_train[:, 1:])\
         .seq_cross_entropy().seq_accuracy()\
         .adadelta(lr=lr).grad_total_norm(5.)\
-        .validate_on([qmat_test, amat_test[:, :-1]], amat_test[:, 1:])\
+        .validate_on([amat_test[:, :-1], qmat_test], amat_test[:, 1:])\
         .seq_cross_entropy().seq_accuracy()\
         .train(numbats, epochs)
 
