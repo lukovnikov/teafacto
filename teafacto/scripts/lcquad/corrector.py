@@ -79,6 +79,11 @@ def run(
                      smo=SMO(encdim + encdim, vocsize)
                      )
 
+    pred = decoder.predict(qmat_train, amat_train)
+    print pred.shape
+    if inspectdata:
+        embed()
+
     # train
     decoder.train([qmat_train, amat_train[:, :-1]], amat_train[:, 1:])\
         .seq_cross_entropy().seq_accuracy()\
