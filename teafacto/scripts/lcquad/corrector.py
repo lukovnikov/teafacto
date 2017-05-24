@@ -76,7 +76,7 @@ def run(
                      innerdim=[encdim, encdim],
                      dropout_in=dropout,
                      zoneout=dropout,
-                     smo=SMO(encdim, vocsize)
+                     smo=SMO(encdim + encdim, vocsize)
                      )
 
     # train
