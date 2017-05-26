@@ -272,3 +272,5 @@ class Switch(Block):
 
     def apply(self):
         return T.switch(self.mask, self.a, self.b)
+
+

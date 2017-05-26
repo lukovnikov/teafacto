@@ -2,12 +2,59 @@ from teafacto.core import T, Block
 from lasagne.objectives import *
 
 
+class ApplyLoss(Block):
+    def __init__(self, model, loss, **kwargs):
+        super(ApplyLoss, self).__init__(**kwargs)
+        self.model = model
+        self.loss = loss
+
+    def apply(self, *args):
+        golds = args[-self.loss.numlosses:]
+        inps = args[:-self.loss.numlosses]
+        outs = self.model(*inps)
+        loss = self.loss(*(outs + golds))
+        return loss
+
+
 class Loss(Block):
     def __init__(self, **kwargs):
         super(Loss, self).__init__(**kwargs)
 
     def apply(self, prediction, gold):
         raise NotImplementedError()
+
+    def apply_on(self, model):
+        ret = ApplyLoss(model, self)
+        return ret
+
+    @property
+    def numlosses(self):
+        return 1
+
+
+class MTL_Loss(Loss):
+    def __init__(self, losses, mode="sum", **kw):
+        super(MTL_Loss, self).__init__(**kw)
+        self.mode = mode
+        self.losses = losses        # individual losses
+
+    def apply(self, *args):
+        assert(len(args) % 2 == 0)
+        preds = args[:len(args) // 2]   # first half is predictions
+        golds = args[len(args) // 2:]   # second half is golds
+        ls = []
+        for pred, gold, loss in zip(preds, golds, self.losses):
+            l = loss(pred, gold)        # (batsize,)
+            ls.append(l)
+        if self.mode == "sum":
+            ret = reduce(lambda x, y: x + y, ls, 0)
+        else:
+            raise Exception("unrecognized mode")
+        return ret
+
+    @property
+    def numlosses(self):
+        return len(self.losses)
 
 
 class LinearLoss(Loss):

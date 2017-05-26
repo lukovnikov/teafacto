@@ -67,19 +67,23 @@ class Softmax(Activation):
 
 
 class Softmax(Activation):
-    def __init__(self, temperature=1., maxhot=False, maxhot_ste=True, **kwargs):
+    def __init__(self, temperature=1., maxhot=False, maxhot_ste=True, maxhot_pred=False, **kwargs):
         super(Softmax, self).__init__(**kwargs)
         self.temp = temperature
         self.maxhot = maxhot
         if self.maxhot is True:
             self.maxhot = MaxHot(ste=maxhot_ste)
+        self.maxhot_pred = maxhot_pred      # replaces by maxhot during prediction
+        # TODO: test maxhot_pred and maxhot and maxhot_ste
 
     def innerapply(self, inptensor, _trainmode=False, **kw): # matrix
+        if _trainmode is False and self.maxhot_pred:    # replace by maxhot during prediction
+            return MaxHot()(inptensor)  # TODO masking properly
         x = T.softmax(inptensor, mask=inptensor.mask, temperature=self.temp)
         if self.maxhot is False:
             x = x
         else:
-            x = self.maxhot(x)
+            x = self.maxhot(x)          # TODO masking properly
         x.mask = inptensor.mask
         return x
 

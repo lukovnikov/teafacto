@@ -323,6 +323,7 @@ class RNNSeqEncoder(SeqEncoder):
 
 class RiboRNN(Block):
     numcontrols = 2     # input shift and output shift
+    # TODO: can also be trained softly, without ste-maxhot
 
     def __init__(self,
                  inpemb=None,
@@ -348,8 +349,9 @@ class RiboRNN(Block):
                                            )
         self.rnublock = RecStack(*layers)
         self.control_block = Forward(lastdim, self.numcontrols, activation=Sigmoid())
-        self.control_threshold = Threshold(0.0, ste=True)
-        self.control_maxhot = MaxHot(ste=True)
+
+        self.position_softmax_temp = 1.
+        self.maxhot_softmax_train = False
 
     def apply(self, seq):   # (batsize, seqlen) - int^vocsize
         batsize = seq.shape[0]
@@ -388,7 +390,7 @@ class RiboRNN(Block):
     def _get_control(self, states_t, o_t, y_t):
         # given states, output vector and output symbol probs, get control vector
         ret = self.control_block(o_t)   # (batsize, numcontrols)
-        shift = self.control_threshold(ret[:, 0:1])
+        shift = Threshold(0.0, ste=True)(ret[:, 0:1])
         ret = T.concatenate([shift, shift], axis=-1)    # same shift for input and output
         return ret      # (batsize, numcontrols)
 
@@ -398,7 +400,7 @@ class RiboRNN(Block):
         # given input over all timesteps and control vectors, get current input
         crit = control_acc_tm1[:, 0]    # (batsize,)
         # 1. get address in the input   (attention weights)
-        pos = self.__get_positions(crit, x.shape[1])    # (batsize, seqlen)
+        pos = self.__get_position_weights(crit, x.shape[1], maskout="future")
         # 2. get summary of x using the addressing
         pos = pos.dimadd(2)
         summary = T.sum(x * pos, axis=1)
@@ -409,21 +411,47 @@ class RiboRNN(Block):
                        control_acc_tm1):  # (batsize, outvocsize) and (batsize, maxoutseqlen, outvocsize) and (batsize, numcontrols)
         crit = control_acc_tm1[:, 1]    # (batsize,)
         # 1. get address in the output (attention weights) based on control
-        pos = self.__get_positions(crit, outmem_tm1.shape[1])
+        pos = self.__get_position_weights(crit, outmem_tm1.shape[1], maskout="past")
         # 2. update outmem with y_t based on the addressing
         pos = pos.dimadd(2) # (batsize, maxoutseqlen, 1)
         y = y_t.dimadd(1)   # (batsize, 1, outvocsize)
         outmem_t = outmem_tm1 * (1 - pos) + pos * y
         return outmem_t
 
-    def __get_positions(self, crit, maxlen):    # (batsize,)
+    def __get_position_weights(self, crit, maxlen, maskout="future"):
+        # TODO: apply softmax-maxhot(-ste) during training, maxhot during prediction
+        # if softmax during training, probably masking out the past/future is necessary
+        #       in order not to affect past/future predictions
+        dist = self.__get_raw_position_distances(crit, maxlen)
+        timemask = self.__get_position_time_mask(crit, maxlen, mode=maskout)
+        dist.mask = timemask
+        weights = Softmax(temperature=self.position_softmax_temp,
+                          maxhot=self.maxhot_softmax_train,     # default False
+                          maxhot_ste=True,
+                          maxhot_pred=True)\
+            (dist)
+        return weights  # (batsize, seqlen)
+
+    def __get_raw_position_distances(self, crit, maxlen):    # (batsize,)
         # max hot
         positions = T.arange(0, maxlen)  # (maxlen,)
         positions = positions.dimadd(0)
         crit = crit.dimadd(1)
         dist = abs(positions - crit) ** 2   # (batsize, maxlen)
-        ret = self.control_maxhot( -dist )
-        return ret
+        return dist
+
+    def __get_position_time_mask(self, crit, maxlen, mode="future"):
+        positions = T.arange(0, maxlen)  # (maxlen,)
+        positions = positions.dimadd(0)
+        crit = crit.dimadd(1)
+        eps = 0.5
+        if mode == "future":
+            mask = Threshold(0.0)(crit - positions + eps)   # all positions strictly larger than crit will be zero
+        elif mode == "past":
+            mask = Threshold(0.0)(positions - crit + eps)   # all positions strictly smaller than crit will be zero
+        else:
+            raise Exception("mode not recognized")
+        return mask
 
     # is simulated outside rec api, keep standard and simple
     def _update_control(self, control_acc_tm1, control_t):  # don't override this
@@ -486,7 +514,7 @@ class SeqDecoder(Block):
                 initstates = [batsize * (self.numstates - len(initstates))] + initstates
 
         ctxmask = ctx.mask
-        ctxmask = T.ones(ctx.shape[:2], dtype="float32") if ctxmask is None else ctxmask
+        ctxmask = T.ones(ctx.shape[:(ctx.ndim-1)], dtype="float32") if ctxmask is None else ctxmask
         nonseqs = [ctxmask, ctx]
         return self.get_init_info(initstates), nonseqs
 
@@ -516,7 +544,6 @@ class SeqDecoder(Block):
         return [y_t] + states_t
 
     def _get_ctx_t(self, ctx, h_tm1, encmask):
-        # ctx is 3D, always dynamic context
         if self.attention is not None:
             assert(ctx.d.ndim > 2)
             ctx_t = self.attention(h_tm1, ctx, mask=encmask)
@@ -537,16 +564,17 @@ class SimpleRNNSeqDecoder(SeqDecoder):
     def __init__(self, emb=None, embdim=None, embsize=None, maskid=-1,
                  ctxdim=None, innerdim=None, rnu=GRU,
                  inconcat=True, outconcat=False, attention=None,
-                 softmaxoutblock=None, dropout=False, dropout_h=False, **kw):
+                 softmaxoutblock=None, dropout=False, dropout_h=False, zoneout=False, **kw):
         layers, lastdim = self.getlayers(emb, embdim, embsize, maskid,
-                           ctxdim, innerdim, rnu, inconcat, dropout, dropout_h)
+                           ctxdim, innerdim, rnu, inconcat,
+                                         dropout, dropout_h, zoneout)
         lastdim = lastdim if outconcat is False else lastdim + ctxdim
         super(SimpleRNNSeqDecoder, self).__init__(layers, softmaxoutblock=softmaxoutblock,
                                                   innerdim=lastdim, attention=attention, inconcat=inconcat,
                                                   outconcat=outconcat, dropout=dropout, **kw)
 
     def getlayers(self, emb, embdim, embsize, maskid, ctxdim, innerdim, rnu,
-                  inconcat, dropout, dropout_h):
+                  inconcat, dropout, dropout_h, zoneout):
         emb, embdim = SeqDecoder.getemb(emb, embdim, embsize, maskid)
         firstdecdim = embdim + ctxdim if inconcat else embdim
         layers, lastdim = MakeRNU.make(firstdecdim, innerdim, bidir=False, rnu=rnu,

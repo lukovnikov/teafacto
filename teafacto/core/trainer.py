@@ -178,7 +178,7 @@ class ModelTrainer(object):
         else:
             self.validation_objectives.append(obj)
 
-    def model_loss(self, aggmode="mean"):
+    def model_loss(self, aggmode="mean"):   # custom loss
         self._set_objective(ProtoObjective(aggmode=aggmode))
         if self.validsetmode is False:
             self._model_gives_train_losses = True
@@ -187,6 +187,7 @@ class ModelTrainer(object):
         return self
 
     def model_losses(self, number=1, aggmode="mean", aggmodes=None):
+        # mtl loss, custom loss
         if aggmodes is None:
             aggmodes = [aggmode] * number
         for aggm in aggmodes:

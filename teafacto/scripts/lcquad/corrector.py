@@ -53,7 +53,7 @@ def run(
         embdim=100,
         encdim=200,
         dropout=0.2,
-        inspectdata=False,
+        inspectdata=True,
         inspectpred=False,
 ):
     qmat_train, amat_train, qmat_test, amat_test, dic, pp = load_data()
