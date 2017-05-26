@@ -351,8 +351,8 @@ class RiboRNN(Block):
         self.control_block = Forward(lastdim, self.numcontrols, activation=Sigmoid())
 
         self.position_softmax_temp = 0.5
-        self.position_maxhot_pred = True
-        self.maxhot_softmax_train = False
+        self.maxhot_position_during_prediction = True
+        self.maxhot_position_during_training = False
         self.init_mem_to_zero_index = True
 
         self._debug_memory_evolution = False
@@ -364,8 +364,9 @@ class RiboRNN(Block):
         init_states = self.rnublock.get_init_info(batsize)  # init rnu's from zero
         # initialize output memory, slides
         if self.init_mem_to_zero_index:
-            outmem_0 = T.concatenate([T.ones((batsize, self.nsteps, 1)),
-                                       T.zeros((batsize, self.nsteps, self.outvocsize - 1))],
+            EPS = 1e-9
+            outmem_0 = T.concatenate([T.ones((batsize, self.nsteps, 1)) - EPS * (self.outvocsize - 1),
+                                       T.zeros((batsize, self.nsteps, self.outvocsize - 1)) + EPS],
                                       axis=-1)
         else:   # init to zeros
             outmem_0 = T.zeros((batsize, self.nsteps, self.outvocsize))
@@ -439,9 +440,9 @@ class RiboRNN(Block):
         timemask = self.__get_position_time_mask(crit, maxlen, mode=maskout)
         dist.mask = timemask
         weights = Softmax(temperature=self.position_softmax_temp,
-                          maxhot=self.maxhot_softmax_train,     # default False
+                          maxhot=self.maxhot_position_during_training,     # default False
                           maxhot_ste=True,
-                          maxhot_pred=self.position_maxhot_pred)\
+                          maxhot_pred=self.maxhot_position_during_prediction)\
             (dist)
         return weights  # (batsize, seqlen)
 

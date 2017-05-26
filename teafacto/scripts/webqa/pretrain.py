@@ -193,10 +193,9 @@ def run(
         .adadelta(lr=lr).grad_total_norm(5.)\
         .train(numbats, epochs)
 
+    # TODO: start from pretrained glove embeddings (all unknown words to <RARE>)
+
     embed()
-
-
-
 
 
 if __name__ == "__main__":
