@@ -350,8 +350,12 @@ class RiboRNN(Block):
         self.rnublock = RecStack(*layers)
         self.control_block = Forward(lastdim, self.numcontrols, activation=Sigmoid())
 
-        self.position_softmax_temp = 1.
+        self.position_softmax_temp = 0.5
+        self.position_maxhot_pred = True
         self.maxhot_softmax_train = False
+        self.init_mem_to_zero_index = True
+
+        self._debug_memory_evolution = False
 
     def apply(self, seq):   # (batsize, seqlen) - int^vocsize
         batsize = seq.shape[0]
@@ -359,16 +363,25 @@ class RiboRNN(Block):
         mask = seq_emb.mask     # (batsize, seqlen, embdim) ~ float
         init_states = self.rnublock.get_init_info(batsize)  # init rnu's from zero
         # initialize output memory, slides
-        outmem_0 = T.zeros(batsize, self.nsteps, self.outvocsize)
-        control_acc_0 = T.zeros(batsize, self.numcontrols)
-        timestep = T.zeros(batsize,)
+        if self.init_mem_to_zero_index:
+            outmem_0 = T.concatenate([T.ones((batsize, self.nsteps, 1)),
+                                       T.zeros((batsize, self.nsteps, self.outvocsize - 1))],
+                                      axis=-1)
+        else:   # init to zeros
+            outmem_0 = T.zeros((batsize, self.nsteps, self.outvocsize))
+        control_acc_0 = T.zeros((batsize, self.numcontrols))
+        timestep = T.zeros((batsize,))
         outputs = T.scan(fn=self.inner_rec,
                          sequences=None,
-                         outputs_info=[None] + [outmem_0, control_acc_0, timestep] + init_states,
-                         non_sequences=seq_emb)
-        ret = outputs[0][:, -1, :]      # last state of outmem
+                         outputs_info=[None, outmem_0, control_acc_0, timestep] + init_states,
+                         non_sequences=seq_emb,
+                         n_steps=self.nsteps)
+        ret = outputs[1][-1]      # last state of outmem
         ret.mask = mask
-        return ret
+        if not self._debug_memory_evolution:
+            return ret     # RUN
+        else:
+            return outputs[1]   # DEBUG
 
     def inner_rec(self, outmem_tm1, control_acc_tm1, timestep, *states_tm1):
         x = states_tm1[-1]      # (batsize, seqlen, inpembdim)
@@ -378,9 +391,9 @@ class RiboRNN(Block):
         y_t = self._get_y_t(o_t)
         control_t = self._get_control(states_t, o_t, y_t)    # (batsize, numcontrols)
         control_acc_t = self._update_control(control_acc_tm1, control_t)
-        outmem_t = self._update_outmem(y_t, outmem_tm1, control_acc_tm1) # (batsize, outseqlen, outvocsize)
+        outmem_t, write_pos = self._update_outmem(y_t, outmem_tm1, control_acc_tm1) # (batsize, outseqlen, outvocsize)
         timestep += 1
-        return outmem_t, control_acc_t, timestep, states_t
+        return write_pos, outmem_t, control_acc_t, timestep, states_t
 
     # used by rec api, can deviate
     def _get_y_t(self, o_t):
@@ -390,7 +403,7 @@ class RiboRNN(Block):
     def _get_control(self, states_t, o_t, y_t):
         # given states, output vector and output symbol probs, get control vector
         ret = self.control_block(o_t)   # (batsize, numcontrols)
-        shift = Threshold(0.0, ste=True)(ret[:, 0:1])
+        shift = Threshold(0.0, ste=True)(ret[:, 0:1] - 0.5)
         ret = T.concatenate([shift, shift], axis=-1)    # same shift for input and output
         return ret      # (batsize, numcontrols)
 
@@ -416,7 +429,7 @@ class RiboRNN(Block):
         pos = pos.dimadd(2) # (batsize, maxoutseqlen, 1)
         y = y_t.dimadd(1)   # (batsize, 1, outvocsize)
         outmem_t = outmem_tm1 * (1 - pos) + pos * y
-        return outmem_t
+        return outmem_t, pos
 
     def __get_position_weights(self, crit, maxlen, maskout="future"):
         # TODO: apply softmax-maxhot(-ste) during training, maxhot during prediction
@@ -428,17 +441,17 @@ class RiboRNN(Block):
         weights = Softmax(temperature=self.position_softmax_temp,
                           maxhot=self.maxhot_softmax_train,     # default False
                           maxhot_ste=True,
-                          maxhot_pred=True)\
+                          maxhot_pred=self.position_maxhot_pred)\
             (dist)
         return weights  # (batsize, seqlen)
 
     def __get_raw_position_distances(self, crit, maxlen):    # (batsize,)
         # max hot
-        positions = T.arange(0, maxlen)  # (maxlen,)
+        positions = T.arange(0, maxlen, dtype="float32")  # (maxlen,)
         positions = positions.dimadd(0)
         crit = crit.dimadd(1)
         dist = abs(positions - crit) ** 2   # (batsize, maxlen)
-        return dist
+        return -dist
 
     def __get_position_time_mask(self, crit, maxlen, mode="future"):
         positions = T.arange(0, maxlen)  # (maxlen,)

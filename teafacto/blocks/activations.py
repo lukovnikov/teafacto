@@ -136,7 +136,8 @@ class MaxHot(Activation):
     def innerapply(self, x, _trainmode=False, **kw):
         if self.ste is False:
             retmax = T.max(x, axis=self.axes, keepdims=True)
-            ret = T.cast((x == retmax), x.dtype)
+            ret = T.eq(x, retmax)
+            ret = T.cast(ret, x.dtype)
             return ret
         else:
             ret = self.ste(x)
