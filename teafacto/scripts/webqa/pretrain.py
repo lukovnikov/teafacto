@@ -73,12 +73,31 @@ def run_dummy(
     prediction = predm.predict(traindata1[:5], traindata2[:5])
     print prediction.shape
 
-    b.train([traindata1, traindata2, traindata1[:, 1:], traindata2[:, 1:]])\
-        .model_loss()\
-        .adadelta(lr=lr).grad_total_norm(5.)\
-        .validate_on([validdata1, validdata2, validdata1[:, 1:], validdata2[:, 1:]])\
-        .model_loss()\
-        .train(numbats, epochs)
+    try:
+        b.train([traindata1, traindata2, traindata1[:, 1:], traindata2[:, 1:]])\
+            .model_loss()\
+            .adadelta(lr=lr).grad_total_norm(5.)\
+            .validate_on([validdata1, validdata2, validdata1[:, 1:], validdata2[:, 1:]])\
+            .model_loss()\
+            .train(numbats, epochs)
+    except KeyboardInterrupt, e:
+        print "keyboard interrupt"
+        embed()
+
+
+def compute_encodings(predm, data, batsize=100):
+    predf = predm.predict
+    ptr = 0
+    data0 = data[0]
+    ret = []
+    while ptr < len(data0):
+        ptrto = min(batsize + ptr, len(data0))
+        dataslices = [d[ptr:ptrto] for d in data]
+        slicepred = predf(*dataslices)
+        ret.append(slicepred)   # (batsize, ...)
+        ptr += batsize
+    ret = np.concatenate(ret, axis=0)
+    return ret
 
 
 def load_data(p="../../../data/WebQSP/data/WebQSP.canids.allinfo.pkl"):
@@ -187,11 +206,15 @@ def run(
 
     predm = autoenc.get_encoder()
 
-    m.train([labelchars, labelwords, typewords,
-             labelchars[:, 1:], labelwords[:, 1:], typewords[:, 1:]])\
-        .model_loss()\
-        .adadelta(lr=lr).grad_total_norm(5.)\
-        .train(numbats, epochs)
+    try:
+        m.train([labelchars, labelwords, typewords,
+                 labelchars[:, 1:], labelwords[:, 1:], typewords[:, 1:]])\
+            .model_loss()\
+            .adadelta(lr=lr).grad_total_norm(5.)\
+            .train(numbats, epochs)
+    except KeyboardInterrupt, e:
+        print "KEYBOARD INTERRUPT"
+        embed()
 
     # TODO: start from pretrained glove embeddings (all unknown words to <RARE>)
 
@@ -199,6 +222,6 @@ def run(
 
 
 if __name__ == "__main__":
-    argprun(run)
+    argprun(run_dummy)
 
 

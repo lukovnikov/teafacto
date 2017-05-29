@@ -16,7 +16,7 @@ from theano.compile.nanguardmode import NanGuardMode
 from teafacto.core import asblock, Block
 from teafacto.core.datafeed import DataFeeder, SplitIdxIterator
 from teafacto.blocks.loss import *
-from teafacto.util import ticktock as TT, issequence
+from teafacto.util import ticktock as TT, issequence, handleSIGINT
 
 
 class DynamicLearningParam(object):
@@ -451,6 +451,7 @@ class ModelTrainer(object):
         assert(self.traindata is not None)
 
     def train(self, numbats, epochs, returnerrors=False, _skiptrain=False):
+        #handleSIGINT()
         self.traincheck()
         self.numbats = numbats
         self.maxiter = epochs

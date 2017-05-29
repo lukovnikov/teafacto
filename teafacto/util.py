@@ -346,3 +346,26 @@ def tokenize(s):
     return tokens
 
 
+from IPython import embed
+import signal
+
+
+def handleSIGINT():
+    def handler(signal, frame):
+        stop = False
+        while not stop:
+            choice = raw_input("Execution interrupted: (c)ontinue, (i)python shell, (k)ill")
+            if choice == "i":
+                embed()
+            elif choice == "k":
+                raise KeyboardInterrupt()
+            elif choice == "c":
+                pass
+                stop = True
+            else:
+                print "option not supported"
+    print "handling KI"
+    signal.signal(signal.SIGINT, handler)
+
+
+

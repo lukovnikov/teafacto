@@ -48,12 +48,12 @@ def load_data(p="../../../data/lcquad/data_v2.json"):
 
 def run(
         lr=0.1,
-        numbats=600,
+        numbats=6000,
         epochs=100,
         embdim=100,
         encdim=200,
         dropout=0.2,
-        inspectdata=True,
+        inspectdata=False,
         inspectpred=False,
 ):
     qmat_train, amat_train, qmat_test, amat_test, dic, pp = load_data()
@@ -92,7 +92,6 @@ def run(
         .validate_on([amat_test[:, :-1], qmat_test], amat_test[:, 1:])\
         .seq_cross_entropy().seq_accuracy()\
         .train(numbats, epochs)
-
 
 
 if __name__ == "__main__":
