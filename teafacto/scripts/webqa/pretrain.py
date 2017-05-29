@@ -69,20 +69,17 @@ def run_dummy(
     b = loss.apply_on(m)
 
     predm = m.get_encoder()
+    enccomp = compute_encodings
 
     prediction = predm.predict(traindata1[:5], traindata2[:5])
     print prediction.shape
 
-    try:
-        b.train([traindata1, traindata2, traindata1[:, 1:], traindata2[:, 1:]])\
-            .model_loss()\
-            .adadelta(lr=lr).grad_total_norm(5.)\
-            .validate_on([validdata1, validdata2, validdata1[:, 1:], validdata2[:, 1:]])\
-            .model_loss()\
-            .train(numbats, epochs)
-    except KeyboardInterrupt, e:
-        print "keyboard interrupt"
-        embed()
+    b.train([traindata1, traindata2, traindata1[:, 1:], traindata2[:, 1:]])\
+        .model_loss()\
+        .adadelta(lr=lr).grad_total_norm(5.)\
+        .validate_on([validdata1, validdata2, validdata1[:, 1:], validdata2[:, 1:]])\
+        .model_loss()\
+        .train(numbats, epochs)
 
 
 def compute_encodings(predm, data, batsize=100):
@@ -206,22 +203,34 @@ def run(
 
     predm = autoenc.get_encoder()
 
-    try:
-        m.train([labelchars, labelwords, typewords,
-                 labelchars[:, 1:], labelwords[:, 1:], typewords[:, 1:]])\
-            .model_loss()\
-            .adadelta(lr=lr).grad_total_norm(5.)\
-            .train(numbats, epochs)
-    except KeyboardInterrupt, e:
-        print "KEYBOARD INTERRUPT"
-        embed()
+    m.train([labelchars, labelwords, typewords,
+             labelchars[:, 1:], labelwords[:, 1:], typewords[:, 1:]])\
+        .model_loss()\
+        .adadelta(lr=lr).grad_total_norm(5.)\
+        .train(numbats, epochs)
 
     # TODO: start from pretrained glove embeddings (all unknown words to <RARE>)
 
     embed()
 
 
+def run_test_shell(lr=0.1):
+    print "running"
+    stopiter = False
+    import time
+    d = np.random.random((10,10))
+    def somef(x):
+        return np.sum(x)
+    while not stopiter:
+        print "slept"
+        time.sleep(1)
+        try:
+            print l
+        except NameError, e:
+            print "l not in here"
+
+
 if __name__ == "__main__":
-    argprun(run)
+    argprun(run, sigint_shell=True)
 
 

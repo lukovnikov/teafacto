@@ -228,7 +228,35 @@ def argparsify(f, test=None):
     return kwargs
 
 
-def argprun(f, **kwargs):   # command line overrides kwargs
+def argprun(f, sigint_shell=False, **kwargs):   # command line overrides kwargs
+    def handler(signal, frame):
+        # find the frame right under the argprun
+        original_frame = frame
+        current_frame = original_frame
+        previous_frame = None
+        stop = False
+        while not stop and current_frame.f_back is not None:
+            previous_frame = current_frame
+            current_frame = current_frame.f_back
+            if "_FRAME_LEVEL" in current_frame.f_locals \
+                and current_frame.f_locals["_FRAME_LEVEL"] == "ARGPRUN":
+                stop = True
+        if stop:    # argprun frame found
+            l = previous_frame.f_locals     # f-level frame locals
+            stopprompt = False
+            while not stopprompt:
+                whattodo = raw_input("(s)hell, (k)ill\n>>")
+                if whattodo == "s":
+                    embed()
+                elif whattodo == "k":
+                    "Killing"
+                    sys.exit()
+                else:
+                    stopprompt = True
+
+    if sigint_shell:
+        _FRAME_LEVEL="ARGPRUN"
+        signal.signal(signal.SIGINT, handler)
     try:
         f_args = argparsify(f)
         for k, v in kwargs.items():
