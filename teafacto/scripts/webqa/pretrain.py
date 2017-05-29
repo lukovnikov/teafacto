@@ -222,6 +222,6 @@ def run(
 
 
 if __name__ == "__main__":
-    argprun(run_dummy)
+    argprun(run)
 
 
