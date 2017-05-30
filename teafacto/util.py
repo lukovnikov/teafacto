@@ -228,9 +228,10 @@ def argparsify(f, test=None):
     return kwargs
 
 
-def argprun(f, sigint_shell=False, **kwargs):   # command line overrides kwargs
-    def handler(signal, frame):
+def argprun(f, sigint_shell=True, **kwargs):   # command line overrides kwargs
+    def handler(sig, frame):
         # find the frame right under the argprun
+        print "custom handler called"
         original_frame = frame
         current_frame = original_frame
         previous_frame = None
@@ -256,7 +257,7 @@ def argprun(f, sigint_shell=False, **kwargs):   # command line overrides kwargs
 
     if sigint_shell:
         _FRAME_LEVEL="ARGPRUN"
-        signal.signal(signal.SIGINT, handler)
+        prevhandler = signal.signal(signal.SIGINT, handler)
     try:
         f_args = argparsify(f)
         for k, v in kwargs.items():

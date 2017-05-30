@@ -1,6 +1,6 @@
 # TODO: pretraining entity, relation etc. representations
 
-from teafacto.blocks.basic import VectorEmbed, SMO
+from teafacto.blocks.basic import VectorEmbed, SMO, Forward
 from teafacto.blocks.seq.autoencoder import *
 from teafacto.blocks.loss import *
 from teafacto.blocks.seq.rnn import SeqEncoder, SimpleRNNSeqDecoder
@@ -214,6 +214,28 @@ def run(
     embed()
 
 
+def run_classify(lr=0.1,
+                 batsize=100,
+                 epochs=100,
+                 enco_p="entity_autoencodings.ep30.npy",
+                 label_p="labels_autoencodings.npy",
+                 inspectdata=False,
+                 ):
+    encos = np.load(open(enco_p))   # (numents, encdim)
+    numex, encdim = encos.shape
+    labels = np.load(open(label_p))
+    labels = np.random.randint(0, 2, (numex,))      # random # TODO remove
+    numbats = numex // batsize + 1
+    if inspectdata:
+        embed()
+    # make classification model
+    b = Forward(encdim, 2)
+
+    b.train([encos], labels)\
+        .cross_entropy().adadelta(lr=lr)\
+        .train(numbats, epochs)
+
+
 def run_test_shell(lr=0.1):
     print "running"
     stopiter = False
@@ -231,6 +253,6 @@ def run_test_shell(lr=0.1):
 
 
 if __name__ == "__main__":
-    argprun(run, sigint_shell=True)
+    argprun(run_classify)
 
 
