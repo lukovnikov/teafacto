@@ -229,7 +229,7 @@ def run_classify(lr=0.1,
     numbats = numex // batsize + 1
     # make classification model
     l = Forward(encdim, 2)
-    b = asblock(lambda x: Softmax()(l(b)))
+    b = asblock(lambda x: Softmax()(l(x)))
 
     if inspectdata:
         embed()
