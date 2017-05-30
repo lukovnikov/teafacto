@@ -1,6 +1,7 @@
 # TODO: pretraining entity, relation etc. representations
 
-from teafacto.blocks.basic import VectorEmbed, SMO, Forward
+from teafacto.blocks.basic import VectorEmbed, SMO, Forward, Softmax
+from teafacto.core.base import asblock
 from teafacto.blocks.seq.autoencoder import *
 from teafacto.blocks.loss import *
 from teafacto.blocks.seq.rnn import SeqEncoder, SimpleRNNSeqDecoder
@@ -227,7 +228,8 @@ def run_classify(lr=0.1,
     labels = np.random.randint(0, 2, (numex,))      # random # TODO remove
     numbats = numex // batsize + 1
     # make classification model
-    b = Forward(encdim, 2)
+    l = Forward(encdim, 2)
+    b = asblock(lambda x: Softmax()(l(b)))
 
     if inspectdata:
         embed()
