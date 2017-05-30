@@ -235,7 +235,8 @@ def run_classify(lr=0.1,
         embed()
 
     b.train([encos], labels)\
-        .cross_entropy().adadelta(lr=lr)\
+        .cross_entropy().accuracy()\
+        .adadelta(lr=lr)\
         .train(numbats, epochs)
 
 
