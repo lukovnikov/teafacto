@@ -226,10 +226,11 @@ def run_classify(lr=0.1,
     labels = np.load(open(label_p))
     labels = np.random.randint(0, 2, (numex,))      # random # TODO remove
     numbats = numex // batsize + 1
-    if inspectdata:
-        embed()
     # make classification model
     b = Forward(encdim, 2)
+
+    if inspectdata:
+        embed()
 
     b.train([encos], labels)\
         .cross_entropy().adadelta(lr=lr)\
