@@ -192,7 +192,7 @@ class SimpleSeqEncDecAtt(SeqEncDec):
 from teafacto.blocks.seq.rnn import MakeRNU, RecStack
 
 
-class EncDec(Block):        # doesn't have state transfer, parameterized initial states instead
+class EncDec(Block):        # NOT FOR STATIC CONTEXT
     def __init__(self,
                  encoder=None,      # encoder block
                  attention=None,    # attention block
@@ -258,7 +258,7 @@ class EncDec(Block):        # doesn't have state transfer, parameterized initial
             initstates = batsize
         elif issequence(initstates):
             if len(initstates) < self.numstates:  # fill up with batsizes for lower layers
-                initstates = [batsize * (self.numstates - len(initstates))] + initstates
+                initstates = [batsize] * (self.numstates - len(initstates)) + initstates
         return self.get_init_info(initstates)
 
     def get_init_info(self, initstates):

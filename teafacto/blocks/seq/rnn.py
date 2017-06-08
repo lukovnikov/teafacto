@@ -479,7 +479,9 @@ class RiboRNN(Block):
 class SeqDecoder(Block):
 
     def __init__(self, layers, softmaxoutblock=None, innerdim=None,
-                 attention=None, inconcat=True, outconcat=False, dropout=False, **kw):
+                 attention=None,
+                 inconcat=True, outconcat=False, stateconcat=True, updatefirst=False,
+                 dropout=False, **kw):
         super(SeqDecoder, self).__init__(**kw)
         self.embedder = layers[0]
         self.block = RecStack(*layers[1:])
@@ -487,6 +489,9 @@ class SeqDecoder(Block):
         self.attention = attention
         self.inconcat = inconcat
         self.outconcat = outconcat
+        self.stateconcat = stateconcat
+        assert(self.stateconcat or self.outconcat)
+        self.updatefirst = updatefirst
         self._mask = False
         self._attention = None
         assert (isinstance(self.block, ReccableBlock))
@@ -530,7 +535,9 @@ class SeqDecoder(Block):
         ctxmask = ctx.mask
         ctxmask = T.ones(ctx.shape[:(ctx.ndim-1)], dtype="float32") if ctxmask is None else ctxmask
         nonseqs = [ctxmask, ctx]
-        return self.get_init_info(initstates), nonseqs
+
+        ctx_0 = T.zeros((batsize, ctx.shape[2] if self.attention is not None else ctx.shape[1]))
+        return [ctx_0] + self.get_init_info(initstates), nonseqs
 
     def get_init_info(self, initstates):
         initstates = self.block.get_init_info(initstates)
@@ -540,22 +547,35 @@ class SeqDecoder(Block):
         x_t_emb = self.embedder(x_t)
         return self.inner_rec(x_t_emb, *args)
 
-    def inner_rec(self, x_t_emb, *args):  # x_t_emb: (batsize, embdim)
+    def inner_rec(self, x_t_emb, ctx_tm1, *args):  # x_t_emb: (batsize, embdim)
         states_tm1 = args[:-2]
         ctx = args[-1]                    # (batsize, inseqlen, inencdim)
         encmask = args[-2]
         # x_t_emb = self.embedder(x_t)  # i_t: (batsize, embdim)
         # compute current context
         y_tm1 = states_tm1[-1]      # left is bottom, left is inner --> should work for lstm
-        ctx_t = self._get_ctx_t(ctx, y_tm1, encmask)
-        # do inconcat
-        i_t = T.concatenate([x_t_emb, ctx_t], axis=1) if self.inconcat else x_t_emb
-        rnuret = self.block.rec(i_t, *states_tm1)
-        h_t = rnuret[0]
-        states_t = rnuret[1:]
-        _y_t = T.concatenate([h_t, ctx_t], axis=1) if self.outconcat else h_t
+        if self.updatefirst:
+            i_t = T.concatenate([x_t_emb, ctx_tm1], axis=1) if self.inconcat else x_t_emb
+            rnuret = self.block.rec(i_t, *states_tm1)
+            o_t = rnuret[0]
+            states_t = rnuret[1:]
+            y_t = states_t[-1]
+            ctx_t = self._get_ctx_t(ctx, y_t, encmask)
+        else:
+            ctx_t = self._get_ctx_t(ctx, y_tm1, encmask)
+            i_t = T.concatenate([x_t_emb, ctx_t], axis=1) if self.inconcat else x_t_emb
+            rnuret = self.block.rec(i_t, *states_tm1)
+            o_t = rnuret[0]
+            states_t = rnuret[1:]
+        # output
+        concatthis = []
+        if self.stateconcat:
+            concatthis.append(o_t)
+        if self.outconcat:
+            concatthis.append(ctx_t)
+        _y_t = T.concatenate(concatthis, axis=1) if len(concatthis) > 1 else concatthis[0]
         y_t = self.softmaxoutblock(_y_t)
-        return [y_t] + states_t
+        return [y_t, ctx_t] + states_t
 
     def _get_ctx_t(self, ctx, h_tm1, encmask):
         if self.attention is not None:
