@@ -192,11 +192,12 @@ class SimpleSeqEncDecAtt(SeqEncDec):
 from teafacto.blocks.seq.rnn import MakeRNU, RecStack
 
 
-class EncDec(Block):        # NOT FOR STATIC CONTEXT
+class EncDec(Block):        # NOT FOR STATIC CONTEXT TODO
                             # EXPLICIT STATE TRANSFER (by init state gen)
     def __init__(self,
                  encoder=None,      # encoder block
                  attention=None,    # attention block
+                 attentiontransformer=None,  # transforms state to criterion vector used in attention
                  inconcat=True,     # concat att result to decoder inp
                  outconcat=False,   # concat att result to smo
                  stateconcat=True,  # concat top state to smo
@@ -235,20 +236,23 @@ class EncDec(Block):        # NOT FOR STATIC CONTEXT
                                   param_init_states=paraminitstates)
         self.block = RecStack(*layers)
         self.attention = attention
+        self.attentiontransformer = attentiontransformer
         self.smo = smo              # softmax out block on decoder
+        self.lastdim = lastdim
+        self.outconcatdim = 0
+        if self.stateconcat:    self.outconcatdim += lastdim
+        if self.outconcat:      self.outconcatdim += self.encoder.outdim
+        if self.concatdecinp:   self.outconcatdim += indim
 
     def apply(self, decinp, encinp):
         inpenc = self.encoder(encinp)
         batsize = decinp.shape[0]
-        init_state = self.init_state_gen(inpenc) if self.init_state_gen is not None else None
-        init_info = self._get_init_states(init_state, batsize)  # blank init info
-        ctx_0 = T.zeros((batsize, inpenc.shape[2]))     # always 3D inpenc
-        nonseqs = self.get_nonseqs(inpenc)
+        init_info, nonseqs = self.get_inits(batsize, inpenc)
         decinpemb = self.inpemb(decinp)
         mask = decinpemb.mask
         outputs = T.scan(fn=self.inner_rec,
                          sequences=decinpemb.dimswap(1, 0),
-                         outputs_info=[None, ctx_0] + init_info,
+                         outputs_info=[None] + init_info,
                          non_sequences=list(nonseqs),
                          )
         ret = outputs[0].dimswap(1, 0)
@@ -259,13 +263,19 @@ class EncDec(Block):        # NOT FOR STATIC CONTEXT
     def numstates(self):
         return self.block.numstates
 
+    def get_inits(self, batsize, ctx):
+        init_state = self.init_state_gen(ctx) if self.init_state_gen is not None else None
+        init_info = self._get_init_states(init_state, batsize)
+        ctx_0 = T.zeros((batsize, ctx.shape[2]))     # always 3D inpenc
+        nonseqs = self.get_nonseqs(ctx)
+        return [ctx_0] + init_info, nonseqs
+
     def _get_init_states(self, initstates, batsize):
         if initstates is None:
             initstates = batsize
         elif issequence(initstates):
             if len(initstates) < self.numstates:  # fill up with batsizes for lower layers
                 initstates = [batsize] * (self.numstates - len(initstates)) + initstates
-
         return self.get_init_info(initstates)
 
     def get_init_info(self, initstates):
@@ -306,6 +316,8 @@ class EncDec(Block):        # NOT FOR STATIC CONTEXT
     def _get_ctx_t(self, ctx, h, x_t_emb, att, ctxmask):
         if self.concatdecinp:
             h = T.concatenate([h, x_t_emb], axis=-1)
+        if self.attentiontransformer is not None:
+            h = self.attentiontransformer(h)
         ret = att(h, ctx, mask=ctxmask)
         return ret
 
