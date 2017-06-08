@@ -193,11 +193,14 @@ from teafacto.blocks.seq.rnn import MakeRNU, RecStack
 
 
 class EncDec(Block):        # NOT FOR STATIC CONTEXT
+                            # EXPLICIT STATE TRANSFER (by init state gen)
     def __init__(self,
                  encoder=None,      # encoder block
                  attention=None,    # attention block
                  inconcat=True,     # concat att result to decoder inp
                  outconcat=False,   # concat att result to smo
+                 stateconcat=True,  # concat top state to smo
+                 updatefirst=False, # perform RNN update before attention
                  concatdecinp=False,    # directly concat(feed) dec input to att gen and to smo
                  inpemb=None,       # decoder input embedding block
                  indim=None,        # decoder input dim
@@ -212,6 +215,8 @@ class EncDec(Block):        # NOT FOR STATIC CONTEXT
         super(EncDec, self).__init__(**kw)
         self.inconcat = inconcat
         self.outconcat = outconcat
+        self.stateconcat = stateconcat
+        self.updatefirst = updatefirst
         self.concatdecinp = concatdecinp
         self.encoder = encoder
         self.inpemb = inpemb
@@ -237,12 +242,13 @@ class EncDec(Block):        # NOT FOR STATIC CONTEXT
         batsize = decinp.shape[0]
         init_state = self.init_state_gen(inpenc) if self.init_state_gen is not None else None
         init_info = self._get_init_states(init_state, batsize)  # blank init info
+        ctx_0 = T.zeros((batsize, inpenc.shape[2]))     # always 3D inpenc
         nonseqs = self.get_nonseqs(inpenc)
         decinpemb = self.inpemb(decinp)
         mask = decinpemb.mask
         outputs = T.scan(fn=self.inner_rec,
                          sequences=decinpemb.dimswap(1, 0),
-                         outputs_info=[None] + init_info,
+                         outputs_info=[None, ctx_0] + init_info,
                          non_sequences=list(nonseqs),
                          )
         ret = outputs[0].dimswap(1, 0)
@@ -259,6 +265,7 @@ class EncDec(Block):        # NOT FOR STATIC CONTEXT
         elif issequence(initstates):
             if len(initstates) < self.numstates:  # fill up with batsizes for lower layers
                 initstates = [batsize] * (self.numstates - len(initstates)) + initstates
+
         return self.get_init_info(initstates)
 
     def get_init_info(self, initstates):
@@ -267,22 +274,34 @@ class EncDec(Block):        # NOT FOR STATIC CONTEXT
     def get_nonseqs(self, inpenc):
         ctx = inpenc
         ctxmask = ctx.mask if ctx.mask is not None else T.ones(ctx.shape[:2], dtype="float32")
-        return ctx, ctxmask
+        return ctxmask, ctx
 
-    def inner_rec(self, x_t_emb, *args):
-        ctx = args[-2]
-        ctxmask = args[-1]
+    def inner_rec(self, x_t_emb, ctx_tm1, *args):
+        ctx = args[-1]
+        ctxmask = args[-2]
         states_tm1 = args[:-2]
-        h_tm1 = states_tm1[-1]
-        ctx_t = self._get_ctx_t(ctx, h_tm1, x_t_emb, self.attention, ctxmask)
-        i_t = T.concatenate([x_t_emb, ctx_t], axis=1) if self.inconcat else x_t_emb
-        rnuret = self.block.rec(i_t, *states_tm1)
-        h_t = rnuret[0]
-        states_t = rnuret[1:]
-        _y_t = T.concatenate([h_t, ctx_t], axis=1) if self.outconcat else h_t
-        _y_t = T.concatenate([_y_t, x_t_emb], axis=1) if self.concatdecinp else _y_t
+        y_tm1 = states_tm1[-1]
+        if self.updatefirst:
+            i_t = T.concatenate([x_t_emb, ctx_tm1], axis=1) if self.inconcat else x_t_emb
+            rnuret = self.block.rec(i_t, *states_tm1)
+            o_t = rnuret[0]
+            states_t = rnuret[1:]
+            y_t = states_t[-1]
+            ctx_t = self._get_ctx_t(ctx, y_t, x_t_emb, self.attention, ctxmask)
+        else:
+            ctx_t = self._get_ctx_t(ctx, y_tm1, x_t_emb, self.attention, ctxmask)
+            i_t = T.concatenate([x_t_emb, ctx_t], axis=1) if self.inconcat else x_t_emb
+            rnuret = self.block.rec(i_t, *states_tm1)
+            o_t = rnuret[0]
+            states_t = rnuret[1:]
+        # output
+        concatthis = []
+        if self.stateconcat:            concatthis.append(o_t)
+        if self.outconcat:              concatthis.append(ctx_t)
+        if self.concatdecinp:           concatthis.append(x_t_emb)
+        _y_t = T.concatenate(concatthis, axis=1) if len(concatthis) > 1 else concatthis[0]
         y_t = self.smo(_y_t)
-        return [y_t] + states_t
+        return [y_t, ctx_t] + states_t
 
     def _get_ctx_t(self, ctx, h, x_t_emb, att, ctxmask):
         if self.concatdecinp:

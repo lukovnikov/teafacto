@@ -569,10 +569,8 @@ class SeqDecoder(Block):
             states_t = rnuret[1:]
         # output
         concatthis = []
-        if self.stateconcat:
-            concatthis.append(o_t)
-        if self.outconcat:
-            concatthis.append(ctx_t)
+        if self.stateconcat:           concatthis.append(o_t)
+        if self.outconcat:             concatthis.append(ctx_t)
         _y_t = T.concatenate(concatthis, axis=1) if len(concatthis) > 1 else concatthis[0]
         y_t = self.softmaxoutblock(_y_t)
         return [y_t, ctx_t] + states_t
