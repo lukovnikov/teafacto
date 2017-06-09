@@ -3,14 +3,89 @@ from teafacto.blocks.seq.neurex import DGTN
 import numpy as np
 from teafacto.core.base import Val
 
+from teafacto.blocks.basic import VectorEmbed
+from teafacto.blocks.seq.encdec import EncDec
 
-class TestDGTN(TestCase):
-    pass    # TODO
+
+class TestDGTN_without_attention(TestCase):
+    def test_output_pointer_shape(self):
+        # encoder
+        encvocsize = 22
+        encembdim = 11
+        inpenc = VectorEmbed(encvocsize, encembdim)
+        # DGTN
+        reltensor = np.asarray([
+            [
+                [0, 1, 0, 0],
+                [0, 0, 1, 0],
+                [1, 0, 1, 1],
+                [0, 1, 0, 0],
+            ],
+            [
+                [1, 0, 0, 0],
+                [0, 0, 1, 0],
+                [0, 1, 0, 1],
+                [1, 0, 0, 0]
+            ]
+        ])
+        dgtn = DGTN(reltensor=reltensor, nsteps=5, entembdim=10, relembdim=9, actembdim=8)
+        # internal decoder without attention
+        dec = EncDec(encoder=inpenc,
+                     inconcat=False, outconcat=False, stateconcat=True, concatdecinp=False,
+                     updatefirst=True,
+                     inpemb=None, indim=dgtn.get_indim(),
+                     innerdim=33)
+        dgtn.set_core(dec)
+
+        batsize = 7
+        data = np.random.randint(0, encvocsize, (batsize,))
+        out = dgtn(Val(data))
+
+        res = out.eval()
+        self.assertEqual(res.shape, (batsize, 4))
+
+    def test_output_pointer_shape_given_pointer(self):
+        # encoder
+        encvocsize = 22
+        encembdim = 11
+        inpenc = VectorEmbed(encvocsize, encembdim)
+        # DGTN
+        reltensor = np.asarray([
+            [
+                [0, 1, 0, 0],
+                [0, 0, 1, 0],
+                [1, 0, 1, 1],
+                [0, 1, 0, 0],
+            ],
+            [
+                [1, 0, 0, 0],
+                [0, 0, 1, 0],
+                [0, 1, 0, 1],
+                [1, 0, 0, 0]
+            ]
+        ])
+        dgtn = DGTN(reltensor=reltensor, nsteps=5, entembdim=10, relembdim=9, actembdim=8)
+        # internal decoder without attention
+        dec = EncDec(encoder=inpenc,
+                     inconcat=False, outconcat=False, stateconcat=True, concatdecinp=False,
+                     updatefirst=True,
+                     inpemb=None, indim=dgtn.get_indim(),
+                     innerdim=33)
+        dgtn.set_core(dec)
+
+        batsize = 7
+
+        initptr = np.asarray([[1,0,0,0]]*batsize).astype("float32")
+        print initptr
+        data = np.random.randint(0, encvocsize, (batsize,))
+        out = dgtn(Val(data), Val(initptr))
+
+        res = out.eval()
+        self.assertEqual(res.shape, (batsize, 4))
 
 
 class TestDGTN_Actions_and_Helpers(TestCase):
     def setUp(self):
-        reltensor = np.random.random((2,4,4))
         reltensor = np.asarray([
             [
                 [0, 1, 0, 0],

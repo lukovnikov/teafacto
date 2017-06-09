@@ -6,8 +6,10 @@ from teafacto.blocks.seq.rnn import MakeRNU, RecStack
 from teafacto.util import issequence
 
 
+# TODO: write tests (+with attention)
+
 class DGTN(Block):
-    numacts = 6
+    numacts = 7
 
     def __init__(self,
                  # core settings
@@ -23,7 +25,7 @@ class DGTN(Block):
                  entitysummary=True,
                  **kw):
         super(DGTN, self).__init__(**kw)
-        self.reltensor = Val(reltensor)
+        self.reltensor = Val(reltensor.astype("float32"))
         self.nsteps = nsteps
         self.numrels = reltensor.shape[0]
         self.numents = reltensor.shape[1]
@@ -38,6 +40,7 @@ class DGTN(Block):
         self.relemb = param((self.numrels, self.relembdim), name="relation_embeddings").glorotuniform()
         self.actemb = param((self.numacts, self.actembdim), name="action_embeddings").glorotuniform()
         self.core = None
+        self._encoder = None
 
     def set_core(self, core):
         self.core = core
@@ -59,12 +62,21 @@ class DGTN(Block):
 
     @property
     def encoder(self):
-        return self.core.encoder
+        if self._encoder is not None:
+            return self._encoder
+        elif hasattr(self.core, "encoder"):
+            return self.core.encoder
+        else:
+            return None
 
-    def apply(self, x):     # TODO TEST
-        inpenc = self.encoder(x)
+    @encoder.setter
+    def encoder(self, enc):
+        self._encoder = enc
+
+    def apply(self, x, p_main_0=None):
+        inpenc = self.encoder(x)        # 2D or 3D
         batsize = inpenc.shape[0]
-        init_info, nonseqs = self.get_inits(batsize, inpenc)
+        init_info, nonseqs = self.get_inits(batsize, inpenc, p_main_0=p_main_0)
         outputs = T.scan(fn=self.inner_rec,
                          outputs_info=[None] + init_info,
                          non_sequences=list(nonseqs),
@@ -72,13 +84,16 @@ class DGTN(Block):
         lastmainpointer = outputs[0][-1, :, :]
         return lastmainpointer
 
-    def get_inits(self, batsize, ctx):      # TODO TEST
+    def get_inits(self, batsize, ctx, p_main_0=None):
         init_info, nonseqs = self.core.get_inits(batsize, ctx)
         x_0 = T.zeros((batsize, self.get_indim()))
-        p_0 = T.zeros((batsize, 2, self.numents))
+        if p_main_0 is not None:
+            p_0 = T.concatenate([p_main_0.dimadd(1), T.zeros((batsize, 1, self.numents))], axis=1)
+        else:
+            p_0 = T.zeros((batsize, 2, self.numents))
         return [x_0, p_0] + init_info, nonseqs
 
-    def inner_rec(self, x_t, p_tm1, *args):     # TODO TEST
+    def inner_rec(self, x_t, p_tm1, *args):
         p_tm1_main = p_tm1[:, 0, :]
         p_tm1_aux = p_tm1[:, 1, :]
         # execute rnn
@@ -111,7 +126,7 @@ class DGTN(Block):
         p_t_main, p_t_aux = \
             self._merge_exec(self._exec_swap(p_tm1_main, p_tm1_aux), p_t_main, p_t_aux, act_weights[:, 6])
 
-        p_t = T.concatenate([p_t_main, p_t_aux], axis=1)
+        p_t = T.concatenate([p_t_main.dimadd(1), p_t_aux.dimadd(1)], axis=1)
 
         # summarize pointers and weights
         act_summ = self._summarize_by_prob(act_weights, self.actemb)

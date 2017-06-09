@@ -485,7 +485,8 @@ class SeqDecoder(Block):
         super(SeqDecoder, self).__init__(**kw)
         self.embedder = layers[0]
         self.block = RecStack(*layers[1:])
-        self.outdim = innerdim
+        self.lastdim = innerdim
+        self.outdim = self.lastdim
         self.attention = attention
         self.inconcat = inconcat
         self.outconcat = outconcat

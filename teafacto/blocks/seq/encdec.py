@@ -245,7 +245,7 @@ class EncDec(Block):        # NOT FOR STATIC CONTEXT TODO
         if self.concatdecinp:   self.outconcatdim += indim
 
     def apply(self, decinp, encinp):
-        inpenc = self.encoder(encinp)
+        inpenc = self.encoder(encinp)   # 2D or 3D
         batsize = decinp.shape[0]
         init_info, nonseqs = self.get_inits(batsize, inpenc)
         decinpemb = self.inpemb(decinp)
@@ -266,7 +266,10 @@ class EncDec(Block):        # NOT FOR STATIC CONTEXT TODO
     def get_inits(self, batsize, ctx):
         init_state = self.init_state_gen(ctx) if self.init_state_gen is not None else None
         init_info = self._get_init_states(init_state, batsize)
-        ctx_0 = T.zeros((batsize, ctx.shape[2]))     # always 3D inpenc
+        if ctx.ndim == 3:       # attention
+            ctx_0 = T.zeros((batsize, ctx.shape[2]))
+        else:
+            ctx_0 = ctx
         nonseqs = self.get_nonseqs(ctx)
         return [ctx_0] + init_info, nonseqs
 
@@ -314,6 +317,12 @@ class EncDec(Block):        # NOT FOR STATIC CONTEXT TODO
         return [y_t, ctx_t] + states_t
 
     def _get_ctx_t(self, ctx, h, x_t_emb, att, ctxmask):
+        # ctx: 3D if attention, 2D otherwise
+        if ctx.ndim == 2:
+            return ctx      # no attention, return ctx as-is
+        else:
+            assert(ctx.ndim == 3)
+            assert(att is not None)
         if self.concatdecinp:
             h = T.concatenate([h, x_t_emb], axis=-1)
         if self.attentiontransformer is not None:
