@@ -45,7 +45,7 @@ class DGTN(Block):
         interfacedim = self.entembdim + self.relembdim + self.actembdim
         self.interfaceblock = Forward(self.core.outconcatdim, interfacedim)
 
-    def get_indim(self):
+    def get_indim(self):        # has test
         indim = 0
         if self.pointersummary:
             indim += self.entembdim*2
@@ -61,7 +61,7 @@ class DGTN(Block):
     def encoder(self):
         return self.core.encoder
 
-    def apply(self, x):
+    def apply(self, x):     # TODO TEST
         inpenc = self.encoder(x)
         batsize = inpenc.shape[0]
         init_info, nonseqs = self.get_inits(batsize, inpenc)
@@ -69,15 +69,16 @@ class DGTN(Block):
                          outputs_info=[None] + init_info,
                          non_sequences=list(nonseqs),
                          n_steps=self.nsteps)
-        # TODO: select last main pointer as final output
+        lastmainpointer = outputs[0][-1, :, :]
+        return lastmainpointer
 
-    def get_inits(self, batsize, ctx):
+    def get_inits(self, batsize, ctx):      # TODO TEST
         init_info, nonseqs = self.core.get_inits(batsize, ctx)
         x_0 = T.zeros((batsize, self.get_indim()))
         p_0 = T.zeros((batsize, 2, self.numents))
         return [x_0, p_0] + init_info, nonseqs
 
-    def inner_rec(self, x_t, p_tm1, *args):
+    def inner_rec(self, x_t, p_tm1, *args):     # TODO TEST
         p_tm1_main = p_tm1[:, 0, :]
         p_tm1_aux = p_tm1[:, 1, :]
         # execute rnn
@@ -128,8 +129,9 @@ class DGTN(Block):
         o_t = p_t_main
         return [o_t, x_tp1, p_t] + newargs
 
-    # EXECUTION METHODS
+    # EXECUTION METHODS     # all below have tests
     def _merge_exec(self, newps, oldmain, oldaux, w):
+        w = w.dimadd(1)
         newmain, newaux = newps
         oldmain += newmain * w
         oldaux += newaux * w
@@ -159,7 +161,7 @@ class DGTN(Block):
     def _exec_swap(self, a, b):
         return b, a
 
-    # HELPER METHODS
+    # HELPER METHODS        # have tests
     def _get_att(self, crit, data): # (batsize, critdim), (num, embdim) -> (batsize, num)
         att = T.tensordot(crit, data, axes=([1], [1]))
         att = Softmax()(att)

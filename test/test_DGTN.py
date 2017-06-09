@@ -4,7 +4,11 @@ import numpy as np
 from teafacto.core.base import Val
 
 
-class TestDGTN_Actions(TestCase):
+class TestDGTN(TestCase):
+    pass    # TODO
+
+
+class TestDGTN_Actions_and_Helpers(TestCase):
     def setUp(self):
         reltensor = np.random.random((2,4,4))
         reltensor = np.asarray([
@@ -69,6 +73,17 @@ class TestDGTN_Actions(TestCase):
         self.assertTrue(np.allclose(newmain.d.eval(), self.auxp))
         self.assertTrue(np.allclose(newaux.d.eval(), self.mainp))
 
+    def test_merge_exec(self):
+        newps = ([[0,1,0,0], [0,0,1,0]], [[1,0,0,0],[0,0,0,1]])
+        oldmain = [[0,0,0,0],[0,0,0,0]]
+        oldaux = [[0,0,0,0],[0,0,0,0]]
+        w = [0.5, 1]
+        newmain, newaux = self.dgtn._merge_exec((Val(newps[0]), Val(newps[1])), Val(oldmain), Val(oldaux), Val(w))
+        self.assertTrue(np.allclose(newmain.eval(),
+                                    np.asarray([[0, 0.5, 0, 0], [0,0,1,0]])))
+        print newmain.eval()
+        print newaux.eval()
+
     # tests for auxiliary methods
     def test_get_att(self):
         crit = np.asarray([[0,1,1,0], [0,1,0,0]])
@@ -91,6 +106,12 @@ class TestDGTN_Actions(TestCase):
         data = np.random.random((4, 6))
         res = self.dgtn._summarize_by_pointer(w, data)
         self.assertEqual(res.eval().shape, (2, 6))
+
+    def test_get_indim(self):
+        indim = self.dgtn.get_indim()
+        self.assertEqual(indim, 50)
+
+
 
 
 
