@@ -310,7 +310,7 @@ class EncDec(Block):        # NOT FOR STATIC CONTEXT TODO
         if self.outconcat:              concatthis.append(ctx_t)
         if self.concatdecinp:           concatthis.append(x_t_emb)
         _y_t = T.concatenate(concatthis, axis=1) if len(concatthis) > 1 else concatthis[0]
-        y_t = self.smo(_y_t)
+        y_t = self.smo(_y_t) if self.smo is not None else _y_t        # TODO: smo == None --> return raw y_t
         return [y_t, ctx_t] + states_t
 
     def _get_ctx_t(self, ctx, h, x_t_emb, att, ctxmask):

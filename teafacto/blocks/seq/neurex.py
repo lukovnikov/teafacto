@@ -1,4 +1,4 @@
-from teafacto.core.base import Block, param, tensorops as T
+from teafacto.core.base import Block, param, tensorops as T, Val
 from teafacto.blocks.basic import Forward
 from teafacto.blocks.activations import Softmax
 from teafacto.blocks.seq import GRU
@@ -7,7 +7,7 @@ from teafacto.util import issequence
 
 
 class DGTN(Block):
-    numacts = 3
+    numacts = 6
 
     def __init__(self,
                  # core settings
@@ -23,7 +23,7 @@ class DGTN(Block):
                  entitysummary=True,
                  **kw):
         super(DGTN, self).__init__(**kw)
-        self.reltensor = reltensor
+        self.reltensor = Val(reltensor)
         self.nsteps = nsteps
         self.numrels = reltensor.shape[0]
         self.numents = reltensor.shape[1]
@@ -94,16 +94,22 @@ class DGTN(Block):
         ent_weights = self._get_att(to_entselect, self.entemb)
         rel_weights = self._get_att(to_relselect, self.relemb)
         # execute ops
-        p_t_find = self._exec_find(ent_weights)
-        p_t_hop = self._exec_hop(p_tm1_main, rel_weights)
-        p_t_intersect = self._exec_intersect(p_tm1_main, p_tm1_aux)
-        p_t_union = self._exec_union(p_tm1_main, p_tm1_aux)
-        # compute new pointers  # TODO: add intersect and union
-        p_t_main = act_weights[:, 0] * p_t_find \
-                   + act_weights[:, 1] * p_t_hop \
-                   + act_weights[:, 2] * p_tm1_main
-        p_t_aux = (act_weights[:, 1] + act_weights[:, 2]) * p_tm1_aux \
-                  + act_weights[:, 0] * p_tm1_main
+        p_t_main, p_t_aux = T.zeros_like(p_tm1_main), T.zeros_like(p_tm1_aux)
+        p_t_main, p_t_aux = \
+            self._merge_exec(self._exec_preserve(p_tm1_main, p_tm1_aux), p_t_main, p_t_aux, act_weights[:, 0])
+        p_t_main, p_t_aux = \
+            self._merge_exec(self._exec_find(ent_weights, p_tm1_main, p_tm1_aux), p_t_main, p_t_aux, act_weights[:, 1])
+        p_t_main, p_t_aux = \
+            self._merge_exec(self._exec_hop(rel_weights, p_tm1_main, p_tm1_aux), p_t_main, p_t_aux, act_weights[:, 2])
+        p_t_main, p_t_aux = \
+            self._merge_exec(self._exec_intersect(p_tm1_main, p_tm1_aux), p_t_main, p_t_aux, act_weights[:, 3])
+        p_t_main, p_t_aux = \
+            self._merge_exec(self._exec_union(p_tm1_main, p_tm1_aux), p_t_main, p_t_aux, act_weights[:, 4])
+        p_t_main, p_t_aux = \
+            self._merge_exec(self._exec_difference(p_tm1_main, p_tm1_aux), p_t_main, p_t_aux, act_weights[:, 5])
+        p_t_main, p_t_aux = \
+            self._merge_exec(self._exec_swap(p_tm1_main, p_tm1_aux), p_t_main, p_t_aux, act_weights[:, 6])
+
         p_t = T.concatenate([p_t_main, p_t_aux], axis=1)
 
         # summarize pointers and weights
@@ -123,20 +129,35 @@ class DGTN(Block):
         return [o_t, x_tp1, p_t] + newargs
 
     # EXECUTION METHODS
-    def _exec_find(self, w):
-        return w
+    def _merge_exec(self, newps, oldmain, oldaux, w):
+        newmain, newaux = newps
+        oldmain += newmain * w
+        oldaux += newaux * w
+        return oldmain, oldaux
 
-    def _exec_hop(self, p, w):  # (batsize, nument), (batsize, numrel)
-        relmats = T.tensordot(w, self.reltensor, axes=([1], [0]))   # (batsize, nument, nument)
-        newp = T.batched_dot(p, relmats)
+    def _exec_preserve(self, p_tm1_main, p_tm1_aux):
+        return p_tm1_main, p_tm1_aux
+
+    def _exec_find(self, w, oldmain, oldaux):
+        return w, oldmain
+
+    def _exec_hop(self, relw, oldmain, oldaux):  # (batsize, nument), (batsize, numrel)
+        relmats = T.tensordot(relw, self.reltensor, axes=([1], [0]))   # (batsize, nument, nument)
+        newp = T.batched_dot(oldmain, relmats)
         newp = T.clip(newp, 0, 1)   # prevent overflow
-        return newp
+        return newp, oldaux
 
-    def _exec_intersect(self, a, b):
-        return a * b        # or min?
+    def _exec_intersect(self, oldmain, oldaux):     # prod or min?
+        return oldmain * oldaux, T.zeros_like(oldaux)
 
-    def _exec_union(self, a, b):
-        return T.maximum(a, b)  # or sum?
+    def _exec_union(self, a, b):    # max or clipped sum?
+        return T.maximum(a, b), T.zeros_like(b)
+
+    def _exec_difference(self, a, b):
+        return T.clip(a - b, 0, 1), T.zeros_like(b)
+
+    def _exec_swap(self, a, b):
+        return b, a
 
     # HELPER METHODS
     def _get_att(self, crit, data): # (batsize, critdim), (num, embdim) -> (batsize, num)
@@ -151,7 +172,7 @@ class DGTN(Block):
     def _summarize_by_pointer(self, w, data):   # (batsize, num), (num, embdim)
         ret = T.tensordot(w, data, axes=([1], [0]))     # (batsize, embdim)
         nor = T.sum(w, axis=1)      # (batsize,)
-        ret = ret / nor             # normalize to average
+        ret = ret / (nor + 1e-6)            # normalize to average
         return ret
 
 
