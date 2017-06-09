@@ -68,3 +68,30 @@ class TestDGTN_Actions(TestCase):
         newmain, newaux = self.dgtn._exec_swap(Val(self.mainp), Val(self.auxp))
         self.assertTrue(np.allclose(newmain.d.eval(), self.auxp))
         self.assertTrue(np.allclose(newaux.d.eval(), self.mainp))
+
+    # tests for auxiliary methods
+    def test_get_att(self):
+        crit = np.asarray([[0,1,1,0], [0,1,0,0]])
+        data = np.asarray([[0,0,0,0],
+                           [0,1,0,0],
+                           [0,0,1,0],
+                           [0,1,1,0]])
+        attw = self.dgtn._get_att(Val(crit), Val(data))
+        print attw.eval()
+        self.assertTrue(np.allclose(np.sum(attw.eval(), axis=1), np.ones((2,))))
+
+    def test_summarize_by_prob(self):
+        w = np.random.random((2, 4))
+        data = np.random.random((4, 6))
+        res = self.dgtn._summarize_by_prob(w, data)
+        self.assertEqual(res.eval().shape, (2, 6))
+
+    def test_summarize_by_pointer(self):
+        w = np.random.random((2, 4))
+        data = np.random.random((4, 6))
+        res = self.dgtn._summarize_by_pointer(w, data)
+        self.assertEqual(res.eval().shape, (2, 6))
+
+
+
+

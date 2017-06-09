@@ -171,7 +171,7 @@ class DGTN(Block):
 
     def _summarize_by_pointer(self, w, data):   # (batsize, num), (num, embdim)
         ret = T.tensordot(w, data, axes=([1], [0]))     # (batsize, embdim)
-        nor = T.sum(w, axis=1)      # (batsize,)
+        nor = T.sum(w, axis=1, keepdims=True)      # (batsize,)
         ret = ret / (nor + 1e-6)            # normalize to average
         return ret
 
