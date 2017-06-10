@@ -194,6 +194,20 @@ class TestThreshold(TestCase):
         xt = (xval > 0.5) * 1.
         self.assertTrue(np.allclose(xt, y.eval()))
 
+    def test_forward_ste_sigm(self):
+        x = Val(np.random.random((10, 5))*2-1)
+        y = Threshold(0.5, ste="sigmoid")(x)
+        xval = x.d.eval()
+        xt = (xval > 0) * 1.
+        self.assertTrue(np.allclose(xt, y.eval()))
+
+    def test_forward_ste_hardsigm(self):
+        x = Val(np.random.random((10, 5))*2-1)
+        y = Threshold(0.5, ste="hardsigmoid")(x)
+        xval = x.d.eval()
+        xt = (xval > 0) * 1.
+        self.assertTrue(np.allclose(xt, y.eval()))
+
     def test_train(self):
         p = param((1,), name="testparam").uniform()
         thresh = Threshold(0.5, ste=True)
@@ -206,5 +220,31 @@ class TestThreshold(TestCase):
         m.train([data], gold).squared_error().adadelta(lr=1).train(10, 25)
         print p.d.eval()
         self.assertTrue(np.allclose(p.d.eval()[0], 0.3, atol=0.01))
+
+
+class TestStochasticThreshold(TestCase):
+    def test_forward(self):
+        x = Val(np.random.random((10, 5))*2-1)
+        y = StochasticThreshold(ste=True, detexe=False)(x)
+        xval = x.d.eval()
+        xt = (xval > 0.5) * 1.
+        print y.eval()
+        self.assertEqual(y.eval().shape, (10, 5))
+
+    def test_forward_ste_sigmoid(self):
+        x = Val(np.random.random((10, 5))*2-1)
+        y = StochasticThreshold(ste="sigmoid", detexe=False)(x)
+        xval = x.d.eval()
+        xt = (xval > 0.5) * 1.
+        print y.eval()
+        self.assertEqual(y.eval().shape, (10, 5))
+
+    def test_forward_ste_hardsigmoid(self):
+        x = Val(np.random.random((10, 5)))
+        y = StochasticThreshold(ste="hardsigmoid", detexe=False)(x)
+        xval = x.d.eval()
+        xt = (xval > 0.5) * 1.
+        print y.eval()
+        self.assertEqual(y.eval().shape, (10, 5))
 
 

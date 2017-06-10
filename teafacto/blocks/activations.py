@@ -1,5 +1,6 @@
 from teafacto.core.base import Block, tensorops as T, RVal, asblock
 from teafacto.customops import STE_MaxHot, STE_Threshold
+
 import numpy as np
 
 
@@ -21,8 +22,21 @@ class Tanh(Activation):
 
 
 class Sigmoid(Activation):
+    def __init__(self, slope=1, **kw):
+        super(Sigmoid, self).__init__(**kw)
+        self.slope = slope
+
     def innerapply(self, x, _trainmode=False, **kw):
-        return T.nnet.sigmoid(x)
+        return T.nnet.sigmoid(x * self.slope)
+
+
+class HardSigmoid(Activation):
+    def __init__(self, slope=1, **kw):
+        super(HardSigmoid, self).__init__(**kw)
+        self.slope = slope
+
+    def innerapply(self, x, _trainmode=False, **kw):
+        return T.clip((self.slope * x + 1) / 2, 0, 1)
 
 
 class Linear(Activation):
@@ -41,24 +55,69 @@ class Softplus(Activation):
 
 
 class Threshold(Activation):
-    def __init__(self, value, ste=False, **kw):
+    def __init__(self, value=0.5, ste=False, slope=1, **kw):
         """
         Threshold function
         :param value:
-        :param ste: use straight-through for diff
+        :param ste: use straight-through for diff: False, True, passthrough, sigmoid, hardsigmoid
         :param kw:
         """
-        self.ste = ste
-        if self.ste:
-            self.ste = STE_Threshold(value)
+        self.ste_f = None
+        self.ste_a = None
+        if ste is not False:
+            self.ste_f = STE_Threshold(value)
+        if ste is True:
+            ste = "passthrough"
+        if ste == "sigmoid":
+            self.ste_a = Sigmoid(slope)
+        elif ste == "hardsigmoid":
+            self.ste_a = HardSigmoid(slope)
+        elif ste == "passthrough" or ste is False:
+            self.ste_a = None
+        else:
+            raise Exception("unknown ste option")
         self.value = value
         super(Threshold, self).__init__(**kw)
 
     def innerapply(self, x, _trainmode=False, **kw):
-        if self.ste is False:
+        if self.ste_f is None:
             return (x > self.value) * 1.
         else:
-            return self.ste(x)
+            if self.ste_a is not None:
+                x = self.ste_a(x)
+            return self.ste_f(x)
+
+
+class StochasticThreshold(Activation):      # TODO: test for training
+    def __init__(self, ste=False, slope=1, detexe=True, **kw):
+        super(StochasticThreshold, self).__init__(**kw)
+        if ste is True:
+            ste = "passthrough"
+        self.ste = ste
+        self.rval = RVal()
+        self.slope = slope
+        self.detexe = detexe
+        self.ste_f = STE_Threshold(threshold=0) if self.ste is not False else None
+
+    def innerapply(self, x, _trainmode=False, **kw):
+        if not _trainmode and self.detexe:
+            noise = 0.5
+        else:
+            noise = self.rval.uniform(x.shape)
+        if self.ste == "passthrough":
+            noise = T.log(noise / (1 - noise))
+            x = x - noise
+        elif self.ste == "hardsigmoid":
+            x = HardSigmoid(self.slope)(x) - noise
+        elif self.ste == "sigmoid" or self.ste is False:
+            x = Sigmoid(self.slope)(x) - noise
+        else:
+            raise Exception("unrecognized ste option")
+        if self.ste_f is None:
+            return (x > self.value) * 1.
+        else:
+            return self.ste_f(x)
+
 
 '''
 class Softmax(Activation):

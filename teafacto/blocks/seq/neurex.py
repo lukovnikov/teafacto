@@ -6,7 +6,7 @@ from teafacto.blocks.seq.rnn import MakeRNU, RecStack
 from teafacto.util import issequence
 
 
-# TODO: write tests (+with attention)
+# TODO: write tests (esp. for with attention)
 
 class DGTN(Block):
     numacts = 7

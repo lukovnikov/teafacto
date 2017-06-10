@@ -510,6 +510,12 @@ class RVal(Elem, TensorWrapped, Masked):    # random value
         self.rng = RandomStreams(seed=seed)
         self.value = None
 
+    def uniform(self, shape, ndim=None, dtype="float32"):
+        if isinstance(shape, Elem):
+            shape = shape.d
+        self.value = self.rng.uniform(shape, ndim=ndim, dtype=dtype)
+        return self
+
     def binomial(self, shape, n=1, p=0.5, ndim=None, dtype="int32"):
         if isinstance(shape, Elem):
             shape = shape.d
