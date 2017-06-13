@@ -1,0 +1,150 @@
+:type           ,type of {}
+-:type          ,a {}
+:Type           ,qsdfqsdf {}
+-:Type          ,{} qsdfqsdf
+
+:Season         ,the season {} appeared in
+-:Season        ,whose season is {}, who appeared in {}
+:previous       ,what is before {}, what preceded {}, what was followed by {}
+-:previous      ,what is after {}, what followed {}, what was preceded by {}
+:next           ,what followed {}, what is after {}, what was preceded by {}
+-:next          ,what is before {}, what preceded {}, what was followed by {}
+:prev           ,what is before {}, what preceded {}, what was followed by {}
+-:prev          ,what is after {}, what followed {}, what waspreceded by {}
+:conc           ,what was concurrent with {}
+-:conc          ,what {} is concurrent with
+:Rulers         ,who rules {}, who is a ruler of {}, who ruled {}
+-:Rulers        ,whose ruler is {}, what was ruled by {}
+
+:Institutions   ,what is an institution of {}
+-:Institutions  ,what {} is an institution of
+:conflict       ,what a conflict of {} is
+-:conflict      ,what {} is a conflict of
+
+:First          ,first episode of {}, episode {} first appeared in
+-:First         ,first episode is {}
+:Last           ,last of {}
+-:Last          ,{} is the last of, whose last was {}
+:DeathEp        ,death episode of {}, episode {} died
+-:DeathEp       ,death episode is {}, died in episode {}
+
+:Geography      ,geography of {}
+-:Geography     ,geography is {}
+:place          ,place of {}, location of {}, where {} took place, where {} happened
+-:place         ,located in {}, took place in {}, happened in {}
+:Place          ,location of {}, place of {}, where {} is
+-:Place         ,located in {}, is in {}, is at {}
+:Location       ,location of {}
+-:Location      ,located in {}
+:Castles        ,castle in {}
+-:Castles       ,{} is a castle in, has the {} castle
+:Cities         ,city of {}
+-:Cities        ,{} is city of, has city {}
+:Towns          ,town of {}
+-:Towns         ,{} is a town in, has the {} town
+:Capital        ,capital of {}
+-:Capital       ,{}'s capital, capital is {}
+:Founder        ,founder of {}, founded {}
+-:Founder       ,{} is founder of, founder is {}, founded by {}
+:Regional capital   ,regional capital of {}
+-:Regional capital  ,regional capital is {}, {} is regional capital of
+:Population     ,live in {}, populate {}
+-:Population    ,{} live in, populated by {}
+:Military       ,military of {}
+-:Military      ,{} is military of
+:Formerly       ,was previously {}, was formerly {}
+-:Formerly      ,is now {}
+
+:Species        ,species of {}
+-:Species       ,{} is species of, of species {}
+:Range          ,range of {}
+-:Range         ,has range {}
+:Origin         ,origin of {}, {} originated in
+-:Origin        ,originated in {}, origin is {}
+
+
+:Family         ,family of {}
+-:Family        ,whose family is {}
+:Siblings       ,sibling of {}
+-:Siblings      ,whose sibling is {}
+:Spouse         ,spouse of {}, married to {}
+-:Spouse        ,whose spouse is {}
+:Children       ,child of {}
+-:Children      ,whose child is {}
+:Mother         ,mother of {}
+-:Mother        ,whose mother is {}
+:Father         ,father of {}
+-:Father        ,whose father is {}
+:Lovers         ,lover of {}
+-:Lovers        ,whose lover is {}, whom {} is a lover of
+
+:Titles         ,title of {}
+-:Titles        ,title is {}
+:Culture        ,culture of {}
+-:Culture       ,are of {} culture, whose culture is {}
+:Allegiance     ,allegiance of {}
+-:Allegiance    ,allied with {}, whose allegiance is {}
+:Religion       ,religion of {}
+-:Religion      ,whose religion is {}
+:Successor      ,successor of {}, succeeded {}, whose predecessor is {}, preceded by {}
+-:Successor     ,whose successor is {}, predecessor of {}, preceded {}, succeeded by {}
+:Predecessor    ,predecessor of {}, preceded {}, whose successor is {}, succeeded by {}
+-:Predecessor   ,whose predecessor is {}, succeeded {}, successor of {}, preceded by {}
+:Birth          ,{} birthed during
+-:Birth         ,was born during {}
+:Death          ,what killed {}, what caused death of {}
+-:Death         ,killed by {}, died from {}
+:Mentioned      ,episode where {} was mentioned in
+-:Mentioned     ,mentioned is episode {}
+:Appearances    ,{} appeared in
+-:Appearances   ,appeared in {}
+
+:First mentioned    ,{} first mentioned
+-:First mentioned   ,first mentioned {}
+
+:Actor          ,played {}, acted as {}
+-:Actor         ,played by {}, acted by {}, performed by {}
+
+:War Status     ,war status of {}
+-:War Status    ,{}'s war status
+:result         ,resulted from {}, followed from {}, caused by {}
+-:result        ,caused {}, result of {}
+:battles        ,battle of {}
+-:battles       ,{} is a battle of
+:side1          ,what first side of {} is
+-:side1         ,whose first side is {}
+:side2          ,what second side of {} is
+-:side2         ,whose second side is {}
+:side3          ,what third side of {} is
+-:side3         ,whose third side is {}
+:leaders1       ,first side leader of {}, led first side of {}
+-:leaders1      ,whose first side leader is {}, {} is a first side leader of, first side led by {}
+:leaders2       ,second side leader of {}, led second side of {}
+-:leaders2      ,whose second side leader is {}, {} is a second side leader of, second side led by {}
+:leaders3       ,third side leader of {}, led third side of {}
+-:leaders3      ,whose third side leader is {}, {} is a third side leader of, third side led by {}
+:forces1        ,first side force of {}
+-:forces1       ,whose first side force is {}
+:forces2        ,second side force of {}
+-:forces2       ,whose second side force is {}
+:commanders1    ,side one commander of {}, commanded one side in {}
+-:commanders1   ,what {} is the side one commander of
+:commanders2    ,side two commander of {}, commanded second side in {}
+-:commanders2   ,what {} is the side two commander of
+:commanders3    ,side three commander of {}, commanded third side in {}
+-:commanders3   ,what {} is the side three commander of
+:participants1  ,side one participant of {}, participated as first side in {}
+-:participants1 ,what {} is the side one participant of
+:participants2  ,side two participant of {}, participated as second side in {}
+-:participants2 ,what {} is the side two participant of
+:casual1        ,died in {} for first side, first side casualty of {}
+-:casual1       ,whose first side casualty is {}, where {} died for first side
+:casual2        ,died in {} for second side, first side casualty of {}
+-:casual2       ,whose second side casualty is {}, where {} died for second side
+:civilian       ,civilian in {}
+-:civilian      ,what {} is a civilian in
+
+:end            ,end of {}
+-:end           ,end is {}, {}'s end
+
+

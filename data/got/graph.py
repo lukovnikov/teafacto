@@ -48,11 +48,26 @@ def loadtriples(tripf="got.f.triples", inspect=False):
         embed()
     entities = OrderedDict(sorted(entities.items(), key=lambda (x,y): y, reverse=True))
     relations = OrderedDict(sorted(relations.items(), key=lambda (x, y): y, reverse=True))
-    return Graph(triples, names, labels, aliases, entities, relations)
+    rellex = loadrellex(p="rellex.tsv")
+    return Graph(triples, names, labels, aliases, entities, relations, rellex=rellex)
+
+
+def loadrellex(p="rellex.tsv"):
+    lex = {}
+    with open(p) as f:
+        for line in f:
+            splits = [split.strip() for split in line.split(",")]
+            if len(splits) < 2:
+                continue
+            relid = splits[0]
+            lexes = splits[1:]
+            lex[relid] = lexes
+    return lex
+
 
 
 class Graph(object):
-    def __init__(self, triples, names, labels, aliases, entities, relations):
+    def __init__(self, triples, names, labels, aliases, entities, relations, rellex=None):
         self._triples = triples
         self._names = names
         self._labels = labels
@@ -63,6 +78,18 @@ class Graph(object):
         self._dense_tensor = None
         self._red = {v: k for k, v in self._entdic.items()}
         self._rld = {v: k for k, v in self._reldic.items()}
+        self._rellex = rellex
+
+    def get_lex(self, entity):
+        name = label = None
+        aliases = []
+        if entity in self._names:
+            name = self._names[entity]
+        if entity in self._labels:
+            label = self._labels[entity]
+        if entity in self._aliases:
+            aliases = self._aliases[entity]
+        return name, label, aliases
 
     def triples(self, s=None, p=None, o=None):
         for st, pt, ot in self._triples:
@@ -113,9 +140,11 @@ class Graph(object):
 
 class QuestionGenerator(object):
     ent_blacklist = {":Type:None"}
+    rel_blacklist = {":type", ":result", "-:result", ":Type", "-:Type"}
 
     def __init__(self, graph):
         self._graph = graph
+        self.rel_blacklist = set(map(lambda x: self._graph._reldic[x], self.rel_blacklist))
 
     def generateChain(self, seednode=None, max_hops=3, min_hops=1):
         tensor, entdic, reldic = self._graph.to_tensor(addreverse=True, dense=False)
@@ -134,8 +163,8 @@ class QuestionGenerator(object):
         for i in range(n_hops):
             curnode = random.choice(curnodes)
             #print red[curnode]
-            relsofnode = list(set(np.argwhere(hasrels[curnode])[:, 1]))
-            rel = random.choice(relsofnode)
+            relsofnode = set(np.argwhere(hasrels[curnode])[:, 1])
+            rel = random.choice(list(relsofnode.difference(self.rel_blacklist)))
             #print "->{}->".format(rld[rel])
             curnodes = list(np.argwhere(tensor[rel][curnode, :])[:, 1])
             path.append((rel + len(reldic)//2) % (len(reldic)))    # append to path
@@ -156,7 +185,7 @@ class QuestionGenerator(object):
         def pp_p(p): return ", ".join(map(lambda x: red[x], list(np.argwhere(p)[:, 1])))
         pointer = startpointer
         pp = pp_p(pointer) + "\n"
-        for hoprel in path[::-1]:
+        for hoprel in path:
             pp += "->{}->\n".format(rld[hoprel])
             pointer = np.dot(pointer, tensor[hoprel])
             pp += pp_p(pointer) + "\n"
@@ -191,7 +220,7 @@ class QuestionGenerator(object):
                 rets = []
                 for s, p in nodes[node]:
                     a, b = _treedic_to_tree(s)
-                    rets.append((a, p + b))
+                    rets.append((a, b + p))
                 if len(rets) == 1:
                     return rets[0]
                 else:
@@ -201,12 +230,12 @@ class QuestionGenerator(object):
         print tree
         return tree
 
-    def generateConjTree(self, seednode=None, relcred=5):
+    def generateConjTree(self, seednode=None, relcred=5, max_branch=2):
         tensor, entdic, reldic = self._graph.to_tensor(addreverse=True, dense=False)
         if seednode is None:
             seedtriple = random.choice(self._graph._triples)
             seednode = entdic[seedtriple[0]]
-        tree = self._generateConjTree(seednode=seednode, relcred=relcred)
+        tree = self._generateConjTree(seednode=seednode, relcred=relcred, max_branch=max_branch)
         res, pp = self._executeConjTree(tree)
         assert(seednode in res)
         return tree, res, pp
@@ -232,6 +261,32 @@ class QuestionGenerator(object):
         pp = pp + ppo
         return res, pp
 
+    def _verbalizeConjTree(self, tree, use_aliases=True, indicate_branch=True):
+        start, path = tree
+        if isinstance(start, tuple):
+            lv = self._verbalizeConjTree(start[0])
+            rv = self._verbalizeConjTree(start[1])
+            if indicate_branch:
+                ptrn = "( {} and {} )"
+            else:
+                ptrn = "{} and {}"
+            v = ptrn.format(lv, rv)
+        else:
+            # get verbalizations of start entity
+            name, label, aliases = g.get_lex(self._graph._red[start])
+            if use_aliases:
+                lex = {name, label}.union(set(aliases))
+            else:
+                lex = {name, label}
+            lex = lex.difference({None})
+            v = random.choice(list(lex))
+        # verbalize path
+        for rel in path:
+            lex = g._rellex[self._graph._rld[rel]]
+            lex = random.choice(lex)
+            v = lex.format(v)
+        return v
+
 
 if __name__ == "__main__":
     import sys
@@ -239,7 +294,9 @@ if __name__ == "__main__":
     #tensor, entdic, reldic = g.to_tensor(addreverse=True, dense=True)
     qg = QuestionGenerator(g)
     #start, path, result, pp = qg.generateChain(min_hops=1, max_hops=2)
-    tree, res, pp = qg.generateConjTree()
+    tree, res, pp = qg.generateConjTree(relcred=3, max_branch=1)
     print pp
+    print g._rellex[":end"]
+    print qg._verbalizeConjTree(tree)
     sys.exit()
     embed()

@@ -1,3 +1,13 @@
+:Type:Character	:label	character
+:Type:Battle	:label	battle
+:Type:War	:label	war
+:Type:Event	:label	event
+:Type:Settlement	:label	settlement
+:Type:Cast	:label	cast
+:Type:Massacre	:label	massacre
+:Type:Region	:label	region
+:Type:Episode	:label	episode
+:Type:Animal	:label	animal
 :Battle_Above_the_Gods_Eye	:type	:Type:Battle
 :Battle_Above_the_Gods_Eye	:forces1	:Vhagar
 :Battle_Above_the_Gods_Eye	:side1	:Greens
