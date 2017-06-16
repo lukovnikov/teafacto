@@ -184,7 +184,7 @@ def run_trainfind(lr=0.1,
         nlayers=2,
         wordembdim=64,
         encdim=100,
-        nenclayers=2,
+        nenclayers=1,
         dropout=0.1,
         inspectdata=False,
         testpred=False,
@@ -211,7 +211,7 @@ def run_trainfind(lr=0.1,
         .addlayers([encdim] * nenclayers, dropout_in=dropout, zoneout=dropout) \
         .make()
     dec = EncDec(encoder=enc,
-                 inconcat=True, outconcat=True, stateconcat=True, concatdecinp=False,
+                 inconcat=True, outconcat=False, stateconcat=True, concatdecinp=False,
                  updatefirst=False,
                  inpemb=None, inpembdim=dgtn.get_indim(),
                  innerdim=[innerdim] * nlayers,
@@ -241,4 +241,4 @@ def run_trainfind(lr=0.1,
 
 
 if __name__ == "__main__":
-    argprun(run)
+    argprun(run_trainfind)
