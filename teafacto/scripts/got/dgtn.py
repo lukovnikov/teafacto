@@ -227,7 +227,7 @@ def run_trainfind(lr=0.1,
         m = Vec2Ptr(enc, len(graphtensor._entdic))
     else:
         m = DGTN(reltensor=graphtensor.tensor, nsteps=nsteps,
-                    entembdim=50, relembdim=50, actembdim=10, gumbel=True)
+                    entembdim=50, relembdim=50, actembdim=10, gumbel=False)
         dec = EncDec(encoder=enc,
                      inconcat=True, outconcat=False, stateconcat=True, concatdecinp=False,
                      updatefirst=False,
