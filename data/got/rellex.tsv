@@ -3,7 +3,7 @@
 :Type           ,qsdfqsdf {}
 -:Type          ,{} qsdfqsdf
 
-:Season         ,the season {} appeared in
+:Season         ,the season that {} appeared in
 -:Season        ,whose season is {}, who appeared in {}
 :previous       ,what is before {}, what preceded {}, what was followed by {}
 -:previous      ,what is after {}, what followed {}, what was preceded by {}
@@ -25,8 +25,8 @@
 -:First         ,first episode is {}
 :Last           ,last of {}
 -:Last          ,{} is the last of, whose last was {}
-:DeathEp        ,death episode of {}, episode {} died
--:DeathEp       ,death episode is {}, died in episode {}
+:DeathEp        ,death episode of {}, episode where {} died
+-:DeathEp       ,whose death episode is {}, who died in episode {}
 
 :Geography      ,geography of {}
 -:Geography     ,geography is {}
@@ -34,6 +34,8 @@
 -:place         ,located in {}, took place in {}, happened in {}
 :Place          ,location of {}, place of {}, where {} is
 -:Place         ,located in {}, is in {}, is at {}
+:Places         ,a place in {}, located in {}
+-:Places        ,where {} is a place of
 :Location       ,location of {}
 -:Location      ,located in {}
 :Castles        ,castle in {}
@@ -79,11 +81,11 @@
 -:Lovers        ,whose lover is {}, whom {} is a lover of
 
 :Titles         ,title of {}
--:Titles        ,title is {}
+-:Titles        ,whose title is {}
 :Culture        ,culture of {}
 -:Culture       ,are of {} culture, whose culture is {}
 :Allegiance     ,allegiance of {}
--:Allegiance    ,allied with {}, whose allegiance is {}
+-:Allegiance    ,those allied with {}, whose allegiance is {}
 :Religion       ,religion of {}
 -:Religion      ,whose religion is {}
 :Successor      ,successor of {}, succeeded {}, whose predecessor is {}, preceded by {}
@@ -104,6 +106,8 @@
 
 :Actor          ,played {}, acted as {}
 -:Actor         ,played by {}, acted by {}, performed by {}
+:role           ,played by {}
+-:role          ,played {}
 
 :War Status     ,war status of {}
 -:War Status    ,{}'s war status

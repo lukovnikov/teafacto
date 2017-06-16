@@ -365,6 +365,100 @@ class DataSet():
         return str(self.data) + "\n" + str(self.gold)
 
 
+class StringMatrix():
+    protectedwords = ["<MASK>", "<RARE>", "<START>", "<END>"]
+    def __init__(self, maxlen=None, freqcutoff=0, topnwords=None, indicate_start_end=False):
+        self._strings = []
+        self._wordcounts = dict(zip(self.protectedwords, [0]*len(self.protectedwords)))
+        self._dictionary = dict(zip(self.protectedwords, range(len(self.protectedwords))))
+        self._rd = None
+        self._next_available_id = len(self._dictionary)
+        self._maxlen = 0
+        self._matrix = None
+        self._max_allowable_length = maxlen
+        self._rarefreq = freqcutoff
+        self._topnwords = topnwords
+        self._indic_s_e = indicate_start_end
+        self._rarewords = set()
+
+    @property
+    def numwords(self):
+        return len(self._dictionary)
+
+    @property
+    def numrare(self):
+        return len(self._rarewords)
+
+    @property
+    def matrix(self):
+        if self._matrix is None:
+            raise Exception("finalize first")
+        return self._matrix
+
+    def d(self, x):
+        return self._dictionary[x]
+
+    def rd(self, x):
+        return self._rd[x]
+
+    def pp(self, matorvec):
+        def pp_vec(vec):
+            return " ".join([self.rd(x) if x in self._rd else "<UNK>" for x in vec if x != self.d("<MASK>")])
+        ret = []
+        if matorvec.ndim == 2:
+            for vec in matorvec:
+                ret.append(pp_vec(vec))
+        else:
+            return pp_vec(matorvec)
+        return ret
+
+    def add(self, x):
+        tokens = tokenize(x)
+        tokens = tokens[:self._max_allowable_length]
+        tokens = ["<START>"] + tokens + ["<END>"]
+        self._maxlen = max(self._maxlen, len(tokens))
+        tokenidxs = []
+        for token in tokens:
+            if token not in self._dictionary:
+                self._dictionary[token] = self._next_available_id
+                self._next_available_id += 1
+                self._wordcounts[token] = 0
+            self._wordcounts[token] += 1
+            tokenidxs.append(self._dictionary[token])
+        self._strings.append(tokenidxs)
+
+    def finalize(self):
+        ret = np.zeros((len(self._strings), self._maxlen), dtype="int32")
+        for i, string in enumerate(self._strings):
+            ret[i, :len(string)] = string
+        self._matrix = ret
+        self._do_rare()
+        self._rd = {v: k for k, v in self._dictionary.items()}
+
+    def _do_rare(self):
+        sortedwordidxs = [self.d(x) for x in self.protectedwords] + \
+                         ([self.d(x) for x, y
+                          in sorted(self._wordcounts.items(), key=lambda (x,y): y, reverse=True)
+                          if y >= self._rarefreq and x not in self.protectedwords][:self._topnwords])
+        transdic = zip(sortedwordidxs, range(len(sortedwordidxs)))
+        transdic = dict(transdic)
+        self._rarewords = {x for x in self._dictionary.keys() if self.d(x) not in transdic}
+        rarewords = {self.d(x) for x in self._rarewords}
+        self._numrare = len(rarewords)
+        transdic.update(dict(zip(rarewords, [self.d("<RARE>")]*len(rarewords))))
+        # translate matrix
+        self._matrix = np.vectorize(lambda x: transdic[x])(self._matrix)
+        # change dictionary
+        self._dictionary = {k: transdic[v] for k, v in self._dictionary.items() if self.d(k) in sortedwordidxs}
+
+
+
+
+
+
+
+
+
 def tokenize(s):
     s = s.decode("utf-8")
     s = unidecode.unidecode(s)

@@ -1,7 +1,7 @@
 from unittest import TestCase
 
 from teafacto.util import ticktock as TT, argparsify, loadlexidtsv, \
-    unstructurize, restructurize
+    unstructurize, restructurize, StringMatrix
 import os
 
 class TestUtils(TestCase):
@@ -54,4 +54,24 @@ class TestFlatNestF(TestCase):
         rs = restructurize(n, f)
         self.assertEqual(rs, s)
 
+import numpy as np
+class TestStringMatrix(TestCase):
+    def test_everything(self):
+        tm = StringMatrix(topnwords=20, indicate_start_end=True, maxlen=15)
+        tm.add("the quick brown fox jumped over the lazy dog")
+        tm.add("all work and no play make jack a dull boy")
+        tm.add("to be or not to be")
+        tm.add("what is the meaning of life, universe and everything")
+        tm.add("what is love, baby don't hurt me, don't hurt me, no more")
+        print tm._wordcounts
+        print tm._maxlen
+        print tm._dictionary
+        tm.finalize()
+        print tm._wordcounts
+        print tm._dictionary
+        print tm.matrix
+        print tm.pp(tm.matrix)
+        print tm.matrix[0]
+        print tm.pp(np.asarray([0,1,2,3,4,5,6,7,8,9,10,11,12]))
+        print tm.pp(tm.matrix[0]+5)
 

@@ -194,6 +194,10 @@ class ModelTrainer(object):
             self.model_loss(aggm)
         return self
 
+    def loss(self, loss, mode="mean"):      # custom loss block
+        self._set_objective(Objective(loss, aggmode=mode))
+        return self
+
     def linear_objective(self, mode="mean"):
         self._set_objective(Objective(LinearLoss(), aggmode=mode))
         return self

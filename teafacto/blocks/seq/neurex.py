@@ -4,12 +4,15 @@ from teafacto.blocks.activations import Softmax
 from teafacto.blocks.seq import GRU
 from teafacto.blocks.seq.rnn import MakeRNU, RecStack
 from teafacto.util import issequence
+from teafacto.blocks.loss import Loss, CrossEntropy, BinaryCrossEntropy
 
 
 # TODO: write tests (esp. for with attention)
 
 class DGTN(Block):
     numacts = 7
+    _max_in_hop = True
+    _min_in_intersect = False
 
     def __init__(self,
                  # core settings
@@ -160,12 +163,19 @@ class DGTN(Block):
 
     def _exec_hop(self, relw, oldmain, oldaux):  # (batsize, nument), (batsize, numrel)
         relmats = T.tensordot(relw, self.reltensor, axes=([1], [0]))   # (batsize, nument, nument)
-        newp = T.batched_dot(oldmain, relmats)
-        newp = T.clip(newp, 0, 1)   # prevent overflow
+        if self._max_in_hop:
+            x = oldmain.dimadd(2)
+            newp = T.max(x * relmats, axis=1)
+        else:
+            newp = T.batched_dot(oldmain, relmats)
+            newp = T.clip(newp, 0, 1)   # prevent overflow
         return newp, oldaux
 
     def _exec_intersect(self, oldmain, oldaux):     # prod or min?
-        return oldmain * oldaux, T.zeros_like(oldaux)
+        if self._min_in_intersect:
+            return T.minimum(oldmain, oldaux), T.zeros_like(oldaux)
+        else:
+            return oldmain * oldaux, T.zeros_like(oldaux)
 
     def _exec_union(self, a, b):    # max or clipped sum?
         return T.maximum(a, b), T.zeros_like(b)
@@ -195,3 +205,40 @@ class DGTN(Block):
 
     @property
     def numstates(self):    return self.core.numstates
+
+
+class KLPointerLoss(Loss):        # does softmax on pointer, then KL div
+    def __init__(self, lrg=1e0, **kw):
+        super(KLPointerLoss, self).__init__(**kw)
+        self.LRG = lrg
+
+    def apply(self, pred, gold):        # (batsize, numents)
+        EPS = 1e-6
+        pred_sm = Softmax()((pred-1)*self.LRG)
+        gold_sm = gold / T.sum(gold, axis=1, keepdims=True) + EPS
+        cross_entropy = CrossEntropy()(pred_sm, gold_sm)
+        gold_entropy = CrossEntropy()(gold_sm, gold_sm)
+        kl_div = cross_entropy - gold_entropy
+        return kl_div
+
+
+class PWPointerLoss(Loss):
+    def __init__(self, balanced=False, **kw):
+        self.balanced = balanced
+        super(PWPointerLoss, self).__init__(**kw)
+
+    def apply(self, pred, gold):
+        bces = BinaryCrossEntropy(sum_per_example=False)(pred, gold)
+        if self.balanced:
+            posces = gold * bces
+            negces = (1 - gold) * bces
+            posctr = T.sum(posces, axis=1) / T.sum(gold, axis=1)
+            negctr = T.sum(negces, axis=1) / T.sum(1-gold, axis=1)
+            ret = 0.5 * posctr + 0.5 * negctr
+        else:
+            ret = T.sum(bces, axis=1)
+        return ret
+
+
+
+

@@ -138,10 +138,10 @@ class CrossEntropy(Loss):
 
     def apply(self, probs, gold, mask=None):
         mask = probs.mask if mask is None else mask
-        if gold.ndim == 1:
+        if probs.ndim == 2 and (gold.ndim == 1 or gold.ndim == 2):
             assert(mask is None)
             return T.nnet.categorical_crossentropy(probs, gold) #-tensor.log(probs[tensor.arange(gold.shape[0]), gold])
-        elif gold.ndim == 2:    # sequences
+        elif probs.ndim == 3 and gold.ndim == 2:    # sequences
             origprobshape = probs.shape
             origprobndim = probs.ndim
             probs = probs.reshape((-1, probs.shape[-1]))
@@ -185,8 +185,16 @@ class BitsPerSym(Loss):
 
 
 class BinaryCrossEntropy(Loss):
+    def __init__(self, sum_per_example=False, **kw):
+        self.sum_per_example = sum_per_example
+        super(BinaryCrossEntropy, self).__init__(**kw)
+
     def apply(self, preds, gold):
-        return T.nnet.binary_crossentropy(preds, gold)
+        ret = T.nnet.binary_crossentropy(preds, gold)
+        if self.sum_per_example is True:
+            axes = tuple(range(1, ret.ndim))
+            ret = T.sum(ret, axis=axes)
+        return ret
 
 
 class BinaryAccuracy(Loss):

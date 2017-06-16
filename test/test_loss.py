@@ -1,9 +1,42 @@
 from unittest import TestCase
 import numpy as np
 
-from teafacto.blocks.loss import CrossEntropy
+from teafacto.blocks.loss import *
 from teafacto.blocks.basic import Softmax
 from teafacto.core import Val
+
+
+class TestBinaryCrossEntropy(TestCase):
+    def test_1D(self):
+        ce = BinaryCrossEntropy()
+        batsize, vocsize = 10, 20
+        datad = np.random.random((batsize,))
+        goldd = np.random.randint(0, 2, (batsize,))
+        data = Val(datad)
+        gold = Val(goldd)
+        pred = ce(data, gold)
+        predpred = pred.eval()
+        self.assertEqual(predpred.shape, (batsize,))
+        print predpred
+        print datad
+        print goldd
+        self.assertTrue(np.allclose(predpred, goldd * (-np.log(datad))
+                                    - (1 - goldd) * (np.log(1 - datad))))
+
+    def test_2D_sum_to_1D(self):
+        ce = BinaryCrossEntropy()
+        batsize, vocsize, size = 10, 20, 5
+        datad = np.random.random((batsize, size))
+        goldd = np.random.randint(0, 2, (batsize, size))
+        data = Val(datad)
+        gold = Val(goldd)
+        pred = ce(data, gold)
+        predpred = pred.eval()
+        print predpred
+        self.assertEqual(predpred.shape, (batsize,))
+        x = goldd * (-np.log(datad)) - (1 - goldd) * (np.log(1 - datad))
+        x = np.sum(x, axis=1)
+        self.assertTrue(np.allclose(x, predpred))
 
 
 class TestCrossEntropy(TestCase):

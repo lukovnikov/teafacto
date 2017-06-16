@@ -1,9 +1,6 @@
 from IPython import embed
-import re
+import re, random, sys, numpy as np, scipy.sparse as sp
 from collections import OrderedDict
-import numpy as np
-import scipy.sparse as sp
-import random
 
 
 def run():
@@ -74,11 +71,19 @@ class Graph(object):
         self._aliases = aliases
         self._entcounts = entities
         self._relcounts = relations
+        self._types = {s: o for (s, p, o) in self._triples if p == ":type"}
+        #self._types.update({s: ":Type:None" for s in filter(lambda x: x not in self._types, self._entcounts.keys())})
         self._tensor, self._entdic, self._reldic = self._to_tensor()
         self._dense_tensor = None
         self._red = {v: k for k, v in self._entdic.items()}
         self._rld = {v: k for k, v in self._reldic.items()}
         self._rellex = rellex
+
+    def types_of(self, *entities):
+        ret = []
+        for entity in entities:
+            ret.append(self._types[entity] if entity in self._types else ":Type:None")
+        return ret
 
     def get_lex(self, entity):
         name = label = None
@@ -136,6 +141,23 @@ class Graph(object):
             reldickeys = reldic.keys()[:len(tensor)//2]
             reldic = {k: reldic[k] for k in reldickeys}
         return tensor, entdic, reldic
+
+    def save_tensor(self, outp="tensor.dock"):      # save tensor and dictionaries
+        # saves tensor as dok
+        with open(outp, "w") as dokfile:
+            relmats = []
+            for ridx, relmat in enumerate(self._tensor):
+                entries = np.argwhere(relmat)
+                entries = np.concatenate([
+                                          ridx * np.ones_like(entries[:, 0:1], dtype="int32"),
+                                          entries[:, 0:1],
+                                          entries[:, 1:2]],
+                                         axis=1)
+                relmats.append(entries)
+            doktensor = np.concatenate(relmats, axis=0)
+            import pickle
+            pickle.dump({"entries": doktensor, "entdic": self._entdic, "reldic": self._reldic},
+                        dokfile)
 
 
 class QuestionGenerator(object):
@@ -227,7 +249,7 @@ class QuestionGenerator(object):
                     return tuple(rets), []
 
         tree = _treedic_to_tree(seednode)
-        print tree
+        #print tree
         return tree
 
     def generateConjTree(self, seednode=None, relcred=5, max_branch=2):
@@ -273,7 +295,7 @@ class QuestionGenerator(object):
             v = ptrn.format(lv, rv)
         else:
             # get verbalizations of start entity
-            name, label, aliases = g.get_lex(self._graph._red[start])
+            name, label, aliases = self._graph.get_lex(self._graph._red[start])
             if use_aliases:
                 lex = {name, label}.union(set(aliases))
             else:
@@ -282,21 +304,79 @@ class QuestionGenerator(object):
             v = random.choice(list(lex))
         # verbalize path
         for rel in path:
-            lex = g._rellex[self._graph._rld[rel]]
+            lex = self._graph._rellex[self._graph._rld[rel]]
             lex = random.choice(lex)
             v = lex.format(v)
         return v
 
+    def _ptr2set(self, ptr):
+        return set(np.argwhere(ptr)[0, :])
+
+    def _idx2ptr(self, idx):
+        pointer = np.zeros((1, len(self._graph._entdic),), dtype="int8")
+        pointer[0, idx] = 1
+        return pointer
+
+    def _idxs2ids(self, *idxs):
+        return [self._graph._red[idx] for idx in idxs]
+
+    def _analyzeConjTree(self, tree, debug_replay=False):
+        if debug_replay:
+            print "debug replaying"
+        tensor, entdic, reldic = self._graph.to_tensor(addreverse=True, dense=True)
+        start, path = tree
+        numbranches = 0
+        ambiguous_branches = 0
+        if isinstance(start, tuple):
+            lptr, ltypes, lnumbranches, lambbr, lstartentities = self._analyzeConjTree(start[0])
+            rptr, rtypes, rnumbranches, rambbr, rstartentities = self._analyzeConjTree(start[1])
+            #lrestypes = set(self._graph.types_of(*self._idxs2ids(*self._ptr2set(lptr))))
+            rrestypes = set(self._graph.types_of(*self._idxs2ids(*self._ptr2set(rptr))))
+            ambiguous_branches += lambbr + rambbr
+            rettypes = ltypes | rtypes
+            ptr = lptr * rptr
+            restypes = set(self._graph.types_of(*self._idxs2ids(*self._ptr2set(ptr))))
+            if len(rrestypes & ltypes) > 0 or \
+                    (lnumbranches > 0 and len(restypes & ltypes) > 0):  # right branch result compatible with some intermediate types from left branch
+                ambiguous_branches += 1
+            numbranches += lnumbranches + rnumbranches + 1
+            startentities = lstartentities | rstartentities
+        else:
+            ptr = self._idx2ptr(start)
+            rettypes = set()
+            restypes = set()
+            startentities = set(self._idxs2ids(start))
+        for rel in path:
+            rettypes = rettypes | restypes
+            ptr = np.dot(ptr, tensor[rel])
+            restypes = set(self._graph.types_of(*self._idxs2ids(*self._ptr2set(ptr))))
+        return ptr, rettypes, numbranches, ambiguous_branches, startentities
+
+
+def gen_questions(number=10000, outp="generated_questions.tsv", verbose=False, write=True):
+    g = Graph.from_triples()
+    qg = QuestionGenerator(g)
+    with open(outp, "w") as f:
+        for i in range(1, number+1):
+            if i % 100 == 0:
+                print "{}\r".format(i)
+            relcred = random.choice([1, 2, 3])
+            tree, res, pp = qg.generateConjTree(relcred=relcred, max_branch=1)
+            vb = qg._verbalizeConjTree(tree)
+            _, _, numbranch, ambi, startentities = qg._analyzeConjTree(tree)
+            line = "{}\t{}\t{}\t{}\t{}\t{}\t{}\n".format(i, relcred, numbranch, ambi, vb, ",".join(startentities), ",".join([g._red[x] for x in res]))
+            if verbose: print line
+            if write: f.write(line)
+
+
+
 
 if __name__ == "__main__":
-    import sys
+    gen_questions(10000, verbose=False, write=True)
+    #sys.exit()
     g = Graph.from_triples()
-    #tensor, entdic, reldic = g.to_tensor(addreverse=True, dense=True)
-    qg = QuestionGenerator(g)
-    #start, path, result, pp = qg.generateChain(min_hops=1, max_hops=2)
-    tree, res, pp = qg.generateConjTree(relcred=3, max_branch=1)
-    print pp
-    print g._rellex[":end"]
-    print qg._verbalizeConjTree(tree)
+    g.save_tensor()
     sys.exit()
+    qg = QuestionGenerator(g)
     embed()
+    qg._analyzeConjTree(tree)

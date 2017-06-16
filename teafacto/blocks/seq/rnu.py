@@ -163,6 +163,9 @@ class RNUBase(ReccableBlock):
             ret = vec
         return ret
     '''
+    @property
+    def outdim(self):
+        return self.innerdim
 
     def recappl(self, inps, states):    # TODO: might not work after change to multiple rec outs
         numrecargs = getnumargs(self.rec) - 2       # how much to pop from states

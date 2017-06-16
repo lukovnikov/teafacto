@@ -204,6 +204,7 @@ class EncDec(Block):        # NOT FOR STATIC CONTEXT TODO
                  updatefirst=False, # perform RNN update before attention
                  concatdecinp=False,    # directly concat(feed) dec input to att gen and to smo
                  inpemb=None,       # decoder input embedding block
+                 inpembdim=None,    # decoder input embedder dim
                  indim=None,        # decoder input dim
                  innerdim=None,     # internal dim of dec rnn
                  rnu=GRU,           # dec rnn type
@@ -224,7 +225,7 @@ class EncDec(Block):        # NOT FOR STATIC CONTEXT TODO
         innerdim = innerdim if issequence(innerdim) else [innerdim]
         self.outdim = innerdim[-1]
         if indim is None:
-            indim = inpemb.outdim
+            indim = inpemb.outdim if inpembdim is None else inpembdim
             if self.inconcat:
                 indim += encoder.outdim
         self.init_state_gen = init_state_gen

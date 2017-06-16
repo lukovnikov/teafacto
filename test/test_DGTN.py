@@ -31,9 +31,9 @@ class TestDGTN_without_attention(TestCase):
         dgtn = DGTN(reltensor=reltensor, nsteps=5, entembdim=10, relembdim=9, actembdim=8)
         # internal decoder without attention
         dec = EncDec(encoder=inpenc,
-                     inconcat=False, outconcat=False, stateconcat=True, concatdecinp=False,
+                     inconcat=True, outconcat=False, stateconcat=True, concatdecinp=False,
                      updatefirst=True,
-                     inpemb=None, indim=dgtn.get_indim(),
+                     inpemb=None, inpembdim=dgtn.get_indim(),
                      innerdim=33)
         dgtn.set_core(dec)
 
@@ -67,9 +67,9 @@ class TestDGTN_without_attention(TestCase):
         dgtn = DGTN(reltensor=reltensor, nsteps=5, entembdim=10, relembdim=9, actembdim=8)
         # internal decoder without attention
         dec = EncDec(encoder=inpenc,
-                     inconcat=False, outconcat=False, stateconcat=True, concatdecinp=False,
+                     inconcat=True, outconcat=False, stateconcat=True, concatdecinp=False,
                      updatefirst=True,
-                     inpemb=None, indim=dgtn.get_indim(),
+                     inpemb=None, inpembdim=dgtn.get_indim(),
                      innerdim=33)
         dgtn.set_core(dec)
 
@@ -118,10 +118,20 @@ class TestDGTN_Actions_and_Helpers(TestCase):
         self.assertTrue(np.allclose(self.mainp, newaux.d.eval()))
 
     def test_exec_hop(self):
-        w = np.asarray([[1,0], [1,0], [0.2, 0.8]])
+        DGTN._max_in_hop = False
+        w = np.asarray([[1, 0], [1, 0], [0.2, 0.8]])
         newmain, newaux = self.dgtn._exec_hop(Val(w), Val(self.mainp), Val(self.auxp))
         #print self.mainp
-        #print newmain.eval()
+        print newmain.eval()
+        self.assertTrue(np.allclose(newmain.eval(), np.asarray([[ 0., 1., 0., 0.], [ 1.,   1.,   1.,   0., ], [ 0.,  0.,   0.2,  0. ]])))
+        self.assertTrue(np.allclose(newaux.d.eval(), self.auxp))
+
+    def test_exec_hop_max_in_hop(self):
+        DGTN._max_in_hop = True
+        w = np.asarray([[1, 0], [1, 0], [0.2, 0.8]])
+        newmain, newaux = self.dgtn._exec_hop(Val(w), Val(self.mainp), Val(self.auxp))
+        #print self.mainp
+        print newmain.eval()
         self.assertTrue(np.allclose(newmain.eval(), np.asarray([[ 0., 1., 0., 0.], [ 1.,   1.,   1.,   0., ], [ 0.,  0.,   0.2,  0. ]])))
         self.assertTrue(np.allclose(newaux.d.eval(), self.auxp))
 
