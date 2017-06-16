@@ -4,6 +4,8 @@ from teafacto.blocks.seq.neurex import DGTN, PWPointerLoss, KLPointerLoss
 from teafacto.blocks.seq.encdec import EncDec
 from teafacto.blocks.seq.rnn import SeqEncoder
 from teafacto.blocks.seq.attention import Attention
+from teafacto.core.base import Block, param, tensor as T
+from teafacto.blocks.activations import Softmax
 from IPython import embed
 import pickle, scipy.sparse as sp, numpy as np, re
 
@@ -176,6 +178,19 @@ def run(lr=0.1,
     tt.tock("trained")
 
 
+class Vec2Ptr(Block):
+    def __init__(self, enc, numents, **kw):
+        super(Vec2Ptr, self).__init__(**kw)
+        self.enc = enc
+        self.W = param((enc.outdim, numents)).glorotuniform()
+
+    def apply(self, x):
+        vec = self.enc(x)   # (batsize, vecdim)
+        scores = T.dot(vec, self.W)
+        probs = Softmax()(scores)
+        return probs
+
+
 def run_trainfind(lr=0.1,
         epochs=100,
         batsize=50,
@@ -189,6 +204,7 @@ def run_trainfind(lr=0.1,
         inspectdata=False,
         testpred=False,
         trainfind=False,
+        dodummy=False,
     ):
     nsteps = 1
     tt = ticktock("script")
@@ -204,27 +220,30 @@ def run_trainfind(lr=0.1,
 
     # build model
     tt.tick("building model")
-    dgtn = DGTN(reltensor=graphtensor.tensor, nsteps=nsteps,
-                entembdim=50, relembdim=50, actembdim=10)
     enc = SeqEncoder.fluent() \
         .vectorembedder(lsm.numwords, wordembdim, maskid=lsm.d("<MASK>")) \
         .addlayers([encdim] * nenclayers, dropout_in=dropout, zoneout=dropout) \
         .make()
-    dec = EncDec(encoder=enc,
-                 inconcat=True, outconcat=False, stateconcat=True, concatdecinp=False,
-                 updatefirst=False,
-                 inpemb=None, inpembdim=dgtn.get_indim(),
-                 innerdim=[innerdim] * nlayers,
-                 dropout_in=dropout,
-                 zoneout=dropout,
-                 )  # no attention
-    dgtn.set_core(dec)
+    if dodummy:
+        m = Vec2Ptr(enc, len(graphtensor._entdic))
+    else:
+        m = DGTN(reltensor=graphtensor.tensor, nsteps=nsteps,
+                    entembdim=50, relembdim=50, actembdim=10)
+        dec = EncDec(encoder=enc,
+                     inconcat=True, outconcat=False, stateconcat=True, concatdecinp=False,
+                     updatefirst=False,
+                     inpemb=None, inpembdim=dgtn.get_indim(),
+                     innerdim=[innerdim] * nlayers,
+                     dropout_in=dropout,
+                     zoneout=dropout,
+                     )  # no attention
+        m.set_core(dec)
     tt.tock("model built")
 
     # test prediction
     if testpred:
         tt.tick("doing test prediction")
-        testprediction = dgtn.predict(lmat[:5, :])
+        testprediction = m.predict(lmat[:5, :])
         tt.tock("test prediction done")
         embed()
 
@@ -233,7 +252,7 @@ def run_trainfind(lr=0.1,
 
     tt.tick("training")
 
-    dgtn.train([lmat], gold) \
+    m.train([lmat], gold) \
         .adadelta(lr=lr).loss(PWPointerLoss(balanced=True)).grad_total_norm(5.) \
         .train(numbats, epochs)
 
