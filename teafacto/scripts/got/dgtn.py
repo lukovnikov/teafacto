@@ -200,13 +200,12 @@ def run_trainfind(lr=0.1,
         wordembdim=64,
         encdim=100,
         nenclayers=1,
-        dropout=0.1,
+        dropout=0.0,
         inspectdata=False,
         testpred=False,
         trainfind=False,
         dodummy=False,
     ):
-    nsteps = 1
     tt = ticktock("script")
     tt.tick("loading graph")
     graphtensor = loadtensor()
@@ -253,7 +252,7 @@ def run_trainfind(lr=0.1,
     tt.tick("training")
 
     m.train([lmat], gold) \
-        .adadelta(lr=lr).loss(PWPointerLoss(balanced=False)).grad_total_norm(5.) \
+        .adadelta(lr=lr).loss(KLPointerLoss(softmaxnorm=False)).grad_total_norm(5.) \
         .train(numbats, epochs)
 
     tt.tock("trained")

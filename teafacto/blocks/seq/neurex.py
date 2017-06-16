@@ -208,13 +208,17 @@ class DGTN(Block):
 
 
 class KLPointerLoss(Loss):        # does softmax on pointer, then KL div
-    def __init__(self, lrg=1e0, **kw):
+    def __init__(self, lrg=1e0, softmaxnorm=True, **kw):
         super(KLPointerLoss, self).__init__(**kw)
         self.LRG = lrg
+        self.softmaxnorm = softmaxnorm
 
     def apply(self, pred, gold):        # (batsize, numents)
         EPS = 1e-6
-        pred_sm = Softmax()((pred-1)*self.LRG)
+        if self.softmaxnorm:
+            pred_sm = Softmax()((pred-1)*self.LRG)
+        else:
+            pred_sm = pred / T.sum(pred, axis=1, keepdims=True) + EPS
         gold_sm = gold / T.sum(gold, axis=1, keepdims=True) + EPS
         cross_entropy = CrossEntropy()(pred_sm, gold_sm)
         gold_entropy = CrossEntropy()(gold_sm, gold_sm)
