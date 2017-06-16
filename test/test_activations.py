@@ -1,7 +1,8 @@
 from unittest import TestCase
 import numpy as np
 from teafacto.blocks.activations import *
-from teafacto.core import Val, param
+from teafacto.core import Val, param, Block, asblock
+from teafacto.blocks.basic import *
 
 
 class TestSoftmax(TestCase):
@@ -168,7 +169,7 @@ class TestMaxHot(TestCase):
         x = Val(np.random.random((10, 5)))
         y = MaxHot(ste=True)(x)
         xval = x.d.eval()
-        xmaxhot = (xval == np.max(xval, axis=-1, keepdims=True))*1.
+        xmaxhot = np.clip((xval == np.max(xval, axis=-1, keepdims=True))*1., 1e-6, 1-1e-6)
         self.assertTrue(np.allclose(xmaxhot, y.eval()))
 
     def test_train(self):
@@ -184,6 +185,45 @@ class TestMaxHot(TestCase):
         print p.d.eval()
         print np.max(data[:, :4]) - np.max(data[:, 4])
         self.assertTrue(p.d.eval()[4] + np.max(data[:, 4]) > np.max(data[:, :4]))
+
+    def test_train_softmax(self):
+        p = param((5,), name="testparam").uniform()
+        maxhot = Softmax(maxhot=True, maxhot_ste=True)
+        m = asblock(lambda x: maxhot(x + p))
+        data = np.random.random((100, 5)).astype("float32")
+        gold = np.ones((100,)).astype("int32") * 4
+        res = m(Val(data))
+        print res.eval()
+        m.train([data], gold).bitspersym().adadelta(lr=1).train(10, 100)
+        np.set_printoptions(suppress=True, precision=2)
+        print p.d.eval()
+        print np.max(data[:, :4]) - np.max(data[:, 4])
+        self.assertTrue(p.d.eval()[4] + np.max(data[:, 4]) > np.max(data[:, :4]))
+
+    def test_train_softmax_inside(self):
+        maxhot = Softmax(maxhot=True, maxhot_ste=True)
+        class Inner(Block):
+            def __init__(self, **kw):
+                super(Inner, self).__init__(**kw)
+                self.w = param((5, 10)).glorotuniform()
+                self.smo = SMO(10, 5)
+                self.p = param((5,), name="testparam").uniform()
+
+            def apply(self, x):
+                x = maxhot(x + self.p)
+                x = T.dot(x, self.w)
+                x = self.smo(x)
+                return x
+        m = Inner()
+        data = np.random.random((100, 5)).astype("float32")
+        gold = np.ones((100,)).astype("int32") * 4
+        res = m(Val(data))
+        print res.eval()
+        m.train([data], gold).bitspersym().adadelta(lr=1).train(10, 100)
+        np.set_printoptions(suppress=True, precision=2)
+        print m.p.d.eval()
+        print np.max(data[:, :4]) - np.max(data[:, 4])
+        self.assertTrue(m.p.d.eval()[4] + np.max(data[:, 4]) > np.max(data[:, :4]))
 
 
 class TestThreshold(TestCase):

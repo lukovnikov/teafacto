@@ -193,6 +193,7 @@ class MaxHot(Activation):
         super(MaxHot, self).__init__(**kw)
 
     def innerapply(self, x, _trainmode=False, **kw):
+        EPS = 1e-6
         if self.ste is False:
             retmax = T.max(x, axis=self.axes, keepdims=True)
             ret = T.eq(x, retmax)
@@ -200,4 +201,6 @@ class MaxHot(Activation):
             return ret
         else:
             ret = self.ste(x)
+            ret += EPS
+            ret = T.clip(ret, 0, 1-EPS)
             return ret
