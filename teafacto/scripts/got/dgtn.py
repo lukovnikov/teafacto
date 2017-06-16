@@ -4,7 +4,7 @@ from teafacto.blocks.seq.neurex import DGTN, PWPointerLoss, KLPointerLoss
 from teafacto.blocks.seq.encdec import EncDec
 from teafacto.blocks.seq.rnn import SeqEncoder
 from teafacto.blocks.seq.attention import Attention
-from teafacto.core.base import Block, param, tensor as T
+from teafacto.core.base import Block, param, tensorops as T
 from teafacto.blocks.activations import Softmax
 from IPython import embed
 import pickle, scipy.sparse as sp, numpy as np, re
