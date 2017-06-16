@@ -93,6 +93,20 @@ def loadquestions(graphtensor, p="../../../data/got/generated_questions.tsv"):
     return sm, answers
 
 
+def loadentitylabels(graphtensor):
+    sm = StringMatrix(indicate_start_end=False, freqcutoff=0)
+    gold = []
+    numents = graphtensor.tensor.shape[1]
+    for id, idx in graphtensor._entdic.items():
+        sm.add(id)
+        ptr = np.zeros((1, numents), dtype="int32")
+        ptr[0, idx] = 1
+        gold.append(ptr)
+    sm.finalize()
+    gold = np.concatenate(gold, axis=0)
+    return sm, gold
+
+
 def run(lr=0.1,
         epochs=100,
         batsize=50,
@@ -105,11 +119,15 @@ def run(lr=0.1,
         dropout=0.1,
         inspectdata=False,
         testpred=False,
+        trainfind=False,
         ):
+    if trainfind:
+        run_trainfind(**locals())
     tt = ticktock("script")
     tt.tick("loading graph")
     graphtensor = loadtensor()
-    tt.tock("graph loaded").tick("loading questions")
+    tt.tock("graph loaded")
+    tt.tick("loading questions")
     qsm, answers = loadquestions(graphtensor)
     tt.tock("questions loaded")
     qmat = qsm.matrix
@@ -125,7 +143,7 @@ def run(lr=0.1,
     dgtn = DGTN(reltensor=graphtensor.tensor, nsteps=nsteps,
                 entembdim=50, relembdim=50, actembdim=10)
     enc = SeqEncoder.fluent()\
-        .vectorembedder(qsm.numwords, wordembdim, maskid=qsm.d("<RARE>"))\
+        .vectorembedder(qsm.numwords, wordembdim, maskid=qsm.d("<MASK>"))\
         .addlayers([encdim]*nenclayers, dropout_in=dropout, zoneout=dropout)\
         .make().all_outputs()
     dec = EncDec(encoder=enc,
@@ -153,6 +171,70 @@ def run(lr=0.1,
 
     dgtn.train([trainmat], traingold)\
         .adadelta(lr=lr).loss(PWPointerLoss(balanced=True)).grad_total_norm(5.)\
+        .train(numbats, epochs)
+
+    tt.tock("trained")
+
+
+def run_trainfind(lr=0.1,
+        epochs=100,
+        batsize=50,
+        nsteps=7,
+        innerdim=200,
+        nlayers=2,
+        wordembdim=64,
+        encdim=100,
+        nenclayers=2,
+        dropout=0.1,
+        inspectdata=False,
+        testpred=False,
+        trainfind=False,
+    ):
+    nsteps = 1
+    tt = ticktock("script")
+    tt.tick("loading graph")
+    graphtensor = loadtensor()
+    tt.tock("graph loaded")
+    tt.tick("loading labels")
+    lsm, gold = loadentitylabels(graphtensor)
+    tt.tock("labels loaded")
+    lmat = lsm.matrix
+    if inspectdata:
+        embed()
+
+    # build model
+    tt.tick("building model")
+    dgtn = DGTN(reltensor=graphtensor.tensor, nsteps=nsteps,
+                entembdim=50, relembdim=50, actembdim=10)
+    enc = SeqEncoder.fluent() \
+        .vectorembedder(lsm.numwords, wordembdim, maskid=lsm.d("<MASK>")) \
+        .addlayers([encdim] * nenclayers, dropout_in=dropout, zoneout=dropout) \
+        .make()
+    dec = EncDec(encoder=enc,
+                 inconcat=True, outconcat=True, stateconcat=True, concatdecinp=False,
+                 updatefirst=False,
+                 inpemb=None, inpembdim=dgtn.get_indim(),
+                 innerdim=[innerdim] * nlayers,
+                 dropout_in=dropout,
+                 zoneout=dropout,
+                 )  # no attention
+    dgtn.set_core(dec)
+    tt.tock("model built")
+
+    # test prediction
+    if testpred:
+        tt.tick("doing test prediction")
+        testprediction = dgtn.predict(lmat[:5, :])
+        tt.tock("test prediction done")
+        embed()
+
+    # training
+    numbats = (len(lmat) // batsize) + 1
+
+    tt.tick("training")
+
+    dgtn.train([lmat], gold) \
+        .adadelta(lr=lr).loss(PWPointerLoss(balanced=True)).grad_total_norm(5.) \
         .train(numbats, epochs)
 
     tt.tock("trained")
