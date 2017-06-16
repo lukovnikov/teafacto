@@ -196,7 +196,7 @@ class DGTN(Block):
         if self._gumbel_sm and not override_custom_sm:
             sm = GumbelSoftmax(deterministic_pred=True)
         elif self._maxhot_sm and not override_custom_sm:
-            sm = MaxHot(ste=True)
+            sm = Softmax(maxhot=True, maxhot_ste=True, maxhot_pred=True)
         else:
             sm = Softmax()
         att = sm(att)
