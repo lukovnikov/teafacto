@@ -227,7 +227,7 @@ def run_trainfind(lr=0.1,
         m = Vec2Ptr(enc, len(graphtensor._entdic))
     else:
         m = DGTN(reltensor=graphtensor.tensor, nsteps=nsteps,
-                    entembdim=50, relembdim=50, actembdim=10)
+                    entembdim=50, relembdim=50, actembdim=10, gumbel=True)
         dec = EncDec(encoder=enc,
                      inconcat=True, outconcat=False, stateconcat=True, concatdecinp=False,
                      updatefirst=False,
@@ -252,7 +252,7 @@ def run_trainfind(lr=0.1,
     tt.tick("training")
 
     m.train([lmat], gold) \
-        .adadelta(lr=lr).loss(PWPointerLoss(balanced=True)).grad_total_norm(5.) \
+        .adadelta(lr=lr).loss(PWPointerLoss(balanced=True)).grad_total_norm(1.) \
         .train(numbats, epochs)
 
     tt.tock("trained")

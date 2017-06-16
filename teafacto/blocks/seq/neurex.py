@@ -1,6 +1,6 @@
 from teafacto.core.base import Block, param, tensorops as T, Val
 from teafacto.blocks.basic import Forward
-from teafacto.blocks.activations import Softmax
+from teafacto.blocks.activations import Softmax, GumbelSoftmax
 from teafacto.blocks.seq import GRU
 from teafacto.blocks.seq.rnn import MakeRNU, RecStack
 from teafacto.util import issequence
@@ -26,6 +26,7 @@ class DGTN(Block):
                  actionsummary=True,
                  relationsummary=True,
                  entitysummary=True,
+                 gumbel=False,
                  **kw):
         super(DGTN, self).__init__(**kw)
         self.reltensor = Val(reltensor.astype("float32"))
@@ -44,6 +45,7 @@ class DGTN(Block):
         self.actemb = param((self.numacts, self.actembdim), name="action_embeddings").glorotuniform()
         self.core = None
         self._encoder = None
+        self._gumbel_sm = gumbel
 
     def set_core(self, core):
         self.core = core
@@ -189,7 +191,8 @@ class DGTN(Block):
     # HELPER METHODS        # have tests
     def _get_att(self, crit, data): # (batsize, critdim), (num, embdim) -> (batsize, num)
         att = T.tensordot(crit, data, axes=([1], [1]))
-        att = Softmax()(att)
+        sm = Softmax() if self._gumbel_sm is False else GumbelSoftmax(deterministic_pred=True)
+        att = sm(att)
         return att
 
     def _summarize_by_prob(self, w, data):  # (batsize, num), (num, embdim)
