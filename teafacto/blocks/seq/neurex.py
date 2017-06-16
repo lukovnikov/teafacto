@@ -1,6 +1,6 @@
 from teafacto.core.base import Block, param, tensorops as T, Val
 from teafacto.blocks.basic import Forward
-from teafacto.blocks.activations import Softmax, GumbelSoftmax
+from teafacto.blocks.activations import Softmax, GumbelSoftmax, MaxHot
 from teafacto.blocks.seq import GRU
 from teafacto.blocks.seq.rnn import MakeRNU, RecStack
 from teafacto.util import issequence
@@ -27,6 +27,7 @@ class DGTN(Block):
                  relationsummary=True,
                  entitysummary=True,
                  gumbel=False,
+                 maxhot=False,
                  **kw):
         super(DGTN, self).__init__(**kw)
         self.reltensor = Val(reltensor.astype("float32"))
@@ -46,6 +47,7 @@ class DGTN(Block):
         self.core = None
         self._encoder = None
         self._gumbel_sm = gumbel
+        self._maxhot_sm = maxhot
 
     def set_core(self, core):
         self.core = core
@@ -112,7 +114,7 @@ class DGTN(Block):
         to_relselect = if_t[:, self.actembdim+self.entembdim:self.actembdim+self.entembdim+self.relembdim]
         # compute interface weights
         act_weights = self._get_att(to_actselect, self.actemb)
-        ent_weights = self._get_att(to_entselect, self.entemb)
+        ent_weights = self._get_att(to_entselect, self.entemb, override_custom_sm=True)
         rel_weights = self._get_att(to_relselect, self.relemb)
         # execute ops
         p_t_main, p_t_aux = T.zeros_like(p_tm1_main), T.zeros_like(p_tm1_aux)
@@ -189,9 +191,14 @@ class DGTN(Block):
         return b, a
 
     # HELPER METHODS        # have tests
-    def _get_att(self, crit, data): # (batsize, critdim), (num, embdim) -> (batsize, num)
+    def _get_att(self, crit, data, override_custom_sm=False): # (batsize, critdim), (num, embdim) -> (batsize, num)
         att = T.tensordot(crit, data, axes=([1], [1]))
-        sm = Softmax() if self._gumbel_sm is False else GumbelSoftmax(deterministic_pred=True)
+        if self._gumbel_sm and not override_custom_sm:
+            sm = GumbelSoftmax(deterministic_pred=True)
+        elif self._maxhot_sm and not override_custom_sm:
+            sm = MaxHot(ste=True)
+        else:
+            sm = Softmax()
         att = sm(att)
         return att
 

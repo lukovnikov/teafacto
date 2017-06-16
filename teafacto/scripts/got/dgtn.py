@@ -205,6 +205,7 @@ def run_trainfind(lr=0.1,
         testpred=False,
         trainfind=False,
         dodummy=False,
+        smmode="sm",            # "sm" or "maxhot" or "gumbel"
     ):
     tt = ticktock("script")
     tt.tick("loading graph")
@@ -227,7 +228,7 @@ def run_trainfind(lr=0.1,
         m = Vec2Ptr(enc, len(graphtensor._entdic))
     else:
         m = DGTN(reltensor=graphtensor.tensor, nsteps=nsteps,
-                    entembdim=50, relembdim=50, actembdim=10, gumbel=False)
+                    entembdim=50, relembdim=50, actembdim=10, gumbel=smmode=="gumbel", maxhot=smmode=="maxhot")
         dec = EncDec(encoder=enc,
                      inconcat=True, outconcat=False, stateconcat=True, concatdecinp=False,
                      updatefirst=False,
