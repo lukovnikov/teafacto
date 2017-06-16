@@ -152,7 +152,7 @@ def run(lr=0.1,
     tt.tick("training")
 
     dgtn.train([trainmat], traingold)\
-        .adadelta(lr=lr).loss(PWPointerLoss()).grad_total_norm(5.)\
+        .adadelta(lr=lr).loss(PWPointerLoss(balanced=True)).grad_total_norm(5.)\
         .train(numbats, epochs)
 
     tt.tock("trained")
