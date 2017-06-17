@@ -231,6 +231,7 @@ def run_trainfind(lr=0.1,
         m = DGTN_S(reltensor=graphtensor.tensor, nsteps=nsteps,
                    entembdim=200, actembdim=10,
                    attentiondim=encdim,
+                   entitysummary=False, relationsummary=False,
                    gumbel=smmode=="gumbel", maxhot=smmode=="maxhot")
         dec = EncDec(encoder=enc,
                      inconcat=True, outconcat=True, stateconcat=True, concatdecinp=False,
