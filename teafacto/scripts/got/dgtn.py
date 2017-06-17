@@ -195,6 +195,7 @@ def run_trainfind(lr=0.1,
         epochs=100,
         batsize=50,
         nsteps=7,
+        gradnorm=5,
         innerdim=210,
         nlayers=2,
         wordembdim=64,
@@ -256,7 +257,7 @@ def run_trainfind(lr=0.1,
     tt.tick("training")
 
     m.train([lmat], gold) \
-        .adadelta(lr=lr).loss(PWPointerLoss(balanced=True)).grad_total_norm(1.) \
+        .adadelta(lr=lr).loss(PWPointerLoss(balanced=True)).grad_total_norm(gradnorm) \
         .train(numbats, epochs)
 
     tt.tock("trained")
