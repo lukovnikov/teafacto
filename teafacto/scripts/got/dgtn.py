@@ -1,6 +1,6 @@
 from teafacto.util import ticktock, argprun, tokenize, StringMatrix
 from teafacto.procutil import *
-from teafacto.blocks.seq.neurex import DGTN, PWPointerLoss, KLPointerLoss
+from teafacto.blocks.seq.neurex import DGTN, DGTN_S, PWPointerLoss, KLPointerLoss
 from teafacto.blocks.seq.encdec import EncDec
 from teafacto.blocks.seq.rnn import SeqEncoder
 from teafacto.blocks.seq.attention import Attention
@@ -195,14 +195,14 @@ def run_trainfind(lr=0.1,
         epochs=100,
         batsize=50,
         nsteps=7,
-        innerdim=200,
+        innerdim=210,
         nlayers=2,
         wordembdim=64,
         encdim=100,
         nenclayers=1,
         dropout=0.0,
         inspectdata=False,
-        testpred=False,
+        testpred=True,
         trainfind=False,
         dodummy=False,
         smmode="sm",            # "sm" or "maxhot" or "gumbel"
@@ -223,20 +223,23 @@ def run_trainfind(lr=0.1,
     enc = SeqEncoder.fluent() \
         .vectorembedder(lsm.numwords, wordembdim, maskid=lsm.d("<MASK>")) \
         .addlayers([encdim] * nenclayers, dropout_in=dropout, zoneout=dropout) \
-        .make()
+        .make().all_outputs()
     if dodummy:
         m = Vec2Ptr(enc, len(graphtensor._entdic))
     else:
-        m = DGTN(reltensor=graphtensor.tensor, nsteps=nsteps,
-                    entembdim=50, relembdim=50, actembdim=10, gumbel=smmode=="gumbel", maxhot=smmode=="maxhot")
+        m = DGTN_S(reltensor=graphtensor.tensor, nsteps=nsteps,
+                   entembdim=200, actembdim=10,
+                   attentiondim=encdim,
+                   gumbel=smmode=="gumbel", maxhot=smmode=="maxhot")
         dec = EncDec(encoder=enc,
-                     inconcat=True, outconcat=False, stateconcat=True, concatdecinp=False,
+                     inconcat=True, outconcat=True, stateconcat=True, concatdecinp=False,
                      updatefirst=False,
                      inpemb=None, inpembdim=m.get_indim(),
                      innerdim=[innerdim] * nlayers,
                      dropout_in=dropout,
                      zoneout=dropout,
-                     )  # no attention
+                     attention=Attention(),
+                     )
         m.set_core(dec)
     tt.tock("model built")
 

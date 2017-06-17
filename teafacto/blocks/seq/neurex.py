@@ -1,10 +1,11 @@
-from teafacto.core.base import Block, param, tensorops as T, Val
+from teafacto.core.base import Block, param, tensorops as T, Val, asblock
 from teafacto.blocks.basic import Forward
 from teafacto.blocks.activations import Softmax, GumbelSoftmax, MaxHot
 from teafacto.blocks.seq import GRU
 from teafacto.blocks.seq.rnn import MakeRNU, RecStack
 from teafacto.util import issequence
 from teafacto.blocks.loss import Loss, CrossEntropy, BinaryCrossEntropy
+import numpy as np
 
 
 # TODO: write tests (esp. for with attention)
@@ -48,6 +49,8 @@ class DGTN(Block):
         self._encoder = None
         self._gumbel_sm = gumbel
         self._maxhot_sm = maxhot
+        self._act_sel_mask = np.ones((self.numacts,))
+        self._act_name_to_int = {"find": 1, "hop": 2, "intersect": 3, "union": 4, "difference": 5, "swap": 6}
 
     def set_core(self, core):
         self.core = core
@@ -100,6 +103,13 @@ class DGTN(Block):
             p_0 = T.zeros((batsize, 2, self.numents))
         return [x_0, p_0] + init_info, nonseqs
 
+    def _get_interface(self, y_t):
+        if_t = self.interfaceblock(y_t)    # (batsize, ifdim)
+        to_actselect = if_t[:, 0:self.actembdim]
+        to_entselect = if_t[:, self.actembdim:self.actembdim+self.entembdim]
+        to_relselect = if_t[:, self.actembdim+self.entembdim:self.actembdim+self.entembdim+self.relembdim]
+        return to_actselect, to_entselect, to_relselect
+
     def inner_rec(self, x_t, p_tm1, *args):
         p_tm1_main = p_tm1[:, 0, :]
         p_tm1_aux = p_tm1[:, 1, :]
@@ -108,12 +118,9 @@ class DGTN(Block):
         y_t = rnuret[0]
         newargs = rnuret[1:]
         # get interfaces
-        if_t = self.interfaceblock(y_t)    # (batsize, ifdim)
-        to_actselect = if_t[:, 0:self.actembdim]
-        to_entselect = if_t[:, self.actembdim:self.actembdim+self.entembdim]
-        to_relselect = if_t[:, self.actembdim+self.entembdim:self.actembdim+self.entembdim+self.relembdim]
+        to_actselect, to_entselect, to_relselect = self._get_interface(y_t)
         # compute interface weights
-        act_weights = self._get_att(to_actselect, self.actemb)
+        act_weights = self._get_att(to_actselect, self.actemb, mask=Val(self._act_sel_mask))
         ent_weights = self._get_att(to_entselect, self.entemb, override_custom_sm=True)
         rel_weights = self._get_att(to_relselect, self.relemb)
         # execute ops
@@ -151,7 +158,20 @@ class DGTN(Block):
         o_t = p_t_main
         return [o_t, x_tp1, p_t] + newargs
 
-    # EXECUTION METHODS     # all below have tests
+    # ACTION METHODS     # all below have tests
+    def disable(self, actionname):
+        if actionname == "all":
+            self._act_sel_mask[1:] = 0
+        else:
+            actaddr = self._act_name_to_int[actionname]
+            self._act_sel_mask[actaddr] = 0
+        return self
+
+    def enable(self, actionname):
+        actaddr = self._act_name_to_int[actionname]
+        self._act_sel_mask[actaddr] = 1
+        return self
+
     def _merge_exec(self, newps, oldmain, oldaux, w):
         w = w.dimadd(1)
         newmain, newaux = newps
@@ -191,8 +211,11 @@ class DGTN(Block):
         return b, a
 
     # HELPER METHODS        # have tests
-    def _get_att(self, crit, data, override_custom_sm=False): # (batsize, critdim), (num, embdim) -> (batsize, num)
-        att = T.tensordot(crit, data, axes=([1], [1]))
+    def _get_att(self, crit, data, mask=None, override_custom_sm=False): # (batsize, critdim), (num, embdim) -> (batsize, num)
+        att = T.tensordot(crit, data, axes=([1], [1]))  # (batsize, num*)
+        if mask is not None:    # (num*)
+            mask = mask.dimadd(0).repeat(att.shape[0], axis=0)
+            att.mask = mask
         if self._gumbel_sm and not override_custom_sm:
             sm = GumbelSoftmax(deterministic_pred=True)
         elif self._maxhot_sm and not override_custom_sm:
@@ -212,9 +235,42 @@ class DGTN(Block):
         ret = ret / (nor + 1e-6)            # normalize to average
         return ret
 
-
     @property
     def numstates(self):    return self.core.numstates
+
+
+class DGTN_S(DGTN):
+    def __init__(self,
+                 # core settings
+                 reltensor=None,
+                 nsteps=None,
+                 entembdim=None,
+                 actembdim=None,
+                 attentiondim=None,
+                 # what to use as input to compute next state
+                 pointersummary=True,
+                 actionsummary=True,
+                 relationsummary=True,
+                 entitysummary=True,
+                 gumbel=False,
+                 maxhot=False,
+                 **kw):
+        super(DGTN_S, self).__init__(reltensor=reltensor, nsteps=nsteps, entembdim=entembdim,
+                                     relembdim=entembdim, actembdim=actembdim,
+                                     pointersummary=pointersummary, actionsummary=actionsummary, entitysummary=entitysummary, relationsummary=relationsummary,
+                                     gumbel=gumbel, maxhot=maxhot, **kw)
+        self.attentiondim = attentiondim
+
+    def set_core(self, core):
+        self.core = core
+        self.core.attentiontransformer = \
+            asblock(lambda x: x[:, self.actembdim:self.actembdim+self.attentiondim])
+
+    def _get_interface(self, y_t):
+        to_actselect = y_t[:, 0:self.actembdim]
+        to_entselect = y_t[:, -self.entembdim:]
+        to_relselect = y_t[:, -self.entembdim:]
+        return to_actselect, to_entselect, to_relselect
 
 
 class KLPointerLoss(Loss):        # does softmax on pointer, then KL div
