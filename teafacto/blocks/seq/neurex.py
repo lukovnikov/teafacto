@@ -356,5 +356,38 @@ class PWPointerLoss(Loss):
         return ret
 
 
+class PointerRecall(Loss):
+    EPS = 1e-6
+
+    def apply(self, pred, gold):
+        pred = pred > 0.5   # (batsize, numents), 0 or 1 (same for gold)
+        recall = pred * gold
+        recall_norm = T.sum(gold, axis=1, keepdims=True) + self.EPS
+        recall /= recall_norm
+        return recall
+
+
+class PointerPrecision(Loss):
+    EPS = 1e-6
+
+    def apply(self, pred, gold):
+        pred = pred > 0.5
+        precision = pred * gold
+        prec_norm = T.sum(pred, axis=1, keepdims=True) + self.EPS
+        precision /= prec_norm
+        return precision
+
+
+class PointerFscore(Loss):
+    EPS = 1e-6
+
+    def apply(self, pred, gold):
+        recall = PointerRecall()(pred, gold)
+        precision = PointerPrecision()(pred, gold)
+        fscore = 2 * recall * precision / (recall + precision + self.EPS)
+        return fscore
+
+
+
 
 

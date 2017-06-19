@@ -1,6 +1,6 @@
 from teafacto.util import ticktock, argprun, tokenize, StringMatrix
 from teafacto.procutil import *
-from teafacto.blocks.seq.neurex import DGTN, DGTN_S, PWPointerLoss, KLPointerLoss
+from teafacto.blocks.seq.neurex import DGTN, DGTN_S, PWPointerLoss, KLPointerLoss, PointerRecall, PointerFscore, PointerPrecision
 from teafacto.blocks.seq.encdec import EncDec
 from teafacto.blocks.seq.rnn import SeqEncoder
 from teafacto.blocks.seq.attention import Attention
@@ -245,8 +245,8 @@ def run(lr=0.1,
     dgtn._no_extra_ret()
 
     dgtn.train([trainmat], traingold)\
-        .adadelta(lr=lr).loss(PWPointerLoss(balanced=True)).grad_total_norm(5.)\
-        .validate_on([validmat], validgold).loss(PWPointerLoss(balanced=True))\
+        .adadelta(lr=lr).loss(PWPointerLoss(balanced=True)).loss(PointerFscore()).grad_total_norm(5.)\
+        .validate_on([validmat], validgold).loss(PWPointerLoss(balanced=True)).loss(PointerFscore()).loss(PointerRecall()).loss(PointerPrecision())\
         .train(numbats, epochs)
 
     tt.tock("trained")
