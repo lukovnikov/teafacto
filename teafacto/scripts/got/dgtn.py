@@ -175,7 +175,7 @@ def run(lr=0.1,
         withstart=False,
         actionoverride=False,
         smmode="sm",        # "sm" or "gumbel" or "maxhot"
-        debug=True,
+        debug=False,
         ):
     if debug:
         inspectdata = True
