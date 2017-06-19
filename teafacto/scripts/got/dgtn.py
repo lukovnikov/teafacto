@@ -182,14 +182,15 @@ def run(lr=0.1,
         traingold = answers[tvt==0]
         validgold = answers[tvt==1]
         testgold = answers[tvt==2]
-    else:
-        qsm, answers = loadquestions(graphtensor, simple=simple)
-        qmat = qsm.matrix
         tt.tock("{} questions loaded".format(len(qmat)))
+    else:
+        qsm, answers = loadquestions(graphtensor)
+        qmat = qsm.matrix
         # split 80/10/10
         splita, splitb = int(round(len(qmat) * 0.8)), int(round(len(qmat) * 0.9))
         trainmat, validmat, testmat = qmat[:splita, :], qmat[splita:splitb, :], qmat[splitb:, :]
         traingold, validgold, testgold = answers[:splita, :], answers[splita:splitb, :], answers[splitb:, :]
+        tt.tock("{} questions loaded".format(len(qmat)))
     if inspectdata:
         embed()
 
@@ -245,8 +246,8 @@ def run(lr=0.1,
     dgtn._no_extra_ret()
 
     dgtn.train([trainmat], traingold)\
-        .adadelta(lr=lr).loss(PWPointerLoss(balanced=True)).loss(PointerFscore()).grad_total_norm(5.)\
-        .validate_on([validmat], validgold).loss(PWPointerLoss(balanced=True)).loss(PointerFscore()).loss(PointerRecall()).loss(PointerPrecision())\
+        .adadelta(lr=lr).loss(PWPointerLoss(balanced=False)).loss(PointerFscore()).grad_total_norm(5.)\
+        .validate_on([validmat], validgold).loss(PWPointerLoss(balanced=False)).loss(PointerFscore()).loss(PointerRecall()).loss(PointerPrecision())\
         .train(numbats, epochs)
 
     tt.tock("trained")
