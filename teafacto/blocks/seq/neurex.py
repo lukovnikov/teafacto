@@ -14,6 +14,7 @@ class DGTN(Block):
     numacts = 7
     _max_in_hop = True
     _min_in_intersect = False
+    EPS = 1e-6
 
     def __init__(self,
                  # core settings
@@ -92,6 +93,8 @@ class DGTN(Block):
                          non_sequences=list(nonseqs),
                          n_steps=self.nsteps)
         lastmainpointer = outputs[0][-1, :, :]
+        if self._maxhot_sm:
+            lastmainpointer = T.clip(lastmainpointer, 0+self.EPS, 1-self.EPS)
         return lastmainpointer
 
     def get_inits(self, batsize, ctx, p_main_0=None):
@@ -122,7 +125,7 @@ class DGTN(Block):
         # compute interface weights
         act_weights = self._get_att(to_actselect, self.actemb, mask=Val(self._act_sel_mask))
         ent_weights = self._get_att(to_entselect, self.entemb, override_custom_sm=True)
-        rel_weights = self._get_att(to_relselect, self.relemb)
+        rel_weights = self._get_att(to_relselect, self.relemb, override_custom_sm=True)
         # execute ops
         p_t_main, p_t_aux = T.zeros_like(p_tm1_main), T.zeros_like(p_tm1_aux)
         p_t_main, p_t_aux = \

@@ -185,6 +185,7 @@ class GumbelSoftmax(Activation):
 
 
 class MaxHot(Activation):
+    EPS = 0
     def __init__(self, axes=-1, ste=False, **kw):
         self.axes = axes
         self.ste = ste
@@ -193,7 +194,6 @@ class MaxHot(Activation):
         super(MaxHot, self).__init__(**kw)
 
     def innerapply(self, x, _trainmode=False, **kw):
-        EPS = 1e-6
         if self.ste is False:
             retmax = T.max(x, axis=self.axes, keepdims=True)
             ret = T.eq(x, retmax)
@@ -201,6 +201,6 @@ class MaxHot(Activation):
             return ret
         else:
             ret = self.ste(x)
-            ret += EPS
-            ret = T.clip(ret, 0, 1-EPS)
+            ret += self.EPS
+            ret = T.clip(ret, 0, 1-self.EPS)
             return ret
