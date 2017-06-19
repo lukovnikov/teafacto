@@ -106,6 +106,7 @@ def load_simple_questions(graphtensor,
     numents = graphtensor.tensor.shape[1]
     sm = StringMatrix(freqcutoff=2, indicate_start_end=True)
     tvt = []
+    starts = []
     with open(p) as f:
         for line in f:
             tvti, numrels, numbranch, ambi, question, startents, answerents \
@@ -113,25 +114,34 @@ def load_simple_questions(graphtensor,
             tvti, numrels, numbranch, ambi = map(int, [tvti, numrels, numbranch, ambi])
             tvt.append(tvti)
             # preprocess questions
-            if simple and numrels != 1:
-                continue
-            else:
-                sm.add(question)
-                # answers
-                answerentss = [graphtensor.ed[(answer if answer[0] == ":" else ":" + answer).strip()]
-                               for answer in answerents.split(",:")]
-                try:
-                    answerents = np.asarray(answerentss).astype("int32")
-                except TypeError, e:
-                    print answer
-                    print answerents
-                answerpointer = np.zeros((1, numents,))
-                answerpointer[0, answerents] = 1
-                answers.append(answerpointer)
+            sm.add(question)
+            # answers
+            answerentss = [graphtensor.ed[(answer if answer[0] == ":" else ":" + answer).strip()]
+                           for answer in answerents.split(",:")]
+            try:
+                answerents = np.asarray(answerentss).astype("int32")
+            except TypeError, e:
+                print answer
+                print answerents
+            answerpointer = np.zeros((1, numents,))
+            answerpointer[0, answerents] = 1
+            answers.append(answerpointer)
+            # starts
+            startentss = [graphtensor.ed[(startent if startent[0] == ":" else ":" + startent).strip()]
+                           for startent in startents.split(",:")]
+            try:
+                startents = np.asarray(startentss).astype("int32")
+            except TypeError, e:
+                print startent
+                print startents
+            startpointer = np.zeros((1, numents,))
+            startpointer[0, startents] = 1
+            starts.append(startpointer)
     sm.finalize()
     # embed()
     answers = np.concatenate(answers, axis=0)
-    return sm, answers, tvt
+    starts = np.concatenate(starts, axis=0)
+    return sm, answers, tvt, starts
 
 
 def loadentitylabels(graphtensor):
@@ -162,6 +172,7 @@ def run(lr=0.1,
         testpred=False,
         trainfind=False,
         simple=False,
+        withstart=False,
         actionoverride=False,
         smmode="sm",        # "sm" or "gumbel" or "maxhot"
         ):
@@ -173,7 +184,7 @@ def run(lr=0.1,
     tt.tock("graph loaded")
     tt.tick("loading questions")
     if simple:
-        qsm, answers, tvt = load_simple_questions(graphtensor)
+        qsm, answers, tvt, startents = load_simple_questions(graphtensor)
         qmat = qsm.matrix
         tvt = np.asarray(tvt)
         trainmat = qmat[tvt==0, :]
@@ -182,6 +193,13 @@ def run(lr=0.1,
         traingold = answers[tvt==0]
         validgold = answers[tvt==1]
         testgold = answers[tvt==2]
+        trainstartents = startents[tvt==0]
+        validstartents = startents[tvt==1]
+        teststartents = startents[tvt==2]
+        if withstart:
+            traindata, validdata, testdata = [trainmat, trainstartents], [validmat, validstartents], [testmat, teststartents]
+        else:
+            traindata, validdata, testdata = [trainmat], [validmat], [testmat]
         tt.tock("{} questions loaded".format(len(qmat)))
     else:
         qsm, answers = loadquestions(graphtensor)
@@ -190,17 +208,24 @@ def run(lr=0.1,
         splita, splitb = int(round(len(qmat) * 0.8)), int(round(len(qmat) * 0.9))
         trainmat, validmat, testmat = qmat[:splita, :], qmat[splita:splitb, :], qmat[splitb:, :]
         traingold, validgold, testgold = answers[:splita, :], answers[splita:splitb, :], answers[splitb:, :]
+        traindata, validdata, testdata = [trainmat], [validmat], [testmat]
         tt.tock("{} questions loaded".format(len(qmat)))
     if inspectdata:
         embed()
 
     if actionoverride:
         if simple:
-            tt.msg("doing action override with find-hop template for simple questions")
-            assert(nsteps >= 2)
-            actionoverride = np.zeros((nsteps, DGTN_S.numacts), dtype="float32")
-            actionoverride[0, 1] = 1.
-            actionoverride[1, 2] = 1.
+            if not withstart:
+                tt.msg("doing action override with find-hop template for simple questions")
+                assert(nsteps >= 2)
+                actionoverride = np.zeros((nsteps, DGTN_S.numacts), dtype="float32")
+                actionoverride[0, 1] = 1.
+                actionoverride[1, 2] = 1.
+            else:
+                tt.msg("doing action override with only a hop for simple questions")
+                assert(nsteps >= 1)
+                actionoverride = np.zeros((nsteps, DGTN_S.numacts), dtype="float32")
+                actionoverride[0, 2] = 1.
         else:
             raise Exception("don't know how to override non-simple")
     else:
