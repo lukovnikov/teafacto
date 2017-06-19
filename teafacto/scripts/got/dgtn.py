@@ -187,12 +187,10 @@ def run(lr=0.1,
     dgtn._ret_entities = True
     dgtn._ret_relations = True
     predf = dgtn.predict
+    testprediction, actions, entities, relations = predf(testmat[:5, :])
 
     # test prediction
     if testpred:
-        tt.tick("doing test prediction")
-        testprediction, actions, entities, relations = predf(testmat[:5, :])
-        tt.tock("test prediction done")
         embed()
 
     # training
@@ -207,6 +205,7 @@ def run(lr=0.1,
         .train(numbats, epochs)
 
     tt.tock("trained")
+    embed()
 
 
 class Vec2Ptr(Block):
