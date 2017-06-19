@@ -361,9 +361,9 @@ class PointerRecall(Loss):
 
     def apply(self, pred, gold):
         pred = pred > 0.5   # (batsize, numents), 0 or 1 (same for gold)
-        recall = pred * gold
-        recall_norm = T.sum(gold, axis=1, keepdims=True) + self.EPS
-        recall /= recall_norm
+        tp = T.sum(pred * gold, axis=1)
+        recall_norm = T.sum(gold, axis=1) + self.EPS
+        recall = tp / recall_norm
         return recall
 
 
@@ -372,9 +372,9 @@ class PointerPrecision(Loss):
 
     def apply(self, pred, gold):
         pred = pred > 0.5
-        precision = pred * gold
-        prec_norm = T.sum(pred, axis=1, keepdims=True) + self.EPS
-        precision /= prec_norm
+        tp = T.sum(pred * gold, axis=1)
+        prec_norm = T.sum(pred, axis=1) + self.EPS
+        precision = tp / prec_norm
         return precision
 
 
