@@ -223,9 +223,10 @@ def run(lr=0.1,
                 actionoverride[1, 2] = 1.
             else:
                 tt.msg("doing action override with only a hop for simple questions")
-                assert(nsteps >= 1)
+                assert(nsteps >= 2)
                 actionoverride = np.zeros((nsteps, DGTN_S.numacts), dtype="float32")
                 actionoverride[0, 2] = 1.
+                actionoverride[1, 0] = 1.
         else:
             raise Exception("don't know how to override non-simple")
     else:
