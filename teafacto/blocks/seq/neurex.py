@@ -30,6 +30,8 @@ class DGTN(Block):
                  entitysummary=True,
                  gumbel=False,
                  maxhot=False,
+                 # override action sequence by fixed global action sequence
+                 action_override=None,
                  **kw):
         super(DGTN, self).__init__(**kw)
         self.reltensor = Val(reltensor.astype("float32"))
@@ -52,6 +54,13 @@ class DGTN(Block):
         self._maxhot_sm = maxhot
         self._act_sel_mask = np.ones((self.numacts,))
         self._act_name_to_int = {"find": 1, "hop": 2, "intersect": 3, "union": 4, "difference": 5, "swap": 6}
+        # return options
+        self._ret_actions = False
+        self._ret_entities = False
+        self._ret_relations = False
+        self._ret_all_main_ptrs = False
+        # action override
+        self._action_override = Val(action_override) if action_override is not None else None
 
     def set_core(self, core):
         self.core = core
@@ -88,14 +97,46 @@ class DGTN(Block):
         inpenc = self.encoder(x)        # 2D or 3D
         batsize = inpenc.shape[0]
         init_info, nonseqs = self.get_inits(batsize, inpenc, p_main_0=p_main_0)
+        if self._action_override is None:
+            action_override = T.zeros((self.nsteps, batsize, self.numacts))
+        else:
+            action_override = self._action_override.dimadd(1)\
+                .repeat(batsize, axis=1)
         outputs = T.scan(fn=self.inner_rec,
-                         outputs_info=[None] + init_info,
+                         sequences=[action_override],
+                         outputs_info=[None]*4 + init_info,
                          non_sequences=list(nonseqs),
                          n_steps=self.nsteps)
-        lastmainpointer = outputs[0][-1, :, :]
+        mainpointers = outputs[0].dimswap(0, 1)     # (batsize, nsteps, nentities)
+        action_weights = outputs[1].dimswap(0, 1)   # (batsize, nsteps, nactions)
+        entity_weights = outputs[2].dimswap(0, 1)   # (batsize, nsteps, nentities)
+        relation_weights = outputs[3].dimswap(0, 1)
+        lastmainpointer = mainpointers[:, -1, :]
         if self._maxhot_sm:
             lastmainpointer = T.clip(lastmainpointer, 0+self.EPS, 1-self.EPS)
-        return lastmainpointer
+        return self._get_output(lastmainpointer, mainpointers,
+                                action_weights, entity_weights, relation_weights)
+
+    def _get_output(self, lmptr, mptr, aw, ew, rw):
+        ret = (lmptr,)
+        if self._ret_all_main_ptrs:
+            ret += (mptr,)
+        if self._ret_actions:
+            ret += (aw,)
+        if self._ret_entities:
+            ret += (ew,)
+        if self._ret_relations:
+            ret += (rw,)
+        if len(ret) == 1:
+            return ret[0]
+        else:
+            return ret
+
+    def _no_extra_ret(self):
+        self._ret_all_main_ptrs = \
+            self._ret_actions = \
+            self._ret_entities = \
+            self._ret_relations = False
 
     def get_inits(self, batsize, ctx, p_main_0=None):
         init_info, nonseqs = self.core.get_inits(batsize, ctx)
@@ -113,7 +154,7 @@ class DGTN(Block):
         to_relselect = if_t[:, self.actembdim+self.entembdim:self.actembdim+self.entembdim+self.relembdim]
         return to_actselect, to_entselect, to_relselect
 
-    def inner_rec(self, x_t, p_tm1, *args):
+    def inner_rec(self, action_override_t, x_t, p_tm1, *args):
         p_tm1_main = p_tm1[:, 0, :]
         p_tm1_aux = p_tm1[:, 1, :]
         # execute rnn
@@ -123,7 +164,10 @@ class DGTN(Block):
         # get interfaces
         to_actselect, to_entselect, to_relselect = self._get_interface(y_t)
         # compute interface weights
-        act_weights = self._get_att(to_actselect, self.actemb, mask=Val(self._act_sel_mask))
+        if self._action_override is None:
+            act_weights = self._get_att(to_actselect, self.actemb, mask=Val(self._act_sel_mask))
+        else:
+            act_weights = action_override_t
         ent_weights = self._get_att(to_entselect, self.entemb, override_custom_sm=True)
         rel_weights = self._get_att(to_relselect, self.relemb, override_custom_sm=True)
         # execute ops
@@ -159,7 +203,7 @@ class DGTN(Block):
         if self.relationsummary:    concatdis += [rel_summ]
         x_tp1 = T.concatenate(concatdis, axis=1)
         o_t = p_t_main
-        return [o_t, x_tp1, p_t] + newargs
+        return [o_t, act_weights, ent_weights, rel_weights, x_tp1, p_t] + newargs
 
     # ACTION METHODS     # all below have tests
     def disable(self, actionname):
@@ -224,7 +268,7 @@ class DGTN(Block):
         elif self._maxhot_sm and not override_custom_sm:
             sm = Softmax(maxhot=True, maxhot_ste=True, maxhot_pred=True)
         else:
-            sm = Softmax()
+            sm = Softmax(maxhot_pred=True)
         att = sm(att)
         return att
 

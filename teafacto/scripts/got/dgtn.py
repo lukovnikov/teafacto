@@ -128,6 +128,7 @@ def run(lr=0.1,
         testpred=False,
         trainfind=False,
         simple=False,
+        actionoverride=False,
         smmode="sm",        # "sm" or "gumbel" or "maxhot"
         ):
     if trainfind:
@@ -137,7 +138,7 @@ def run(lr=0.1,
     graphtensor = loadtensor()
     tt.tock("graph loaded")
     tt.tick("loading questions")
-    qsm, answers = loadquestions(graphtensor)
+    qsm, answers = loadquestions(graphtensor, simple=simple)
     tt.tock("questions loaded")
     qmat = qsm.matrix
     # split 80/10/10
@@ -147,11 +148,24 @@ def run(lr=0.1,
     if inspectdata:
         embed()
 
+    if actionoverride:
+        if simple:
+            assert(nsteps >= 2)
+            actionoverride = np.zeros((nsteps, DGTN_S.numacts), dtype="float32")
+            actionoverride[0, 1] = 1.
+            actionoverride[1, 2] = 1.
+        else:
+            raise Exception("don't know how to override non-simple")
+    else:
+        actionoverride = None
+
+
     # build model
     tt.tick("building model")
     dgtn = DGTN_S(reltensor=graphtensor.tensor, nsteps=nsteps,
                 entembdim=200, actembdim=10, attentiondim=encdim,
                 entitysummary=False, relationsummary=False,
+                action_override=actionoverride,
                 gumbel=smmode=="gumbel", maxhot=smmode=="maxhot")
     enc = SeqEncoder.fluent()\
         .vectorembedder(qsm.numwords, wordembdim, maskid=qsm.d("<MASK>"))\
@@ -168,10 +182,15 @@ def run(lr=0.1,
     dgtn.set_core(dec)
     tt.tock("model built")
 
+    dgtn._ret_actions = True
+    dgtn._ret_entities = True
+    dgtn._ret_relations = True
+    predf = dgtn.predict
+
     # test prediction
     if testpred:
         tt.tick("doing test prediction")
-        testprediction = dgtn.predict(testmat[:5, :])
+        testprediction, actions, entities, relations = predf(testmat[:5, :])
         tt.tock("test prediction done")
         embed()
 
@@ -179,9 +198,11 @@ def run(lr=0.1,
     numbats = (len(trainmat) // batsize) + 1
 
     tt.tick("training")
+    dgtn._no_extra_ret()
 
     dgtn.train([trainmat], traingold)\
         .adadelta(lr=lr).loss(PWPointerLoss(balanced=True)).grad_total_norm(5.)\
+        .validate_on([validmat], validgold).loss(PWPointerLoss(balanced=True))\
         .train(numbats, epochs)
 
     tt.tock("trained")
