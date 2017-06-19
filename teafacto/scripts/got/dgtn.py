@@ -139,8 +139,8 @@ def run(lr=0.1,
     tt.tock("graph loaded")
     tt.tick("loading questions")
     qsm, answers = loadquestions(graphtensor, simple=simple)
-    tt.tock("questions loaded")
     qmat = qsm.matrix
+    tt.tock("{} questions loaded".format(len(qmat)))
     # split 80/10/10
     splita, splitb = int(round(len(qmat) * 0.8)), int(round(len(qmat) * 0.9))
     trainmat, validmat, testmat = qmat[:splita, :], qmat[splita:splitb, :], qmat[splitb:, :]
@@ -150,6 +150,7 @@ def run(lr=0.1,
 
     if actionoverride:
         if simple:
+            tt.msg("doing action override with find-hop template for simple questions")
             assert(nsteps >= 2)
             actionoverride = np.zeros((nsteps, DGTN_S.numacts), dtype="float32")
             actionoverride[0, 1] = 1.

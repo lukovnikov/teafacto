@@ -112,8 +112,7 @@ class DGTN(Block):
         entity_weights = outputs[2].dimswap(0, 1)   # (batsize, nsteps, nentities)
         relation_weights = outputs[3].dimswap(0, 1)
         lastmainpointer = mainpointers[:, -1, :]
-        if self._maxhot_sm:
-            lastmainpointer = T.clip(lastmainpointer, 0+self.EPS, 1-self.EPS)
+        lastmainpointer = T.clip(lastmainpointer, 0+self.EPS, 1-self.EPS)
         return self._get_output(lastmainpointer, mainpointers,
                                 action_weights, entity_weights, relation_weights)
 
