@@ -274,4 +274,4 @@ def run_trainfind(lr=0.1,
 
 
 if __name__ == "__main__":
-    argprun(run_trainfind)
+    argprun(run)
