@@ -99,6 +99,40 @@ def loadquestions(graphtensor,
     answers = np.concatenate(answers, axis=0)
     return sm, answers
 
+def load_simple_questions(graphtensor,
+                  p="../../../data/got/questions.simple.tsv",
+                  simple=False):
+    answers = []
+    numents = graphtensor.tensor.shape[1]
+    sm = StringMatrix(freqcutoff=2, indicate_start_end=True)
+    tvt = []
+    with open(p) as f:
+        for line in f:
+            tvti, numrels, numbranch, ambi, question, startents, answerents \
+                = map(lambda x: x.strip(), line.split("\t"))
+            tvti, numrels, numbranch, ambi = map(int, [tvti, numrels, numbranch, ambi])
+            tvt.append(tvti)
+            # preprocess questions
+            if simple and numrels != 1:
+                continue
+            else:
+                sm.add(question)
+                # answers
+                answerentss = [graphtensor.ed[(answer if answer[0] == ":" else ":" + answer).strip()]
+                               for answer in answerents.split(",:")]
+                try:
+                    answerents = np.asarray(answerentss).astype("int32")
+                except TypeError, e:
+                    print answer
+                    print answerents
+                answerpointer = np.zeros((1, numents,))
+                answerpointer[0, answerents] = 1
+                answers.append(answerpointer)
+    sm.finalize()
+    # embed()
+    answers = np.concatenate(answers, axis=0)
+    return sm, answers, tvt
+
 
 def loadentitylabels(graphtensor):
     sm = StringMatrix(indicate_start_end=False, freqcutoff=0)
@@ -127,7 +161,7 @@ def run(lr=0.1,
         inspectdata=False,
         testpred=False,
         trainfind=False,
-        simple=False,
+        simple=True,
         actionoverride=False,
         smmode="sm",        # "sm" or "gumbel" or "maxhot"
         ):
@@ -138,13 +172,24 @@ def run(lr=0.1,
     graphtensor = loadtensor()
     tt.tock("graph loaded")
     tt.tick("loading questions")
-    qsm, answers = loadquestions(graphtensor, simple=simple)
-    qmat = qsm.matrix
-    tt.tock("{} questions loaded".format(len(qmat)))
-    # split 80/10/10
-    splita, splitb = int(round(len(qmat) * 0.8)), int(round(len(qmat) * 0.9))
-    trainmat, validmat, testmat = qmat[:splita, :], qmat[splita:splitb, :], qmat[splitb:, :]
-    traingold, validgold, testgold = answers[:splita, :], answers[splita:splitb, :], answers[splitb:, :]
+    if simple:
+        qsm, answers, tvt = load_simple_questions(graphtensor)
+        qmat = qsm.matrix
+        tvt = np.asarray(tvt)
+        trainmat = qmat[tvt==0, :]
+        validmat = qmat[tvt==1, :]
+        testmat = qmat[tvt==2, :]
+        traingold = answers[tvt==0]
+        validgold = answers[tvt==1]
+        testgold = answers[tvt==2]
+    else:
+        qsm, answers = loadquestions(graphtensor, simple=simple)
+        qmat = qsm.matrix
+        tt.tock("{} questions loaded".format(len(qmat)))
+        # split 80/10/10
+        splita, splitb = int(round(len(qmat) * 0.8)), int(round(len(qmat) * 0.9))
+        trainmat, validmat, testmat = qmat[:splita, :], qmat[splita:splitb, :], qmat[splitb:, :]
+        traingold, validgold, testgold = answers[:splita, :], answers[splita:splitb, :], answers[splitb:, :]
     if inspectdata:
         embed()
 

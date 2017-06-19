@@ -162,7 +162,7 @@ class Graph(object):
 
 class QuestionGenerator(object):
     ent_blacklist = {":Type:None"}
-    rel_blacklist = {":type", ":result", "-:result", ":Type", "-:Type"}
+    rel_blacklist = {":type", ":result", "-:result", ":Type", "-:Type", ":name", "-:name"}
 
     def __init__(self, graph):
         self._graph = graph
@@ -369,10 +369,51 @@ def gen_questions(number=10000, outp="generated_questions.tsv", verbose=False, w
             if write: f.write(line)
 
 
+def gen_simple_questions(outp="questions.simple.tsv", verbose=True, write=False):
+    # generate simple questions with even coverage of entities and relations
+    tpe_train = 2
+    tpe_test = 1
+    tpe_valid = 1
+    g = Graph.from_triples()
+    qg = QuestionGenerator(g)
+    tensor, entdic, reldic = g.to_tensor(addreverse=True, dense=False)
+    hasrels = []
+    for relslice in tensor:
+        s = (relslice.sum(axis=1) > 0) * 1
+        hasrels.append(s)
+    hasrels = np.concatenate(hasrels, axis=1)
+    with open(outp, "w") as f:
+        for entity in set(g._entdic.keys()).difference(qg.ent_blacklist):
+            eid = g._entdic[entity]
+            relsofnode = set(np.argwhere(hasrels[eid])[:, 1])
+            relsofnode = relsofnode.difference(qg.rel_blacklist)
+            rels = random.sample(list(relsofnode),
+                                 min(tpe_train+tpe_valid+tpe_test, len(relsofnode)))
+            random.shuffle(rels)
+            tvtcounter = 0
+            for j, relid in enumerate(rels):
+                qchain = (eid, [relid])
+                qvb = qg._verbalizeConjTree(qchain, use_aliases=False)
+                qres, _ = qg._executeConjTree(qchain)
+                _, _, numbranch, ambi, startentities = qg._analyzeConjTree(qchain)
+                if len(rels) < tpe_train + tpe_valid + tpe_test:
+                    tvt = random.choice([0]*tpe_train + [1]*tpe_valid + [2]*tpe_test)
+                else:
+                    tvt = 0 if tvtcounter < tpe_train else 1 if tvtcounter < tpe_train + tpe_valid else 2
+                line = "{}\t{}\t{}\t{}\t{}\t{}\t{}\n".format(tvt, 1, numbranch, ambi, qvb, ",".join(startentities),
+                                                             ",".join([g._red[x] for x in qres]))
+                tvtcounter += 1
+                if verbose: print line
+                if write:   f.write(line)
+    embed()
+
+
+
+
 
 
 if __name__ == "__main__":
-    gen_questions(10000, verbose=False, write=True)
+    gen_simple_questions(verbose=False, write=True)
     #sys.exit()
     g = Graph.from_triples()
     g.save_tensor()
