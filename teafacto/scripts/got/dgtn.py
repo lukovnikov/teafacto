@@ -272,9 +272,9 @@ def run(lr=0.1,
 
     trainloss = KLPointerLoss(softmaxnorm=False)
 
-    dgtn.train([trainmat], traingold)\
+    dgtn.train(traindata, traingold)\
         .adadelta(lr=lr).loss(trainloss).loss(PointerFscore()).grad_total_norm(5.)\
-        .validate_on([validmat], validgold).loss(trainloss).loss(PointerFscore()).loss(PointerRecall()).loss(PointerPrecision())\
+        .validate_on(validdata, validgold).loss(trainloss).loss(PointerFscore()).loss(PointerRecall()).loss(PointerPrecision())\
         .train(numbats, epochs)
 
     tt.tock("trained")
