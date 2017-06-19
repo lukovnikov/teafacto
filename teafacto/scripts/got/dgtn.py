@@ -161,7 +161,7 @@ def run(lr=0.1,
         inspectdata=False,
         testpred=False,
         trainfind=False,
-        simple=True,
+        simple=False,
         actionoverride=False,
         smmode="sm",        # "sm" or "gumbel" or "maxhot"
         ):
