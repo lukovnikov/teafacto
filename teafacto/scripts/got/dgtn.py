@@ -176,6 +176,7 @@ def run(lr=0.1,
         actionoverride=False,
         smmode="sm",        # "sm" or "gumbel" or "maxhot"
         debug=False,
+        loss="klp",         # "klp", "pwp", "bpwp"
         ):
     if debug:
         inspectdata = True
@@ -277,7 +278,10 @@ def run(lr=0.1,
     tt.tick("training")
     dgtn._no_extra_ret()
 
-    trainloss = KLPointerLoss(softmaxnorm=False)
+    if loss=="klp":     trainloss = KLPointerLoss(softmaxnorm=False)
+    elif loss=="pwp":   trainloss = PWPointerLoss()
+    elif loss=="bpwp":  trainloss = PWPointerLoss(balanced=True)
+    else:               raise Exception("unknown loss option")
 
     dgtn.train(traindata, traingold)\
         .adadelta(lr=lr).loss(trainloss).loss(PointerFscore()).grad_total_norm(5.)\
