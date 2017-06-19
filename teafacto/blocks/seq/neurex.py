@@ -167,8 +167,8 @@ class DGTN(Block):
             act_weights = self._get_att(to_actselect, self.actemb, mask=Val(self._act_sel_mask))
         else:
             act_weights = action_override_t
-        ent_weights = self._get_att(to_entselect, self.entemb, override_custom_sm=True)
-        rel_weights = self._get_att(to_relselect, self.relemb, override_custom_sm=True)
+        ent_weights = self._get_att(to_entselect, self.entemb)
+        rel_weights = self._get_att(to_relselect, self.relemb)
         # execute ops
         p_t_main, p_t_aux = T.zeros_like(p_tm1_main), T.zeros_like(p_tm1_aux)
         p_t_main, p_t_aux = \
