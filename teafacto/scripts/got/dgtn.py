@@ -123,7 +123,7 @@ def load_simple_questions(graphtensor,
             except TypeError, e:
                 print answer
                 print answerents
-            answerpointer = np.zeros((1, numents,))
+            answerpointer = np.zeros((1, numents,), dtype="float32")
             answerpointer[0, answerents] = 1
             answers.append(answerpointer)
             # starts
@@ -134,7 +134,7 @@ def load_simple_questions(graphtensor,
             except TypeError, e:
                 print startent
                 print startents
-            startpointer = np.zeros((1, numents,))
+            startpointer = np.zeros((1, numents,), dtype="float32")
             startpointer[0, startents] = 1
             starts.append(startpointer)
     sm.finalize()
@@ -175,7 +175,13 @@ def run(lr=0.1,
         withstart=False,
         actionoverride=False,
         smmode="sm",        # "sm" or "gumbel" or "maxhot"
+        debug=True,
         ):
+    if debug:
+        inspectdata = True
+        simple = True
+        withstart = True
+        actionoverride = True
     if trainfind:
         run_trainfind(**locals())
     tt = ticktock("script")
