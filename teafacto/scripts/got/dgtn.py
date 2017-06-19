@@ -67,7 +67,9 @@ class GraphTensor():
         return DictGetter(self._red)
 
 
-def loadquestions(graphtensor, p="../../../data/got/generated_questions.tsv"):
+def loadquestions(graphtensor,
+                  p="../../../data/got/generated_questions.tsv",
+                  simple=False):
     answers = []
     numents = graphtensor.tensor.shape[1]
     sm = StringMatrix(freqcutoff=2, indicate_start_end=True)
@@ -77,18 +79,21 @@ def loadquestions(graphtensor, p="../../../data/got/generated_questions.tsv"):
                 = map(lambda x: x.strip(), line.split("\t"))
             qid, numrels, numbranch, ambi = map(int, [qid, numrels, numbranch, ambi])
             # preprocess questions
-            sm.add(question)
-            # answers
-            answerentss = [graphtensor.ed[(answer if answer[0] == ":" else ":"+answer).strip()] for answer
-                           in answerents.split(",:")]
-            try:
-                answerents = np.asarray(answerentss).astype("int32")
-            except TypeError, e:
-                print answer
-                print answerents
-            answerpointer = np.zeros((1, numents,))
-            answerpointer[0, answerents] = 1
-            answers.append(answerpointer)
+            if simple and numrels != 1:
+                continue
+            else:
+                sm.add(question)
+                # answers
+                answerentss = [graphtensor.ed[(answer if answer[0] == ":" else ":"+answer).strip()]
+                               for answer in answerents.split(",:")]
+                try:
+                    answerents = np.asarray(answerentss).astype("int32")
+                except TypeError, e:
+                    print answer
+                    print answerents
+                answerpointer = np.zeros((1, numents,))
+                answerpointer[0, answerents] = 1
+                answers.append(answerpointer)
     sm.finalize()
     #embed()
     answers = np.concatenate(answers, axis=0)
@@ -113,7 +118,7 @@ def run(lr=0.1,
         epochs=100,
         batsize=50,
         nsteps=7,
-        innerdim=200,
+        innerdim=310,
         nlayers=2,
         wordembdim=64,
         encdim=100,
@@ -122,6 +127,8 @@ def run(lr=0.1,
         inspectdata=False,
         testpred=False,
         trainfind=False,
+        simple=False,
+        smmode="sm",        # "sm" or "gumbel" or "maxhot"
         ):
     if trainfind:
         run_trainfind(**locals())
@@ -142,8 +149,10 @@ def run(lr=0.1,
 
     # build model
     tt.tick("building model")
-    dgtn = DGTN(reltensor=graphtensor.tensor, nsteps=nsteps,
-                entembdim=50, relembdim=50, actembdim=10)
+    dgtn = DGTN_S(reltensor=graphtensor.tensor, nsteps=nsteps,
+                entembdim=200, actembdim=10, attentiondim=encdim,
+                entitysummary=False, relationsummary=False,
+                gumbel=smmode=="gumbel", maxhot=smmode=="maxhot")
     enc = SeqEncoder.fluent()\
         .vectorembedder(qsm.numwords, wordembdim, maskid=qsm.d("<MASK>"))\
         .addlayers([encdim]*nenclayers, dropout_in=dropout, zoneout=dropout)\
@@ -196,14 +205,14 @@ def run_trainfind(lr=0.1,
         batsize=50,
         nsteps=7,
         gradnorm=5,
-        innerdim=210,
+        innerdim=310,
         nlayers=2,
         wordembdim=64,
         encdim=100,
         nenclayers=1,
         dropout=0.0,
         inspectdata=False,
-        testpred=True,
+        testpred=False,
         trainfind=False,
         dodummy=False,
         smmode="sm",            # "sm" or "maxhot" or "gumbel"
