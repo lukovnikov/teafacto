@@ -114,8 +114,10 @@ class DataLoader(object):
         self.startptrs = []
         self.tvx = []
         self._finalized = False
+        self._src_dic = {"default": 0}
+        self._srcs = []
 
-    def add_labels(self, usefortrain=True, useforvalid=False, usefortest=False):
+    def add_labels(self, usefortrain=True, useforvalid=False, usefortest=False, src="default"):
         assert(not self._finalized)
         assert(usefortest or useforvalid or usefortrain)
         for id, idx in self.graphtensor._entdic.items():
@@ -127,8 +129,14 @@ class DataLoader(object):
                     self.answerptrs.append(ptr)
                     self.startptrs.append(np.zeros_like(ptr))
                     self.tvx.append(use)
+                    self._add_to_src(src)
 
-    def add_simple_questions(self, hop_only=False, find_only=False):
+    def _add_to_src(self, src):
+        if src not in self._src_dic:
+            self._src_dic[src] = max(self._src_dic.values()) + 1
+        self._srcs.append(self._src_dic[src])
+
+    def add_simple_questions(self, hop_only=False, find_only=False, src="default"):
         assert(not self._finalized)
         with open(self.simplep) as f:
             for line in f:
@@ -160,6 +168,7 @@ class DataLoader(object):
                 else:
                     self.startptrs.append(np.zeros_like(startptr))
                     self.answerptrs.append(answerptr)
+                self._add_to_src(src)
 
     def finalize(self):
         self.qsm.finalize()
@@ -167,18 +176,46 @@ class DataLoader(object):
         self.answerptrs = np.concatenate(self.answerptrs, axis=0)
         self.startptrs = np.concatenate(self.startptrs, axis=0)
         qmat = self.qsm.matrix
-        trainmat = qmat[self.tvx == 0]
-        validmat = qmat[self.tvx == 1]
-        testmat = qmat[self.tvx == 2]
-        traingold = self.answerptrs[self.tvx == 0]
-        validgold = self.answerptrs[self.tvx == 1]
-        testgold = self.answerptrs[self.tvx == 2]
-        trainstartptrs = self.startptrs[self.tvx == 0]
-        validstartptrs = self.startptrs[self.tvx == 1]
-        teststartptrs = self.startptrs[self.tvx == 2]
+        self._trainmat = qmat[self.tvx == 0]
+        self._validmat = qmat[self.tvx == 1]
+        self._testmat = qmat[self.tvx == 2]
+        self._traingold = self.answerptrs[self.tvx == 0]
+        self._validgold = self.answerptrs[self.tvx == 1]
+        self._testgold = self.answerptrs[self.tvx == 2]
+        self._trainstartptrs = self.startptrs[self.tvx == 0]
+        self._validstartptrs = self.startptrs[self.tvx == 1]
+        self._teststartptrs = self.startptrs[self.tvx == 2]
+        self._srcs = np.asarray(self._srcs)
+        self._trainsrcs = self._srcs[self.tvx == 0]
+        self._validsrcs = self._srcs[self.tvx == 1]
+        self._testsrcs = self._srcs[self.tvx == 2]
         self._finalized = True
-        return [trainmat, trainstartptrs], [validmat, validstartptrs], [testmat, teststartptrs], \
-                traingold, validgold, testgold
+        #return [trainmat, trainstartptrs], [validmat, validstartptrs], [testmat, teststartptrs], \
+        #        traingold, validgold, testgold
+
+    def get(self, src=None):
+        if src is None:     # return all
+            return [self._trainmat, self._trainstartptrs], \
+                   [self._validmat, self._validstartptrs], \
+                   [self._testmat, self._teststartptrs], \
+                   self._traingold, self._validgold, self._testgold
+        else:
+            trainidxs = self._trainsrcs == self._src_dic[src]
+            valididxs = self._validsrcs == self._src_dic[src]
+            testidxs = self._testsrcs == self._src_dic[src]
+            trainmat = self._trainmat[trainidxs]
+            validmat = self._validmat[valididxs]
+            testmat = self._testmat[testidxs]
+            traingold = self._traingold[trainidxs]
+            validgold = self._validgold[valididxs]
+            testgold = self._testgold[testidxs]
+            trainstartptrs = self._trainstartptrs[trainidxs]
+            validstartptrs = self._validstartptrs[valididxs]
+            teststartptrs = self._teststartptrs[testidxs]
+            return [trainmat, trainstartptrs], [validmat, validstartptrs], [testmat, teststartptrs],\
+                   traingold, validgold, testgold
+
+
 
 
 def load_simple_questions(graphtensor,
@@ -264,36 +301,52 @@ def run(lr=0.1,
         enttemp=1.,
         reltemp=1.,
         acttemp=1.,
+        recipe="none",       # "none" or e.g. "trainfind+simplefind/50/simple/10"
         ):
     if debug:
         inspectdata = True
-        simplefind = True
-        actionoverride = True
+        recipe = "trainlabels/50/simplefind/50"
     tt = ticktock("script")
     tt.tick("loading graph")
     graphtensor = loadtensor()
     tt.tock("graph loaded")
     tt.tick("loading examples")
-    ql = DataLoader(graphtensor)
-    if trainlabels:
-        tt.msg("adding labels")
-        ql.add_labels(usefortrain=True, useforvalid=True, usefortest=True)
-    if simplefind:
-        tt.msg("adding simple questions for finds")
-        ql.add_simple_questions(find_only=True)
-    if simplehop:
-        tt.msg("adding simple questions for hops")
-        ql.add_simple_questions(hop_only=True)
-    if simple:
-        tt.msg("adding simple questions")
-        ql.add_simple_questions()
+    # parse recipe
+    train_recipe = [(None,), epochs]
+    _load_sources = tuple()
+    if recipe != "none":
+        assert(not (trainlabels or simplefind or simplehop or simple))
+        train_recipe = [tuple([source for source in x.split("+")])
+                 if i % 2 == 0 else int(x)
+                 for i, x in enumerate(recipe.split("/"))]
+        i = 0
+        while i < len(train_recipe):
+            _load_sources += train_recipe[i]
+            i += 2
 
-    if trainlabels or simplefind or simplehop or simple:
+        tt.msg("using recipe {}".format(recipe))
+    ql = DataLoader(graphtensor)
+    if trainlabels or "trainlabels" in _load_sources:
+        tt.msg("adding labels")
+        ql.add_labels(usefortrain=True, useforvalid=True, usefortest=True, src="labels")
+    if simplefind or "simplefind" in _load_sources:
+        tt.msg("adding simple questions for finds")
+        ql.add_simple_questions(find_only=True, src="simplefind")
+    if simplehop or "simplehop" in _load_sources:
+        tt.msg("adding simple questions for hops")
+        ql.add_simple_questions(hop_only=True, src="simplehop")
+    if simple or "simple" in _load_sources:
+        tt.msg("adding simple questions")
+        ql.add_simple_questions(src="simple")
+
+    if trainlabels or simplefind or simplehop or simple or recipe != "none":
+        ql.finalize()
         qsm = ql.qsm
         traindata, validdata, testdata, traingold, validgold, testgold \
-            = ql.finalize()
+            = ql.get()
         tt.tock("{} examples loaded".format(len(qsm.matrix)))
     else:
+        assert(False)       # integrate in question loader
         qsm, answers = loadquestions(graphtensor)
         qmat = qsm.matrix
         # split 80/10/10
@@ -306,6 +359,7 @@ def run(lr=0.1,
         embed()
 
     if actionoverride:
+        assert(recipe == "none")
         assert(trainlabels + simple + simplehop + simplefind <= 1)
         if trainlabels or simplefind:
             tt.msg("doing action override with find-hop template for simple questions")
@@ -372,24 +426,34 @@ def run(lr=0.1,
     if testpred:
         embed()
 
-    # training
-    numbats = (len(traindata[0]) // batsize) + 1
-
-    tt.tick("training")
-    dgtn._no_extra_ret()
-
     # choose loss
-    if loss=="klp":     trainloss = KLPointerLoss(softmaxnorm=False)
-    elif loss=="pwp":   trainloss = PWPointerLoss()
-    elif loss=="bpwp":  trainloss = PWPointerLoss(balanced=True)
-    else:               raise Exception("unknown loss option")
+    if loss == "klp":
+        trainloss = KLPointerLoss(softmaxnorm=False)
+    elif loss == "pwp":
+        trainloss = PWPointerLoss()
+    elif loss == "bpwp":
+        trainloss = PWPointerLoss(balanced=True)
+    else:
+        raise Exception("unknown loss option")
 
-    dgtn.train(traindata, traingold)\
-        .adadelta(lr=lr).loss(trainloss).loss(PointerFscore()).grad_total_norm(5.)\
-        .validate_on(validdata, validgold).loss(trainloss).loss(PointerFscore()).loss(PointerRecall()).loss(PointerPrecision())\
-        .train(numbats, epochs)
+    # training
 
-    tt.tock("trained")
+    i = 0
+    while i < len(train_recipe):
+        source, epochs = train_recipe[i:i+2]
+        traindata, validdata, testdata, traingold, validgold, testgold = ql.get(source)
+        numbats = (len(traindata[0]) // batsize) + 1
+
+        tt.tick("training on {}".format(source))
+        dgtn._no_extra_ret()
+
+        dgtn.train(traindata, traingold)\
+            .adadelta(lr=lr).loss(trainloss).loss(PointerFscore()).grad_total_norm(5.)\
+            .validate_on(validdata, validgold).loss(trainloss).loss(PointerFscore()).loss(PointerRecall()).loss(PointerPrecision())\
+            .train(numbats, epochs)
+
+        tt.tock("trained")
+        i += 2
     embed()
 
 
