@@ -364,7 +364,7 @@ def run(lr=0.1,
         embed()
 
     # training
-    numbats = (len(trainmat) // batsize) + 1
+    numbats = (len(traindata[0]) // batsize) + 1
 
     tt.tick("training")
     dgtn._no_extra_ret()
