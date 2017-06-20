@@ -61,6 +61,8 @@ class DGTN(Block):
         self._ret_all_main_ptrs = False
         # action override
         self._action_override = Val(action_override) if action_override is not None else None
+        # temperatures
+        self._act_temp = self._ent_temp = self._rel_temp = 1.
 
     def set_core(self, core):
         self.core = core
@@ -164,11 +166,11 @@ class DGTN(Block):
         to_actselect, to_entselect, to_relselect = self._get_interface(y_t)
         # compute interface weights
         if self._action_override is None:
-            act_weights = self._get_att(to_actselect, self.actemb, mask=Val(self._act_sel_mask))
+            act_weights = self._get_att(to_actselect, self.actemb, mask=Val(self._act_sel_mask), temp=self._act_temp)
         else:
             act_weights = action_override_t
-        ent_weights = self._get_att(to_entselect, self.entemb)
-        rel_weights = self._get_att(to_relselect, self.relemb)
+        ent_weights = self._get_att(to_entselect, self.entemb, temp=self._ent_temp)
+        rel_weights = self._get_att(to_relselect, self.relemb, temp=self._rel_temp)
         # execute ops
         p_t_main, p_t_aux = T.zeros_like(p_tm1_main), T.zeros_like(p_tm1_aux)
         p_t_main, p_t_aux = \
@@ -257,17 +259,17 @@ class DGTN(Block):
         return b, a
 
     # HELPER METHODS        # have tests
-    def _get_att(self, crit, data, mask=None, override_custom_sm=False): # (batsize, critdim), (num, embdim) -> (batsize, num)
+    def _get_att(self, crit, data, mask=None, override_custom_sm=False, temp=1.): # (batsize, critdim), (num, embdim) -> (batsize, num)
         att = T.tensordot(crit, data, axes=([1], [1]))  # (batsize, num*)
         if mask is not None:    # (num*)
             mask = mask.dimadd(0).repeat(att.shape[0], axis=0)
             att.mask = mask
         if self._gumbel_sm and not override_custom_sm:
-            sm = GumbelSoftmax(deterministic_pred=True)
+            sm = GumbelSoftmax(deterministic_pred=True, temperature=temp)
         elif self._maxhot_sm and not override_custom_sm:
-            sm = Softmax(maxhot=True, maxhot_ste=True, maxhot_pred=True)
+            sm = Softmax(maxhot=True, maxhot_ste=True, maxhot_pred=True, temperature=temp)
         else:
-            sm = Softmax(maxhot_pred=True)
+            sm = Softmax(maxhot_pred=True, temperature=temp)
         att = sm(att)
         return att
 

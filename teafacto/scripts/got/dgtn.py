@@ -177,6 +177,7 @@ def run(lr=0.1,
         smmode="sm",        # "sm" or "gumbel" or "maxhot"
         debug=False,
         loss="klp",         # "klp", "pwp", "bpwp"
+        temperature=1.,
         ):
     if debug:
         inspectdata = True
@@ -195,7 +196,7 @@ def run(lr=0.1,
         traindata = validdata = [qmat]
         traingold = validgold = gold
         tt.tock("labels loaded")
-    if simple:
+    elif simple:
         qsm, answers, tvt, startents = load_simple_questions(graphtensor)
         qmat = qsm.matrix
         tvt = np.asarray(tvt)
@@ -258,7 +259,9 @@ def run(lr=0.1,
                 entembdim=200, actembdim=10, attentiondim=encdim,
                 entitysummary=False, relationsummary=False,
                 action_override=actionoverride,
-                gumbel=smmode=="gumbel", maxhot=smmode=="maxhot")
+                gumbel=smmode=="gumbel", maxhot=smmode=="maxhot",
+                )
+    dgtn._ent_temp = temperature
     enc = SeqEncoder.fluent()\
         .vectorembedder(qsm.numwords, wordembdim, maskid=qsm.d("<MASK>"))\
         .addlayers([encdim]*nenclayers, dropout_in=dropout, zoneout=dropout)\
