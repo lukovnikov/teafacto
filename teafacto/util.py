@@ -453,13 +453,6 @@ class StringMatrix():
         self._dictionary = {k: transdic[v] for k, v in self._dictionary.items() if self.d(k) in sortedwordidxs}
 
 
-
-
-
-
-
-
-
 def tokenize(s):
     s = s.decode("utf-8")
     s = unidecode.unidecode(s)

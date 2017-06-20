@@ -15,6 +15,7 @@ class DGTN(Block):
     _max_in_hop = True
     _min_in_intersect = False
     EPS = 1e-6
+    _act_name_to_int = {"_nop": 0, "find": 1, "hop": 2, "intersect": 3, "union": 4, "difference": 5, "swap": 6}
 
     def __init__(self,
                  # core settings
@@ -53,7 +54,6 @@ class DGTN(Block):
         self._gumbel_sm = gumbel
         self._maxhot_sm = maxhot
         self._act_sel_mask = np.ones((self.numacts,))
-        self._act_name_to_int = {"find": 1, "hop": 2, "intersect": 3, "union": 4, "difference": 5, "swap": 6}
         # return options
         self._ret_actions = False
         self._ret_entities = False

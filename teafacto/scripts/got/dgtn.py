@@ -99,6 +99,88 @@ def loadquestions(graphtensor,
     answers = np.concatenate(answers, axis=0)
     return sm, answers
 
+
+class DataLoader(object):
+    def __init__(self, graphtensor, simplep="../../../data/got/questions.simple.tsv",
+                 allp="../../../data/got/generated_questions.tsv",
+                 freqcutoff=0, indicate_start_end=True, **kw):
+        super(DataLoader, self).__init__(**kw)
+        self.graphtensor = graphtensor
+        self.numents = self.graphtensor.tensor.shape[1]
+        self.simplep = simplep
+        self.allp = allp
+        self.qsm = StringMatrix(freqcutoff=freqcutoff, indicate_start_end=indicate_start_end)
+        self.answerptrs = []
+        self.startptrs = []
+        self.tvx = []
+        self._finalized = False
+
+    def add_labels(self, usefortrain=True, useforvalid=False, usefortest=False):
+        assert(not self._finalized)
+        assert(usefortest or useforvalid or usefortrain)
+        for id, idx in self.graphtensor._entdic.items():
+            ptr = np.zeros((1, self.numents), dtype="int32")
+            ptr[0, idx] = 1
+            for use, v in {0: int(usefortrain), 1: int(useforvalid), 2: int(usefortest)}.items():
+                if v:
+                    self.qsm.add(id)
+                    self.answerptrs.append(ptr)
+                    self.startptrs.append(np.zeros_like(ptr))
+                    self.tvx.append(use)
+
+    def add_simple_questions(self, hop_only=False, find_only=False):
+        assert(not self._finalized)
+        with open(self.simplep) as f:
+            for line in f:
+                tvxi, numrels, numbranch, ambi, question, startents, answerents \
+                    = map(lambda x: x.strip(), line.split("\t"))
+                tvxi, numrels, numbranch, ambi = map(int, [tvxi, numrels, numbranch, ambi])
+                self.tvx.append(tvxi)
+                self.qsm.add(question)
+                # answer pointer
+                answerentss = [self.graphtensor.ed[(answer if answer[0] == ":" else ":" + answer).strip()]
+                               for answer in answerents.split(",:")]
+                answerents = np.asarray(answerentss).astype("int32")
+                answerptr = np.zeros((1, self.numents), dtype="float32")
+                answerptr[0, answerents] = 1
+                # start pointer
+                startentss = [self.graphtensor.ed[(startent if startent[0] == ":" else ":" + startent).strip()]
+                              for startent in startents.split(",:")]
+                assert(len(startentss) == 1)
+                startent = int(startentss[0])
+                startptr = np.zeros((1, self.numents), dtype="float32")
+                startptr[0, startent] = 1
+                # choose
+                if hop_only:
+                    self.startptrs.append(startptr)
+                    self.answerptrs.append(answerptr)
+                elif find_only:
+                    self.startptrs.append(np.zeros_like(startptr))
+                    self.answerptrs.append(startptr)
+                else:
+                    self.startptrs.append(np.zeros_like(startptr))
+                    self.answerptrs.append(answerptr)
+
+    def finalize(self):
+        self.qsm.finalize()
+        self.tvx = np.asarray(self.tvx)
+        self.answerptrs = np.concatenate(self.answerptrs, axis=0)
+        self.startptrs = np.concatenate(self.startptrs, axis=0)
+        qmat = self.qsm.matrix
+        trainmat = qmat[self.tvx == 0]
+        validmat = qmat[self.tvx == 1]
+        testmat = qmat[self.tvx == 2]
+        traingold = self.answerptrs[self.tvx == 0]
+        validgold = self.answerptrs[self.tvx == 1]
+        testgold = self.answerptrs[self.tvx == 2]
+        trainstartptrs = self.startptrs[self.tvx == 0]
+        validstartptrs = self.startptrs[self.tvx == 1]
+        teststartptrs = self.startptrs[self.tvx == 2]
+        self._finalized = True
+        return [trainmat, trainstartptrs], [validmat, validstartptrs], [testmat, teststartptrs], \
+                traingold, validgold, testgold
+
+
 def load_simple_questions(graphtensor,
                   p="../../../data/got/questions.simple.tsv",
                   simple=False):
@@ -170,9 +252,10 @@ def run(lr=0.1,
         dropout=0.1,
         inspectdata=False,
         testpred=False,
-        trainfind=False,
+        trainlabels=False,
+        simplefind=False,
+        simplehop=False,
         simple=False,
-        withstart=False,
         actionoverride=False,
         smmode="sm",        # "sm" or "gumbel" or "maxhot"
         debug=False,
@@ -181,39 +264,27 @@ def run(lr=0.1,
         ):
     if debug:
         inspectdata = True
-        simple = True
-        withstart = True
+        simplefind = True
         actionoverride = True
     tt = ticktock("script")
     tt.tick("loading graph")
     graphtensor = loadtensor()
     tt.tock("graph loaded")
     tt.tick("loading questions")
-    if trainfind:
-        tt.tick("loading labels")
-        qsm, gold = loadentitylabels(graphtensor)
-        qmat = trainmat = validmat = testmat = qsm.matrix
-        traingold = validgold = testgold = gold
-        traindata = validdata = testdata = [qmat, np.zeros_like(gold)]
-        tt.tock("labels loaded")
-    elif simple:
-        qsm, answers, tvt, startents = load_simple_questions(graphtensor)
-        qmat = qsm.matrix
-        tvt = np.asarray(tvt)
-        trainmat = qmat[tvt==0, :]
-        validmat = qmat[tvt==1, :]
-        testmat = qmat[tvt==2, :]
-        traingold = answers[tvt==0]
-        validgold = answers[tvt==1]
-        testgold = answers[tvt==2]
-        trainstartents = startents[tvt==0]
-        validstartents = startents[tvt==1]
-        teststartents = startents[tvt==2]
-        if withstart:
-            traindata, validdata, testdata = [trainmat, trainstartents], [validmat, validstartents], [testmat, teststartents]
-        else:
-            traindata, validdata, testdata = [trainmat], [validmat], [testmat]
-        tt.tock("{} questions loaded".format(len(qmat)))
+    ql = DataLoader(graphtensor)
+    if trainlabels:
+        ql.add_labels(usefortrain=True, useforvalid=True, usefortest=True)
+    if simplefind:
+        ql.add_simple_questions(find_only=True)
+    if simplehop:
+        ql.add_simple_questions(hop_only=True)
+    if simple:
+        ql.add_simple_questions()
+
+    if trainlabels or simplefind or simplehop or simple:
+        qsm = ql.qsm
+        traindata, validdata, testdata, traingold, validgold, testgold \
+            = ql.finalize()
     else:
         qsm, answers = loadquestions(graphtensor)
         qmat = qsm.matrix
@@ -227,28 +298,27 @@ def run(lr=0.1,
         embed()
 
     if actionoverride:
-        if trainfind:
+        if trainlabels or simplefind:
             tt.msg("doing action override with find-hop template for simple questions")
             assert(nsteps >= 2)
             actionoverride = np.zeros((nsteps, DGTN_S.numacts), dtype="float32")
             actionoverride[:, 0] = 1.
             actionoverride[0, 1] = 1.
+        elif simplehop:
+            tt.msg("doing action override with find-hop template for simple questions")
+            assert(nsteps >= 2)
+            actionoverride = np.zeros((nsteps, DGTN_S.numacts), dtype="float32")
+            actionoverride[:, 0] = 1.
+            actionoverride[0, 1] = 1.
+            actionoverride[1, 2] = 1.
         elif simple:
-            if not withstart:
-                tt.msg("doing action override with find-hop template for simple questions")
-                assert(nsteps >= 2)
-                actionoverride = np.zeros((nsteps, DGTN_S.numacts), dtype="float32")
-                actionoverride[:, 0] = 1.
-                actionoverride[0, 1] = 1.
-                actionoverride[1, 2] = 1.
-            else:
-                tt.msg("doing action override with only a hop for simple questions")
-                assert(nsteps >= 2)
-                actionoverride = np.zeros((nsteps, DGTN_S.numacts), dtype="float32")
-                actionoverride[:, 0] = 1.
-                actionoverride[0, 2] = 1.
+            tt.msg("doing action override with only a hop for simple questions")
+            assert(nsteps >= 2)
+            actionoverride = np.zeros((nsteps, DGTN_S.numacts), dtype="float32")
+            actionoverride[:, 0] = 1.
+            actionoverride[0, 2] = 1.
         else:
-            raise Exception("don't know how to override non-simple")
+            raise Exception("don't know how to override this")
     else:
         actionoverride = None
 
@@ -260,6 +330,9 @@ def run(lr=0.1,
                 action_override=actionoverride,
                 gumbel=smmode=="gumbel", maxhot=smmode=="maxhot",
                 )
+    dgtn.disable("difference")
+    dgtn.disable("swap")
+    dgtn.disable("union")
     dgtn._ent_temp = temperature
     dgtn._act_temp = temperature
     dgtn._rel_temp = temperature
@@ -278,6 +351,7 @@ def run(lr=0.1,
     dgtn.set_core(dec)
     tt.tock("model built")
 
+    # prediction function
     dgtn._ret_actions = True
     dgtn._ret_entities = True
     dgtn._ret_relations = True
@@ -285,8 +359,7 @@ def run(lr=0.1,
     testprediction, actions, entities, relations = predf(*[testdatamat[:5] for testdatamat in testdata])
     def tpred():
         return predf(*[testdatamat[:15] for testdatamat in testdata])
-
-    # test prediction
+    # inspect prediction
     if testpred:
         embed()
 
@@ -296,6 +369,7 @@ def run(lr=0.1,
     tt.tick("training")
     dgtn._no_extra_ret()
 
+    # choose loss
     if loss=="klp":     trainloss = KLPointerLoss(softmaxnorm=False)
     elif loss=="pwp":   trainloss = PWPointerLoss()
     elif loss=="bpwp":  trainloss = PWPointerLoss(balanced=True)
