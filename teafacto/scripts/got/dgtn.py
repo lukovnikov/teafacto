@@ -121,7 +121,7 @@ class DataLoader(object):
         assert(not self._finalized)
         assert(usefortest or useforvalid or usefortrain)
         for id, idx in self.graphtensor._entdic.items():
-            ptr = np.zeros((1, self.numents), dtype="int32")
+            ptr = np.zeros((1, self.numents), dtype="float32")
             ptr[0, idx] = 1
             for use, v in {0: int(usefortrain), 1: int(useforvalid), 2: int(usefortest)}.items():
                 if v:
@@ -444,7 +444,7 @@ def run(lr=0.1,
         traindata, validdata, testdata, traingold, validgold, testgold = ql.get(source)
         numbats = (len(traindata[0]) // batsize) + 1
 
-        tt.tick("training on {}".format(source))
+        tt.tick("training on {} ({} examples)".format(source, len(traindata[0])))
         dgtn._no_extra_ret()
 
         dgtn.train(traindata, traingold)\
