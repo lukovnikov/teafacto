@@ -193,8 +193,8 @@ def run(lr=0.1,
         tt.tick("loading labels")
         qsm, gold = loadentitylabels(graphtensor)
         qmat = qsm.matrix
-        traindata = validdata = [qmat]
-        traingold = validgold = gold
+        traindata = validdata = testdata = [qmat]
+        traingold = validgold = testgold = gold
         tt.tock("labels loaded")
     elif simple:
         qsm, answers, tvt, startents = load_simple_questions(graphtensor)
