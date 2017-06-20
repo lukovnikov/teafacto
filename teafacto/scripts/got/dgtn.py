@@ -288,6 +288,7 @@ def run(lr=0.1,
         qsm = ql.qsm
         traindata, validdata, testdata, traingold, validgold, testgold \
             = ql.finalize()
+        tt.tock("{} questions loaded".format(len(qsm.matrix)))
     else:
         qsm, answers = loadquestions(graphtensor)
         qmat = qsm.matrix
