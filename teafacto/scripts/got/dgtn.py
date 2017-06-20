@@ -328,7 +328,7 @@ def run(lr=0.1,
     ql = DataLoader(graphtensor)
     if trainlabels or "trainlabels" in _load_sources:
         tt.msg("adding labels")
-        ql.add_labels(usefortrain=True, useforvalid=True, usefortest=True, src="labels")
+        ql.add_labels(usefortrain=True, useforvalid=True, usefortest=True, src="trainlabels")
     if simplefind or "simplefind" in _load_sources:
         tt.msg("adding simple questions for finds")
         ql.add_simple_questions(find_only=True, src="simplefind")
