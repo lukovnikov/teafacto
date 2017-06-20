@@ -261,6 +261,9 @@ def run(lr=0.1,
         debug=False,
         loss="klp",         # "klp", "pwp", "bpwp"
         temperature=1.,
+        enttemp=1.,
+        reltemp=1.,
+        acttemp=1.,
         ):
     if debug:
         inspectdata = True
@@ -298,6 +301,7 @@ def run(lr=0.1,
         embed()
 
     if actionoverride:
+        assert(trainlabels + simple + simplehop + simplefind <= 1)
         if trainlabels or simplefind:
             tt.msg("doing action override with find-hop template for simple questions")
             assert(nsteps >= 2)
@@ -333,9 +337,9 @@ def run(lr=0.1,
     dgtn.disable("difference")
     dgtn.disable("swap")
     dgtn.disable("union")
-    dgtn._ent_temp = temperature
-    dgtn._act_temp = temperature
-    dgtn._rel_temp = temperature
+    dgtn._ent_temp = temperature * enttemp
+    dgtn._act_temp = temperature * acttemp
+    dgtn._rel_temp = temperature * reltemp
     enc = SeqEncoder.fluent()\
         .vectorembedder(qsm.numwords, wordembdim, maskid=qsm.d("<MASK>"))\
         .addlayers([encdim]*nenclayers, dropout_in=dropout, zoneout=dropout)\
