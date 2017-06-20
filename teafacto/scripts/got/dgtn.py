@@ -183,8 +183,6 @@ def run(lr=0.1,
         simple = True
         withstart = True
         actionoverride = True
-    if trainfind:
-        run_trainfind(**locals())
     tt = ticktock("script")
     tt.tick("loading graph")
     graphtensor = loadtensor()
