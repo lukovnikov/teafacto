@@ -193,8 +193,8 @@ def run(lr=0.1,
         tt.tick("loading labels")
         qsm, gold = loadentitylabels(graphtensor)
         qmat = trainmat = validmat = testmat = qsm.matrix
-        traindata = validdata = testdata = [qmat]
         traingold = validgold = testgold = gold
+        traindata = validdata = testdata = [qmat, np.zeros_like(gold)]
         tt.tock("labels loaded")
     elif simple:
         qsm, answers, tvt, startents = load_simple_questions(graphtensor)
@@ -221,7 +221,7 @@ def run(lr=0.1,
         splita, splitb = int(round(len(qmat) * 0.8)), int(round(len(qmat) * 0.9))
         trainmat, validmat, testmat = qmat[:splita, :], qmat[splita:splitb, :], qmat[splitb:, :]
         traingold, validgold, testgold = answers[:splita, :], answers[splita:splitb, :], answers[splitb:, :]
-        traindata, validdata, testdata = [trainmat], [validmat], [testmat]
+        traindata, validdata, testdata = [trainmat, np.zeros_like(traingold)], [validmat, np.zeros_like(validgold)], [testmat, np.zeros_like(testgold)]
         tt.tock("{} questions loaded".format(len(qmat)))
     if inspectdata:
         embed()
@@ -233,7 +233,7 @@ def run(lr=0.1,
             actionoverride = np.zeros((nsteps, DGTN_S.numacts), dtype="float32")
             actionoverride[:, 0] = 1.
             actionoverride[0, 1] = 1.
-        if simple:
+        elif simple:
             if not withstart:
                 tt.msg("doing action override with find-hop template for simple questions")
                 assert(nsteps >= 2)
@@ -252,7 +252,6 @@ def run(lr=0.1,
     else:
         actionoverride = None
 
-
     # build model
     tt.tick("building model")
     dgtn = DGTN_S(reltensor=graphtensor.tensor, nsteps=nsteps,
@@ -262,6 +261,8 @@ def run(lr=0.1,
                 gumbel=smmode=="gumbel", maxhot=smmode=="maxhot",
                 )
     dgtn._ent_temp = temperature
+    dgtn._act_temp = temperature
+    dgtn._rel_temp = temperature
     enc = SeqEncoder.fluent()\
         .vectorembedder(qsm.numwords, wordembdim, maskid=qsm.d("<MASK>"))\
         .addlayers([encdim]*nenclayers, dropout_in=dropout, zoneout=dropout)\
@@ -283,7 +284,7 @@ def run(lr=0.1,
     predf = dgtn.predict
     testprediction, actions, entities, relations = predf(*[testdatamat[:5] for testdatamat in testdata])
     def tpred():
-        return predf(*[testdatamat[:5] for testdatamat in testdata])
+        return predf(*[testdatamat[:15] for testdatamat in testdata])
 
     # test prediction
     if testpred:
