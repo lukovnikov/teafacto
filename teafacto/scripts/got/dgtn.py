@@ -190,6 +190,13 @@ def run(lr=0.1,
     graphtensor = loadtensor()
     tt.tock("graph loaded")
     tt.tick("loading questions")
+    if trainfind:
+        tt.tick("loading labels")
+        lsm, gold = loadentitylabels(graphtensor)
+        qmat = lsm.matrix
+        traindata = validdata = [qmat]
+        traingold = validgold = gold
+        tt.tock("labels loaded")
     if simple:
         qsm, answers, tvt, startents = load_simple_questions(graphtensor)
         qmat = qsm.matrix
@@ -221,19 +228,26 @@ def run(lr=0.1,
         embed()
 
     if actionoverride:
+        if trainfind:
+            tt.msg("doing action override with find-hop template for simple questions")
+            assert(nsteps >= 2)
+            actionoverride = np.zeros((nsteps, DGTN_S.numacts), dtype="float32")
+            actionoverride[:, 0] = 1.
+            actionoverride[0, 1] = 1.
         if simple:
             if not withstart:
                 tt.msg("doing action override with find-hop template for simple questions")
                 assert(nsteps >= 2)
                 actionoverride = np.zeros((nsteps, DGTN_S.numacts), dtype="float32")
+                actionoverride[:, 0] = 1.
                 actionoverride[0, 1] = 1.
                 actionoverride[1, 2] = 1.
             else:
                 tt.msg("doing action override with only a hop for simple questions")
                 assert(nsteps >= 2)
                 actionoverride = np.zeros((nsteps, DGTN_S.numacts), dtype="float32")
+                actionoverride[:, 0] = 1.
                 actionoverride[0, 2] = 1.
-                actionoverride[1, 0] = 1.
         else:
             raise Exception("don't know how to override non-simple")
     else:
