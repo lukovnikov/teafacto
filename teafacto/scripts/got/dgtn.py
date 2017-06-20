@@ -1,4 +1,4 @@
-from teafacto.util import ticktock, argprun, tokenize, StringMatrix
+from teafacto.util import ticktock, argprun, tokenize, StringMatrix, issequence
 from teafacto.procutil import *
 from teafacto.blocks.seq.neurex import DGTN, DGTN_S, PWPointerLoss, KLPointerLoss, PointerRecall, PointerFscore, PointerPrecision
 from teafacto.blocks.seq.encdec import EncDec
@@ -114,10 +114,10 @@ class DataLoader(object):
         self.startptrs = []
         self.tvx = []
         self._finalized = False
-        self._src_dic = {"default": 0}
+        self._src_dic = {"_default": 0}
         self._srcs = []
 
-    def add_labels(self, usefortrain=True, useforvalid=False, usefortest=False, src="default"):
+    def add_labels(self, usefortrain=True, useforvalid=False, usefortest=False, src="_default"):
         assert(not self._finalized)
         assert(usefortest or useforvalid or usefortrain)
         for id, idx in self.graphtensor._entdic.items():
@@ -136,7 +136,7 @@ class DataLoader(object):
             self._src_dic[src] = max(self._src_dic.values()) + 1
         self._srcs.append(self._src_dic[src])
 
-    def add_simple_questions(self, hop_only=False, find_only=False, src="default"):
+    def add_simple_questions(self, hop_only=False, find_only=False, src="_default"):
         assert(not self._finalized)
         with open(self.simplep) as f:
             for line in f:
@@ -200,9 +200,15 @@ class DataLoader(object):
                    [self._testmat, self._teststartptrs], \
                    self._traingold, self._validgold, self._testgold
         else:
-            trainidxs = self._trainsrcs == self._src_dic[src]
-            valididxs = self._validsrcs == self._src_dic[src]
-            testidxs = self._testsrcs == self._src_dic[src]
+            if not issequence(src):
+                src = [src]
+            trainidxs = np.zeros_like(self._trainsrcs)
+            valididxs = np.zeros_like(self._validsrcs)
+            testidxs = np.zeros_like(self._testsrcs)
+            for srce in src:
+                trainidxs += self._trainsrcs == self._src_dic[srce]
+                valididxs += self._validsrcs == self._src_dic[srce]
+                testidxs += self._testsrcs == self._src_dic[srce]
             trainmat = self._trainmat[trainidxs]
             validmat = self._validmat[valididxs]
             testmat = self._testmat[testidxs]
