@@ -191,8 +191,8 @@ def run(lr=0.1,
     tt.tick("loading questions")
     if trainfind:
         tt.tick("loading labels")
-        lsm, gold = loadentitylabels(graphtensor)
-        qmat = lsm.matrix
+        qsm, gold = loadentitylabels(graphtensor)
+        qmat = qsm.matrix
         traindata = validdata = [qmat]
         traingold = validgold = gold
         tt.tock("labels loaded")
