@@ -279,6 +279,8 @@ def run(lr=0.1,
     dgtn._ret_relations = True
     predf = dgtn.predict
     testprediction, actions, entities, relations = predf(*[testdatamat[:5] for testdatamat in testdata])
+    def testpred():
+        return predf(*[testdatamat[:5] for testdatamat in testdata])
 
     # test prediction
     if testpred:
