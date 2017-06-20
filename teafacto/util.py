@@ -247,7 +247,7 @@ def argprun(f, sigint_shell=True, **kwargs):   # command line overrides kwargs
             class L(object):
                 pass
             l = L()
-            for k, v in __toexposelocals:
+            for k, v in __toexposelocals.items():
                 setattr(l, k, v)
             stopprompt = False
             while not stopprompt:
