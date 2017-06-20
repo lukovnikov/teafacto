@@ -202,13 +202,13 @@ class DataLoader(object):
         else:
             if not issequence(src):
                 src = [src]
-            trainidxs = np.zeros_like(self._trainsrcs)
-            valididxs = np.zeros_like(self._validsrcs)
-            testidxs = np.zeros_like(self._testsrcs)
+            trainidxs = np.zeros_like(self._trainsrcs, dtype="bool")
+            valididxs = np.zeros_like(self._validsrcs, dtype="bool")
+            testidxs = np.zeros_like(self._testsrcs, dtype="bool")
             for srce in src:
-                trainidxs += self._trainsrcs == self._src_dic[srce]
-                valididxs += self._validsrcs == self._src_dic[srce]
-                testidxs += self._testsrcs == self._src_dic[srce]
+                trainidxs |= self._trainsrcs == self._src_dic[srce]
+                valididxs |= self._validsrcs == self._src_dic[srce]
+                testidxs |= self._testsrcs == self._src_dic[srce]
             trainmat = self._trainmat[trainidxs]
             validmat = self._validmat[valididxs]
             testmat = self._testmat[testidxs]
@@ -310,8 +310,8 @@ def run(lr=0.1,
         recipe="none",       # "none" or e.g. "trainfind+simplefind/50/simple/10"
         ):
     if debug:
-        inspectdata = True
-        recipe = "trainlabels/50/simplefind/50"
+        #inspectdata = True
+        recipe = "trainlabels/20/simplefind/20"
     tt = ticktock("script")
     tt.tick("loading graph")
     graphtensor = loadtensor()
@@ -450,7 +450,7 @@ def run(lr=0.1,
         traindata, validdata, testdata, traingold, validgold, testgold = ql.get(source)
         numbats = (len(traindata[0]) // batsize) + 1
 
-        tt.tick("training on {} ({} examples)".format(source, len(traindata[0])))
+        tt.tick("training on {} ({} examples)".format("+".join(source), len(traindata[0])))
         dgtn._no_extra_ret()
 
         dgtn.train(traindata, traingold)\
