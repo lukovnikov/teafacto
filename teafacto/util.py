@@ -243,7 +243,12 @@ def argprun(f, sigint_shell=True, **kwargs):   # command line overrides kwargs
                 and current_frame.f_locals["_FRAME_LEVEL"] == "ARGPRUN":
                 stop = True
         if stop:    # argprun frame found
-            l = previous_frame.f_locals     # f-level frame locals
+            __toexposelocals = previous_frame.f_locals     # f-level frame locals
+            class L(object):
+                pass
+            l = L()
+            for k, v in __toexposelocals:
+                setattr(l, k, v)
             stopprompt = False
             while not stopprompt:
                 whattodo = raw_input("(s)hell, (k)ill\n>>")

@@ -273,22 +273,26 @@ def run(lr=0.1,
     tt.tick("loading graph")
     graphtensor = loadtensor()
     tt.tock("graph loaded")
-    tt.tick("loading questions")
+    tt.tick("loading examples")
     ql = DataLoader(graphtensor)
     if trainlabels:
+        tt.msg("adding labels")
         ql.add_labels(usefortrain=True, useforvalid=True, usefortest=True)
     if simplefind:
+        tt.msg("adding simple questions for finds")
         ql.add_simple_questions(find_only=True)
     if simplehop:
+        tt.msg("adding simple questions for hops")
         ql.add_simple_questions(hop_only=True)
     if simple:
+        tt.msg("adding simple questions")
         ql.add_simple_questions()
 
     if trainlabels or simplefind or simplehop or simple:
         qsm = ql.qsm
         traindata, validdata, testdata, traingold, validgold, testgold \
             = ql.finalize()
-        tt.tock("{} questions loaded".format(len(qsm.matrix)))
+        tt.tock("{} examples loaded".format(len(qsm.matrix)))
     else:
         qsm, answers = loadquestions(graphtensor)
         qmat = qsm.matrix
