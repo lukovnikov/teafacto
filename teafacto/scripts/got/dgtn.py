@@ -4,10 +4,11 @@ from teafacto.blocks.seq.neurex import DGTN, DGTN_S, PWPointerLoss, KLPointerLos
 from teafacto.blocks.seq.encdec import EncDec
 from teafacto.blocks.seq.rnn import SeqEncoder
 from teafacto.blocks.seq.attention import Attention
+from teafacto.blocks.word.wordvec import Glove
 from teafacto.core.base import Block, param, tensorops as T
 from teafacto.blocks.activations import Softmax
 from IPython import embed
-import pickle, scipy.sparse as sp, numpy as np, re
+import pickle, scipy.sparse as sp, numpy as np, re, random
 
 
 def loadtensor(p="../../../data/got/tensor.dock"):
@@ -122,6 +123,7 @@ class DataLoader(object):
         assert(usefortest or useforvalid or usefortrain)
         if src not in self._src_dic:    self._src_dic[src] = max(self._src_dic.values()) + 1
         for id, idx in self.graphtensor._entdic.items():
+            id = id[1:]
             ptr = np.zeros((1, self.numents), dtype="float32")
             ptr[0, idx] = 1
             for use, v in {0: int(usefortrain), 1: int(useforvalid), 2: int(usefortest)}.items():
@@ -130,6 +132,29 @@ class DataLoader(object):
                     self.answerptrs.append(ptr)
                     self.startptrs.append(np.zeros_like(ptr))
                     self.tvx.append(use)
+                    self._srcs.append(self._src_dic[src])
+
+    def add_labels_with_random_contexts(self, freq=3, maxlen=10, nwords=5000, src="_default"):
+        assert(not self._finalized)
+        g = Glove(nwords)
+        words = g.D.keys()
+        if src not in self._src_dic:    self._src_dic[src] = max(self._src_dic.values())+1
+        for id, idx in self.graphtensor._entdic.items():
+            id = id[1:]
+            ptr = np.zeros((1, self.numents), dtype="float32")
+            ptr[0, idx] = 1
+            for i in range(freq):
+                # generate random sequence of words with id in it
+                seqlen = random.choice(range(1, maxlen))
+                wordseq = random.sample(words, seqlen)
+                replacepos = random.choice(range(0, seqlen))
+                wordseq[replacepos] = id
+                q = " ".join(wordseq)
+                for tvxi in [0, 1, 2]:
+                    self.qsm.add(q)
+                    self.answerptrs.append(ptr)
+                    self.startptrs.append(np.zeros_like(ptr))
+                    self.tvx.append(tvxi)
                     self._srcs.append(self._src_dic[src])
 
     def _add_to_src(self, src, _srcs=None):
@@ -366,6 +391,9 @@ def run(lr=0.1,
     if trainlabels or "trainlabels" in _load_sources:
         tt.msg("adding labels")
         ql.add_labels(usefortrain=True, useforvalid=True, usefortest=True, src="trainlabels")
+    if "labelsincontext" in _load_sources:
+        tt.msg("adding labels in randomly generated contexts")
+        ql.add_labels_with_random_contexts(freq=3, src="labelsincontext")
     if simplefind or "simplefind" in _load_sources:
         tt.msg("adding simple questions for finds")
         ql.add_simple_questions(find_only=True, src="simplefind")
