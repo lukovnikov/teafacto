@@ -136,7 +136,7 @@ class DataLoader(object):
 
     def add_labels_with_random_contexts(self, freq=3, maxlen=10, nwords=5000, src="_default"):
         assert(not self._finalized)
-        g = Glove(nwords)
+        g = Glove(50, nwords)
         words = g.D.keys()
         if src not in self._src_dic:    self._src_dic[src] = max(self._src_dic.values())+1
         for id, idx in self.graphtensor._entdic.items():
@@ -367,7 +367,7 @@ def run(lr=0.1,
         ):
     if debug:
         #inspectdata = True
-        recipe = "trainlabels/20/simplefindred+trainlabels/20"
+        recipe = "trainlabels.train+labelsincontext/20/simplefindred+trainlabels/20"
     tt = ticktock("script")
     tt.tick("loading graph")
     graphtensor = loadtensor()
