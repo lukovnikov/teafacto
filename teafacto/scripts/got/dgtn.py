@@ -120,6 +120,7 @@ class DataLoader(object):
     def add_labels(self, usefortrain=True, useforvalid=False, usefortest=False, src="_default"):
         assert(not self._finalized)
         assert(usefortest or useforvalid or usefortrain)
+        if src not in self._src_dic:    self._src_dic[src] = max(self._src_dic.values()) + 1
         for id, idx in self.graphtensor._entdic.items():
             ptr = np.zeros((1, self.numents), dtype="float32")
             ptr[0, idx] = 1
@@ -129,22 +130,29 @@ class DataLoader(object):
                     self.answerptrs.append(ptr)
                     self.startptrs.append(np.zeros_like(ptr))
                     self.tvx.append(use)
-                    self._add_to_src(src)
+                    self._srcs.append(self._src_dic[src])
 
-    def _add_to_src(self, src):
+    def _add_to_src(self, src, _srcs=None):
         if src not in self._src_dic:
             self._src_dic[src] = max(self._src_dic.values()) + 1
-        self._srcs.append(self._src_dic[src])
+        if _srcs is None:
+            _srcs = self._srcs
+        _srcs.append(self._src_dic[src])
 
-    def add_simple_questions(self, hop_only=False, find_only=False, src="_default"):
+    def add_simple_questions(self, hop_only=False, find_only=False, trainportion=1.0, src="_default"):
         assert(not self._finalized)
+        if src not in self._src_dic:    self._src_dic[src] = max(self._src_dic.values()) + 1
+        _tvx = []
+        _questions = []
+        _startptrs = []
+        _answerptrs = []
         with open(self.simplep) as f:
             for line in f:
                 tvxi, numrels, numbranch, ambi, question, startents, answerents \
                     = map(lambda x: x.strip(), line.split("\t"))
                 tvxi, numrels, numbranch, ambi = map(int, [tvxi, numrels, numbranch, ambi])
-                self.tvx.append(tvxi)
-                self.qsm.add(question)
+                _tvx.append(tvxi)
+                _questions.append(question)
                 # answer pointer
                 answerentss = [self.graphtensor.ed[(answer if answer[0] == ":" else ":" + answer).strip()]
                                for answer in answerents.split(",:")]
@@ -160,15 +168,26 @@ class DataLoader(object):
                 startptr[0, startent] = 1
                 # choose
                 if hop_only:
-                    self.startptrs.append(startptr)
-                    self.answerptrs.append(answerptr)
+                    _startptrs.append(startptr)
+                    _answerptrs.append(answerptr)
                 elif find_only:
-                    self.startptrs.append(np.zeros_like(startptr))
-                    self.answerptrs.append(startptr)
+                    _startptrs.append(np.zeros_like(startptr))
+                    _answerptrs.append(startptr)
                 else:
-                    self.startptrs.append(np.zeros_like(startptr))
-                    self.answerptrs.append(answerptr)
-                self._add_to_src(src)
+                    _startptrs.append(np.zeros_like(startptr))
+                    _answerptrs.append(answerptr)
+        number = _tvx.count(0)
+        firstn = int(round(number * trainportion))
+        for i, tvxi, question, startptr, answerptr \
+                in zip(range(len(_tvx)), _tvx, _questions, _startptrs, _answerptrs):
+            if tvxi == 0 and i > firstn:
+                continue
+            else:
+                self.tvx.append(tvxi)
+                self.qsm.add(question)
+                self.startptrs.append(startptr)
+                self.answerptrs.append(answerptr)
+                self._srcs.append(self._src_dic[src])
 
     def finalize(self):
         self.qsm.finalize()
@@ -297,6 +316,7 @@ def run(lr=0.1,
         testpred=False,
         trainlabels=False,
         simplefind=False,
+        simplefindred=False,
         simplehop=False,
         simple=False,
         actionoverride=False,
@@ -311,7 +331,7 @@ def run(lr=0.1,
         ):
     if debug:
         #inspectdata = True
-        recipe = "trainlabels/20/simplefind/20"
+        recipe = "trainlabels/20/simplefindred/20"
     tt = ticktock("script")
     tt.tick("loading graph")
     graphtensor = loadtensor()
@@ -338,6 +358,9 @@ def run(lr=0.1,
     if simplefind or "simplefind" in _load_sources:
         tt.msg("adding simple questions for finds")
         ql.add_simple_questions(find_only=True, src="simplefind")
+    if simplefindred or "simplefindred" in _load_sources:
+        tt.msg("adding simple questions for finds, reduced")
+        ql.add_simple_questions(find_only=True, trainportion=0.2, src="simplefindred")
     if simplehop or "simplehop" in _load_sources:
         tt.msg("adding simple questions for hops")
         ql.add_simple_questions(hop_only=True, src="simplehop")
