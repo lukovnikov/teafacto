@@ -8,7 +8,7 @@ from teafacto.blocks.word.wordvec import Glove
 from teafacto.core.base import Block, param, tensorops as T
 from teafacto.blocks.activations import Softmax
 from IPython import embed
-import pickle, scipy.sparse as sp, numpy as np, re, random
+import pickle, scipy.sparse as sp, numpy as np, re, random, unidecode
 
 
 def loadtensor(p="../../../data/got/tensor.dock"):
@@ -140,7 +140,7 @@ class DataLoader(object):
         words = g.D.keys()
         if src not in self._src_dic:    self._src_dic[src] = max(self._src_dic.values())+1
         for id, idx in self.graphtensor._entdic.items():
-            id = id[1:]
+            id = unidecode.unidecode(id[1:])
             ptr = np.zeros((1, self.numents), dtype="float32")
             ptr[0, idx] = 1
             for i in range(freq):
@@ -255,8 +255,8 @@ class DataLoader(object):
             for srce in src:
                 srcesplits = srce.split(".")
                 srceparts = ["train", "valid", "test"]
+                srce = srcesplits[0]
                 if len(srcesplits) > 1:
-                    srce = srcesplits[0]
                     srceparts = srcesplits[1:]
                 if "train" in srceparts:
                     trainidxs |= self._trainsrcs == self._src_dic[srce]
@@ -367,7 +367,7 @@ def run(lr=0.1,
         ):
     if debug:
         #inspectdata = True
-        recipe = "trainlabels.train+labelsincontext/20/simplefindred+trainlabels/20"
+        recipe = "trainlabels.train+labelsincontext.train+simplefind.valid.test/30"
     tt = ticktock("script")
     tt.tick("loading graph")
     graphtensor = loadtensor()
@@ -383,7 +383,7 @@ def run(lr=0.1,
                  for i, x in enumerate(recipe.split("/"))]
         i = 0
         while i < len(train_recipe):
-            _load_sources += train_recipe[i]
+            _load_sources += tuple([tri.split(".")[0] for tri in train_recipe[i]])
             i += 2
 
         tt.msg("using recipe {}".format(recipe))
