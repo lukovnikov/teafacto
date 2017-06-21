@@ -228,9 +228,17 @@ class DataLoader(object):
             valididxs = np.zeros_like(self._validsrcs, dtype="bool")
             testidxs = np.zeros_like(self._testsrcs, dtype="bool")
             for srce in src:
-                trainidxs |= self._trainsrcs == self._src_dic[srce]
-                valididxs |= self._validsrcs == self._src_dic[srce]
-                testidxs |= self._testsrcs == self._src_dic[srce]
+                srcesplits = srce.split(".")
+                srceparts = ["train", "valid", "test"]
+                if len(srcesplits) > 1:
+                    srce = srcesplits[0]
+                    srceparts = srcesplits[1:]
+                if "train" in srceparts:
+                    trainidxs |= self._trainsrcs == self._src_dic[srce]
+                if "valid" in srceparts:
+                    valididxs |= self._validsrcs == self._src_dic[srce]
+                if "test" in srceparts:
+                    testidxs |= self._testsrcs == self._src_dic[srce]
             trainmat = self._trainmat[trainidxs]
             validmat = self._validmat[valididxs]
             testmat = self._testmat[testidxs]
@@ -330,11 +338,11 @@ def run(lr=0.1,
         enttemp=1.,
         reltemp=1.,
         acttemp=1.,
-        recipe="none",       # "none" or e.g. "trainfind+simplefind/50/simple/10"
+        recipe="none",       # "none" or e.g. "trainfind+simplefind.train/50/simple/10"
         ):
     if debug:
         #inspectdata = True
-        recipe = "trainlabels/20/simplefind/20"
+        recipe = "trainlabels/20/simplefindred+trainlabels/20"
     tt = ticktock("script")
     tt.tick("loading graph")
     graphtensor = loadtensor()
@@ -476,7 +484,7 @@ def run(lr=0.1,
         traindata, validdata, testdata, traingold, validgold, testgold = ql.get(source)
         numbats = (len(traindata[0]) // batsize) + 1
 
-        tt.tick("training on {} ({} examples)".format("+".join(source), len(traindata[0])))
+        tt.tick("training on {} ({} train examples, {} valid examples)".format("+".join(source), len(traindata[0]), len(validdata[0])))
         dgtn._no_extra_ret()
 
         if not debug:
