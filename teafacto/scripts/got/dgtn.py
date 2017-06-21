@@ -186,12 +186,11 @@ class DataLoader(object):
                     continue
                 else:
                     i += 1
-            else:
-                self.tvx.append(tvxi)
-                self.qsm.add(question)
-                self.startptrs.append(startptr)
-                self.answerptrs.append(answerptr)
-                self._srcs.append(self._src_dic[src])
+            self.tvx.append(tvxi)
+            self.qsm.add(question)
+            self.startptrs.append(startptr)
+            self.answerptrs.append(answerptr)
+            self._srcs.append(self._src_dic[src])
 
     def finalize(self):
         self.qsm.finalize()
