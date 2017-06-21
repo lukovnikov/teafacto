@@ -178,10 +178,14 @@ class DataLoader(object):
                     _answerptrs.append(answerptr)
         number = _tvx.count(0)
         firstn = int(round(number * trainportion))
-        for i, tvxi, question, startptr, answerptr \
-                in zip(range(len(_tvx)), _tvx, _questions, _startptrs, _answerptrs):
-            if tvxi == 0 and i > firstn:
-                continue
+        i = 0
+        for tvxi, question, startptr, answerptr \
+                in zip(_tvx, _questions, _startptrs, _answerptrs):
+            if tvxi == 0:
+                if i > firstn:
+                    continue
+                else:
+                    i += 1
             else:
                 self.tvx.append(tvxi)
                 self.qsm.add(question)
@@ -331,7 +335,7 @@ def run(lr=0.1,
         ):
     if debug:
         #inspectdata = True
-        recipe = "trainlabels/20/simplefindred/20"
+        recipe = "trainlabels/20/simplefind/20"
     tt = ticktock("script")
     tt.tick("loading graph")
     graphtensor = loadtensor()
@@ -476,10 +480,11 @@ def run(lr=0.1,
         tt.tick("training on {} ({} examples)".format("+".join(source), len(traindata[0])))
         dgtn._no_extra_ret()
 
-        dgtn.train(traindata, traingold)\
-            .adadelta(lr=lr).loss(trainloss).loss(PointerFscore()).grad_total_norm(5.)\
-            .validate_on(validdata, validgold).loss(trainloss).loss(PointerFscore()).loss(PointerRecall()).loss(PointerPrecision())\
-            .train(numbats, epochs)
+        if not debug:
+            dgtn.train(traindata, traingold)\
+                .adadelta(lr=lr).loss(trainloss).loss(PointerFscore()).grad_total_norm(5.)\
+                .validate_on(validdata, validgold).loss(trainloss).loss(PointerFscore()).loss(PointerRecall()).loss(PointerPrecision())\
+                .train(numbats, epochs)
 
         tt.tock("trained")
         i += 2
