@@ -145,7 +145,7 @@ class DataLoader(object):
             ptr[0, idx] = 1
             for i in range(freq):
                 # generate random sequence of words with id in it
-                seqlen = random.choice(range(1, maxlen))
+                seqlen = random.choice(range(3, maxlen))
                 wordseq = random.sample(words, seqlen)
                 replacepos = random.choice(range(0, seqlen))
                 wordseq[replacepos] = id
@@ -393,7 +393,7 @@ def run(lr=0.1,
         ql.add_labels(usefortrain=True, useforvalid=True, usefortest=True, src="trainlabels")
     if "labelsincontext" in _load_sources:
         tt.msg("adding labels in randomly generated contexts")
-        ql.add_labels_with_random_contexts(freq=3, src="labelsincontext")
+        ql.add_labels_with_random_contexts(freq=6, src="labelsincontext")
     if simplefind or "simplefind" in _load_sources:
         tt.msg("adding simple questions for finds")
         ql.add_simple_questions(find_only=True, src="simplefind")
