@@ -219,6 +219,7 @@ class DataLoader(object):
 
     def add_chains(self, length=None, withstart=False, src="_default"):
         assert(not self._finalized)
+        if src not in self._src_dic:    self._src_dic[src] = max(self._src_dic.values()) + 1
         with open(self.allp) as f:
             tvxic = 0
             for line in f:
@@ -250,6 +251,7 @@ class DataLoader(object):
                         self.tvx.append(0 if tvxic < 2 else 1 if tvxic == 2 else 2)
                         tvxic += 1
                         tvxic %= 4
+                        self._srcs.append(self._src_dic[src])
 
     def finalize(self):
         self.qsm.finalize()
