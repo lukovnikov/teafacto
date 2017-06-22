@@ -364,11 +364,11 @@ def run(lr=0.1,
         enttemp=1.,
         reltemp=1.,
         acttemp=1.,
-        recipe="none",       # "none" or e.g. "trainfind+simplefind.train/50/simple/10"
+        recipe="none",       # "none" or e.g. "trainfind+simplefind.train/epochs=30,nsteps=1/simple/10"
         ):
     if debug:
         #inspectdata = True
-        recipe = "trainlabels.train+labelsincontext.train+simplefind.valid.test/30"
+        recipe = "trainlabels.train+labelsincontext.train+simplefind.valid.test/epochs=30"
     tt = ticktock("script")
     tt.tick("loading graph")
     graphtensor = loadtensor()
@@ -380,7 +380,8 @@ def run(lr=0.1,
     if recipe != "none":
         assert(not (trainlabels or simplefind or simplehop or simple))
         train_recipe = [tuple([source for source in x.split("+")])
-                 if i % 2 == 0 else int(x)
+                 if i % 2 == 0
+                        else dict([(y.split("=")[0], y.split("=")[1]) for y in x.split(",") if len(y.split("=")) == 2])
                  for i, x in enumerate(recipe.split("/"))]
         i = 0
         while i < len(train_recipe):
@@ -512,18 +513,22 @@ def run(lr=0.1,
 
     i = 0
     while i < len(train_recipe):
-        source, epochs = train_recipe[i:i+2]
+        source, settings = train_recipe[i:i+2]
+        local_epochs = int(settings["epochs"]) if "epochs" in settings else epochs
+        local_nsteps = int(settings["nsteps"]) if "nsteps" in settings else nsteps
         traindata, validdata, testdata, traingold, validgold, testgold = ql.get(source)
         numbats = (len(traindata[0]) // batsize) + 1
 
-        tt.tick("training on {} ({} train examples, {} valid examples)".format("+".join(source), len(traindata[0]), len(validdata[0])))
+        tt.tick("training on {} ({} train examples, {} valid examples), nsteps={}".format("+".join(source), len(traindata[0]), len(validdata[0]), local_nsteps))
         dgtn._no_extra_ret()
+
+        dgtn.nsteps = local_nsteps
 
         if not debug:
             dgtn.train(traindata, traingold)\
                 .adadelta(lr=lr).loss(trainloss).loss(PointerFscore()).grad_total_norm(5.)\
                 .validate_on(validdata, validgold).loss(trainloss).loss(PointerFscore()).loss(PointerRecall()).loss(PointerPrecision())\
-                .train(numbats, epochs)
+                .train(numbats, local_epochs)
 
         tt.tock("trained")
         i += 2
