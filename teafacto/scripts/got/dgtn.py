@@ -560,14 +560,16 @@ def run(lr=0.1,
         numbats = (len(traindata[0]) // batsize) + 1
         dgtn.nsteps = local_nsteps
         if "action" in settings:
+            tt.msg("enabled only {}".format(settings["action"]))
             dgtn.disable("all")
             dgtn.enable(settings["action"])
 
+        dgtn._predictor = None
         dgtn._ret_actions = True
         dgtn._ret_entities = True
         dgtn._ret_relations = True
         predf = dgtn.predict
-        testprediction, actions, entities, relations = predf(*[testdatamat[:5] for testdatamat in testdata])
+        testprediction = predf(*[testdatamat[:5] for testdatamat in testdata])
 
         tt.tick("training on {} ({} train examples, {} valid examples), nsteps={}".format("+".join(source), len(traindata[0]), len(validdata[0]), local_nsteps))
         dgtn._no_extra_ret()
