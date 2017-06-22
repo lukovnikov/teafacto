@@ -65,7 +65,7 @@ class GraphTensor():
 
     @property
     def rrd(self):
-        return DictGetter(self._red)
+        return DictGetter(self._rld)
 
 
 def loadquestions(graphtensor,
@@ -217,6 +217,40 @@ class DataLoader(object):
             self.answerptrs.append(answerptr)
             self._srcs.append(self._src_dic[src])
 
+    def add_chains(self, length=None, withstart=False, src="_default"):
+        assert(not self._finalized)
+        with open(self.allp) as f:
+            tvxic = 0
+            for line in f:
+                qid, numrels, numbranch, ambi, question, startents, answerents\
+                    = map(lambda x: x.strip(), line.split("\t"))
+                qid, numrels, numbranch, ambi = map(int, [qid, numrels, numbranch, ambi])
+                # preprocess questions
+                if numbranch == 0:
+                    if length is None or length == numrels:
+                        self.qsm.add(question)
+                        # answers
+                        answerentss = [self.graphtensor.ed[(answer if answer[0] == ":" else ":" + answer).strip()]
+                                       for answer in answerents.split(",:")]
+                        answerents = np.asarray(answerentss).astype("int32")
+                        answerptr = np.zeros((1, self.numents), dtype="float32")
+                        answerptr[0, answerents] = 1
+                        self.answerptrs.append(answerptr)
+                        # start pointer
+                        if withstart:
+                            startentss = [self.graphtensor.ed[(startent if startent[0] == ":" else ":" + startent).strip()]
+                                          for startent in startents.split(",:")]
+                            assert (len(startentss) == 1)
+                            startent = int(startentss[0])
+                            startptr = np.zeros((1, self.numents), dtype="float32")
+                            startptr[0, startent] = 1
+                        else:
+                            startptr = np.zeros_like(answerptr)
+                        self.startptrs.append(startptr)
+                        self.tvx.append(0 if tvxic < 2 else 1 if tvxic == 2 else 2)
+                        tvxic += 1
+                        tvxic %= 4
+
     def finalize(self):
         self.qsm.finalize()
         self.tvx = np.asarray(self.tvx)
@@ -355,6 +389,7 @@ def run(lr=0.1,
         simplefind=False,
         simplefindred=False,
         simplehop=False,
+        twohops=False,
         simple=False,
         actionoverride=False,
         smmode="sm",        # "sm" or "gumbel" or "maxhot"
@@ -396,6 +431,8 @@ def run(lr=0.1,
     if "labelsincontext" in _load_sources:
         tt.msg("adding labels in randomly generated contexts")
         ql.add_labels_with_random_contexts(freq=6, src="labelsincontext")
+    if twohops or "twohops" in _load_sources:
+        ql.add_chains(length=2, src="twohops")
     if simplefind or "simplefind" in _load_sources:
         tt.msg("adding simple questions for finds")
         ql.add_simple_questions(find_only=True, src="simplefind")
@@ -517,12 +554,21 @@ def run(lr=0.1,
         local_epochs = int(settings["epochs"]) if "epochs" in settings else epochs
         local_nsteps = int(settings["nsteps"]) if "nsteps" in settings else nsteps
         traindata, validdata, testdata, traingold, validgold, testgold = ql.get(source)
+
         numbats = (len(traindata[0]) // batsize) + 1
+        dgtn.nsteps = local_nsteps
+        if "action" in settings:
+            dgtn.disable("all")
+            dgtn.enable(settings["action"])
+
+        dgtn._ret_actions = True
+        dgtn._ret_entities = True
+        dgtn._ret_relations = True
+        predf = dgtn.predict
+        testprediction, actions, entities, relations = predf(*[testdatamat[:5] for testdatamat in testdata])
 
         tt.tick("training on {} ({} train examples, {} valid examples), nsteps={}".format("+".join(source), len(traindata[0]), len(validdata[0]), local_nsteps))
         dgtn._no_extra_ret()
-
-        dgtn.nsteps = local_nsteps
 
         if not debug:
             dgtn.train(traindata, traingold)\
