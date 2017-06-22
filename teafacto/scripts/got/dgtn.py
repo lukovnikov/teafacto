@@ -345,6 +345,7 @@ def run(lr=0.1,
         innerdim=310,
         nlayers=2,
         wordembdim=50,
+        gloveoverride=False,
         encdim=100,
         nenclayers=2,
         dropout=0.1,
@@ -468,9 +469,10 @@ def run(lr=0.1,
     dgtn._act_temp = temperature * acttemp
     dgtn._rel_temp = temperature * reltemp
     wordemb = WordEmb(dim=wordembdim, indim=qsm.numwords, worddic=qsm._dictionary, maskid=qsm.d("<MASK>"))
-    xwordemb = wordemb.override(Glove(wordembdim))
+    if gloveoverride:
+        wordemb = wordemb.override(Glove(wordembdim))
     enc = SeqEncoder.fluent()\
-        .setembedder(xwordemb)\
+        .setembedder(wordemb)\
         .addlayers([encdim]*nenclayers, dropout_in=dropout, zoneout=dropout)\
         .make().all_outputs()
     dec = EncDec(encoder=enc,
