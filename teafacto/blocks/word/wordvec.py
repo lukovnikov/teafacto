@@ -179,7 +179,7 @@ class OverriddenWordEmb(WordEmb): # TODO: RARE TOKEN MGMT
             valval[i] = self.ad[i] if i in self.ad else 0
         self.adb = Val(valval)
 
-    def apply(self, x):
+    def apply(self, x):     # (batsize,)int
         overx = self.adb[x]
         mask = overx > 0
         mask = T.outer(mask, T.ones((self.outdim,)))
@@ -206,9 +206,9 @@ class NewOverriddenWordEmb(WordEmb):
             valval[i] = ad[i] if i in ad else 0
         overrideindexes = Val(valval)
         overridevar = override(overrideindexes)
-        overridemask = np.repeat(valval[:, None], base.outdim, axis=1)
-        v = Switch(overridevar, basevar, overridemask)
-        super(NewOverriddenWordEmb, self).__init__(worddic=base.D, value=v(),
+        overridemask = np.repeat((valval[:, None] > 0) * 1, base.outdim, axis=1)
+        v = T.switch(overridemask, overridevar, basevar)
+        super(NewOverriddenWordEmb, self).__init__(worddic=base.D, value=v,
                dim=base.outdim, maskid=maskid)
 
 

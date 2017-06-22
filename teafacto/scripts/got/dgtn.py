@@ -4,7 +4,7 @@ from teafacto.blocks.seq.neurex import DGTN, DGTN_S, PWPointerLoss, KLPointerLos
 from teafacto.blocks.seq.encdec import EncDec
 from teafacto.blocks.seq.rnn import SeqEncoder
 from teafacto.blocks.seq.attention import Attention
-from teafacto.blocks.word.wordvec import Glove
+from teafacto.blocks.word.wordvec import Glove, WordEmb
 from teafacto.core.base import Block, param, tensorops as T
 from teafacto.blocks.activations import Softmax
 from IPython import embed
@@ -344,7 +344,7 @@ def run(lr=0.1,
         nsteps=7,
         innerdim=310,
         nlayers=2,
-        wordembdim=64,
+        wordembdim=50,
         encdim=100,
         nenclayers=2,
         dropout=0.1,
@@ -467,8 +467,10 @@ def run(lr=0.1,
     dgtn._ent_temp = temperature * enttemp
     dgtn._act_temp = temperature * acttemp
     dgtn._rel_temp = temperature * reltemp
+    wordemb = WordEmb(dim=wordembdim, indim=qsm.numwords, worddic=qsm._dictionary, maskid=qsm.d("<MASK>"))
+    xwordemb = wordemb.override(Glove(wordembdim))
     enc = SeqEncoder.fluent()\
-        .vectorembedder(qsm.numwords, wordembdim, maskid=qsm.d("<MASK>"))\
+        .setembedder(xwordemb)\
         .addlayers([encdim]*nenclayers, dropout_in=dropout, zoneout=dropout)\
         .make().all_outputs()
     dec = EncDec(encoder=enc,
