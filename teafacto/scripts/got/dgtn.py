@@ -563,6 +563,7 @@ def run(lr=0.1,
             tt.msg("enabled only {}".format(settings["action"]))
             dgtn.disable("all")
             dgtn.enable(settings["action"])
+            print dgtn._act_sel_mask
 
         dgtn._predictor = None
         dgtn._ret_actions = True
