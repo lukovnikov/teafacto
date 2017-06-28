@@ -526,17 +526,18 @@ def run(lr=0.1,
     dgtn.set_core(dec)
     tt.tock("model built")
 
-    # prediction function
-    dgtn._ret_actions = True
-    dgtn._ret_entities = True
-    dgtn._ret_relations = True
-    predf = dgtn.predict
-    testprediction, actions, entities, relations = predf(*[testdatamat[:5] for testdatamat in testdata])
-    def tpred():
-        return predf(*[testdatamat[:15] for testdatamat in testdata])
-    # inspect prediction
-    if testpred:
-        embed()
+    if False:
+        # prediction function
+        dgtn._ret_actions = True
+        dgtn._ret_entities = True
+        dgtn._ret_relations = True
+        predf = dgtn.predict
+        testprediction, actions, entities, relations = predf(*[testdatamat[:5] for testdatamat in testdata])
+        def tpred():
+            return predf(*[testdatamat[:15] for testdatamat in testdata])
+        # inspect prediction
+        if testpred:
+            embed()
 
     # choose loss
     if loss == "klp":
@@ -562,6 +563,7 @@ def run(lr=0.1,
         if "action" in settings:
             tt.msg("enabled only {}".format(settings["action"]))
             dgtn.disable("all")
+            dgtn.disable("_nop")
             dgtn.enable(settings["action"])
             print dgtn._act_sel_mask
 
@@ -571,6 +573,7 @@ def run(lr=0.1,
         dgtn._ret_relations = True
         predf = dgtn.predict
         testprediction = predf(*[testdatamat[:5] for testdatamat in testdata])
+        embed()
 
         tt.tick("training on {} ({} train examples, {} valid examples), nsteps={}".format("+".join(source), len(traindata[0]), len(validdata[0]), local_nsteps))
         dgtn._no_extra_ret()
