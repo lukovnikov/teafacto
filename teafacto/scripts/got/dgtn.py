@@ -434,7 +434,7 @@ def run(lr=0.1,
         tt.msg("adding labels in randomly generated contexts")
         ql.add_labels_with_random_contexts(freq=6, src="labelsincontext")
     if twohops or "twohops" in _load_sources:
-        ql.add_chains(length=2, src="twohops")
+        ql.add_chains(length=2, src="twohops", withstart=True)
     if simplefind or "simplefind" in _load_sources:
         tt.msg("adding simple questions for finds")
         ql.add_simple_questions(find_only=True, src="simplefind")
