@@ -557,8 +557,6 @@ def run(lr=0.1,
         local_epochs = int(settings["epochs"]) if "epochs" in settings else epochs
         local_nsteps = int(settings["nsteps"]) if "nsteps" in settings else nsteps
         traindata, validdata, testdata, traingold, validgold, testgold = ql.get(source)
-        if inspectdata:
-            embed()
 
         numbats = (len(traindata[0]) // batsize) + 1
         dgtn.nsteps = local_nsteps
@@ -575,7 +573,8 @@ def run(lr=0.1,
         dgtn._ret_relations = True
         predf = dgtn.predict
         testprediction = predf(*[testdatamat[:5] for testdatamat in testdata])
-        embed()
+        if inspectdata:
+            embed()
 
         tt.tick("training on {} ({} train examples, {} valid examples), nsteps={}".format("+".join(source), len(traindata[0]), len(validdata[0]), local_nsteps))
         dgtn._no_extra_ret()
