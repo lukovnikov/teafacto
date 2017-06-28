@@ -264,6 +264,7 @@ class DGTN(Block):
         if mask is not None:    # (num*)
             mask = mask.dimadd(0).repeat(att.shape[0], axis=0)
             att.mask = mask
+            print "masked attention"
         if self._gumbel_sm and not override_custom_sm:
             sm = GumbelSoftmax(deterministic_pred=True, temperature=temp)
         elif self._maxhot_sm and not override_custom_sm:
