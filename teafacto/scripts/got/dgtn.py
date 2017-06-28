@@ -464,7 +464,7 @@ def run(lr=0.1,
         traingold, validgold, testgold = answers[:splita, :], answers[splita:splitb, :], answers[splitb:, :]
         traindata, validdata, testdata = [trainmat, np.zeros_like(traingold)], [validmat, np.zeros_like(validgold)], [testmat, np.zeros_like(testgold)]
         tt.tock("{} questions loaded".format(len(qmat)))
-    if inspectdata:
+    if inspectdata and False:
         embed()
 
     if actionoverride:
@@ -557,6 +557,8 @@ def run(lr=0.1,
         local_epochs = int(settings["epochs"]) if "epochs" in settings else epochs
         local_nsteps = int(settings["nsteps"]) if "nsteps" in settings else nsteps
         traindata, validdata, testdata, traingold, validgold, testgold = ql.get(source)
+        if inspectdata:
+            embed()
 
         numbats = (len(traindata[0]) // batsize) + 1
         dgtn.nsteps = local_nsteps
