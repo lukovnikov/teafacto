@@ -203,6 +203,7 @@ class MaxHot(Activation):
             retmax = T.max(x, axis=self.axes, keepdims=True)
             ret = T.eq(x, retmax)
             ret = T.cast(ret, x.dtype)
+            ret = ret * mask        # ensure when multiple selected, masked ones are 0
             return ret
         else:
             ret = self.ste(x)
