@@ -194,6 +194,9 @@ class MaxHot(Activation):
         super(MaxHot, self).__init__(**kw)
 
     def innerapply(self, x, _trainmode=False, **kw):
+        if x.mask is not None:
+            assert(x.ndim == x.mask.ndim)
+            x = x * x.mask
         if self.ste is False:
             retmax = T.max(x, axis=self.axes, keepdims=True)
             ret = T.eq(x, retmax)
