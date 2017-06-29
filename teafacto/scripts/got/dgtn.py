@@ -402,6 +402,7 @@ def run(lr=0.1,
         reltemp=1.,
         acttemp=1.,
         recipe="none",       # "none" or e.g. "trainfind+simplefind.train/epochs=30,nsteps=1/simple/10"
+        validontrain=False,
         ):
     if debug:
         #inspectdata = True
@@ -579,10 +580,12 @@ def run(lr=0.1,
         tt.tick("training on {} ({} train examples, {} valid examples), nsteps={}".format("+".join(source), len(traindata[0]), len(validdata[0]), local_nsteps))
         dgtn._no_extra_ret()
 
+
         if not debug:
             dgtn.train(traindata, traingold)\
                 .adadelta(lr=lr).loss(trainloss).loss(PointerFscore()).grad_total_norm(5.)\
-                .validate_on(validdata, validgold).loss(trainloss).loss(PointerFscore()).loss(PointerRecall()).loss(PointerPrecision())\
+                .validate_on(validdata if not validontrain else traindata, validgold if not validontrain else traingold)\
+                .loss(trainloss).loss(PointerFscore()).loss(PointerRecall()).loss(PointerPrecision())\
                 .train(numbats, local_epochs)
 
         tt.tock("trained")

@@ -25,7 +25,7 @@ def load_lin_dataset(p):
             if loaded is not None:
                 question, answer, (nldic, lfdic), info = loaded
                 print question
-                if "kicker" in question:
+                if "what is the <E1> of <E0>" in question:
                     pass
                 answer = relinearize(answer)
                 maxlen = max(maxlen, len(answer.split()))
@@ -80,7 +80,34 @@ def _relin_rec(triples, root, binary_tree=False):
 
 def _join_branches_binary(branches):
     # sort branches
-
+    def _sorter_cmp(x, y):
+        x = x.split()[0]
+        y = y.split()[0]
+        if x == "ARGMIN" or y == "ARGMIN" or x == "ARGMAX" or y == "ARGMAX":
+            pass
+        if re.match(r'<E\d{1,2}>', x) and re.match(r'<E\d{1,2}>', y):
+            return 1 if x > y else -1 if x < y else 0
+        elif re.match(r'<E\d{1,2}>', x):
+            return -1
+        elif re.match(r'<E\d{1,2}>', y):
+            return 1
+        else:
+            if (x == "ARGMAX" or x == "ARGMIN") and (y == "ARGMAX" or y == "ARGMIN"):
+                return 0
+            elif x == "ARGMAX" or x == "ARGMIN":
+                return 1
+            elif y == "ARGMAX" or y == "ARGMIN":
+                return -1
+            else:
+                if re.match(r'[a-z]{1,2}\..+', x) and re.match(r'[a-z]{1,2}\..+', y):
+                    return 1 if x > y else -1 if x < y else 0
+                elif re.match(r'[a-z]{1,2}\..+', x):
+                    return -1
+                elif re.match(r'[a-z]{1,2}\..+', y):
+                    return 1
+                else:
+                    return 1 if x > y else -1 if x < y else 0
+    branches = sorted(branches, cmp=_sorter_cmp)
     # join branches
     acc = branches[0]
     for branch in branches[1:]:
