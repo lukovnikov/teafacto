@@ -36,19 +36,23 @@ def load_lin_dataset(p):
     return ret
 
 
-def relinearize(q):
+def relinearize(q, binary_tree=True):
     triples = [tuple(x.strip().split()) for x in q.strip().split(";") if len(x) > 0]
-    lin = _relin_rec(triples, "OUT")
+    lin = _relin_rec(triples, "OUT", binary_tree=binary_tree)
     if len(lin) == 1:
         lin = lin[0]
     else:
-        lin = " and ".join(lin)
+        if binary_tree:
+            lin = _join_branches_binary(lin)
+        else:
+            lin = " and ".join(lin)
+    lin += " <RETURN>"
     return lin
 
 
-def _relin_rec(triples, root):
-    roottriples = []
-    redtriples = []
+def _relin_rec(triples, root, binary_tree=False):
+    roottriples = []    # triples resulting in root node
+    redtriples = []     # other triples
     if not (re.match("var\d", root) or root == "OUT"):
         return [root]
     for s, p, o in triples:
@@ -64,11 +68,24 @@ def _relin_rec(triples, root):
         if len(sublin) == 1:
             sublin = sublin[0]
         else:
-            sublin = "( {} )".format(" and ".join(sublin))
+            if binary_tree:
+                sublin = _join_branches_binary(sublin)
+            else:
+                sublin = "( {} )".format(" and ".join(sublin))
         sublin = "{} {}".format(sublin, p)
         sublins.append(sublin)
     return sublins
     # orient triples right way
+
+
+def _join_branches_binary(branches):
+    # sort branches
+
+    # join branches
+    acc = branches[0]
+    for branch in branches[1:]:
+        acc = "{} {} <JOIN>".format(acc, branch)
+    return acc
 
 
 def load_lin_question(line):
