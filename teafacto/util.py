@@ -1,6 +1,6 @@
 import collections, inspect, argparse, dill as pkl, os, numpy as np, pandas as pd, sys
 from datetime import datetime as dt
-import re, unidecode, nltk
+import re, unidecode, nltk, random
 from nltk.corpus import stopwords
 
 
@@ -282,6 +282,10 @@ def issequence(x):
     return isinstance(x, collections.Sequence) and not isinstance(x, basestring)
 
 
+def iscollection(x):
+    return issequence(x) or isinstance(x, set)
+
+
 def isnumber(x):
     return isinstance(x, float) or isinstance(x, int)
 
@@ -372,9 +376,10 @@ class DataSet():
 
 class StringMatrix():
     protectedwords = ["<MASK>", "<RARE>", "<START>", "<END>"]
+
     def __init__(self, maxlen=None, freqcutoff=0, topnwords=None, indicate_start_end=False):
         self._strings = []
-        self._wordcounts = dict(zip(self.protectedwords, [0]*len(self.protectedwords)))
+        self._wordcounts_original = dict(zip(self.protectedwords, [0] * len(self.protectedwords)))
         self._dictionary = dict(zip(self.protectedwords, range(len(self.protectedwords))))
         self._rd = None
         self._next_available_id = len(self._dictionary)
@@ -385,6 +390,7 @@ class StringMatrix():
         self._topnwords = topnwords
         self._indic_s_e = indicate_start_end
         self._rarewords = set()
+        self.tokenize = tokenize
 
     @property
     def numwords(self):
@@ -418,7 +424,7 @@ class StringMatrix():
         return ret
 
     def add(self, x):
-        tokens = tokenize(x)
+        tokens = self.tokenize(x)
         tokens = tokens[:self._max_allowable_length]
         if self._indic_s_e:
             tokens = ["<START>"] + tokens + ["<END>"]
@@ -428,10 +434,11 @@ class StringMatrix():
             if token not in self._dictionary:
                 self._dictionary[token] = self._next_available_id
                 self._next_available_id += 1
-                self._wordcounts[token] = 0
-            self._wordcounts[token] += 1
+                self._wordcounts_original[token] = 0
+            self._wordcounts_original[token] += 1
             tokenidxs.append(self._dictionary[token])
         self._strings.append(tokenidxs)
+        return len(self._strings)-1
 
     def finalize(self):
         ret = np.zeros((len(self._strings), self._maxlen), dtype="int32")
@@ -444,7 +451,7 @@ class StringMatrix():
     def _do_rare(self):
         sortedwordidxs = [self.d(x) for x in self.protectedwords] + \
                          ([self.d(x) for x, y
-                          in sorted(self._wordcounts.items(), key=lambda (x,y): y, reverse=True)
+                          in sorted(self._wordcounts_original.items(), key=lambda (x,y): y, reverse=True)
                           if y >= self._rarefreq and x not in self.protectedwords][:self._topnwords])
         transdic = zip(sortedwordidxs, range(len(sortedwordidxs)))
         transdic = dict(transdic)
@@ -458,12 +465,27 @@ class StringMatrix():
         self._dictionary = {k: transdic[v] for k, v in self._dictionary.items() if self.d(k) in sortedwordidxs}
 
 
-def tokenize(s):
+def tokenize(s, preserve_patterns=None):
     s = s.decode("utf-8")
     s = unidecode.unidecode(s)
+    repldic = None
+    if preserve_patterns is not None:
+        repldic = {}
+        def _tokenize_preserve_repl(x):
+            id = max(repldic.keys() + [-1]) + 1
+            repl = "replreplrepl{}".format(id)
+            assert(repl not in s)
+            assert(id not in repldic)
+            repldic[id] = x.group(0)
+            return repl
+        for preserve_pattern in preserve_patterns:
+            s = re.sub(preserve_pattern, _tokenize_preserve_repl, s)
     s = re.sub("[-_\{\}/]", " ", s)
     s = s.lower()
     tokens = nltk.word_tokenize(s)
+    if repldic is not None:
+        repldic = {"replreplrepl{}".format(k): v for k, v in repldic.items()}
+        tokens = [repldic[token] if token in repldic else token for token in tokens]
     s = re.sub("`", "'", s)
     return tokens
 

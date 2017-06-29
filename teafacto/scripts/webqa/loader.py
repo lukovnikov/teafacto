@@ -1,4 +1,4 @@
-from teafacto.util import argprun, ticktock, StringMatrix
+from teafacto.util import argprun, ticktock, StringMatrix, tokenize
 import re
 
 
@@ -10,10 +10,29 @@ def load_lin(p="../../../data/WebQSP/data/"):
     trainexamplespath = p+"WebQSP.train.lin"
     testexamplespath = p+"WebQSP.test.lin"
     trainexamples = load_lin_dataset(trainexamplespath)
+    textsm = StringMatrix(indicate_start_end=True, freqcutoff=2)
+    textsm.tokenize = lambda x: tokenize(x, preserve_patterns=["<E\d>"])
+    formsm = StringMatrix(indicate_start_end=False, freqcutoff=2)
+    formsm.tokenize = lambda x: x.split()
     for trainexample in trainexamples:
-        #print trainexample
-        pass
+        textsm.add(trainexample[0])
+        formsm.add(trainexample[1])
     testexamples = load_lin_dataset(testexamplespath)
+    for testexample in testexamples:
+        textsm.add(testexample[0])
+        formsm.add(testexample[1])
+    textsm.finalize()
+    formsm.finalize()
+    print textsm.matrix[:5]
+    print textsm.pp(textsm.matrix[:5])
+    print textsm.matrix.shape[1]
+    print formsm.pp(formsm.matrix[:5])
+    print formsm.matrix.shape[1]
+    for k, v in sorted(formsm._wordcounts_original.items(), key=lambda (x, y): y, reverse=True):
+        print "{}: {}".format(k, v)
+    print len(formsm._dictionary)
+    print len(textsm._dictionary)
+
 
 
 def load_lin_dataset(p):
@@ -24,12 +43,12 @@ def load_lin_dataset(p):
             loaded = load_lin_question(line)
             if loaded is not None:
                 question, answer, (nldic, lfdic), info = loaded
-                print question
+                #print question
                 if "what is the <E1> of <E0>" in question:
                     pass
                 answer = relinearize(answer)
                 maxlen = max(maxlen, len(answer.split()))
-                print answer
+                print answer, lfdic
                 ret.append((question, answer, (nldic, lfdic), info))
         print "{} max len".format(maxlen)
     print "done"

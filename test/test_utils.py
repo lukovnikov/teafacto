@@ -1,7 +1,7 @@
 from unittest import TestCase
 
 from teafacto.util import ticktock as TT, argparsify, loadlexidtsv, \
-    unstructurize, restructurize, StringMatrix
+    unstructurize, restructurize, StringMatrix, tokenize
 import os
 
 class TestUtils(TestCase):
@@ -63,15 +63,35 @@ class TestStringMatrix(TestCase):
         tm.add("to be or not to be")
         tm.add("what is the meaning of life, universe and everything")
         tm.add("what is love, baby don't hurt me, don't hurt me, no more")
-        print tm._wordcounts
+        print tm._wordcounts_original
         print tm._maxlen
         print tm._dictionary
         tm.finalize()
-        print tm._wordcounts
+        print tm._wordcounts_original
         print tm._dictionary
         print tm.matrix
         print tm.pp(tm.matrix)
         print tm.matrix[0]
         print tm.pp(np.asarray([0,1,2,3,4,5,6,7,8,9,10,11,12]))
         print tm.pp(tm.matrix[0]+5)
+
+
+class TestTokenize(TestCase):
+    def test_tokenize(self):
+        s = "what did he do"
+        g = s.split()
+        t = tokenize(s)
+        self.assertEqual(g, t)
+
+    def test_tokenize_apostrophe_s(self):
+        s = "what's etna's height"
+        g = "what 's etna 's height".split()
+        t = tokenize(s)
+        self.assertEqual(g, t)
+
+    def test_tokenize_preserve(self):
+        s = "what did <E0> do when <E1> killed <E2> in <E3> during <E4>"
+        g = s.split()
+        t = tokenize(s, preserve_patterns=["<E\d>"])
+        self.assertEqual(g, t)
 
