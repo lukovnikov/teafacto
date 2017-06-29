@@ -498,7 +498,7 @@ def run(lr=0.1,
     tt.tick("building model")
     dgtn = DGTN_S(reltensor=graphtensor.tensor, nsteps=nsteps,
                 entembdim=200, actembdim=10, attentiondim=encdim,
-                entitysummary=False, relationsummary=False, pointersummary=False,
+                entitysummary=False, relationsummary=False, pointersummary=True,
                 action_override=actionoverride,
                 gumbel=smmode=="gumbel", maxhot=smmode=="maxhot",
                 )
