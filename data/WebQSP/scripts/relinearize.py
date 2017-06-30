@@ -7,8 +7,8 @@ from IPython import embed
 def run(trainp="../data/WebQSP.train.json", testp="../data/WebQSP.test.json"):
     traind = json.load(open(trainp))
     testd = json.load(open(testp))
-    tq2p, traingraphs = buildgraphs(traind, no_complex_order=True)
-    xq2p, testgraphs  = buildgraphs(testd, no_complex_order=True)
+    tq2p, traingraphs = buildgraphs(traind, no_complex_order=True, no_value_constraints=True)
+    xq2p, testgraphs  = buildgraphs(testd, no_complex_order=True, no_value_constraints=True)
     trainquestions = {}
     testquestions = {}
     for traindi in traind["Questions"]:
@@ -136,7 +136,7 @@ def buildgraphs(d, no_value_constraints=False, no_entity_constraints=False, no_o
         parseids = []
         for parse in parses:
             parseid = parse["ParseId"]
-            parsegraph, hases = buildgraph(parse)
+            parsegraph, hases, topicmid = buildgraph(parse)
             entcont, valcont, order, argopt, chain = hases
             withoutchaincount += 1 if chain is False else 0
             withentconstraintcount += 1 if entcont is True else 0
@@ -164,8 +164,8 @@ def buildgraphs(d, no_value_constraints=False, no_entity_constraints=False, no_o
 
 
 def buildgraph(parse):
-    ret, hases = buildgraph_from_fish(parse)
-    return ret, hases
+    ret, hases, topicmid = buildgraph_from_fish(parse)
+    return ret, hases, topicmid
 
 
 def buildgraph_from_fish(parse):
@@ -175,7 +175,7 @@ def buildgraph_from_fish(parse):
     # fish head and tail
     qnode = OutputNode()        # tail
     #topicentity = EntityNode(parse["TopicEntityMid"], parse["TopicEntityName"]) #head
-    topicentity = EntityNode(parse["TopicEntityMid"], parse["PotentialTopicEntityMention"]) #head
+    topicentity = EntityNode(parse["TopicEntityMid"], parse["PotentialTopicEntityMention"], topicentity=True) #head
     # fish spine
     cnode = topicentity
     spinenodes = []
@@ -246,7 +246,7 @@ def buildgraph_from_fish(parse):
             spinenodes[pos].append_edge(edge)
             argoptnode.append_edge(edge)
         # TODO
-    return qnode, (hasentityconstraints, hasvalueconstraints, hasorder, hasargopt, haschain)
+    return qnode, (hasentityconstraints, hasvalueconstraints, hasorder, hasargopt, haschain), parse["TopicEntityMid"]
 
 
 def graphtostr(outputnode):
@@ -389,10 +389,11 @@ class OutputNode(Node):
 
 
 class EntityNode(Node):
-    def __init__(self, id, name):
+    def __init__(self, id, name, topicentity=False):
         super(EntityNode, self).__init__()
         self._id = id
         self._name = name
+        self._topicentity = topicentity
         if self._id == "m.01m9":
             self._name += "/cities/towns/villages"
         elif self._id == "m.01mp":
@@ -429,7 +430,7 @@ class EntityNode(Node):
     @property
     def value(self):
         try:
-            return u"{}[{}]".format(self._id, self._name.lower())
+            return u"{}[{}]{}".format(self._id, self._name.lower(), "*" if self._topicentity else "")
         except UnicodeEncodeError, e:
             raise e
 

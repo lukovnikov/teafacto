@@ -1,5 +1,6 @@
-import rdflib, re
+import rdflib, re, time
 from SPARQLWrapper import SPARQLWrapper, JSON
+from SPARQLWrapper.SPARQLExceptions import EndPointInternalError, EndPointNotFound
 from teafacto.util import iscollection
 
 
@@ -25,8 +26,7 @@ class Traverser(object):
             .format("http://rdf.freebase.com/ns/{}".format(mid))
         #print q
         ret = set()
-        self.sparql.setQuery(q)
-        res = self.sparql.query().convert()
+        res = self._exec_query(q)
         results = res["results"]["bindings"]
         for result in results:
             rete = result["o"]["value"]
@@ -37,6 +37,9 @@ class Traverser(object):
         revrels = set()
         if not iscollection(mid):
             mid = (mid,)
+        for mide in mid:        # check if mid input is valid
+            if not re.match("[a-z]{1,2}\..+", mide):
+                return set()
         if incl_reverse:
             revrels = self.get_relations_of(mid, only_reverse=True, incl_reverse=False)
             revrels = {"reverse:{}".format(revrel) for revrel in revrels}
@@ -48,8 +51,7 @@ class Traverser(object):
                 .format(" ".join(["<http://rdf.freebase.com/ns/{}>".format(srce) for srce in mid]))
         #print q
         ret = set()
-        self.sparql.setQuery(q)
-        res = self.sparql.query().convert()
+        res = self._exec_query(q)
         results = res["results"]["bindings"]
         for result in results:
             rete = result["p"]["value"]
@@ -83,28 +85,49 @@ class Traverser(object):
                     self.limit)
         #print q
         ret = set()
-        self.sparql.setQuery(q)
-        res = self.sparql.query().convert()
+        res = self._exec_query(q)
         results = res["results"]["bindings"]
         for result in results:
             rete = result["o" if reverse is False else "s"]["value"]
-            rete = re.match("http://rdf\.freebase\.com/ns/(.+)", rete).group(1)
-            ret.add(rete)
+            retem = re.match("http://rdf\.freebase\.com/ns/(.+)", rete)
+            if not retem:
+                ret.add(rete)
+            else:
+                rete = retem.group(1)
+                ret.add(rete)
         return ret
+
+    def _exec_query(self, q):
+        self.sparql.setQuery(q)
+        retries = 10
+        while True:
+            try:
+                res = self.sparql.query().convert()
+                return res
+            except (EndPointInternalError, EndPointNotFound), e:
+                print "retrying {}".format(retries)
+                retries -= 1
+                if retries < 0:
+                    raise e
+                time.sleep(1)
 
     def join(self, a, b):
         return a & b
 
     def argmaxmin(self, src, rel, mode="max"):
         assert(iscollection(src))
+        reverse = False
+        if re.match("^reverse:(.+)$", rel):
+            reverse = True
+            rel = re.match("^reverse:(.+)$", rel).group(1)
+        assert(reverse is True)
         q = "SELECT ?x WHERE {{ ?x <{}> ?v VALUES ?x {{ {} }} }} ORDER BY {}(?v) LIMIT 1"\
             .format("http://rdf.freebase.com/ns/{}".format(rel),
                     " ".join(["<http://rdf.freebase.com/ns/{}>".format(srce) for srce in src]),
                     "DESC" if mode == "max" else "ASC")
-        print q
+        #print q
         ret = set()
-        self.sparql.setQuery(q)
-        res = self.sparql.query().convert()
+        res = self._exec_query(q)
         results = res["results"]["bindings"]
         for result in results:
             rete = result["x"]["value"]
@@ -130,22 +153,32 @@ class Traverser(object):
             token = tokens[i]
             token = entdic[token] if token in entdic else token
             validrelses = set()
-            if re.match(".+\..+\..+", token):     # relation ==> hop
-                mainptr = t.hop(mainptr, token)
-                validrelses = t.get_relations_of(mainptr, incl_reverse=True)
-            elif re.match("[a-z]{1,2}\..+", token):     # entity ==> make ptr
+            if token[0] == ":":     # relation ==> hop
+                if argmaxer is None:
+                    mainptr = self.hop(mainptr, token[1:])
+                    validrelses = self.get_relations_of(mainptr, incl_reverse=True)
+                else:
+                    validrelses = self.get_relations_of(mainptr, incl_reverse=True)
+            elif re.match("[a-z]+\..+", token):     # entity ==> make ptr
                 auxptr = mainptr
                 mainptr = {token}
-                validrelses = t.get_relations_of(mainptr, incl_reverse=True)
+                validrelses = self.get_relations_of(mainptr, incl_reverse=True)
             elif token == "ARGMAX":     # do argmax
                 assert(argmaxer is None)
-                argmaxer = (tokens[i+1], "max")
+                argmaxer = (tokens[i+1][1:], "max")
+                #i += 1
+                validrelses = self.get_relations_of(mainptr, incl_reverse=True)
+                validrelses = self._revert_rels(validrelses, only_reverse=True)
             elif token == "ARGMIN":
                 assert(argmaxer is None)
-                argmaxer = (tokens[i+1], "min")
+                argmaxer = (tokens[i+1][1:], "min")
+                #i += 1
+                validrelses = self.get_relations_of(mainptr, incl_reverse=True)
+                validrelses = self._revert_rels(validrelses, only_reverse=True)
             elif token == "<JOIN>":     # join, execute argmaxers
                 if argmaxer is not None:    # ignore auxptr, do argmax
-                    mainptr = t.argmaxmin(mainptr, argmaxer[0], mode=argmaxer[1])
+                    mainptr = self.argmaxmin(mainptr, argmaxer[0], mode=argmaxer[1])
+                    argmaxer = None
                 else:
                     if len(mainptr) == self.limit == len(auxptr):
                         pass
@@ -154,21 +187,35 @@ class Traverser(object):
                     elif len(auxptr) == self.limit:
                         pass
                     else:
-                        mainptr = t.join(mainptr, auxptr)
+                        mainptr = self.join(mainptr, auxptr)
                 auxptr = set()
-                validrelses = t.get_relations_of(mainptr, incl_reverse=True)
+                validrelses = self.get_relations_of(mainptr, incl_reverse=True)
             elif token == "<RETURN>":
                 result = mainptr
             else:
                 raise Exception("unsupported token: {}".format(token))
-            print [(mptr, t.name(mptr)) for mptr in mainptr]
+            #print [(mptr, self.name(mptr)) for mptr in mainptr]
             validrels.append(validrelses)
             i += 1
         return result, validrels
 
+    def _revert_rels(self, rels, only_reverse=False):
+        ret = set()
+        for rel in rels:
+            m = re.match('^reverse:(.+)$', rel)
+            if m:
+                if not only_reverse:
+                    ret.add(m.group(1))
+            else:
+                ret.add("reverse:"+rel)
+        return ret
+
 
 if __name__ == "__main__":
+    import sys
     t = Traverser()
+    #print t.name("m.0gmm518")
+    #sys.exit()
     #for x in  t.get_relations_of("m.01vsl3_", incl_reverse=True):
     #    print x
     #print " "
@@ -178,9 +225,10 @@ if __name__ == "__main__":
     #print t.get_relations_of(t.hop(["m.01vsl3_", "m.06mt91"], "people.person.place_of_birth"))
     #for x in t.argmax(["m.01vsl3_", "m.06mt91"], "people.person.date_of_birth"):
     #    print x, t.name(x)
+    #sys.exit()
     #res = t.traverse_tree("<E0> :reverse:film.performance.film <E1> :film.actor.film <JOIN> :film.performance.character <RETURN>", {'<E0>': 'm.017gm7', '<E1>': 'm.02fgm7'})
     #res = t.traverse_tree("<E0> :location.country.currency_used <RETURN>", {'<E0>': 'm.0160w'})
-    res, validrels = t.traverse_tree("<E0> film.actor.film <E1> reverse:film.performance.film <JOIN> film.performance.character <RETURN>", {'<E0>': 'm.07pzc', '<E1>': 'm.08w51z'})
+    res, validrels = t.traverse_tree("<E0> :sports.sports_team.championships ARGMAX :reverse:time.event.start_date <JOIN> <RETURN>", {'<E0>': 'm.01yjl'})
     #res, validrels = t.traverse_tree("<E0> :people.person.sibling_s :people.sibling_relationship.sibling m.05zppz :reverse:people.person.gender <JOIN> <RETURN>", {'<E0>': 'm.06w2sn5'})
     for r in res:
         print r, t.name(r)

@@ -1,26 +1,52 @@
 from teafacto.util import argprun, ticktock, StringMatrix, tokenize
-import re
+import re, json
+from collections import OrderedDict
+from teafacto.scripts.webqa.traversal import Traverser
+from IPython import embed
 
 
 def run(p="../../../data/WebQSP/data/"):
-    load_lin(p=p)
+    #q = "<E0> :film.actor.film <E1> :reverse:film.performance.film <JOIN> :film.performance.character <RETURN>"
+    #vnt = _get_valid_next_tokens("<E0> :film.actor.film <E1> :reverse:film.performance.film <JOIN> :film.performance.character <RETURN>")
+    #for qe, vnte in zip(q.split(), vnt):
+    #    print qe, vnte
+    r = load_lin_question("WebQTrn-1641	what is the name of the main train station in san francisco	0	4	1	0	m.0d6lp[san francisco]* travel.travel_destination.how_to_get_here var1 ; OUT location.location.containedby m.0d6lp[san francisco] ; var1 travel.transportation.transport_terminus OUT ; var1 travel.transportation.mode_of_transportation m.07jdr[train] ;")
+    r = relinearize(r[2])
+    print r
+    #print ""
+    #load_lin(p=p)
 
 
 def load_lin(p="../../../data/WebQSP/data/"):
     trainexamplespath = p+"WebQSP.train.lin"
     testexamplespath = p+"WebQSP.test.lin"
-    trainexamples = load_lin_dataset(trainexamplespath)
+    trainexamples, t_ub_ents = load_lin_dataset(trainexamplespath)
+    testexamples, x_ub_ents = load_lin_dataset(testexamplespath)
+    ub_ents = t_ub_ents | x_ub_ents
     textsm = StringMatrix(indicate_start_end=True, freqcutoff=2)
     textsm.tokenize = lambda x: tokenize(x, preserve_patterns=["<E\d>"])
     formsm = StringMatrix(indicate_start_end=False, freqcutoff=2)
     formsm.tokenize = lambda x: x.split()
+    exampleids = []
+    validrelses = []
+    validnexttokenses = []
     for trainexample in trainexamples:
-        textsm.add(trainexample[0])
-        formsm.add(trainexample[1])
-    testexamples = load_lin_dataset(testexamplespath)
+        exampleids.append(trainexample[0])
+        textsm.add(trainexample[1])
+        formsm.add(trainexample[2])
+        validrelses.append(trainexample[5])
+        validnexttokenses.append(_get_valid_next_tokens(trainexample[2], trainexample[5], ub_ents))
     for testexample in testexamples:
-        textsm.add(testexample[0])
-        formsm.add(testexample[1])
+        exampleids.append(testexample[0])
+        textsm.add(testexample[1])
+        formsm.add(testexample[2])
+        validrelses.append(testexample[5])
+        validnexttokenses.append(_get_valid_next_tokens(testexample[2], testexample[5], ub_ents))
+    allvalidrelses = set()
+    for validrels_i in validrelses:
+        for validrels_e in validrels_i:
+            allvalidrelses.update(validrels_e)
+    embed()
     textsm.finalize()
     formsm.finalize()
     print textsm.matrix[:5]
@@ -34,30 +60,104 @@ def load_lin(p="../../../data/WebQSP/data/"):
     print len(textsm._dictionary)
 
 
+def _get_valid_next_tokens(tree, validrels=None, ub_entities=set()):
+    ent_placeholders = {"<E0>", "<E1>", "<E2>", "<E3>", "<E4>"}
+    tokens = tree.split()
+    if validrels is None:
+        validrels = []
+        for _ in tokens:
+            validrels.append(set())
+    assert(len(tokens) == len(validrels))
+    validtokens = []
+    branching = 0
+    argmaxer = False
+    i = 0
+    valid_next_tokens = {"<E0>"}
+    for token, validrels_for_token in zip(tokens, validrels):
+        assert(token in valid_next_tokens)
+        valid_next_tokens = set()
+        if i < len(tokens) - 1:
+            valid_next_tokens.update({tokens[i + 1]})       # ensure next rel is there
+        if re.match("<E\d>", token) or token in ub_entities:    # entity placeholder or unbound entity
+            pass                        # only relations
+            branching += 1
+            argmaxer = False            # resets argmaxer by assumption of just one-hop argmaxes
+            valid_next_tokens.update(validrels_for_token)   # only relations
+            #assert(tokens[i+1] in validrels_for_token)
+        elif token[0] == ":":       # relation
+            if argmaxer is True:    # if this hop is inside argmax
+                valid_next_tokens.update({"<JOIN>"})    # can only join
+                valid_next_tokens.update(ent_placeholders | ub_entities)    # or start a new branch
+            elif branching == 2:    # if already two branches, must join or follow can't start new branch or return
+                valid_next_tokens.update({"<JOIN>"})
+                valid_next_tokens.update(validrels_for_token)
+            elif branching == 1:    # if just one branch, can't join
+                valid_next_tokens.update({"<RETURN>", "ARGMAX", "ARGMIN"})
+                valid_next_tokens.update(ent_placeholders | ub_entities)
+                valid_next_tokens.update(validrels_for_token)
+            else:
+                raise Exception("invalid branching {} in {}".format(branching, tree))
+        elif token == "<JOIN>":
+            valid_next_tokens.update({"<RETURN>"})
+            valid_next_tokens.update(ent_placeholders | ub_entities)
+            valid_next_tokens.update({"<RETURN>", "ARGMAX", "ARGMIN"})
+            valid_next_tokens.update(validrels_for_token)
+            branching -= 1      # merges two branches in one
+            argmaxer = False    # resets argmaxer
+        elif token == "ARGMAX" or token == "ARGMIN":    # a relation must follow
+            valid_next_tokens.update(validrels_for_token)
+            argmaxer = True     # entering argmax
+            branching += 1      # creates new branch
+        elif token == "<RETURN>":
+            valid_next_tokens.update({"<MASK>"})
+        else:
+            raise Exception("unsupported token {} in {}".format(token, tree))
+        i += 1
+        validtokens.append(valid_next_tokens)
+    return validtokens
+
 
 def load_lin_dataset(p):
     ret = []
+    c = 0
+    all_ub_ents = set()
     with open(p) as f:
         maxlen = 0
         for line in f:
             loaded = load_lin_question(line)
             if loaded is not None:
-                question, answer, (nldic, lfdic), info = loaded
+                qid, question, answer, (nldic, lfdic), info = loaded
+                #print c, question
                 #print question
-                if "what is the <E1> of <E0>" in question:
+                if "what was the name of" in question:
                     pass
-                answer = relinearize(answer)
+                answer, ub_ents = relinearize(answer)
+                all_ub_ents.update(ub_ents)
+                #print answer
                 maxlen = max(maxlen, len(answer.split()))
-                print answer, lfdic
-                ret.append((question, answer, (nldic, lfdic), info))
+                result, validrels = enrich_lin_q(answer, lfdic)
+                print c, answer, lfdic
+                print len(answer.split()), len(validrels), [len(x) for x in validrels]
+                ret.append((qid, question, answer, (nldic, lfdic), info, validrels))
+            else:
+                print c, "not loaded"
+            c += 1
+            #break
         print "{} max len".format(maxlen)
     print "done"
-    return ret
+    return ret, all_ub_ents
+
+
+def enrich_lin_q(query, lfdic):
+    t = Traverser()
+    res, validrels = t.traverse_tree(query, lfdic)
+    #assert([len(x) for x in validrels].count(0) == 1)
+    return res, validrels
 
 
 def relinearize(q, binary_tree=True):
     triples = [tuple(x.strip().split()) for x in q.strip().split(";") if len(x) > 0]
-    lin = _relin_rec(triples, "OUT", binary_tree=binary_tree)
+    lin, ub_ents = _relin_rec(triples, "OUT", binary_tree=binary_tree)
     if len(lin) == 1:
         lin = lin[0]
     else:
@@ -66,24 +166,28 @@ def relinearize(q, binary_tree=True):
         else:
             lin = " and ".join(lin)
     lin += " <RETURN>"
-    return lin
+    return lin, ub_ents
 
 
 def _relin_rec(triples, root, binary_tree=False):
     roottriples = []    # triples resulting in root node
     redtriples = []     # other triples
+    ub_ents = set()
     if not (re.match("var\d", root) or root == "OUT"):
-        return [root]
+        if not re.match("<E\d>", root):
+            ub_ents.add(root)
+        return [root], ub_ents
     for s, p, o in triples:
         if s == root:
-            roottriples.append((o, "reverse:"+p, s))
+            roottriples.append((o, ":reverse:"+p, s))
         elif o == root:
-            roottriples.append((s, p, o))
+            roottriples.append((s, ":"+p, o))
         else:
             redtriples.append((s, p, o))
     sublins = []
     for s, p, o in roottriples:
-        sublin = _relin_rec(redtriples, s)
+        sublin, l_ub_ents = _relin_rec(redtriples, s, binary_tree=binary_tree)
+        ub_ents.update(l_ub_ents)
         if len(sublin) == 1:
             sublin = sublin[0]
         else:
@@ -93,7 +197,7 @@ def _relin_rec(triples, root, binary_tree=False):
                 sublin = "( {} )".format(" and ".join(sublin))
         sublin = "{} {}".format(sublin, p)
         sublins.append(sublin)
-    return sublins
+    return sublins, ub_ents
     # orient triples right way
 
 
@@ -140,16 +244,27 @@ def load_lin_question(line):
         qid, question, unlinkedents, numrels, numvars, valconstraints, query = splits
         unlinkedents, numrels, numvars, valconstraints = map(int, (unlinkedents, numrels, numvars, valconstraints))
         # replace entities by placeholders
-        entitymatches = re.findall(r"[a-z]\.[^\s\[]+\[[^\]]+\]", query)
-        fbid2str = dict([tuple(em[:-1].split("[")) for em in entitymatches])
+        entitymatches = re.findall(r"([a-z]+\.[^\s\[]+)\[([^\]]+)\](\*?)", query)
+        topicmid = None
+        fbid2str = OrderedDict()
+        if qid == "WebQTest-16":
+            pass
+        for mid, sff, topic in entitymatches:
+            if topic == "*":
+                fbid2str[mid] = sff
+                topicmid = mid
+        for mid, sff, topic in entitymatches:
+            if topic != "*":
+                fbid2str[mid] = sff
         if len(set(fbid2str.values())) != len(fbid2str.values()):
             print qid
         nl_emdic = {}
         i = 0
-        for strr in fbid2str.values():
+        for _, strr in fbid2str.items():
             if strr in question:
-                nl_emdic[strr] = "<E{}>".format(i)
-                i += 1
+                if strr not in nl_emdic:
+                    nl_emdic[strr] = "<E{}>".format(i)
+                    i += 1
         #nl_emdic = dict(zip(fbid2str.values(), ["E{}".format(i) for i in range(len(fbid2str.values()))]))
         lf_emdic = {}
         for fbid, strr in fbid2str.items():
@@ -158,7 +273,7 @@ def load_lin_question(line):
                 if evar in lf_emdic.values():
                     pass
                 else:
-                    lf_emdic["{}[{}]".format(fbid, strr)] = evar
+                    lf_emdic[fbid] = evar
             else:
                 pass
 
@@ -168,10 +283,10 @@ def load_lin_question(line):
         for entmatch, eid in lf_emdic.items():
             if entmatch in query:
                 query = query.replace(entmatch, eid)
-        query = re.sub(r'\[[^\]]+\]', "", query)
+        query = re.sub(r'\[[^\]]+\]\*?', "", query)
         rev_nl_emdic = {v: k for k, v in nl_emdic.items()}
         rev_lf_emdic = {v: k for k, v in lf_emdic.items()}
-        return question, query, (rev_nl_emdic, rev_lf_emdic), {"qid": qid, "unlinkedents": unlinkedents, "numrels": numrels, "numvars": numvars, "valconstraints": valconstraints}
+        return qid, question, query, (rev_nl_emdic, rev_lf_emdic), {"qid": qid, "unlinkedents": unlinkedents, "numrels": numrels, "numvars": numvars, "valconstraints": valconstraints}
     else:
         return None
 
