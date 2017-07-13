@@ -497,6 +497,10 @@ class Val(Elem, TensorWrapped, Masked):
     def allupdates(self):
         return {}
 
+    def update(self, expr):     # puts default_update of underlying var
+        # TODO: clone?
+        self.value.default_update = expr
+
     @property
     def all_extra_outs(self):
         return {}

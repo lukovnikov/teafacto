@@ -1,7 +1,7 @@
 from collections import OrderedDict
 
 import numpy as np
-import os
+import os, pickle as pkl
 from IPython import embed
 
 from teafacto.core.base import Block, Val, tensorops as T
@@ -11,10 +11,12 @@ from teafacto.blocks.seq.enc import SimpleSeqStar2Vec
 
 
 class WordEmbBase(object):
-    def __init__(self, worddic, raretoken="<RARE>", **kw):
+    masktoken = "<MASK>"
+    raretoken = "<RARE>"
+
+    def __init__(self, worddic, **kw):
         super(WordEmbBase, self).__init__(**kw)
         self.D = OrderedDict() if worddic is None else worddic
-        self._raretoken = raretoken
 
     # region NON-BLOCK API :::::::::::::::::::::::::::::::::::::
     def getindex(self, word):
@@ -71,77 +73,47 @@ class WordEmbBase(object):
     def block(self):
         return self
 
-    @property
-    def raretoken(self):
-        return self._raretoken
 
-
-class WordEmb(WordEmbBase, VectorEmbed): # unknown words are mapped to index 0, their embedding is a zero vector
+class WordEmb(WordEmbBase, VectorEmbed):
     """ is a VectorEmbed with a dictionary to map words to ids """
-    def __init__(self, dim=50, indim=None, value=None, worddic=None,
-                 normalize=False, trainfrac=1.0, init=None, raretoken="<RARE>",
+    def __init__(self, dim=50, value=None, worddic=None,
+                 normalize=False, trainfrac=1.0, init=None,
                  **kw):
-        if isstring(value):     # path
-            assert(init is None and worddic is None)
-            value, worddic = self.loadvalue(value, dim, indim=indim)
-            indim = max(worddic.values()) + 1
-        if worddic is not None:
-            wdvals = worddic.values()
-            #embed()
-            if raretoken is not None:
-                if raretoken not in worddic:
-                    assert(0 not in wdvals)     # make sure index zero is free
-                    worddic[raretoken] = 0
-                assert(raretoken in worddic)        # raretoken must be in dic
-            else:
-                pass        # no rare tokens
-            assert(min(wdvals) >= 0)     # word ids must be positive non-zero
-            assert(indim == max(wdvals)+1 or indim is None)
-            if indim is None:
-                indim = max(worddic.values())+1        # to init from worddic
+        assert(worddic is not None)     # always needs a dictionary
+        wdvals = worddic.values()
+        assert(min(wdvals) >= 0)     # word ids must be positive non-zero
+
+        # extract maskid and rareid from worddic
+        maskid = worddic[self.masktoken] if self.masktoken in worddic else None
+        rareid = worddic[self.raretoken] if self.raretoken in worddic else None
+
+        indim = max(worddic.values())+1        # to init from worddic
         super(WordEmb, self).__init__(indim=indim, dim=dim, value=value,
                                       normalize=normalize, worddic=worddic,
-                                      trainfrac=trainfrac, init=init, raretoken=raretoken,
+                                      trainfrac=trainfrac, init=init,
+                                      maskid=maskid,
                                       **kw)
 
-    def adapt(self, wdic):
-        return AdaptedWordEmb(self, wdic, maskid=self.maskid)
+    def adapt(self, wdic):      # adapts to given word-idx dictionary
+        return AdaptedWordEmb(self, wdic)
 
-    def override(self, wordemb, which=None):
-        return NewOverriddenWordEmb(self, wordemb, maskid=self.maskid, which=which)
+    def override(self, wordemb, which=None):    # uses override vectors instead of base vectors if word in override dictionary
+        return NewOverriddenWordEmb(self, wordemb, which=which)
 
     def augment(self, wordemb):
-        return AugmentedWordEmb(self, wordemb, maskid=self.maskid)
-
-    def loadvalue(self, path, dim, indim=None):
-        tt = TT(self.__class__.__name__)
-        tt.tick()
-        W = [np.zeros((1, dim))]
-        D = OrderedDict()
-        i = 1
-        for line in open(path):
-            if indim is not None and i >= (indim+1):
-                break
-            ls = line.split(" ")
-            word = ls[0]
-            D[word] = i
-            W.append(np.asarray([map(lambda x: float(x), ls[1:])]))
-            i += 1
-        W = np.concatenate(W, axis=0)
-        tt.tock("loaded")
-        return W, D
+        return AugmentedWordEmb(self, wordemb)
 
 
-class AdaptedWordEmb(WordEmb):
+class AdaptedWordEmb(WordEmb):  # adapt to given dictionary, map extra words to rare
     def __init__(self, wordemb, wdic, **kw):
         D = wordemb.D
-        nativeraretoken = wordemb.raretoken
+        assert(wordemb.raretoken in D)     # must have rareid in D to map extra words to it
         super(AdaptedWordEmb, self).__init__(worddic=wdic, value=False,
                 dim=wordemb.outdim, normalize=wordemb.normalize,
-                trainfrac=wordemb.trainfrac, raretoken=nativeraretoken, **kw)
+                trainfrac=wordemb.trainfrac, **kw)
         self.inner = wordemb
 
-        self.ad = {v: D[k] if k in D else D[nativeraretoken]
+        self.ad = {v: D[k] if k in D else D[self.raretoken]
                    for k, v in wdic.items()}
 
         valval = np.zeros((max(self.ad.keys()) + 1,), dtype="int32")
@@ -193,23 +165,32 @@ class OverriddenWordEmb(WordEmb): # TODO: RARE TOKEN MGMT
 
 
 class NewOverriddenWordEmb(WordEmb):
-    def __init__(self, base, override, maskid=-1, which=None, **kw):
-        assert(base.outdim == override.outdim)
+    def __init__(self, base, override, which=None, **kw):
+        assert(base.outdim == override.outdim)  # ensure same output dimension
+        assert(override.raretoken in override.D)
         baseindexes = Val(np.asarray(sorted(base.D.values()), dtype="int32"))
-        basevar = base(baseindexes)
-        if which is None:
-            ad = {v: override.D[k] if k in override.D else 0 for k, v in base.D.items()}
+        basevar = base(baseindexes)     # slicing out base vectors
+        if which is None:   # which: list of words to override
+            ad = {v: override.D[k]
+                    if k in override.D
+                    else override.D[override.raretoken]
+                  for k, v in base.D.items()}
         else:
-            ad = {base.D[k]: override.D[k] if k in override.D else 0 for k in which}
+            ad = {base.D[k]: override.D[k]
+                    if k in override.D
+                    else override.D[override.raretoken]
+                  for k in which}
         valval = np.zeros((max(ad.keys()) + 1,), dtype="int32")
         for i in range(valval.shape[0]):
             valval[i] = ad[i] if i in ad else 0
         overrideindexes = Val(valval)
+        # a zero in override indexes means basevar will be used and override's rare will be invoked but not used
         overridevar = override(overrideindexes)
-        overridemask = np.repeat((valval[:, None] > 0) * 1, base.outdim, axis=1)
+        overridemask = np.repeat((valval[:, None] != override.D[override.raretoken]) * 1,
+                                 base.outdim, axis=1)
         v = T.switch(overridemask, overridevar, basevar)
         super(NewOverriddenWordEmb, self).__init__(worddic=base.D, value=v,
-               dim=base.outdim, maskid=maskid)
+               dim=base.outdim, **kw)
 
 
 class AugmentedWordEmb(WordEmb):    # TODO: RARE TOKEN MGMT
@@ -220,14 +201,19 @@ class AugmentedWordEmb(WordEmb):    # TODO: RARE TOKEN MGMT
                 trainfrac=base.trainfrac, **kw)
         self.base = base
         self.augment = augment
-        self.ad = {v: augment.D[k] if k in augment.D else 0 for k, v in base.D.items()}
+        self.ad = {v: augment.D[k]
+                    if k in augment.D
+                    else 0
+                   for k, v in base.D.items()}
         valval = np.zeros((max(self.ad.keys()) + 1,), dtype="int32")
         for i in range(valval.shape[0]):
             valval[i] = self.ad[i] if i in self.ad else 0
         self.adb = Val(valval)
 
     def apply(self, x):
-        ret = T.concatenate([self.base(x), self.augment(self.adb[x])], axis=1)
+        baseemb = self.base(x)
+        augmemb = self.augment(self.adb[x])
+        ret = T.concatenate([baseemb, augmemb], axis=1)
         self._maskfrom(ret, x)
         return ret
 
@@ -237,17 +223,16 @@ class AugmentedWordEmb(WordEmb):    # TODO: RARE TOKEN MGMT
 
 
 class Glove(WordEmb):
-    defaultpath = "../../../data/glove/glove.6B.%dd.txt"
+    defaultpath = "../../../data/glove/glove.%dd"
+    maskid = 0
+    rareid = 1
 
-    def __init__(self, dim, vocabsize=None, path=None, trainfrac=0.0, worddic=None, **kw):
+    def __init__(self, dim, vocabsize=None, path=None, trainfrac=0.0,
+                 **kw):
         path = self._get_path(dim, path=path)
-        if worddic is None:
-            value, wdic = self.loadvalue(path, dim, indim=vocabsize)
-            self.allwords = wdic.keys()
-        else:
-            value, wdic, self.allwords = self.loadvalue_fromdict(path, dim, worddic)
-        indim = max(wdic.values()) + 1
-        super(Glove, self).__init__(dim=dim, indim=indim, value=value,
+        value, wdic = self.loadvalue(path, dim, indim=vocabsize, maskid=self.maskid, rareid=self.rareid)
+        self.allwords = wdic.keys()
+        super(Glove, self).__init__(dim=dim, value=value,
                                     worddic=wdic, trainfrac=trainfrac, **kw)
 
     @classmethod
@@ -258,41 +243,33 @@ class Glove(WordEmb):
         path = os.path.join(os.path.dirname(__file__), relpath)
         return path
 
-    def loadvalue(self, path, dim, indim=None):
+    def loadvalue(self, path, dim, indim=None, maskid=None, rareid=None):
         tt = TT(self.__class__.__name__)
         tt.tick()
-        W = [np.zeros((1, dim))]
+        W = np.load(open(path+".npy"))
+        if indim is not None:
+            W = W[:indim, :]
+        if rareid is not None:
+            W = np.concatenate([np.zeros_like(W[0, :])[np.newaxis, :], W], axis=0)
+        if maskid is not None:
+            W = np.concatenate([np.zeros_like(W[0, :])[np.newaxis, :], W], axis=0)
+        tt.tock("vectors loaded")
+        tt.tick()
+        # dictionary
+        words = pkl.load(open(path+".words"))
         D = OrderedDict()
-        i = 1
-        for line in open(path):
-            if indim is not None and i >= (indim + 1):
+        i = 0
+        if maskid is not None:
+            D["<MASK>"] = i; i+=1
+        if rareid is not None:
+            D["<RARE>"] = i; i+=1
+        for j, word in enumerate(words):
+            if indim is not None and j >= indim:
                 break
-            ls = line.split(" ")
-            word = ls[0]
             D[word] = i
-            W.append(np.asarray([map(lambda x: float(x), ls[1:])]))
             i += 1
-        W = np.concatenate(W, axis=0)
-        tt.tock("loaded")
+        tt.tock("dictionary created")
         return W, D
-
-    def loadvalue_fromdict(self, path, dim, wd):
-        tt = TT(self.__class__.__name__)
-        tt.tick()
-        indim = max(wd.values()) + 1
-        W = np.zeros((indim, dim))
-        D = wd
-        words = set()
-        for line in open(path):
-            ls = line.split(" ")
-            word = ls[0]
-            words.add(word)
-            if word in wd:
-                W[wd[word], :] = map(lambda x: float(x), ls[1:])
-        tt.tock("loaded")
-        return W, D, words
-
-
 
 
 

@@ -274,3 +274,37 @@ class Switch(Block):
         return T.switch(self.mask, self.a, self.b)
 
 
+class BatchNorm(Block):        # only for vectors
+    def __init__(self, size, **kw):
+        super(BatchNorm, self).__init__(**kw)
+        self.epsilon = 1e-4
+        self.gamma = param((1, size,), name="batchnorm_gamma").uniform()
+        self.beta = param((1, size,), name="batchnorm_beta").uniform()
+        # TODO mean and var stats
+        self.means = param((1, size,), name="batchnorm_agg_means").constant(0.)
+        self.inv_vars = param((1, size,), name="batchnorm_agg_inv_vars").constant(0.)
+
+    def apply(self, x, _trainmode=False):   # (batsize, size)
+        x_mean = x.mean()
+        x_inv_var = T.inv(T.sqrt(x.var(axis=0, keepdims=True)))
+
+        if _trainmode:      # use minibatch stats
+            mean = x_mean
+            inv_var = x_inv_var
+        else:               # use collected stats
+            mean = self.means
+            inv_var = self.inv_vars
+
+        if _trainmode:      # update stats
+            # do running EMA
+            # TODO
+            pass
+        ret = (x - mean) * (inv_var * self.gamma) + self.beta
+        return ret
+
+
+
+
+
+
+

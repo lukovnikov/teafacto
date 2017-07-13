@@ -10,9 +10,12 @@ def run(p="../../../data/WebQSP/data/"):
     #vnt = _get_valid_next_tokens("<E0> :film.actor.film <E1> :reverse:film.performance.film <JOIN> :film.performance.character <RETURN>")
     #for qe, vnte in zip(q.split(), vnt):
     #    print qe, vnte
-    r = load_lin_question("WebQTrn-1641	what is the name of the main train station in san francisco	0	4	1	0	m.0d6lp[san francisco]* travel.travel_destination.how_to_get_here var1 ; OUT location.location.containedby m.0d6lp[san francisco] ; var1 travel.transportation.transport_terminus OUT ; var1 travel.transportation.mode_of_transportation m.07jdr[train] ;")
-    r = relinearize(r[2])
-    print r
+    loaded = load_lin_question("WebQTrn-1641	what is the name of the main train station in san francisco	0	4	1	0	m.0d6lp[san francisco]* travel.travel_destination.how_to_get_here var1 ; OUT location.location.containedby m.0d6lp[san francisco] ; var1 travel.transportation.transport_terminus OUT ; var1 travel.transportation.mode_of_transportation m.07jdr[train] ;")
+    qid, question, answer, (nldic, lfdic), info = loaded
+    answer, ub_ents = relinearize(answer)
+    result, validrels = enrich_lin_q(answer, lfdic)
+    print answer
+    print _get_valid_next_tokens(answer, validrels=validrels, ub_entities=ub_ents)
     #print ""
     #load_lin(p=p)
 
@@ -74,10 +77,11 @@ def _get_valid_next_tokens(tree, validrels=None, ub_entities=set()):
     i = 0
     valid_next_tokens = {"<E0>"}
     for token, validrels_for_token in zip(tokens, validrels):
-        assert(token in valid_next_tokens)
+        assert((token[1:] if token[0] == ":" else token) in valid_next_tokens)
         valid_next_tokens = set()
         if i < len(tokens) - 1:
-            valid_next_tokens.update({tokens[i + 1]})       # ensure next rel is there
+            #valid_next_tokens.update({tokens[i + 1]})       # ensure next rel is there
+            pass
         if re.match("<E\d>", token) or token in ub_entities:    # entity placeholder or unbound entity
             pass                        # only relations
             branching += 1
@@ -88,8 +92,10 @@ def _get_valid_next_tokens(tree, validrels=None, ub_entities=set()):
             if argmaxer is True:    # if this hop is inside argmax
                 valid_next_tokens.update({"<JOIN>"})    # can only join
                 valid_next_tokens.update(ent_placeholders | ub_entities)    # or start a new branch
-            elif branching == 2:    # if already two branches, must join or follow can't start new branch or return
+            elif branching > 1:    # if already two branches, must join or follow can't start new branch or return
                 valid_next_tokens.update({"<JOIN>"})
+                valid_next_tokens.update({"ARGMAX", "ARGMIN"})
+                valid_next_tokens.update(ent_placeholders | ub_entities)
                 valid_next_tokens.update(validrels_for_token)
             elif branching == 1:    # if just one branch, can't join
                 valid_next_tokens.update({"<RETURN>", "ARGMAX", "ARGMIN"})

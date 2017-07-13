@@ -143,8 +143,7 @@ class Traverser(object):
 
     def traverse_tree(self, tree, entdic=None):
         tokens = tree.split()
-        mainptr = set()     # two sets of mids
-        auxptr = set()
+        ptrstack = []
         i = 0
         argmaxer = None
         result = set()
@@ -155,43 +154,45 @@ class Traverser(object):
             validrelses = set()
             if token[0] == ":":     # relation ==> hop
                 if argmaxer is None:
-                    mainptr = self.hop(mainptr, token[1:])
-                    validrelses = self.get_relations_of(mainptr, incl_reverse=True)
+                    mainpointer = self.hop(ptrstack[-1], token[1:])
+                    ptrstack[-1] = mainpointer
+                    validrelses = self.get_relations_of(ptrstack[-1], incl_reverse=True)
                 else:
-                    validrelses = self.get_relations_of(mainptr, incl_reverse=True)
+                    validrelses = self.get_relations_of(ptrstack[-1], incl_reverse=True)
             elif re.match("[a-z]+\..+", token):     # entity ==> make ptr
-                auxptr = mainptr
-                mainptr = {token}
-                validrelses = self.get_relations_of(mainptr, incl_reverse=True)
+                ptrstack.append({token})
+                validrelses = self.get_relations_of(ptrstack[-1], incl_reverse=True)
             elif token == "ARGMAX":     # do argmax
                 assert(argmaxer is None)
                 argmaxer = (tokens[i+1][1:], "max")
                 #i += 1
-                validrelses = self.get_relations_of(mainptr, incl_reverse=True)
+                validrelses = self.get_relations_of(ptrstack[-1], incl_reverse=True)
                 validrelses = self._revert_rels(validrelses, only_reverse=True)
             elif token == "ARGMIN":
                 assert(argmaxer is None)
                 argmaxer = (tokens[i+1][1:], "min")
                 #i += 1
-                validrelses = self.get_relations_of(mainptr, incl_reverse=True)
+                validrelses = self.get_relations_of(ptrstack[-1], incl_reverse=True)
                 validrelses = self._revert_rels(validrelses, only_reverse=True)
             elif token == "<JOIN>":     # join, execute argmaxers
                 if argmaxer is not None:    # ignore auxptr, do argmax
-                    mainptr = self.argmaxmin(mainptr, argmaxer[0], mode=argmaxer[1])
+                    mainpointer = self.argmaxmin(ptrstack[-1], argmaxer[0], mode=argmaxer[1])
+                    ptrstack[-1] = mainpointer  # replace top of stack
                     argmaxer = None
                 else:
-                    if len(mainptr) == self.limit == len(auxptr):
+                    if len(ptrstack[-1]) == self.limit == len(ptrstack[-2]):
                         pass
-                    elif len(mainptr) == self.limit:
-                        mainptr = auxptr
-                    elif len(auxptr) == self.limit:
+                    if len(ptrstack[-1]) == self.limit:
+                        ptrstack[-1] = ptrstack[-2]
+                    elif len(ptrstack[-2]) == self.limit:
                         pass
                     else:
-                        mainptr = self.join(mainptr, auxptr)
-                auxptr = set()
-                validrelses = self.get_relations_of(mainptr, incl_reverse=True)
+                        mainpointer = self.join(ptrstack[-1], ptrstack[-2])
+                        ptrstack[-1] = mainpointer
+                    del ptrstack[-2]
+                validrelses = self.get_relations_of(ptrstack[-1], incl_reverse=True)
             elif token == "<RETURN>":
-                result = mainptr
+                result = ptrstack[-1]
             else:
                 raise Exception("unsupported token: {}".format(token))
             #print [(mptr, self.name(mptr)) for mptr in mainptr]

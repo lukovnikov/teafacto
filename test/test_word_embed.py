@@ -19,51 +19,38 @@ class TestVectorEmbed(TestCase):
 class TestGlove(TestCase):
 
     def setUp(self):
-        self.expshape = (4001, 50)
-        Glove.defaultpath = "../../../data/glove/miniglove.%dd.txt"
-        self.glove = Glove(self.expshape[1], self.expshape[0]-1, maskid=-1)
+        numwords = 4000
+        self.expshape = (4002, 50)
+        Glove.defaultpath = "../../../data/glove/miniglove.%dd"
+        self.glove = Glove(self.expshape[1], numwords)
         print self.glove.defaultpath
 
     def test_glove_embed_masker(self):
-        v = Val(np.random.randint(-1, 5, (4, 3)))
-        self.assertTrue(np.all((v.v != -1) == self.glove(v).mask.v))
+        v = Val(np.random.randint(0, 7, (40, 30)))
+        self.assertTrue(np.all((v.v != 0) == self.glove(v).mask.v))
 
     def test_glove(self):
         self.assertEqual(self.glove.w.shape, self.expshape)
-        self.assertEqual(self.glove * "the", 1)
+        self.assertEqual(self.glove * "the", 2)
         gblock = self.glove.block
         self.assertTrue(np.allclose(self.glove.w, gblock.W.d.get_value()))
         self.assertEqual(self.glove.w.shape, gblock.W.d.get_value().shape)
-        self.assertTrue(np.allclose(self.glove % 1, gblock.W.d.get_value()[1, :]))
-        gblockpred = gblock.predict([1])
+        self.assertTrue(np.allclose(self.glove % 2, gblock.W.d.get_value()[2, :]))
+        gblockpred = gblock.predict([2])
         self.assertTrue(np.allclose(gblockpred, self.glove % "the"))
         self.assertFalse(np.allclose(gblockpred, self.glove % "a"))
 
 
-class TestGloveFromDic(TestCase):
-    def test_glove_load_from_dic(self):
-        Glove.defaultpath = "../../../data/glove/miniglove.%dd.txt"
-        dic = dict(zip("<MASK> <RARE> cat dog zizizizizi smile".split(), range(6)))
-        g = Glove(50, worddic=dic)
-        self.assertEqual(dic, g.D)
-        g2 = Glove(50)
-        self.assertTrue(np.allclose(g["dog"], g2["dog"]))
-        self.assertTrue(np.allclose(g["cat"], g2["cat"]))
-        self.assertTrue(np.allclose(g["smile"], g2["smile"]))
-        self.assertTrue(np.allclose(g["zizizizizi"], g["<RARE>"]))
-
-
 class TestAdaptedGlove(TestCase):
     def setUp(self):
-        wdic = {"the": 10, "a": 5, "his": 50, "abracadabrqmsd--qsdfmqgf-": 6}
-        Glove.defaultpath = "../../../data/glove/miniglove.%dd.txt"
-        self.glove = Glove(50, 4000, maskid=-1).adapt(wdic)
-        self.vanillaglove = Glove(50, 4000, maskid=-1)
+        wdic = {"<MASK>": 0, "<RARE>": 1, "the": 10, "a": 5, "his": 50, "abracadabrqmsd--qsdfmqgf-": 6}
+        Glove.defaultpath = "../../../data/glove/miniglove.%dd"
+        self.glove = Glove(50, 4000).adapt(wdic)
+        self.vanillaglove = Glove(50, 4000)
 
     def test_embed_masker(self):
-        v = Val(np.random.randint(-1, 5, (4, 3)))
-        self.assertTrue(np.all((v.v != -1) == self.glove(v).mask.v))
-
+        v = Val(np.random.randint(0, 5, (4, 3)))
+        self.assertTrue(np.all((v.v != 0) == self.glove(v).mask.v))
 
     def test_map(self):
         self.assertEqual(self.glove * "a", 5)
@@ -84,17 +71,18 @@ class TestAdaptedGlove(TestCase):
 
 class TestGloveOverriding(TestCase):
     def setUp(self):
-        words = "the a his monkey inception key earlgrey"
-        wdic = dict(zip(words.split(), range(1, len(words.split()) + 1)))
-        self.baseemb = WordEmb(dim=50, worddic=wdic, maskid=-1)
-        Glove.defaultpath = "../../../data/glove/miniglove.%dd.txt"
+        words = "<MASK> <RARE> the a his monkey inception key earlgrey"
+        wdic = dict(zip(words.split(), range(0, len(words.split()))))
+        self.baseemb = WordEmb(dim=50, worddic=wdic)
+        Glove.defaultpath = "../../../data/glove/miniglove.%dd"
         self.glove = Glove(50, 4000)
         self.emb = self.baseemb.override(self.glove)
+        pass
 
     def test_embed_masker(self):
-        v = Val(np.random.randint(-1, 5, (4, 3)))
+        v = Val(np.random.randint(0, 5, (4, 3)))
         m = self.emb(v).mask
-        self.assertTrue(np.all((v.v != -1) == m.v))
+        self.assertTrue(np.all((v.v != 0) == m.v))
 
     def test_sameasglove(self):
         words = "key the a his"
@@ -123,17 +111,17 @@ class TestGloveOverriding(TestCase):
 
 class TestAugmentedGlove(TestCase):
     def test_gloveglove(self):
-        Glove.defaultpath = "../../../data/glove/miniglove.%dd.txt"
+        Glove.defaultpath = "../../../data/glove/miniglove.%dd"
         g1 = Glove(50, 2000)
         g2 = Glove(50, 1000)
         gloveglove = g1.augment(g2)
-        pred = gloveglove.predict([1000])
-        self.assertTrue(np.allclose(g1 % 1000, pred[0, :50]))
-        self.assertTrue(np.allclose(g2 % 1000, pred[0, 50:]))
-        pred = gloveglove.predict([1001])
-        self.assertTrue(np.allclose(g1 % 1001, pred[0, :50]))
+        pred = gloveglove.predict([1002])
+        self.assertTrue(np.allclose(g1 % 1002, pred[0, :50]))
+        self.assertTrue(np.allclose(g2 % 1002, pred[0, 50:]))
+        pred = gloveglove.predict([1003])
+        self.assertTrue(np.allclose(g1 % 1003, pred[0, :50]))
         self.assertTrue(np.allclose(pred[0, 50:], np.zeros_like(pred[0, 50:])))
         gloveglove = g2.augment(g1)
-        pred = gloveglove.predict([1, 2, 3, 4, 5, 50, 500, 1000])
+        pred = gloveglove.predict([1, 2, 3, 4, 5, 50, 500, 1000, 1001])
         self.assertTrue(np.allclose(pred[:, :50], pred[:, 50:]))
 
