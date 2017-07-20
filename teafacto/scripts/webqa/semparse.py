@@ -179,7 +179,9 @@ def test_rel_smo(train_nl_mat, train_fl_mat, test_nl_mat, test_fl_mat,
 
     # encode question
     encoder = RNNSeqEncoder.fluent().setembedder(nl_emb)\
-        .addlayers(dim=encdim, dropout_in=dropout, zoneout=dropout).make()
+        .addlayers(dim=encdim, bidir=True, dropout_in=dropout, zoneout=dropout)\
+        .addlayers(dim=encdim, dropout_in=dropout, zoneout=dropout)\
+        .make()
 
     def block_apply(x):     # (batsize, seqlen)^wordids
         enco = encoder(x)   # (batsize, encdim)
@@ -191,7 +193,8 @@ def test_rel_smo(train_nl_mat, train_fl_mat, test_nl_mat, test_fl_mat,
     if testpred:
         testpred = m.predict(train_nl_mat[:5])
 
-    m.train([train_nl_mat], traingold).cross_entropy().adadelta(lr=lr)\
+    m.train([train_nl_mat], traingold).cross_entropy().accuracy()\
+        .adadelta(lr=lr).grad_total_norm(5.)\
         .validate_on([test_nl_mat], testgold).cross_entropy().accuracy()\
         .train(numbats=numbats, epochs=epochs)
     embed()
