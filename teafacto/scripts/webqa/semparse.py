@@ -192,7 +192,7 @@ def test_rel_smo(train_nl_mat, train_fl_mat, test_nl_mat, test_fl_mat,
         testpred = m.predict(train_nl_mat[:5])
 
     m.train([train_nl_mat], traingold).cross_entropy().adadelta(lr=lr)\
-        .validate_on([test_nl_mat], testgold).cross_entropy()\
+        .validate_on([test_nl_mat], testgold).cross_entropy().accuracy()\
         .train(numbats=numbats, epochs=epochs)
     embed()
 
