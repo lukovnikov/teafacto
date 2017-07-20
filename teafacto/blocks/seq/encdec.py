@@ -1,4 +1,4 @@
-from teafacto.blocks.basic import MatDot
+from teafacto.blocks.basic import MatDot, Forward
 from teafacto.blocks.match import DotDistance
 from teafacto.blocks.seq.attention import Attention, WeightedSumAttCon, AttGen
 from teafacto.blocks.seq.rnn import SeqEncoder, SeqDecoder
@@ -197,11 +197,18 @@ class EncDec(Block):    # EXPLICIT STATE TRANSFER (by init state gen)
                  encoder=None,      # encoder block
                  attention=None,    # attention block
                  attentiontransformer=None,  # transforms state to criterion vector used in attention
-                 inconcat=True,     # concat att result to decoder inp
-                 outconcat=False,   # concat att result to smo
+
+                 inconcat=True,     # concat att context to decoder inp
+                 inconcat_y_t=False,# concat _y_t instead of c_t into dec update, only with updatefirst=True
+                 outconcat=False,   # concat att context to smo
                  stateconcat=True,  # concat top state to smo
                  updatefirst=False, # perform RNN update before attention
                  concatdecinp=False,    # directly concat(feed) dec input to att gen and to smo
+                 concatdecinptoatt=False,
+                 concatdecinptoout=False,
+
+                 transform_y_t=None,     # add a block before smo
+                 transform_o_t=None,     # transform o_t before it's concatenated to _y_t
                  inpemb=None,       # decoder input embedding block
                  inpembdim=None,    # decoder input embedder dim
                  indim=None,        # decoder input dim
@@ -212,14 +219,17 @@ class EncDec(Block):    # EXPLICIT STATE TRANSFER (by init state gen)
                  zoneout=False,     # zoneout dec rnn
                  smo=None,          # dec smo block
                  init_state_gen=None,   # block that generates initial state of layers (assigned starting from the top)
+                 return_outs=True,
                  return_attention_weights=False,
                  **kw):
         super(EncDec, self).__init__(**kw)
         self.inconcat = inconcat
+        self.inconcat_y_t = inconcat_y_t
         self.outconcat = outconcat
         self.stateconcat = stateconcat
         self.updatefirst = updatefirst
-        self.concatdecinp = concatdecinp
+        self.concatdecinptoout = concatdecinp or concatdecinptoout
+        self.concatdecinptoatt = concatdecinp or concatdecinptoatt
         self.encoder = encoder
         self.inpemb = inpemb
         innerdim = innerdim if issequence(innerdim) else [innerdim]
@@ -241,9 +251,14 @@ class EncDec(Block):    # EXPLICIT STATE TRANSFER (by init state gen)
         self.smo = smo              # softmax out block on decoder
         self.lastdim = lastdim
         self.outconcatdim = 0
-        if self.stateconcat:    self.outconcatdim += lastdim
-        if self.outconcat:      self.outconcatdim += self.encoder.outdim
-        if self.concatdecinp:   self.outconcatdim += indim
+        if self.stateconcat:        self.outconcatdim += lastdim
+        if self.outconcat:          self.outconcatdim += self.encoder.outdim
+        if self.concatdecinptoout:  self.outconcatdim += indim
+
+        self.transform_y_t = transform_y_t
+        self.transform_o_t = transform_o_t
+
+        self._return_outs = return_outs
         self._return_attention_weights = return_attention_weights
 
     def apply(self, decinp, encinp):
@@ -252,7 +267,9 @@ class EncDec(Block):    # EXPLICIT STATE TRANSFER (by init state gen)
         init_info, nonseqs = self.get_inits(batsize, inpenc)
         decinpemb = self.inpemb(decinp)
         mask = decinpemb.mask
-        outinfos = [None]
+        outinfos = []
+        if self._return_outs:
+            outinfos += [None]
         if self._return_attention_weights:
             outinfos += [None]
         outputs = T.scan(fn=self.inner_rec,
@@ -262,11 +279,13 @@ class EncDec(Block):    # EXPLICIT STATE TRANSFER (by init state gen)
                          )
         ret = outputs[0].dimswap(1, 0)
         ret.mask = mask
+        out = []
+        if self._return_outs:
+            out += [ret]
         if self._return_attention_weights:
             att_weights = outputs[1].dimswap(1, 0)  # (batsize, outseqlen, inseqlen)
-            return ret, att_weights
-        else:
-            return ret
+            out += [att_weights]
+        return out
 
     @property
     def numstates(self):
@@ -304,29 +323,39 @@ class EncDec(Block):    # EXPLICIT STATE TRANSFER (by init state gen)
         states_tm1 = args[:-2]
         y_tm1 = states_tm1[-1]
         if self.updatefirst:
-            i_t = T.concatenate([x_t_emb, ctx_tm1], axis=1) if self.inconcat else x_t_emb
+            i_t = T.concatenate([x_t_emb, ctx_tm1], axis=1) if (self.inconcat or self.inconcat_y_t) else x_t_emb
             rnuret = self.block.rec(i_t, *states_tm1)
             o_t = rnuret[0]
             states_t = rnuret[1:]
-            y_t = states_t[-1]
+            y_t = states_t[-1]      # !!! should be the same as o_t
             ctx_t, att_weights_t = self._get_ctx_t(ctx, y_t, x_t_emb, self.attention, ctxmask)
-        else:
-            ctx_t, att_weights_t = self._get_ctx_t(ctx, y_tm1, x_t_emb, self.attention, ctxmask)
+        else:       # TODO inconcat _y_tm1 ??? <- what is output before smo is applied
+            ctx_t, att_weights_t = self._get_ctx_t(ctx, y_tm1, x_t_emb, self.attention, ctxmask)        # !!! y_tm1 should be the same as o_t in previous time step
             i_t = T.concatenate([x_t_emb, ctx_t], axis=1) if self.inconcat else x_t_emb
             rnuret = self.block.rec(i_t, *states_tm1)
             o_t = rnuret[0]
             states_t = rnuret[1:]
+        # ??? why not just take o_t for ctx_t computation? (o_t does not feed back into (is not a rec arg) --> can feed back in but must ensure that init state of o_t matches top y_t (which is rec arg))
+        o_t = self.transform_o_t(o_t) if self.transform_o_t is not None else o_t
         # output
         concatthis = []
         if self.stateconcat:            concatthis.append(o_t)
         if self.outconcat:              concatthis.append(ctx_t)
-        if self.concatdecinp:           concatthis.append(x_t_emb)
+        if self.concatdecinptoout:      concatthis.append(x_t_emb)
         _y_t = T.concatenate(concatthis, axis=1) if len(concatthis) > 1 else concatthis[0]
-        y_t = self.smo(_y_t) if self.smo is not None else _y_t        # TODO: smo == None --> return raw y_t
+        _y_t = self.transform_y_t(_y_t) if self.transform_y_t is not None else _y_t
+        out_t = self.smo(_y_t) if self.smo is not None else _y_t
+        ret = []
+        if self._return_outs:
+            ret += [out_t]
         if self._return_attention_weights:
-            return [y_t, att_weights_t, ctx_t] + states_t
+            ret += [att_weights_t]
+        if self.inconcat_y_t:
+            ret += [_y_t]
         else:
-            return [y_t, ctx_t] + states_t
+            ret += [ctx_t]
+        ret += states_t
+        return ret
 
     def _get_ctx_t(self, ctx, h, x_t_emb, att, ctxmask):
         # ctx: 3D if attention, 2D otherwise
@@ -335,12 +364,48 @@ class EncDec(Block):    # EXPLICIT STATE TRANSFER (by init state gen)
         else:
             assert(ctx.ndim == 3)
             assert(att is not None)
-        if self.concatdecinp:
+        if self.concatdecinptoatt:
             h = T.concatenate([h, x_t_emb], axis=-1)
         if self.attentiontransformer is not None:
             h = self.attentiontransformer(h)
         att_weights = att.get_attention_weights(h, ctx, mask=ctxmask)
         ret = att.get_attention_results(ctx, att_weights, mask=ctxmask)
+        return ret, att_weights
+
+
+class Disappointer(Block):      # TODO TEST !!!
+    def __init__(self, encdec, h_splits=None, attentions=tuple(), **kw):
+        super(Disappointer, self).__init__(**kw)
+        self.encdec = encdec
+        self.encdec._return_attention_weights = True
+        self.encdec._return_outs = True
+        self.h_splits = h_splits
+        self.attentions = attentions
+        self.encdec._get_ctx_t = lambda *args, **kwargs: self._get_ctx_t(*args, **kwargs)
+        self.transform_o_t = lambda o_t: o_t[:, h_splits[1]:] if h_splits is not None else None
+
+    def apply(self, decinp, encinp):
+        ret, weights = self.encdec(decinp, encinp)
+        return ret, weights[:, :, 0], weights[:, :, 1]
+
+    def _get_ctx_t(self, ctx, h, x_t_emb, att, ctxmask):
+        assert(ctx.ndim == 3)
+        assert(att is not None)
+        h_start = h[:, :self.h_splits[0]] if self.h_splits is not None else h
+        h_end = h[:, self.h_splits[0]:self.h_splits[1]] if self.h_splits is not None else h
+        h_class = h[:, self.h_splits[1]:] if self.h_splits is not None else h
+        if self.encdec.concatdecinptoatt:
+            h_start = T.concatenate([h_start, x_t_emb], axis=-1)
+            h_end = T.concatenate([h_end, x_t_emb], axis=-1)
+        if self.encdec.attentiontransformer is not None:
+            h_start = self.encdec.attentiontransformer(h_start)
+            h_end = self.encdec.attentiontransformer(h_end)
+        start_att_weights = self.attentions[0].get_attention_weights(h_start, ctx, mask=ctxmask)
+        end_att_weights = self.attentions[1].get_attention_weights(h_end, ctx, mask=ctxmask)
+        att_weights = T.concatenate([start_att_weights, end_att_weights], axis=2)
+        start_ctx = self.attentions[0].get_attention_results(ctx, start_att_weights, mask=ctxmask)
+        end_ctx = self.attentions[1].get_attention_results(ctx, end_att_weights, mask=ctxmask)
+        ret = T.concatenate([start_ctx, end_ctx], axis=-1)
         return ret, att_weights
 
 
