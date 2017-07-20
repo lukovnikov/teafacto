@@ -1,5 +1,5 @@
 from teafacto.util import argprun, ticktock, StringMatrix, tokenize
-import re, json
+import re, json, pickle
 from collections import OrderedDict
 from teafacto.scripts.webqa.traversal import Traverser
 from IPython import embed
@@ -10,14 +10,17 @@ def run(p="../../../data/WebQSP/data/"):
     #vnt = _get_valid_next_tokens("<E0> :film.actor.film <E1> :reverse:film.performance.film <JOIN> :film.performance.character <RETURN>")
     #for qe, vnte in zip(q.split(), vnt):
     #    print qe, vnte
-    loaded = load_lin_question("WebQTrn-1641	what is the name of the main train station in san francisco	0	4	1	0	m.0d6lp[san francisco]* travel.travel_destination.how_to_get_here var1 ; OUT location.location.containedby m.0d6lp[san francisco] ; var1 travel.transportation.transport_terminus OUT ; var1 travel.transportation.mode_of_transportation m.07jdr[train] ;")
+    loaded = load_lin_question("WebQTrn-1	what character did natalie portman play in star wars	0	3	1	0	var1 film.performance.character OUT ; m.09l3p[natalie portman]* film.actor.film var1 ; var1 film.performance.film m.0ddt_[star wars] ;")
     qid, question, answer, (nldic, lfdic), info = loaded
     answer, ub_ents = relinearize(answer)
-    result, validrels = enrich_lin_q(answer, lfdic)
     print answer
-    print _get_valid_next_tokens(answer, validrels=validrels, ub_entities=ub_ents)
+    result, validrels = enrich_lin_q(answer, lfdic)
+    print nldic
+    vnt = _get_valid_next_tokens(answer, validrels=validrels, ub_entities=ub_ents)
+    for vnte in vnt:
+        print len(vnte), sorted(list(vnte), reverse=True)
     #print ""
-    #load_lin(p=p)
+    load_lin(p=p)
 
 
 def load_lin(p="../../../data/WebQSP/data/"):
@@ -26,32 +29,65 @@ def load_lin(p="../../../data/WebQSP/data/"):
     trainexamples, t_ub_ents = load_lin_dataset(trainexamplespath)
     testexamples, x_ub_ents = load_lin_dataset(testexamplespath)
     ub_ents = t_ub_ents | x_ub_ents
-    textsm = StringMatrix(indicate_start_end=True, freqcutoff=2)
+    ub_ents = t_ub_ents
+    print "{} unbound entities from test not in train: {}"\
+        .format(len(x_ub_ents.difference(t_ub_ents)), x_ub_ents.difference(t_ub_ents))
+    textsm = StringMatrix(indicate_start_end=True, freqcutoff=0)
     textsm.tokenize = lambda x: tokenize(x, preserve_patterns=["<E\d>"])
-    formsm = StringMatrix(indicate_start_end=False, freqcutoff=2)
+    formsm = StringMatrix(indicate_start_end=False, freqcutoff=0)
     formsm.tokenize = lambda x: x.split()
     exampleids = []
     validrelses = []
     validnexttokenses = []
+    i = 0
     for trainexample in trainexamples:
-        exampleids.append(trainexample[0])
-        textsm.add(trainexample[1])
-        formsm.add(trainexample[2])
-        validrelses.append(trainexample[5])
-        validnexttokenses.append(_get_valid_next_tokens(trainexample[2], trainexample[5], ub_ents))
+        try:
+            validnexttokenses.append(_get_valid_next_tokens(trainexample[2], trainexample[5], ub_ents, add_missing=True))
+            exampleids.append(trainexample[0])
+            textsm.add(trainexample[1])
+            formsm.add(trainexample[2])
+            validrelses.append(trainexample[5])
+        except AssertionError, e:
+            print "FAILED", i, trainexample
+        i += 1
+    lasttrain_i = i
+    i = 0
     for testexample in testexamples:
-        exampleids.append(testexample[0])
-        textsm.add(testexample[1])
-        formsm.add(testexample[2])
-        validrelses.append(testexample[5])
-        validnexttokenses.append(_get_valid_next_tokens(testexample[2], testexample[5], ub_ents))
+        try:
+            validnexttokenses.append(_get_valid_next_tokens(testexample[2], testexample[5], x_ub_ents))
+            exampleids.append(testexample[0])
+            textsm.add(testexample[1])
+            formsm.add(testexample[2])
+            validrelses.append(testexample[5])
+        except AssertionError, e:
+            print "FAILED", i, testexample
+        i += 1
     allvalidrelses = set()
     for validrels_i in validrelses:
         for validrels_e in validrels_i:
             allvalidrelses.update(validrels_e)
-    embed()
+    #embed()
     textsm.finalize()
     formsm.finalize()
+    """
+    trainmats = (textsm.matrix[:lasttrain_i], formsm.matrix[:lasttrain_i], validnexttokenses[:lasttrain_i], exampleids[:lasttrain_i])
+    testmats = (textsm.matrix[lasttrain_i:], formsm.matrix[lasttrain_i:], validnexttokenses[lasttrain_i:], exampleids[lasttrain_i:])
+    text_dic = textsm._dictionary
+    form_dic = formsm._dictionary """
+    print "dumping"
+    pickle.dump({"textsm": textsm, "formsm": formsm, "validnexttokenses": validnexttokenses,
+                 "exampleids": exampleids, "traintestsplit": lasttrain_i,
+                 "t_ub_ents": t_ub_ents},
+                open("webqa.data.loaded.pkl", "w"))
+    print "dumped"
+    embed()
+    """
+    # add found relations to form dic
+    i = max(form_dic.values()) + 1
+    for validrel in allvalidrelses:
+        form_dic[validrel] = i
+        i += 1
+
     print textsm.matrix[:5]
     print textsm.pp(textsm.matrix[:5])
     print textsm.matrix.shape[1]
@@ -61,23 +97,32 @@ def load_lin(p="../../../data/WebQSP/data/"):
         print "{}: {}".format(k, v)
     print len(formsm._dictionary)
     print len(textsm._dictionary)
+    """
 
-
-def _get_valid_next_tokens(tree, validrels=None, ub_entities=set()):
+def _get_valid_next_tokens(tree, validrels=None, ub_entities=set(), add_missing=False):
+    """ gets valid next tokens given tree-lin query and valid relations from enrichment"""
     ent_placeholders = {"<E0>", "<E1>", "<E2>", "<E3>", "<E4>"}
     tokens = tree.split()
+    assert(tokens[0] == "<E0>")
     if validrels is None:
         validrels = []
         for _ in tokens:
             validrels.append(set())
     assert(len(tokens) == len(validrels))
-    validtokens = []
+    validtokens = [{"<E0>"}]
     branching = 0
     argmaxer = False
     i = 0
     valid_next_tokens = {"<E0>"}
     for token, validrels_for_token in zip(tokens, validrels):
-        assert((token[1:] if token[0] == ":" else token) in valid_next_tokens)
+        validrels_for_token = set([":"+validrel for validrel in validrels_for_token])
+        if token not in validtokens[-1]:
+            print "token {} not in valid next tokens".format(token)
+            if add_missing:
+                if token[0] == ":":     # relation
+                    validtokens[-1].add(token)
+                    print "relation {} added to valid next tokens".format(token)
+                assert(token in validtokens[-1])
         valid_next_tokens = set()
         if i < len(tokens) - 1:
             #valid_next_tokens.update({tokens[i + 1]})       # ensure next rel is there
@@ -92,11 +137,11 @@ def _get_valid_next_tokens(tree, validrels=None, ub_entities=set()):
             if argmaxer is True:    # if this hop is inside argmax
                 valid_next_tokens.update({"<JOIN>"})    # can only join
                 valid_next_tokens.update(ent_placeholders | ub_entities)    # or start a new branch
-            elif branching > 1:    # if already two branches, must join or follow can't start new branch or return
-                valid_next_tokens.update({"<JOIN>"})
-                valid_next_tokens.update({"ARGMAX", "ARGMIN"})
-                valid_next_tokens.update(ent_placeholders | ub_entities)
-                valid_next_tokens.update(validrels_for_token)
+            elif branching > 1:    # if already two branches or more
+                valid_next_tokens.update({"<JOIN>"})    # can join
+                valid_next_tokens.update({"ARGMAX", "ARGMIN"})  # can start argmax branch
+                valid_next_tokens.update(ent_placeholders | ub_entities)    # can start entity branch
+                valid_next_tokens.update(validrels_for_token)   # or follow a relation
             elif branching == 1:    # if just one branch, can't join
                 valid_next_tokens.update({"<RETURN>", "ARGMAX", "ARGMIN"})
                 valid_next_tokens.update(ent_placeholders | ub_entities)
@@ -104,11 +149,12 @@ def _get_valid_next_tokens(tree, validrels=None, ub_entities=set()):
             else:
                 raise Exception("invalid branching {} in {}".format(branching, tree))
         elif token == "<JOIN>":
-            valid_next_tokens.update({"<RETURN>"})
-            valid_next_tokens.update(ent_placeholders | ub_entities)
-            valid_next_tokens.update({"<RETURN>", "ARGMAX", "ARGMIN"})
-            valid_next_tokens.update(validrels_for_token)
             branching -= 1      # merges two branches in one
+            if branching == 1:
+                valid_next_tokens.update({"<RETURN>"})  # can return if just one branch left
+            valid_next_tokens.update(ent_placeholders | ub_entities)    # can start a new entity branch
+            valid_next_tokens.update({"ARGMAX", "ARGMIN"})  # can start a new argmax branch
+            valid_next_tokens.update(validrels_for_token)   # or follow another relation
             argmaxer = False    # resets argmaxer
         elif token == "ARGMAX" or token == "ARGMIN":    # a relation must follow
             valid_next_tokens.update(validrels_for_token)
@@ -124,6 +170,7 @@ def _get_valid_next_tokens(tree, validrels=None, ub_entities=set()):
 
 
 def load_lin_dataset(p):
+    """ loads a dataset, iterates over the questions in it and transforms them and enriches """
     ret = []
     c = 0
     all_ub_ents = set()
@@ -155,13 +202,16 @@ def load_lin_dataset(p):
 
 
 def enrich_lin_q(query, lfdic):
+    """ enriches tree-lin query. gets valid relations using traverser"""
     t = Traverser()
-    res, validrels = t.traverse_tree(query, lfdic)
+    res, validrels = t.traverse_tree_subq(query, lfdic)
     #assert([len(x) for x in validrels].count(0) == 1)
     return res, validrels
 
 
 def relinearize(q, binary_tree=True):
+    """ relinearizes the given query from a list of abstracted triples
+        to traversal instructions (bottom-up tree form without hidden var names) """
     triples = [tuple(x.strip().split()) for x in q.strip().split(";") if len(x) > 0]
     lin, ub_ents = _relin_rec(triples, "OUT", binary_tree=binary_tree)
     if len(lin) == 1:
@@ -245,6 +295,11 @@ def _join_branches_binary(branches):
 
 
 def load_lin_question(line):
+    """ Takes line for .lin file (relinearized unprocessed questions)
+        and replaces entities with tokens and groups stats about question.
+        The query at input is a list of unabstracted triples.
+        The query at output is a list of abstracted triples"""
+
     splits = line.split("\t")
     if len(splits) > 3:
         qid, question, unlinkedents, numrels, numvars, valconstraints, query = splits

@@ -98,7 +98,7 @@ class WordEmb(WordEmbBase, VectorEmbed):
         return AdaptedWordEmb(self, wdic)
 
     def override(self, wordemb, which=None):    # uses override vectors instead of base vectors if word in override dictionary
-        return NewOverriddenWordEmb(self, wordemb, which=which)
+        return OverriddenWordEmb(self, wordemb, which=which)
 
     def augment(self, wordemb):
         return AugmentedWordEmb(self, wordemb)
@@ -132,64 +132,29 @@ class AdaptedWordEmb(WordEmb):  # adapt to given dictionary, map extra words to 
         return ret
 
 
-class OverriddenWordEmb(WordEmb): # TODO: RARE TOKEN MGMT
-    """
-    Overrides every word from base's dictionary with override's vectors,
-    if in override's dictionary
-    """
-    def __init__(self, base, override, **kw):
-        assert(base.outdim == override.outdim)
-        super(OverriddenWordEmb, self).__init__(worddic=base.D, value=False,
-                dim=base.outdim, normalize=base.normalize,
-                trainfrac=base.trainfrac, **kw)
-
-        self.base = base
-        self.override = override
-        self.ad = {v: override.D[k] if k in override.D else 0 for k, v in base.D.items()}
-        valval = np.zeros((max(self.ad.keys()) + 1,), dtype="int32")
-        for i in range(valval.shape[0]):
-            valval[i] = self.ad[i] if i in self.ad else 0
-        self.adb = Val(valval)
-
-    def apply(self, x):     # (batsize,)int
-        overx = self.adb[x]
-        mask = overx > 0
-        mask = T.outer(mask, T.ones((self.outdim,)))
-        ret = T.switch(mask, self.override(overx), self.base(x))
-        self._maskfrom(ret, x)
-        return ret
-
-    @property
-    def w(self):
-        return None         # TODO
-
-
-class NewOverriddenWordEmb(WordEmb):
+class OverriddenWordEmb(WordEmb):
     def __init__(self, base, override, which=None, **kw):
         assert(base.outdim == override.outdim)  # ensure same output dimension
-        assert(override.raretoken in override.D)
-        baseindexes = Val(np.asarray(sorted(base.D.values()), dtype="int32"))
-        basevar = base(baseindexes)     # slicing out base vectors
+        baseindexes_val = np.arange(max(base.D.values()) + 1).astype("int32")
+        baseindexes = Val(baseindexes_val)
+        basevar = base(baseindexes)     # slicing out all base vectors as they are
+        overridemask_val = np.zeros_like(baseindexes_val, dtype="float32")
+        overrideindexes_val = np.zeros_like(baseindexes_val, dtype="int32")
         if which is None:   # which: list of words to override
-            ad = {v: override.D[k]
-                    if k in override.D
-                    else override.D[override.raretoken]
-                  for k, v in base.D.items()}
+            for k, v in base.D.items():     # for all symbols in base dic
+                if k in override.D:         # if also in override dic
+                    overrideindexes_val[v] = override.D[k]   # map base idx to ovrd idx
+                    overridemask_val[v] = 1
         else:
-            ad = {base.D[k]: override.D[k]
-                    if k in override.D
-                    else override.D[override.raretoken]
-                  for k in which}
-        valval = np.zeros((max(ad.keys()) + 1,), dtype="int32")
-        for i in range(valval.shape[0]):
-            valval[i] = ad[i] if i in ad else 0
-        overrideindexes = Val(valval)
-        # a zero in override indexes means basevar will be used and override's rare will be invoked but not used
+            for k in which:
+                if k in override.D:     # TODO: if k from which is missing from base.D
+                    overrideindexes_val[base.D[k]] = override.D[k]
+                    overridemask_val[base.D[k]] = 1
+        overrideindexes = Val(overrideindexes_val)
+        overridemask = Val(overridemask_val)
         overridevar = override(overrideindexes)
-        overridemask = np.repeat((valval[:, None] != override.D[override.raretoken]) * 1,
-                                 base.outdim, axis=1)
-        v = T.switch(overridemask, overridevar, basevar)
-        super(NewOverriddenWordEmb, self).__init__(worddic=base.D, value=v,
+        v = T.switch(overridemask.dimadd(1), overridevar, basevar)
+        super(OverriddenWordEmb, self).__init__(worddic=base.D, value=v,
                dim=base.outdim, **kw)
 
 

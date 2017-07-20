@@ -9,7 +9,7 @@ from IPython import embed
 default_init_carry_gate_bias = 1
 
 
-class RecurrentBlock(Block):     # ancestor class for everything that consumes sequences f32~(batsize, seqlen, ...)
+class RecurrentBlock(Block):  # ancestor class for everything that consumes sequences f32~(batsize, seqlen, ...)
     def __init__(self, reverse=False, **kw):
         super(RecurrentBlock, self).__init__(**kw)
         self._reverse = reverse
@@ -42,7 +42,7 @@ class RecurrentBlock(Block):     # ancestor class for everything that consumes s
         raise NotImplementedError("use subclass")
 
 
-class ReccableBlock(RecurrentBlock):    # exposes a rec function
+class ReccableBlock(RecurrentBlock):  # exposes a rec function
     @property
     def numstates(self):
         return getnumargs(self.rec) - 2
@@ -59,42 +59,54 @@ class ReccableBlock(RecurrentBlock):    # exposes a rec function
 
     # FWD API IMPLEMENTATION USING REC API
     def innerapply(self, x, mask=None, initstates=None):
-        assert(x.ndim == 3)
-        assert(mask is None or mask.ndim == 2)
+        assert (x.ndim == 3)
+        assert (mask is None or mask.ndim == 2)
         if initstates is None:
-            infoarg = x.shape[0]    # batsize
+            infoarg = x.shape[0]  # batsize
         else:
             infoarg = initstates
-            assert(issequence(infoarg))
-        inputs = x.dimswap(1, 0) # inputs is (seq_len, batsize, dim)
+            assert (issequence(infoarg))
+        inputs = x.dimswap(1, 0)  # inputs is (seq_len, batsize, dim)
         init_info = self.get_init_info(infoarg)
         if mask is None:
             outputs = T.scan(fn=self.rec,
-                                sequences=inputs,
-                                outputs_info=[None]*self.numrecouts + init_info,
-                                go_backwards=self._reverse)
+                             sequences=inputs,
+                             outputs_info=[None] * self.numrecouts + init_info,
+                             go_backwards=self._reverse)
         else:
+            # use self.rec to get info about the outputs
+            recout = self.rec(inputs[0], *init_info)
+            outs = recout[:self.numrecouts]
+            zero_init_outs = [T.zeros_like(out) for out in outs]
+            # use it in scan with mask
             outputs = T.scan(fn=self.recwmask,
-                                sequences=[inputs, mask.dimswap(1, 0)],
-                                outputs_info=[None]*self.numrecouts + init_info,
-                                go_backwards=self._reverse)
+                             sequences=[inputs, mask.dimswap(1, 0)],
+                             outputs_info=zero_init_outs + init_info,
+                             go_backwards=self._reverse)
         if not issequence(outputs):
             outputs = [outputs]
         outputs = [x.dimswap(1, 0) for x in outputs]
-        return [outputs[i][:, -1, :] for i in range(self.numrecouts)],\
-               [outputs[i] for i in range(self.numrecouts)],\
+        return [outputs[i][:, -1, :] for i in range(self.numrecouts)], \
+               [outputs[i] for i in range(self.numrecouts)], \
                outputs[self.numrecouts:]
 
-    def recwmask(self, x_t, m_t, *states):   # m_t: (batsize, ), x_t: (batsize, dim), states: (batsize, **somedim**)
+    def recwmask(self, x_t, m_t, *prevoutsandstates):  # m_t: (batsize, ), x_t: (batsize, dim), states: (batsize, **somedim**)
         # make sure masked elements do not affect state
+        prevouts, states = prevoutsandstates[:self.numrecouts], prevoutsandstates[self.numrecouts:]
         recout = self.rec(x_t, *states)
-        recouts = recout[0:self.numrecouts]
-        newstates = recout[self.numrecouts:]
+        newouts, newstates = recout[0:self.numrecouts], recout[self.numrecouts:]
+        if len(newouts) > 0:
+            outs_out = [(newout.T * m_t + prevout.T * (1 - m_t)).T
+                        for newout, prevout in zip(newouts, prevouts)]
+        else:
+            outs_out = []
         if len(states) > 0:
-            states_out = [(a.T * m_t + b.T * (1 - m_t)).T for a, b in
-                          zip(newstates, states)]
+            states_out = [(newstate.T * m_t + state.T * (1 - m_t)).T
+                          for newstate, state in zip(newstates, states)]
         else:
             states_out = []
+
+        # TODO !!!!!!!! when masked, must return previous output
         ''' TODO: WRONG!!! assumes previous output is first state; this is only for GRU
         y_tm1 = states[0] if len(states) > 0 else None
         if y_tm1 is not None:
@@ -105,11 +117,12 @@ class ReccableBlock(RecurrentBlock):    # exposes a rec function
         else:
             y_t_out = y_t
             states_out = []     '''
-        return recouts + states_out
+        return outs_out + states_out
 
 
 class ReccableWrapper(ReccableBlock):
     """ wraps a non-recurrent block to be reccable """
+
     def __init__(self, block, **kw):
         super(ReccableWrapper, self).__init__(**kw)
         self.block = block
@@ -129,10 +142,10 @@ class ReccableWrapper(ReccableBlock):
 
 
 class RNUBase(ReccableBlock):
-
     def __init__(self, dim=20, innerdim=20, wreg=0.0, noinput=False,
                  initmult=0.1, nobias=False, paraminit="glorotuniform", biasinit="uniform",
-                 dropout_in=False, dropout_h=False, zoneout=False, **kw): #layernormalize=False): # dim is input dimensions, innerdim = dimension of internal elements
+                 dropout_in=False, dropout_h=False, zoneout=False,
+                 **kw):  # layernormalize=False): # dim is input dimensions, innerdim = dimension of internal elements
         super(RNUBase, self).__init__(**kw)
         self.indim = dim
         self.innerdim = innerdim
@@ -151,6 +164,7 @@ class RNUBase(ReccableBlock):
         self.dropout_in = Dropout(dropout_in)
         self.dropout_h = Dropout(dropout_h)
         self.zoneout = Dropout(zoneout)
+
     '''
     def normalize_layer(self, vec):     # (batsize, hdim)
         if self.layernormalize:
@@ -163,12 +177,13 @@ class RNUBase(ReccableBlock):
             ret = vec
         return ret
     '''
+
     @property
     def outdim(self):
         return self.innerdim
 
-    def recappl(self, inps, states):    # TODO: might not work after change to multiple rec outs
-        numrecargs = getnumargs(self.rec) - 2       # how much to pop from states
+    def recappl(self, inps, states):  # TODO: might not work after change to multiple rec outs
+        numrecargs = getnumargs(self.rec) - 2  # how much to pop from states
         mystates = states[:numrecargs]
         tail = states[numrecargs:]
         inps = [inps] if not issequence(inps) else inps
@@ -177,7 +192,6 @@ class RNUBase(ReccableBlock):
 
 
 class RNU(RNUBase):
-
     def __init__(self, outpactivation=T.tanh, param_init_states=False, **kw):
         self.outpactivation = outpactivation
         super(RNU, self).__init__(**kw)
@@ -207,7 +221,7 @@ class RNU(RNUBase):
     def get_statespec(self, flat=False):
         return (("state", (self.innerdim,)),)
 
-    def get_init_info(self, initstates):    # either a list of init states or the batsize
+    def get_init_info(self, initstates):  # either a list of init states or the batsize
         if not issequence(initstates):
             initstates = [initstates] * self.numstates
         acc = []
@@ -217,7 +231,7 @@ class RNU(RNUBase):
             initstateparams = self.initstateparams
         for initstate, initstateparam in zip(initstates, initstateparams):
             if isinstance(initstate, int) or initstate.ndim == 0:
-                #embed()
+                # embed()
                 if initstateparam is not None:
                     toapp = T.repeat(initstateparam.dimadd(0), initstate, axis=0)
                     acc.append(toapp)
@@ -225,17 +239,17 @@ class RNU(RNUBase):
                     acc.append(T.zeros((initstate, self.innerdim)))
             else:
                 acc.append(initstate)
-        return acc          # left is bottom
+        return acc  # left is bottom
 
-    def rec(self, x_t, h_tm1):      # x_t: (batsize, dim), h_tm1: (batsize, innerdim)
+    def rec(self, x_t, h_tm1):  # x_t: (batsize, dim), h_tm1: (batsize, innerdim)
         x_t = self.dropout_in(x_t) if not self.noinput else 0
-        inp = T.dot(x_t, self.w)    # w: (dim, innerdim) ==> inp: (batsize, innerdim)
+        inp = T.dot(x_t, self.w)  # w: (dim, innerdim) ==> inp: (batsize, innerdim)
         h_tm1 = self.dropout_h(h_tm1)
         rep = T.dot(h_tm1, self.u)  # u: (innerdim, innerdim) ==> rep: (batsize, innerdim)
-        h = inp + rep + self.b               # h: (batsize, innerdim)
+        h = inp + rep + self.b  # h: (batsize, innerdim)
         '''h = self.normalize_layer(h)'''
-        h = self.outpactivation(h)               #
-        return [h, h] #T.tanh(inp+rep)
+        h = self.outpactivation(h)  #
+        return [h, h]  # T.tanh(inp+rep)
 
 
 class GatedRNU(RNU):
@@ -275,21 +289,20 @@ class Gate(Block):
 
 
 class GRU(GatedRNU):
-
     def makeparams(self):
         if not self.noinput:
             self.w = param((self.indim, self.innerdim), name="w").init(self.paraminit)
             self.wm = param((self.indim, self.innerdim), name="wm").init(self.paraminit)
             self.whf = param((self.indim, self.innerdim), name="whf").init(self.paraminit)
         else:
-            self.w , self.wm, self.whf = 0, 0, 0
+            self.w, self.wm, self.whf = 0, 0, 0
         self.u = param((self.innerdim, self.innerdim), name="u").init(self.paraminit)
         self.um = param((self.innerdim, self.innerdim), name="um").init(self.paraminit)
         self.uhf = param((self.innerdim, self.innerdim), name="uhf").init(self.paraminit)
         if not self.nobias:
             self.b = param((self.innerdim,), name="b").init(self.biasinit)
             if self._init_carry_bias > 0:
-                amnt = default_init_carry_gate_bias\
+                amnt = default_init_carry_gate_bias \
                     if self._init_carry_bias is True else self._init_carry_bias
                 self.bm = param((self.innerdim,), name="bm").constant(amnt)
             else:
@@ -306,14 +319,14 @@ class GRU(GatedRNU):
         '''
         x_t = self.dropout_in(x_t) if not self.noinput else T.zeros_like(x_t)
         h_tm1_i = self.dropout_h(h_tm1)
-        mgate =  self.gateactivation(T.dot(h_tm1_i, self.um)  + T.dot(x_t, self.wm)  + self.bm)
+        mgate = self.gateactivation(T.dot(h_tm1_i, self.um) + T.dot(x_t, self.wm) + self.bm)
         hfgate = self.gateactivation(T.dot(h_tm1_i, self.uhf) + T.dot(x_t, self.whf) + self.bhf)
         canh = T.dot(h_tm1_i * hfgate, self.u) + T.dot(x_t, self.w) + self.b
         '''canh = self.normalize_layer(canh)'''
         canh = self.outpactivation(canh)
         mgate = self.zoneout(mgate)
         h = (1 - mgate) * h_tm1_i + mgate * canh
-        #h = self.normalize_layer(h)
+        # h = self.normalize_layer(h)
         return [h, h]
 
 
@@ -365,7 +378,7 @@ class PPGRU(GatedRNU):
         else:
             self.b_push, self.b_pull = 0, 0
 
-    def rec(self, x_t, h_tm1):      # (batsize, indim), (batsize, nstates, innerdim)
+    def rec(self, x_t, h_tm1):  # (batsize, indim), (batsize, nstates, innerdim)
         h_tm1_orig = h_tm1
         # TODO: doing pull before updates
         h_tm1 = self.do_pull(h_tm1)
@@ -390,37 +403,37 @@ class PPGRU(GatedRNU):
         else:
             return [h_t[:, 0, :], h_t]
 
-    def do_push(self, h_tm1):      # (batsize, nstates, innerdim)
+    def do_push(self, h_tm1):  # (batsize, nstates, innerdim)
         h_t = []
         h_t_l = h_tm1[:, 0, :]
         h_t.append(h_t_l.dimadd(1))
         gls = []
         for l in range(self.nstates - 1):
             g_push_l = self.gateactivation(T.dot(h_t_l, self.w_push[l])
-                                           + T.dot(h_tm1[:, l+1, :], self.u_push[l])
+                                           + T.dot(h_tm1[:, l + 1, :], self.u_push[l])
                                            + self.b_push[l])
             gls.append(g_push_l.dimadd(1))
-            h_t_l = h_t_l * g_push_l + h_tm1[:, l+1, :] * (1 - g_push_l)
+            h_t_l = h_t_l * g_push_l + h_tm1[:, l + 1, :] * (1 - g_push_l)
             h_t.append(h_t_l.dimadd(1))
-        h_t = T.concatenate(h_t, axis=1)        # (batsize, nstates, innerdim)
+        h_t = T.concatenate(h_t, axis=1)  # (batsize, nstates, innerdim)
         g_l = T.concatenate(gls, axis=1)
         return h_t, g_l
 
-    def do_pull(self, h_tm1):      # (batsize, nstates, innerdim)
+    def do_pull(self, h_tm1):  # (batsize, nstates, innerdim)
         h_t = []
-        h_t_l = h_tm1[:, self.nstates - 1, :]       # take top state
-        h_t.append(h_t_l.dimadd(1))         # !!! states appended in reverse layer order
+        h_t_l = h_tm1[:, self.nstates - 1, :]  # take top state
+        h_t.append(h_t_l.dimadd(1))  # !!! states appended in reverse layer order
         for l in range(self.nstates - 1)[::-1]:
             g_pull_l = self.gateactivation(T.dot(h_tm1[:, l, :], self.w_pull[l])
                                            + T.dot(h_t_l, self.u_pull[l])
                                            + self.b_pull[l])
             h_t_l = h_t_l * g_pull_l + h_tm1[:, l, :] * (1 - g_pull_l)
             h_t.append(h_t_l.dimadd(1))
-        h_t = T.concatenate(h_t[::-1], axis=1)        # (batsize, nstates, innerdim)
+        h_t = T.concatenate(h_t[::-1], axis=1)  # (batsize, nstates, innerdim)
         return h_t
 
 
-class mGRU(GatedRNU):       # multiplicative GRU: https://arxiv.org/pdf/1609.07959.pdf
+class mGRU(GatedRNU):  # multiplicative GRU: https://arxiv.org/pdf/1609.07959.pdf
     def makeparams(self):
         if not self.noinput:
             self.w = param((self.indim, self.innerdim), name="w").init(self.paraminit)
@@ -428,7 +441,7 @@ class mGRU(GatedRNU):       # multiplicative GRU: https://arxiv.org/pdf/1609.079
             self.w_xhf = param((self.indim, self.innerdim), name="w_xhf").init(self.paraminit)
             self.w_xmg = param((self.indim, self.innerdim), name="w_xmg").init(self.paraminit)
         else:
-            self.w , self.w_xm, self.w_xhf, self.w_xmg = 0, 0, 0, 0
+            self.w, self.w_xm, self.w_xhf, self.w_xmg = 0, 0, 0, 0
         self.u = param((self.innerdim, self.innerdim), name="u").init(self.paraminit)
         self.w_hm = param((self.innerdim, self.innerdim), name="w_hm").init(self.paraminit)
         self.w_hmg = param((self.innerdim, self.innerdim), name="w_hmg").init(self.paraminit)
@@ -436,7 +449,7 @@ class mGRU(GatedRNU):       # multiplicative GRU: https://arxiv.org/pdf/1609.079
         if not self.nobias:
             self.b = param((self.innerdim,), name="b").init(self.biasinit)
             if self._init_carry_bias > 0:
-                amnt = default_init_carry_gate_bias\
+                amnt = default_init_carry_gate_bias \
                     if self._init_carry_bias is True else self._init_carry_bias
                 self.b_mg = param((self.innerdim,), name="b_mg").constant(amnt)
             else:
@@ -458,7 +471,7 @@ class mGRU(GatedRNU):       # multiplicative GRU: https://arxiv.org/pdf/1609.079
         return [h, h]
 
 
-class MIGRU(GatedRNU):      # multiplicative integration GRU: https://arxiv.org/pdf/1606.06630.pdf
+class MIGRU(GatedRNU):  # multiplicative integration GRU: https://arxiv.org/pdf/1606.06630.pdf
 
     def makeparams(self):
         if not self.noinput:
@@ -466,7 +479,7 @@ class MIGRU(GatedRNU):      # multiplicative integration GRU: https://arxiv.org/
             self.w_m = param((self.indim, self.innerdim), name="w_m").init(self.paraminit)
             self.w_h = param((self.indim, self.innerdim), name="w_h").init(self.paraminit)
         else:
-            self.w , self.w_m, self.w_h = 0, 0, 0
+            self.w, self.w_m, self.w_h = 0, 0, 0
         self.u = param((self.innerdim, self.innerdim), name="u").init(self.paraminit)
         self.u_m = param((self.innerdim, self.innerdim), name="u_m").init(self.paraminit)
         self.u_h = param((self.innerdim, self.innerdim), name="u_h").init(self.paraminit)
@@ -479,7 +492,7 @@ class MIGRU(GatedRNU):      # multiplicative integration GRU: https://arxiv.org/
             self.b_m2 = param((self.innerdim,), name="b_m2").init(self.biasinit)
             self.b_m3 = param((self.innerdim,), name="b_m3").init(self.biasinit)
             if self._init_carry_bias > 0:
-                amnt = default_init_carry_gate_bias\
+                amnt = default_init_carry_gate_bias \
                     if self._init_carry_bias is True else self._init_carry_bias
                 self.b_m4 = param((self.innerdim,), name="b_m4").constant(amnt)
             else:
@@ -502,9 +515,9 @@ class MIGRU(GatedRNU):      # multiplicative integration GRU: https://arxiv.org/
                                     self.b_m3 * T.dot(h_tm1_i, self.u_m) +
                                     self.b_m4)
         hfgate = self.gateactivation(self.b_h1 * T.dot(x_t, self.w_h) * T.dot(h_tm1_i, self.u_h) +
-                                    self.b_h2 * T.dot(x_t, self.w_h) +
-                                    self.b_h3 * T.dot(h_tm1_i, self.u_h) +
-                                    self.b_h4)
+                                     self.b_h2 * T.dot(x_t, self.w_h) +
+                                     self.b_h3 * T.dot(h_tm1_i, self.u_h) +
+                                     self.b_h4)
         canh = self.b_1 * T.dot(x_t, self.w) * T.dot(h_tm1_i * hfgate, self.u) + \
                self.b_2 * T.dot(x_t, self.w) + \
                self.b_3 * T.dot(h_tm1_i * hfgate, self.u) + \
@@ -515,14 +528,14 @@ class MIGRU(GatedRNU):      # multiplicative integration GRU: https://arxiv.org/
         return [h, h]
 
 
-class MuFuRU(GatedRNU):     # https://arxiv.org/pdf/1606.03002.pdf
+class MuFuRU(GatedRNU):  # https://arxiv.org/pdf/1606.03002.pdf
     def makeparams(self):
         if not self.noinput:
             self.w_v = param((self.indim, self.innerdim), name="w_v").init(self.paraminit)
             self.w_r = param((self.indim, self.innerdim), name="w_r").init(self.paraminit)
             self.w_u = param((self.indim, self.innerdim, 7), name="w_u").init(self.paraminit)
         else:
-            self.w_v , self.w_r, self.w_u = 0, 0, 0
+            self.w_v, self.w_r, self.w_u = 0, 0, 0
         self.u_v = param((self.innerdim, self.innerdim), name="u_v").init(self.paraminit)
         self.u_r = param((self.innerdim, self.innerdim), name="u_r").init(self.paraminit)
         self.u_u = param((self.innerdim, self.innerdim, 7), name="u_u").init(self.paraminit)
@@ -540,9 +553,9 @@ class MuFuRU(GatedRNU):     # https://arxiv.org/pdf/1606.03002.pdf
         v_t = self.outpactivation(T.dot(h_tm1_i * r_t, self.u_v) + T.dot(x_t, self.w_v) + self.b_v)
 
         u_t = T.tensordot(h_tm1_i, self.u_u, axes=([1], [0])) \
-              + T.tensordot(x_t, self.w_u, axes=([1], [0]))\
+              + T.tensordot(x_t, self.w_u, axes=([1], [0])) \
               + self.b_u
-        u_t = T.softmax(u_t)        # (batsize, dim, numops)
+        u_t = T.softmax(u_t)  # (batsize, dim, numops)
         _EPS = 1e-6
         u_t = T.clip(u_t, _EPS, 1.0 - _EPS)
 
@@ -568,7 +581,7 @@ class MuFuRU(GatedRNU):     # https://arxiv.org/pdf/1606.03002.pdf
         return [h, h]
 
 
-class FlatMuFuRU(GatedRNU):     # flat version of MuFuRu, with concat of Fu's and static weight
+class FlatMuFuRU(GatedRNU):  # flat version of MuFuRu, with concat of Fu's and static weight
     def makeparams(self):
         NUMOPS = 6
         if not self.noinput:
@@ -576,7 +589,7 @@ class FlatMuFuRU(GatedRNU):     # flat version of MuFuRu, with concat of Fu's an
             self.w_r = param((self.indim, self.innerdim), name="w_r").init(self.paraminit)
             self.w_u = param((self.indim, self.innerdim), name="w_u").init(self.paraminit)
         else:
-            self.w_v , self.w_r, self.w_u = 0, 0, 0
+            self.w_v, self.w_r, self.w_u = 0, 0, 0
         self.u_v = param((self.innerdim, self.innerdim), name="u_v").init(self.paraminit)
         self.u_r = param((self.innerdim, self.innerdim), name="u_r").init(self.paraminit)
         self.u_u = param((self.innerdim, self.innerdim), name="u_u").init(self.paraminit)
@@ -584,7 +597,7 @@ class FlatMuFuRU(GatedRNU):     # flat version of MuFuRu, with concat of Fu's an
         if not self.nobias:
             self.b_v = param((self.innerdim,), name="b_v").init(self.biasinit)
             if self._init_carry_bias > 0:
-                amnt = default_init_carry_gate_bias\
+                amnt = default_init_carry_gate_bias \
                     if self._init_carry_bias is True else self._init_carry_bias
                 self.b_u = param((self.innerdim,), name="b_u").constant(amnt)
             else:
@@ -618,7 +631,7 @@ class FlatMuFuRU(GatedRNU):     # flat version of MuFuRu, with concat of Fu's an
         return [h, h]
 
 
-class QRNU(GatedRNU):       # QRNN: https://arxiv.org/pdf/1611.01576.pdf
+class QRNU(GatedRNU):  # QRNN: https://arxiv.org/pdf/1611.01576.pdf
 
     def __init__(self, window_size=3, gateactivation=T.nnet.sigmoid,
                  outpactivation=T.tanh,
@@ -640,7 +653,7 @@ class QRNU(GatedRNU):       # QRNN: https://arxiv.org/pdf/1611.01576.pdf
         if not self.nobias:
             self.b_z = param((self.innerdim,), name="b_z").init(self.biasinit)
             if self._init_carry_bias > 0:
-                amnt = default_init_carry_gate_bias\
+                amnt = default_init_carry_gate_bias \
                     if self._init_carry_bias is True else self._init_carry_bias
                 self.b_f = param((self.innerdim,), name="b_f").constant(amnt)
             else:
@@ -650,22 +663,22 @@ class QRNU(GatedRNU):       # QRNN: https://arxiv.org/pdf/1611.01576.pdf
             self.b_z, self.b_f, self.b_o = 0, 0, 0
 
     def get_statespec(self, flat=False):
-        return (("state", (self.innerdim,)),)   # TODO
+        return (("state", (self.innerdim,)),)  # TODO
 
     def get_init_info(self, initstates):  # either a list of init states or the batsize
         sinit = super(QRNU, self).get_init_info(initstates)
-        assert(len(sinit) == 1)
+        assert (len(sinit) == 1)
         add = T.zeros((sinit[0].shape[0], self.indim * self.window_size))
         ret = T.concatenate([sinit[0], add], axis=1)
         return [ret]
 
     def rec(self, x_t, h_tm1):  # h_tm1: (batsize, innerdim + windowsize * indim)
         x_t = self.dropout_in(x_t)
-        x_tms = h_tm1[:, self.innerdim+self.indim:]
+        x_tms = h_tm1[:, self.innerdim + self.indim:]
         h_tm1 = h_tm1[:, :self.innerdim]
         h_tm1_i = self.dropout_h(h_tm1)
         # prepare previous x's
-        x_tms = T.concatenate([x_tms, x_t], axis=1) # (batsize, indim * windowsize)
+        x_tms = T.concatenate([x_tms, x_t], axis=1)  # (batsize, indim * windowsize)
         z_t = self.outpactivation(T.dot(x_tms, self.w_z) + self.b_z)
         f_t = self.gateactivation(T.dot(x_tms, self.w_f) + self.b_f)
         o_t = self.gateactivation(T.dot(x_tms, self.w_o) + self.b_o)
@@ -677,11 +690,11 @@ class QRNU(GatedRNU):       # QRNN: https://arxiv.org/pdf/1611.01576.pdf
 
 
 class RHN(GatedRNU):
-    pass    # TODO implement
-            # TODO maybe move one abstraction layer higher
+    pass  # TODO implement
+    # TODO maybe move one abstraction layer higher
 
 
-class IFGRU(GRU):      # input-modulating GRU
+class IFGRU(GRU):  # input-modulating GRU
 
     def makeparams(self):
         super(IFGRU, self).makeparams()
@@ -703,11 +716,11 @@ class IFGRU(GRU):      # input-modulating GRU
         '''
         x_t = self.dropout_in(x_t) if not self.noinput else 0
         h_tm1 = self.dropout_h(h_tm1)
-        mgate =  self.gateactivation(T.dot(h_tm1, self.um)  + T.dot(x_t, self.wm)  + self.bm)
+        mgate = self.gateactivation(T.dot(h_tm1, self.um) + T.dot(x_t, self.wm) + self.bm)
         hfgate = self.gateactivation(T.dot(h_tm1, self.uhf) + T.dot(x_t, self.whf) + self.bhf)
         ifgate = self.gateactivation(T.dot(h_tm1, self.uif) + T.dot(x_t, self.wif) + self.bif)
         canh = self.outpactivation(T.dot(h_tm1 * hfgate, self.u) + T.dot(x_t * ifgate, self.w) + self.b)
-        h = mgate * h_tm1 + (1-mgate) * canh
+        h = mgate * h_tm1 + (1 - mgate) * canh
         return [h, h]
 
 
@@ -727,7 +740,7 @@ class LSTM(GatedRNU):
         if not self.nobias:
             self.b = param((self.innerdim,), name="b").init(self.biasinit)
             if self._init_carry_bias > 0:
-                amnt = default_init_carry_gate_bias\
+                amnt = default_init_carry_gate_bias \
                     if self._init_carry_bias is True else self._init_carry_bias
                 self.bf = param((self.innerdim,), name="bf").constant(amnt)
                 self.bi = param((self.innerdim,), name="bi").constant(-amnt)
@@ -745,17 +758,18 @@ class LSTM(GatedRNU):
     def rec(self, x_t, c_tm1, y_tm1):
         x_t = self.dropout_in(x_t) if not self.noinput else 0
         c_tm1 = self.dropout_h(c_tm1)
-        fgate = self.gateactivation(c_tm1*self.pf + self.bf + T.dot(x_t, self.wf) + T.dot(y_tm1, self.rf))
-        igate = self.gateactivation(c_tm1*self.pi + self.bi + T.dot(x_t, self.wi) + T.dot(y_tm1, self.ri))
+        fgate = self.gateactivation(c_tm1 * self.pf + self.bf + T.dot(x_t, self.wf) + T.dot(y_tm1, self.rf))
+        igate = self.gateactivation(c_tm1 * self.pi + self.bi + T.dot(x_t, self.wi) + T.dot(y_tm1, self.ri))
         cf = c_tm1 * fgate
         ifi = self.outpactivation(T.dot(x_t, self.w) + T.dot(y_tm1, self.r) + self.b) * igate
         c_t = cf + ifi
-        ogate = self.gateactivation(c_t*self.po + self.bo + T.dot(x_t, self.wo) + T.dot(y_tm1, self.ro))
+        ogate = self.gateactivation(c_t * self.po + self.bo + T.dot(x_t, self.wo) + T.dot(y_tm1, self.ro))
         y_t = ogate * self.outpactivation(c_t)
         return [y_t, c_t, y_t]
 
     def get_statespec(self, flat=False):
         return (("state", (self.innerdim,)), ("output", (self.innerdim,)))
+
 
 '''
 class XRU(RNU):
@@ -849,5 +863,3 @@ class IFGRUTM(GatedRNU):
         y_t = self.outpactivation(T.dot(c_t * ofgate, self.wo))
         return [y_t, y_t, c_t]
 '''
-
-

@@ -75,22 +75,107 @@ class TestSeqEncoder(TestCase):
         seqlen = 3
         dim = 7
         indim = 5
-        m = SeqEncoder(IdxToOneHot(indim, maskid=-1), GRU(dim=indim, innerdim=dim))\
+        m = SeqEncoder(IdxToOneHot(indim, maskid=0), GRU(dim=indim, innerdim=dim))\
             .all_outputs().with_states()
-        data = np.random.randint(0, indim, (batsize, seqlen)).astype("int32")
-        data[:, 1] = 0
-        ndata = np.ones_like(data) * -1
+        data = np.random.randint(1, indim, (batsize, seqlen)).astype("int32")
+        data[:, 1] = 1
+        ndata = np.ones_like(data) * 0
         data = np.concatenate([data, ndata], axis=1)
         pred, states = m.predict(data)
         print pred.shape
         print states[0].shape, len(states)
         state = states[0]
+        print pred[0, :, :3]
+        print state[0, :, :3]
         for i in range(1, state.shape[1]):
             print np.linalg.norm(state[:, i - 1, :] - state[:, i, :])
             if i < seqlen:
                 self.assertTrue(not np.allclose(state[:, i - 1, :], state[:, i, :]))
             else:
                 self.assertTrue(np.allclose(state[:, i - 1, :], state[:, i, :]))
+        for i in range(1, pred.shape[1]):
+            print np.linalg.norm(pred[:, i - 1, :] - pred[:, i, :])
+            if i < seqlen:
+                self.assertTrue(not np.allclose(pred[:, i - 1, :], pred[:, i, :]))
+            else:
+                self.assertTrue(np.allclose(pred[:, i - 1, :], pred[:, i, :]))
+
+    def test_mask_no_state_updates_multi_layer(self):
+        batsize = 10
+        seqlen = 3
+        dim = 7
+        indim = 5
+        m = SeqEncoder(IdxToOneHot(indim, maskid=0),
+                       GRU(dim=indim, innerdim=dim),
+                       GRU(dim=dim, innerdim=dim+1))\
+            .all_outputs().with_states()
+        data = np.random.randint(1, indim, (batsize, seqlen)).astype("int32")
+        data[:, 1] = 1
+        ndata = np.ones_like(data) * 0
+        data = np.concatenate([data, ndata], axis=1)
+        pred, states = m.predict(data)
+        state = states[0]
+        print "prediction:"
+        print pred.shape
+        print pred[0, :, :3]
+        print "states:"
+        for state in states:
+            print state.shape
+            print state[0, :, :3]
+            for i in range(1, state.shape[1]):
+                #print np.linalg.norm(state[:, i - 1, :] - state[:, i, :])
+                if i < seqlen:
+                    self.assertTrue(not np.allclose(state[:, i - 1, :], state[:, i, :]))
+                else:
+                    self.assertTrue(np.allclose(state[:, i - 1, :], state[:, i, :]))
+        for i in range(1, pred.shape[1]):
+            #print np.linalg.norm(pred[:, i - 1, :] - pred[:, i, :])
+            if i < seqlen:
+                self.assertTrue(not np.allclose(pred[:, i - 1, :], pred[:, i, :]))
+            else:
+                self.assertTrue(np.allclose(pred[:, i - 1, :], pred[:, i, :]))
+
+    def test_mask_no_state_updates_multi_layer_bidir(self):
+        batsize = 10
+        seqlen = 3
+        dim = 7
+        indim = 5
+        emb = IdxToOneHot(indim, maskid=0)
+        m = SeqEncoder.fluent().setembedder(emb)\
+            .addlayers(dim=dim, bidir=True)\
+            .addlayers(dim=dim+1, bidir=True)\
+            .make().with_outputs().with_states()
+        data = np.random.randint(1, indim, (batsize, seqlen)).astype("int32")
+        data[:, 1] = 1
+        ndata = np.ones_like(data) * 0
+        data = np.concatenate([data, ndata], axis=1)
+        finals, pred, states = m.predict(data)
+
+        print "prediction:"
+        print pred.shape
+        print np.concatenate([finals[0, :2], finals[0, -2:]], axis=-1)
+        print np.concatenate([pred[0, :, :2], pred[0, :, -2:]], axis=-1)
+        self.assertTrue(np.allclose(np.concatenate([finals[0, :2], finals[0, -2:]], axis=-1),
+                                    np.concatenate([pred[0, -1, :2], pred[0, 0, -2:]], axis=-1)))
+        print "states:"
+        for state in states[::-1]:
+            print state.shape
+            print np.concatenate([state[0, :, :2], state[0, :, -2:]], axis=-1)
+            for i in range(1, state.shape[1]):
+                #print np.linalg.norm(state[:, i - 1, :] - state[:, i, :])
+                if i < seqlen:
+                    self.assertTrue(not np.allclose(state[:, i - 1, :state.shape[2]/2], state[:, i, :state.shape[2]/2]))
+                else:
+                    self.assertTrue(np.allclose(state[:, i - 1, :state.shape[2]/2], state[:, i, :state.shape[2]/2]))
+        for i in range(1, pred.shape[1]):
+            #print np.linalg.norm(pred[:, i - 1, :] - pred[:, i, :])
+            if i < seqlen:
+                self.assertTrue(not np.allclose(pred[:, i - 1, :], pred[:, i, :]))
+            elif i == seqlen:
+                self.assertTrue(np.allclose(pred[:, i - 1, :pred.shape[2]/2], pred[:, i, :pred.shape[2]/2]))
+                self.assertTrue(np.allclose(pred[:, i, -pred.shape[2]/2:], np.zeros_like(pred[:, i, -pred.shape[2]/2:])))
+            else:
+                self.assertTrue(np.allclose(pred[:, i - 1, :], pred[:, i, :]))
 
     def test_mask_propagation_all_states(self):
         m = SeqEncoder(VectorEmbed(maskid=0, indim=100, dim=7),

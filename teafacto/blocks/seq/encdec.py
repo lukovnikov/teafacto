@@ -192,8 +192,7 @@ class SimpleSeqEncDecAtt(SeqEncDec):
 from teafacto.blocks.seq.rnn import MakeRNU, RecStack
 
 
-class EncDec(Block):        # NOT FOR STATIC CONTEXT TODO
-                            # EXPLICIT STATE TRANSFER (by init state gen)
+class EncDec(Block):    # EXPLICIT STATE TRANSFER (by init state gen)
     def __init__(self,
                  encoder=None,      # encoder block
                  attention=None,    # attention block
@@ -212,7 +211,8 @@ class EncDec(Block):        # NOT FOR STATIC CONTEXT TODO
                  dropout_h=False,   # dropout dec rnn h
                  zoneout=False,     # zoneout dec rnn
                  smo=None,          # dec smo block
-                 init_state_gen=None,   # block that generates initial state of topmost layer that produces addressing vectors
+                 init_state_gen=None,   # block that generates initial state of layers (assigned starting from the top)
+                 return_attention_weights=False,
                  **kw):
         super(EncDec, self).__init__(**kw)
         self.inconcat = inconcat
@@ -244,6 +244,7 @@ class EncDec(Block):        # NOT FOR STATIC CONTEXT TODO
         if self.stateconcat:    self.outconcatdim += lastdim
         if self.outconcat:      self.outconcatdim += self.encoder.outdim
         if self.concatdecinp:   self.outconcatdim += indim
+        self._return_attention_weights = return_attention_weights
 
     def apply(self, decinp, encinp):
         inpenc = self.encoder(encinp)   # 2D or 3D
@@ -251,14 +252,21 @@ class EncDec(Block):        # NOT FOR STATIC CONTEXT TODO
         init_info, nonseqs = self.get_inits(batsize, inpenc)
         decinpemb = self.inpemb(decinp)
         mask = decinpemb.mask
+        outinfos = [None]
+        if self._return_attention_weights:
+            outinfos += [None]
         outputs = T.scan(fn=self.inner_rec,
                          sequences=decinpemb.dimswap(1, 0),
-                         outputs_info=[None] + init_info,
+                         outputs_info=outinfos + init_info,     # first output is real result, second is attention weights
                          non_sequences=list(nonseqs),
                          )
         ret = outputs[0].dimswap(1, 0)
         ret.mask = mask
-        return ret
+        if self._return_attention_weights:
+            att_weights = outputs[1].dimswap(1, 0)  # (batsize, outseqlen, inseqlen)
+            return ret, att_weights
+        else:
+            return ret
 
     @property
     def numstates(self):
@@ -301,9 +309,9 @@ class EncDec(Block):        # NOT FOR STATIC CONTEXT TODO
             o_t = rnuret[0]
             states_t = rnuret[1:]
             y_t = states_t[-1]
-            ctx_t = self._get_ctx_t(ctx, y_t, x_t_emb, self.attention, ctxmask)
+            ctx_t, att_weights_t = self._get_ctx_t(ctx, y_t, x_t_emb, self.attention, ctxmask)
         else:
-            ctx_t = self._get_ctx_t(ctx, y_tm1, x_t_emb, self.attention, ctxmask)
+            ctx_t, att_weights_t = self._get_ctx_t(ctx, y_tm1, x_t_emb, self.attention, ctxmask)
             i_t = T.concatenate([x_t_emb, ctx_t], axis=1) if self.inconcat else x_t_emb
             rnuret = self.block.rec(i_t, *states_tm1)
             o_t = rnuret[0]
@@ -315,12 +323,15 @@ class EncDec(Block):        # NOT FOR STATIC CONTEXT TODO
         if self.concatdecinp:           concatthis.append(x_t_emb)
         _y_t = T.concatenate(concatthis, axis=1) if len(concatthis) > 1 else concatthis[0]
         y_t = self.smo(_y_t) if self.smo is not None else _y_t        # TODO: smo == None --> return raw y_t
-        return [y_t, ctx_t] + states_t
+        if self._return_attention_weights:
+            return [y_t, att_weights_t, ctx_t] + states_t
+        else:
+            return [y_t, ctx_t] + states_t
 
     def _get_ctx_t(self, ctx, h, x_t_emb, att, ctxmask):
         # ctx: 3D if attention, 2D otherwise
         if ctx.ndim == 2:
-            return ctx      # no attention, return ctx as-is
+            return ctx, 0      # no attention, return ctx as-is
         else:
             assert(ctx.ndim == 3)
             assert(att is not None)
@@ -328,8 +339,9 @@ class EncDec(Block):        # NOT FOR STATIC CONTEXT TODO
             h = T.concatenate([h, x_t_emb], axis=-1)
         if self.attentiontransformer is not None:
             h = self.attentiontransformer(h)
-        ret = att(h, ctx, mask=ctxmask)
-        return ret
+        att_weights = att.get_attention_weights(h, ctx, mask=ctxmask)
+        ret = att.get_attention_results(ctx, att_weights, mask=ctxmask)
+        return ret, att_weights
 
 
 class MultiEncDec(Block):

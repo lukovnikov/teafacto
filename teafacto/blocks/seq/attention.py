@@ -129,10 +129,18 @@ class Attention(Block):
         self.splitters = splitters
 
     def apply(self, criterion, data, mask=None):
+        weights = self.get_attention_weights(criterion, data, mask=mask)
+        ret = self.get_attention_results(data, weights, mask=mask)
+        return ret
+
+    def get_attention_weights(self, criterion, data, mask=None):
         mask = data.mask if mask is None else mask
         addrdata = data if self.splitters is None else self.splitters[0](data)
         weights = self.attentiongenerator(criterion, addrdata, mask=mask)
         weights.output_as("attention_weights")
+        return weights
+
+    def get_attention_results(self, data, weights, mask=None):
         contdata = data if self.splitters is None else self.splitters[1](data)
         ret = self.attentionconsumer(contdata, weights, mask=mask)
         return ret

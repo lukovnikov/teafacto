@@ -664,6 +664,7 @@ class MakeRNU(object):
 
 
 class BiRNU(RecurrentBlock): # TODO: optimizer can't process this
+    # !!!!!!!!!! NON-RECCABLE !!!
     def __init__(self, fwd=None, rew=None, **kw):
         super(BiRNU, self).__init__(**kw)
         assert(isinstance(fwd, RNUBase) and isinstance(rew, RNUBase))
