@@ -147,7 +147,7 @@ def get_fl_emb(fl_dic, rel_dic, rel_mat, rel_mat_dic,
     rel_mat_val = Val(rel_mat)
     rel_mat_enc = relenc(rel_mat_val)
     # 2.3 use encs in overriding wordemb
-    rel_emb = WordEmb(worddic=rel_dic, value=rel_mat_enc)
+    rel_emb = WordEmb(worddic=rel_dic, dim=dim, value=rel_mat_enc)
     # 3. override
     fl_emb = base_emb.override(rel_emb)
     return fl_emb
