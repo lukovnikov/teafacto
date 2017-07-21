@@ -416,7 +416,7 @@ def run(
         m = m.train(traindata, traingold)\
             .cross_entropy().seq_accuracy()\
             .adadelta(lr=lr).grad_total_norm(gradnorm)\
-            .split_validate(splits=10)\
+            .validate_on(testdata, testgold)\
             .cross_entropy().seq_accuracy().extvalid(extvalid)\
             .earlystop(select=lambda x: -x[3],
                        stopcrit=7)\
