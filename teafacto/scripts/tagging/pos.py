@@ -64,7 +64,7 @@ def loaddata_flatcharword(p="../../../data/pos/", rarefreq=0, task="chunk"):
     trainslice, testslice = slicer[:spliti], slicer[spliti:]
     traingold, testgold = osm.matrix[:spliti], osm.matrix[spliti:]
     return (trainwords, trainchars, trainslice, traingold),\
-           (testwords, testchars, testslice, traingold),\
+           (testwords, testchars, testslice, testgold),\
            (ism._dictionary, ism_char._dictionary, osm._dictionary)
 
 
@@ -404,8 +404,10 @@ def run(
 
     if task == "chunk":
         extvalid = F1Eval(m, tdic)
+        evaluate_f = evaluate       # for frame-L
     elif task == "pos":
         extvalid = TokenAccEval(m)
+        tokenacceval_f = tokenacceval   # for frame-L
     else:
         raise Exception("unknown task")
 
