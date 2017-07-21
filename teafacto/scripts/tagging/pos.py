@@ -199,7 +199,9 @@ class F1Eval(ExternalObjective):
         self.tdic = tdic
         self.tp, self.fp, self.fn = 0., 0., 0.
 
-    def __call__(self, data, gold):
+    def __call__(self, *a):
+        data = a[:-1]
+        gold = a[-1]
         tp, fp, fn = eval_map(self.m, data, gold, self.tdic, verbose=False)
         self.tp += tp
         self.fp += fp
@@ -237,7 +239,9 @@ class TokenAccEval(ExternalObjective):
         self.num = 0.
         self.agg = 0.
 
-    def __call__(self, data, gold):
+    def __call__(self, *a):
+        data = a[:-1]
+        gold = a[-1]
         agg, num = tokenacceval(self.m, data, gold)
         self.agg += agg
         self.num += num
@@ -416,7 +420,7 @@ def run(
         m = m.train(traindata, traingold)\
             .cross_entropy().seq_accuracy()\
             .adadelta(lr=lr).grad_total_norm(gradnorm)\
-            .validate_on(testdata, testgold)\
+            .split_validate(splits=10)\
             .cross_entropy().seq_accuracy().extvalid(extvalid)\
             .earlystop(select=lambda x: -x[3],
                        stopcrit=7)\
