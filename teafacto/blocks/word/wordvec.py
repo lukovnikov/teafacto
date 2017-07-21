@@ -192,10 +192,12 @@ class Glove(WordEmb):
     maskid = 0
     rareid = 1
 
-    def __init__(self, dim, vocabsize=None, path=None, trainfrac=0.0,
+    def __init__(self, dim, vocabsize=None, path=None, trainfrac=0.0, maskid=None,
                  **kw):
+        assert("worddic" not in kw)
         path = self._get_path(dim, path=path)
-        value, wdic = self.loadvalue(path, dim, indim=vocabsize, maskid=self.maskid, rareid=self.rareid)
+        maskid = self.maskid if maskid is None else maskid
+        value, wdic = self.loadvalue(path, dim, indim=vocabsize, maskid=maskid, rareid=self.rareid)
         self.allwords = wdic.keys()
         super(Glove, self).__init__(dim=dim, value=value,
                                     worddic=wdic, trainfrac=trainfrac, **kw)

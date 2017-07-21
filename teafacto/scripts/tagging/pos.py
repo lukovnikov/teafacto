@@ -1,5 +1,5 @@
-from teafacto.util import argprun, ticktock
-from teafacto.procutil import wordids2string, wordmat2chartensor, wordmat2wordchartensor
+from teafacto.util import argprun, ticktock, StringMatrix
+from teafacto.procutil import wordids2string, wordmat2chartensor, wordmat2wordchartensor, slicer_from_flatcharseq
 from IPython import embed
 import numpy as np
 from teafacto.core import Block, asblock
@@ -9,6 +9,7 @@ from teafacto.blocks.basic import SMO
 from teafacto.blocks.word import Glove
 from teafacto.blocks.word.wordrep import *
 from teafacto.core.trainer import ExternalObjective
+from teafacto.core.base import asblock
 
 
 def loaddata(p="../../../data/pos/", rarefreq=1, task="chunk"):
@@ -19,6 +20,52 @@ def loaddata(p="../../../data/pos/", rarefreq=1, task="chunk"):
     traindata = wordmat2wordchartensor(traindata, worddic=wdic, maskid=0)
     testdata = wordmat2wordchartensor(testdata, worddic=wdic, maskid=0)
     return (traindata, traingold), (testdata, testgold), (wdic, tdic)
+
+
+def loaddata_flatcharword(p="../../../data/pos/", rarefreq=0, task="chunk"):
+    trainp, testp = p + "train.txt", p + "test.txt"
+    ism, osm = StringMatrix(), StringMatrix()
+    ism.tokenize = lambda x: x.lower().split(" ")
+    osm.tokenize = lambda x: x.split(" ")
+    curdata, curgold = [], []
+    i = 0
+    spliti = -1
+    for p in (trainp, testp):
+        spliti = 0 if spliti == -1 else i
+        with open(p) as f:
+            for line in f:
+                if len(line) < 3:
+                    if len(curdata) > 0 and len(curgold) > 0:
+                        ism.add(" ".join(curdata))
+                        osm.add(" ".join(curgold))
+                        curdata, curgold = [], []
+                        i += 1
+                    continue
+                w, pos, chunk = line.split()
+                if task == "pos":
+                    t = pos
+                elif task == "chunk":
+                    t = chunk
+                else:
+                    raise Exception("unknown task for this dataset")
+                curdata.append(w); curgold.append(t)
+    ism.finalize(); osm.finalize()
+    # get flat charseq
+    ism_char = StringMatrix()
+    ism_char.tokenize = lambda x: x
+    for i in range(len(ism.matrix)):
+        sentence = ism.pp(ism.matrix[i]) + " "
+        ism_char.add(sentence)
+    ism_char.finalize()
+    slicer, slicermask, wordsperrow = slicer_from_flatcharseq(ism_char.matrix, wordstop=ism_char.d(" "))
+    # split train test
+    trainwords, testwords = ism.matrix[:spliti], ism.matrix[spliti:]
+    trainchars, testchars = ism_char.matrix[:spliti], ism_char.matrix[spliti:]
+    trainslice, testslice = slicer[:spliti], slicer[spliti:]
+    traingold, testgold = osm.matrix[:spliti], osm.matrix[spliti:]
+    return (trainwords, trainchars, trainslice, traingold),\
+           (testwords, testchars, testslice, traingold),\
+           (ism._dictionary, ism_char._dictionary, osm._dictionary)
 
 
 def loadtxt(p, wdic=None, tdic=None, task="chunk"):
@@ -71,12 +118,21 @@ def dorare(traindata, testdata, glove, rarefreq=1, embtrainfrac=0.0):
     return traindata, testdata
 
 
+def rebase(wordmat, srcdic, tgtdic):
+    assert(srcdic["<MASK>"] == tgtdic["<MASK>"])
+    assert(srcdic["<RARE>"] == tgtdic["<RARE>"])
+    srctotgt = {v: tgtdic[k] if k in tgtdic else tgtdic["<RARE>"]
+                for k, v in srcdic.items()}
+    wordmat = np.vectorize(lambda x: srctotgt[x])(wordmat)
+    return wordmat
+
+
 # CHUNK EVAL
 def eval_map(model, data, gold, tdic, verbose=True):
     tt = ticktock("eval", verbose=verbose)
     tt.tick("predicting")
     rtd = {v: k for k, v in tdic.items()}
-    pred = model.predict(data)
+    pred = model.predict(*data)
     pred = np.argmax(pred, axis=2)
     mask = gold == 0
     pred[mask] = 0
@@ -164,7 +220,7 @@ class F1Eval(ExternalObjective):
 
 # POS EVAL
 def tokenacceval(model, data, gold):
-    pred = model.predict(data)
+    pred = model.predict(*data)
     pred = np.argmax(pred, axis=2)
     mask = gold != 0
     corr = pred == gold
@@ -206,8 +262,8 @@ class SeqTagger(Block):
         self.enc = enc
         self.out = out
 
-    def apply(self, x):     # (batsize, seqlen)
-        enco = self.enc(x)  # (batsize, seqlen, dim)
+    def apply(self, *x):     # (batsize, seqlen)
+        enco = self.enc(*x)  # (batsize, seqlen, dim)
         outo = self.out(enco)
         return outo
 
@@ -236,7 +292,7 @@ def run(
         dropout=0.3,
         embtrainfrac=1.,
         inspectdata=False,
-        mode="words",       # words or concat or gate or ctxgate
+        mode="words",       # words or concat or gate or ctxgate or flatcharword
         gradnorm=5.,
         skiptraining=False,
         debugvalid=False,
@@ -245,18 +301,34 @@ def run(
     # MAKE DATA
     tt = ticktock("script")
     tt.tick("loading data")
-    (traindata, traingold), (testdata, testgold), (wdic, tdic) = loaddata(task=task)
+    if mode == "flatcharword":
+        (traindata, trainchars, trainslice, traingold),\
+        (testdata, testchars, testslice, testgold),\
+        (wdic, cdic, tdic) \
+            = loaddata_flatcharword(task=task)
+    else:
+        (traindata, traingold), (testdata, testgold), (wdic, tdic) = loaddata(task=task)
     tt.tock("data loaded")
-    g = Glove(embdim, trainfrac=embtrainfrac, worddic=wdic, maskid=0)
-    tt.tick("doing rare")
-    traindata, testdata = dorare(traindata, testdata, g, embtrainfrac=embtrainfrac, rarefreq=1)
-    tt.tock("rare done")
+    g = Glove(embdim, trainfrac=embtrainfrac)
+    if True:
+        tt.tick("rebasing to glove dic")
+        traindata = rebase(traindata, wdic, g.D)
+        testdata = rebase(testdata, wdic, g.D)
+        tt.tock("rebased to glove dic")
+    else:
+        tt.tick("doing rare")
+        traindata, testdata = dorare(traindata, testdata, g, embtrainfrac=embtrainfrac, rarefreq=1)
+        tt.tock("rare done")
     if inspectdata:
+        revwdic = {v: k for k, v in g.D.items()}
+        def pp(xs):
+            return " ".join([revwdic[x] if x in revwdic else revwdic["<RARE>"]
+                             for x in xs if x > 0])
         embed()
 
     # BUILD MODEL
     # Choice of word representation
-    if mode != "words":
+    if mode != "words" and mode != "flatcharword":
         numchars = traindata[:, :, 1:].max() + 1
         charenc = RNNSeqEncoder.fluent()\
             .vectorembedder(numchars, charembdim, maskid=0)\
@@ -276,12 +348,37 @@ def run(
             .add_forward_layers(embdim, activation=Sigmoid)\
             .make().all_outputs()
         emb = WordEmbCharEncCtxGate(g, charenc, gate_enc=gate_enc)
+    elif mode == "flatcharword":
+        pass
     else:
         raise Exception("unknown mode in script")
     # tagging model
-    enc = RNNSeqEncoder.fluent().setembedder(emb)\
-        .addlayers([encdim]*layers, bidir=bidir, dropout_in=dropout).make()\
-        .all_outputs()
+    if not mode == "flatcharword":
+        enc = RNNSeqEncoder.fluent().setembedder(emb)\
+            .addlayers([encdim]*layers, bidir=bidir, dropout_in=dropout).make()\
+            .all_outputs()
+    else:
+        emb = g
+        numchars = max(cdic.values()) + 1
+        charenc = RNNSeqEncoder.fluent()\
+            .vectorembedder(numchars, charembdim, maskid=cdic["<MASK>"])\
+            .addlayers(embdim, bidir=False).make().all_outputs()
+        topenc = RNNSeqEncoder.fluent().noembedder(embdim*2)\
+            .addlayers([encdim]*layers, bidir=bidir, dropout_in=dropout).make()\
+            .all_outputs()
+
+        def blockfunc(wordids, charids, slicer):
+            wordembs = emb(wordids)     # (batsize, wordseqlen, wordembdim)
+            charencs = charenc(charids) # (batsize, charseqlen, charencdim)
+            charslic = charencs[
+                T.arange(slicer.shape[0]).dimshuffle(0, "x")
+                    .repeat(slicer.shape[1], axis=1),
+                slicer]   # (batsize, wordseqlen, charencdim)
+            wordvecs = T.concatenate([wordembs, charslic], axis=2)  # (batsize, wordseqlen, wordembdim + charencdim)
+            wordvecs.mask = wordembs.mask
+            enco = topenc(wordvecs)     # (batsize, seqlen, encdim)
+            return enco
+        enc = asblock(blockfunc)
 
     # output tagging model
     encoutdim = encdim if not bidir else encdim * 2
@@ -289,13 +386,15 @@ def run(
 
     # final
     m = SeqTagger(enc, out)
-
+    #charencs[np.arange(5)[:, np.newaxis].repeat(slicer.shape[1], axis=1), slicer].shape
     # TRAINING
     if mode == "words":
         traindata = traindata[:, :, 0]
         testdata = testdata[:, :, 0]
     elif mode == "concat" or mode == "gate" or mode == "ctxgate":
         tt.msg("character-level included")
+    elif mode == "flatcharword":
+        pass
     else:
         raise Exception("unknown mode in script")
 
@@ -306,8 +405,15 @@ def run(
     else:
         raise Exception("unknown task")
 
+    if mode == "flatcharword":
+        traindata = [traindata, trainchars, trainslice]
+        testdata = [testdata, testchars, testslice]
+    else:
+        traindata = [traindata]
+        testdata = [testdata]
+
     if not skiptraining:
-        m = m.train([traindata], traingold)\
+        m = m.train(traindata, traingold)\
             .cross_entropy().seq_accuracy()\
             .adadelta(lr=lr).grad_total_norm(gradnorm)\
             .split_validate(splits=10)\

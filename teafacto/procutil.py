@@ -114,3 +114,62 @@ def getmatrixvaluecounts(*x):
     pdx = Series(x)
     ret = pdx.value_counts()
     return dict(zip(ret.index, ret.values))
+
+
+def _bad_sync_wordseq_flatcharseq(wordmat, charmat, wordstop=1, wordmaskid=0, charmaskid=0):     # (numex, seqlen)
+    numwords = wordmat.shape[1]
+    numwordsperrow = (wordmat != wordmaskid).sum(axis=1)
+    stopsperrow = (charmat == wordstop).sum(axis=1)
+    assert(np.allclose(numwordsperrow, stopsperrow))
+    moststopsperrow = stopsperrow.max()
+    addrange = np.arange(0, numwords+1)[np.newaxis, :].repeat(len(charmat), axis=0)
+    toadd = addrange > stopsperrow[:, np.newaxis]
+    toadd *= (wordstop-charmaskid)
+    toadd += charmaskid
+    charmat_x = np.concatenate([charmat, toadd], axis=1)
+    (charmat_x == wordstop).sum(axis=1)
+
+
+def slicer_from_flatcharseq(charmat, wordstop=1, numwords=None):
+    stopsperrow = (charmat == wordstop).sum(axis=1)
+    maxstopsperrow = stopsperrow.max()
+    numwords = maxstopsperrow if numwords is None else numwords
+    slicer = np.zeros((len(charmat), numwords), dtype="int32")
+    slicermask = np.zeros_like(slicer).astype("int8")
+    wordsperrow = np.zeros((len(charmat)), dtype="int32")
+    for i in range(charmat.shape[0]):
+        slicerpos = 0
+        for j in range(charmat.shape[1]):
+            if charmat[i, j] == wordstop:
+                slicer[i, slicerpos:] = j
+                slicermask[i, slicerpos] = 1
+                slicerpos += 1
+    wordsperrow = (slicermask == 1).sum(axis=1)
+    return slicer, slicermask, wordsperrow
+
+
+
+if __name__ == "__main__":
+    from teafacto.util import StringMatrix
+    sm = StringMatrix()
+    sentences = ["I think I'll have a whole chicken",
+                 "I think I'll have two chickens",
+                 "I think I'll have all the chickens in this damn place"]
+    for sentence in sentences:
+        sm.add(sentence)
+    sm.finalize()
+    print "\"{}\"".format(sm.pp(sm.matrix[0]) + " ")
+    sentences = [sm.pp(sm.matrix[i]) + " " for i in range(len(sm.matrix))]
+    print sentences
+    csm = StringMatrix()
+    csm.tokenize = lambda x: x
+    for sentence in sentences:
+        csm.add(sentence)
+    csm.finalize()
+    print csm.matrix[0]
+    print csm.pp(csm.matrix[0])
+
+    slicer, slicermask, wordsperrow = slicer_from_flatcharseq(csm.matrix, wordstop=csm.d(" "))
+    print slicer
+    print slicermask
+    print wordsperrow
