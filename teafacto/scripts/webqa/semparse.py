@@ -194,9 +194,9 @@ def run(p="webqa.data.loaded.pkl",
             if inspect:
                 def pp(q, g, a):
                     for qe, ge, ae in zip(q, g, a):
-                        print "Question:\t ".join([rev_nl_dic[qex] for qex in qe if qex != 0])
-                        print "Golden:\t ".join([rev_fl_dic[gex] for gex in ge if gex != 0])
-                        print "Predicted:\t ".join([rev_fl_dic[aex] for aex in ae if aex != 0])
+                        print "Question:\t {}".format(" ".join([rev_nl_dic[qex] for qex in qe if qex != 0]))
+                        print "Golden:\t {}".format(" ".join([rev_fl_dic[gex] for gex in ge if gex != 0]))
+                        print "Predicted:\t {}".format(" ".join([rev_fl_dic[aex] for aex in ae if aex != 0]))
                 pp(test_nl_mat[i:j], test_fl_mat[i:j], testpred[i:j])
                 k = raw_input("press to continue, (s) to stop")
                 if k == "s":
