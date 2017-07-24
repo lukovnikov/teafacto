@@ -116,8 +116,6 @@ def run(p="webqa.data.loaded.pkl",
                                 train_vtn], axis=1)
     test_vtn = np.concatenate([vtn_e0_vec.repeat(test_vtn.shape[0], axis=0),
                                test_vtn], axis=1)
-    train_vtn = train_vtn[:, :-1]
-    test_vtn = test_vtn[:, :-1]
 
     glove = Glove(worddim)
 
@@ -184,13 +182,13 @@ def run(p="webqa.data.loaded.pkl",
         dev_inpenc = encoder(dev_inpseq)
         dev_dec_init = encdec.init_state_gen(dev_inpenc)
         dev_decout, dev_m_att = encdec(dev_outseq[:, :-1], dev_inpseq)
-        dev_m_out = m(dev_inpseq, dev_outseq[:, :-1], dev_outmsk)
+        dev_m_out = m(dev_inpseq, dev_outseq[:, :-1], dev_outmsk[:, :-1])
         embed()
 
     if testpred:
         testpredictions()
 
-    m.train([train_nl_mat, train_fl_mat[:, :-1], train_vtn], train_fl_mat[:, 1:])\
+    m.train([train_nl_mat, train_fl_mat[:, :-1], train_vtn[:, :-1]], train_fl_mat[:, 1:])\
         .adadelta(lr=lr).seq_cross_entropy().seq_accuracy().grad_total_norm(5.)\
         .split_validate(splits=10).seq_cross_entropy().seq_accuracy()\
         .train(numbats=numbats, epochs=epochs)
