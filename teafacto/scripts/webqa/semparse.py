@@ -116,6 +116,8 @@ def run(p="webqa.data.loaded.pkl",
                                 train_vtn], axis=1)
     test_vtn = np.concatenate([vtn_e0_vec.repeat(test_vtn.shape[0], axis=0),
                                test_vtn], axis=1)
+    train_vtn = train_vtn[:, :-1]
+    test_vtn = test_vtn[:, :-1]
 
     glove = Glove(worddim)
 
@@ -181,8 +183,8 @@ def run(p="webqa.data.loaded.pkl",
         # outputs
         dev_inpenc = encoder(dev_inpseq)
         dev_dec_init = encdec.init_state_gen(dev_inpenc)
-        dev_decout, dev_m_att = encdec(dev_outseq, dev_inpseq)
-        dev_m_out = m(dev_inpseq, dev_outseq, dev_outmsk)
+        dev_decout, dev_m_att = encdec(dev_outseq[:, :-1], dev_inpseq)
+        dev_m_out = m(dev_inpseq, dev_outseq[:, :-1], dev_outmsk)
         embed()
 
     if testpred:
@@ -193,12 +195,6 @@ def run(p="webqa.data.loaded.pkl",
         .split_validate(splits=10).seq_cross_entropy().seq_accuracy()\
         .train(numbats=numbats, epochs=epochs)
 
-
-
-    # TODO: REAL THING
-    #       (1) make smo that accepts time-dynamic mask,
-    #       (2) put it on top of EncDec without smo
-    #               --> don't need to change EncDec (but this only works if teacher forcing)
     embed()
 
 
