@@ -94,9 +94,11 @@ def run(p="webqa.data.loaded.pkl",
         decdim=50,
         numenclayers=1,
         numdeclayers=1,
-        dropout=0.1,
         testpred=False,
         lr=0.1,
+        dropout=0.1,
+        wreg=0.00000001,
+        gradnorm=1.0,
         epochs=20,
         numbats=100,
         ):
@@ -174,6 +176,24 @@ def run(p="webqa.data.loaded.pkl",
 
     m = asblock(m_fun)
 
+    def runtest(total=2031):
+        tt.tick("running test")
+        acc = 0
+        tot = test_nl_mat.shape[0]
+        i = 0
+        j = 0
+        step = 100
+        while j < test_nl_mat.shape[0]:
+            tt.progress(i, tot, live=True)
+            j = min(i + step, test_nl_mat.shape[0])
+            testpred = m.predict(test_nl_mat[i:j], test_fl_mat[i:j, :-1], test_vtn[i:j, :-1])
+            testpred = np.argmax(testpred, axis=2)
+            eqs = np.all(test_fl_mat[i:j, 1:] == testpred, axis=1)
+            acc += eqs.sum()
+            i += step
+        tt.tock("test run")
+        tt.msg("Accuracy on test: {} ({}/{}); [all:] {} ({}/{})".format(acc * 1.0 / tot, acc, tot, acc * 1.0 / total, acc, total))
+
     def testpredictions():        # do some predictions for debugging
         dev_inpseq = Val(train_nl_mat[:5])
         dev_outseq = Val(train_fl_mat[:5])
@@ -189,8 +209,9 @@ def run(p="webqa.data.loaded.pkl",
         testpredictions()
 
     m.train([train_nl_mat, train_fl_mat[:, :-1], train_vtn[:, :-1]], train_fl_mat[:, 1:])\
-        .adadelta(lr=lr).seq_cross_entropy().seq_accuracy().grad_total_norm(5.)\
-        .split_validate(splits=10).seq_cross_entropy().seq_accuracy()\
+        .adadelta(lr=lr).seq_cross_entropy().seq_accuracy().grad_total_norm(gradnorm).l2(wreg)\
+        .split_validate(splits=10)\
+        .seq_cross_entropy().seq_accuracy()\
         .train(numbats=numbats, epochs=epochs)
 
     embed()
