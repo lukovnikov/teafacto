@@ -191,7 +191,6 @@ def run(p="webqa.data.loaded.pkl",
             testpred = np.argmax(testpred, axis=2)
             eqs = np.all(test_fl_mat[i:j, 1:] == testpred, axis=1)
             acc += eqs.sum()
-            i += step
             if inspect:
                 def pp(q, g, a):
                     for qe, ge, ae in zip(q, g, a):
@@ -202,6 +201,7 @@ def run(p="webqa.data.loaded.pkl",
                 k = raw_input("press to continue, (s) to stop")
                 if k == "s":
                     inspect = False
+            i += step
 
         tt.tock("test run")
         tt.msg("Accuracy on test: {} ({}/{}); [all:] {} ({}/{})".format(acc * 1.0 / tot, acc, tot, acc * 1.0 / total, acc, total))
