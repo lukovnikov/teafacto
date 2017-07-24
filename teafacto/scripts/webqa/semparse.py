@@ -176,7 +176,7 @@ def run(p="webqa.data.loaded.pkl",
 
     m = asblock(m_fun)
 
-    def runtest(total=2031):
+    def runtest(total=1639):        # see http://anthology.aclweb.org/P16-2033
         tt.tick("running test")
         acc = 0
         tot = test_nl_mat.shape[0]
