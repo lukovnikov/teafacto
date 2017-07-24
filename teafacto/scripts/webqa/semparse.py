@@ -176,13 +176,12 @@ def run(p="webqa.data.loaded.pkl",
 
     m = asblock(m_fun)
 
-    def runtest(total=1639, inspect=False):        # see http://anthology.aclweb.org/P16-2033
+    def runtest(total=1639, inspect=False, step=20):        # see http://anthology.aclweb.org/P16-2033
         tt.tick("running test")
         acc = 0
         tot = test_nl_mat.shape[0]
         i = 0
         j = 0
-        step = 100
         rev_nl_dic = {v: k for k, v in nl_dic.items()}
         rev_fl_dic = {v: k for k, v in fl_dic.items()}
         while j < test_nl_mat.shape[0]:
@@ -200,7 +199,9 @@ def run(p="webqa.data.loaded.pkl",
                         print "Golden:\t ".join([rev_fl_dic[gex] for gex in ge if gex != 0])
                         print "Predicted:\t ".join([rev_fl_dic[aex] for aex in ae if aex != 0])
                 pp(test_nl_mat[i:j], test_fl_mat[i:j], testpred[i:j])
-                raw_input("press to continue")
+                k = raw_input("press to continue, (s) to stop")
+                if k == "s":
+                    inspect = False
 
         tt.tock("test run")
         tt.msg("Accuracy on test: {} ({}/{}); [all:] {} ({}/{})".format(acc * 1.0 / tot, acc, tot, acc * 1.0 / total, acc, total))
