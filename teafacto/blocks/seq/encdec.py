@@ -193,6 +193,8 @@ from teafacto.blocks.seq.rnn import MakeRNU, RecStack
 
 
 class EncDec(Block):    # EXPLICIT STATE TRANSFER (by init state gen)
+    # TODO: test
+    # TODO: make officially Reccable
     def __init__(self,
                  encoder=None,      # encoder block
                  attention=None,    # attention block

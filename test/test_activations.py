@@ -60,6 +60,7 @@ class TestSoftmax(TestCase):
         m = np.ones_like(d)
         m[:, :, 2] = 0
         pred = b.predict(d, m)
+        print pred
         self.assertTrue(np.allclose(np.zeros_like(pred[:, :, 2]), pred[:, :, 2]))
         self.assertEqual(d.shape, pred.shape)
         predsums = np.sum(pred, axis=-1)

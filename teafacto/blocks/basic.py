@@ -43,8 +43,11 @@ class MatDot(Block):
         self.dropout = Dropout(dropout)
 
     def apply(self, inptensor):
+        mask = inptensor.mask
         inp = self.dropout(inptensor)
-        return T.dot(inp, self.W)
+        ret = T.dot(inp, self.W)
+        ret.mask = mask
+        return ret
 
 
 class Linear(Block):
@@ -241,7 +244,7 @@ class SMO(Block):
         super(SMO, self).__init__(**kw)
         self.indim = indim
         self.outdim = outdim
-        self.l = Linear(indim, outdim, dropout=dropout) if not nobias else MatDot(indim, outdim, dropout=dropout)
+        self.l = Linear(indim, outdim, dropout=dropout, nobias=nobias)
 
     def apply(self, x):
         mask = x.mask

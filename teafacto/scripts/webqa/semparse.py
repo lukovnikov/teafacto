@@ -3,8 +3,10 @@ from teafacto.util import argprun, ticktock, StringMatrix
 from IPython import embed
 from teafacto.blocks.word.wordvec import WordEmb, Glove
 from teafacto.core.base import Val, asblock
-from teafacto.blocks.basic import SMO
+from teafacto.blocks.basic import SMO, Forward
 from teafacto.blocks.seq import RNNSeqEncoder
+from teafacto.blocks.seq.encdec import EncDec
+from teafacto.blocks.seq.attention import Attention
 
 
 def loaddata(p="webqa.data.loaded.pkl"):
@@ -89,6 +91,9 @@ def run(p="webqa.data.loaded.pkl",
         worddim=50,
         fldim=50,
         encdim=50,
+        decdim=50,
+        numenclayers=1,
+        numdeclayers=1,
         dropout=0.1,
         testpred=False,
         lr=0.1,
@@ -98,6 +103,19 @@ def run(p="webqa.data.loaded.pkl",
     tt = ticktock("script")
     (train_nl_mat, train_fl_mat, train_vtn), (test_nl_mat, test_fl_mat, test_vtn), \
     (nl_dic, fl_dic, rel_dic), (rel_mat, rel_mat_dic) = loaddata(p)
+    # add starts
+    train_fl_mat = np.concatenate([
+        np.ones_like(train_fl_mat[:, 0:1]) * fl_dic["<START>"],
+        train_fl_mat], axis=1)
+    test_fl_mat = np.concatenate([
+        np.ones_like(test_fl_mat[:, 0:1]) * fl_dic["<START>"],
+        test_fl_mat], axis=1)
+    vtn_e0_vec = np.zeros((1, 1, train_vtn.shape[2]), dtype=train_vtn.dtype)
+    vtn_e0_vec[0, 0, fl_dic["<E0>"]] = 1
+    train_vtn = np.concatenate([vtn_e0_vec.repeat(train_vtn.shape[0], axis=0),
+                                train_vtn], axis=1)
+    test_vtn = np.concatenate([vtn_e0_vec.repeat(test_vtn.shape[0], axis=0),
+                               test_vtn], axis=1)
 
     glove = Glove(worddim)
 
@@ -111,11 +129,71 @@ def run(p="webqa.data.loaded.pkl",
     fl_smo = get_fl_smo_from_emb(fl_emb, dropout=dropout)
     tt.tock("built fl reps")
 
-    test_rel_smo(train_nl_mat, train_fl_mat, test_nl_mat, test_fl_mat,
-                 nl_emb, fl_dic, fl_smo, encdim=encdim, dropout=dropout,
-                 testpred=testpred, numbats=numbats, epochs=epochs, lr=lr)
+    #test_rel_smo(train_nl_mat, train_fl_mat, test_nl_mat, test_fl_mat,
+    #             nl_emb, fl_dic, fl_smo, encdim=encdim, dropout=dropout,
+    #             testpred=testpred, numbats=numbats, epochs=epochs, lr=lr)
 
-    # TODO: test training of test_rel_smo
+    # MODEL :::::::::::::::::::::::::::::::::::::::::::::
+    # encoder
+    encoder = RNNSeqEncoder.fluent().setembedder(nl_emb)\
+        .addlayers([encdim]*numenclayers, bidir=True, dropout_in=dropout, zoneout=dropout)\
+        .addlayers(encdim, bidir=False, dropout_in=dropout, zoneout=dropout)\
+        .make().all_outputs()
+
+    attention = Attention().forward_gen(encdim, decdim, decdim)
+
+    dec_state_init_block = Forward(encdim, decdim)
+    dec_state_init = asblock(lambda x: dec_state_init_block(x[:, -1, :]))
+
+    trans_y_t_from_dim = encdim + decdim + fl_emb.outdim
+    transform_y_t = Forward(trans_y_t_from_dim, fl_emb.outdim)
+
+    encdec = EncDec(encoder=encoder,
+                    attention=attention,
+                    init_state_gen=dec_state_init,
+                    transform_y_t=transform_y_t,
+                    inconcat=True,
+                    outconcat=True,
+                    stateconcat=True,
+                    concatdecinptoout=True,
+                    inpemb=fl_emb,
+                    innerdim=[decdim]*numdeclayers,
+                    smo=None,
+                    dropout_in=dropout,
+                    zoneout=dropout,
+                    return_attention_weights=True,
+                    )
+
+    def m_fun(inpseq, outseq, outmask):
+        deco, attention_weights = encdec(outseq, inpseq)
+        seqmask = deco.mask     # save seqmask from dec out
+        deco.mask = outmask     # set forced action mask
+        out = fl_smo(deco)     # compute output probs
+        out.mask = seqmask      # restore seqmask
+        return out
+
+    m = asblock(m_fun)
+
+    def testpredictions():        # do some predictions for debugging
+        dev_inpseq = Val(train_nl_mat[:5])
+        dev_outseq = Val(train_fl_mat[:5])
+        dev_outmsk = Val(train_vtn[:5])
+        # outputs
+        dev_inpenc = encoder(dev_inpseq)
+        dev_dec_init = encdec.init_state_gen(dev_inpenc)
+        dev_decout, dev_m_att = encdec(dev_outseq, dev_inpseq)
+        dev_m_out = m(dev_inpseq, dev_outseq, dev_outmsk)
+        embed()
+
+    if testpred:
+        testpredictions()
+
+    m.train([train_nl_mat, train_fl_mat[:, :-1], train_vtn], train_fl_mat[:, 1:])\
+        .adadelta(lr=lr).seq_cross_entropy().seq_accuracy().grad_total_norm(5.)\
+        .split_validate(splits=10).seq_cross_entropy().seq_accuracy()\
+        .train(numbats=numbats, epochs=epochs)
+
+
 
     # TODO: REAL THING
     #       (1) make smo that accepts time-dynamic mask,

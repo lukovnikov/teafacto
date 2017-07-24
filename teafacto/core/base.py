@@ -85,7 +85,7 @@ class TWrapper(type):
                 seqmask = mask
                 mask = None
             else:
-                raise Exception("bad shape")
+                raise Exception("bad mask shape")
         if xndim > 2:
             x = x.reshape((-1, x.shape[-1]))
             #x = x.dimmove(xndim - 1, 0).flatten(2).T
