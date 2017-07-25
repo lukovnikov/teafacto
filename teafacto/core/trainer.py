@@ -557,7 +557,7 @@ class ModelTrainer(object):
             #print updates
             #embed()
 
-            totalgradnorm = T.sqrt(sum(T.sum(grad ** 2) for grad in grads))
+            totalgradnorm = tensor.sqrt(sum(tensor.sum(grad ** 2) for grad in grads))
 
             finputs = [x.d for x in inputs]
             allupdates = updates + scanupdates.items()
