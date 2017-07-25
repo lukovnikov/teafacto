@@ -562,7 +562,7 @@ class ModelTrainer(object):
             allupdates = updates + scanupdates.items()
             trainf = theano.function(
                 inputs=finputs,
-                outputs=[cost]+losses[1:]+[totalgradnorm],
+                outputs=[cost]+losses[1:]+[totalgradnorm]+grads,
                 updates=allupdates,
                 on_unused_input="warn",
                 #mode=NanGuardMode(nan_is_error=True, inf_is_error=False, big_is_error=False)
@@ -834,9 +834,9 @@ class ModelTrainer(object):
                 perc = round(c*100.*(10**numdigs)/datafeeder.getnumbats())/(10**numdigs)
                 if perc > prevperc:     # print errors
                     current_agg_errors = [obj.get_agg_error() for obj in objectives]
-                    errorstr = " - ".join(["{:.3f}".format(current_agg_error) for current_agg_error in current_agg_errors])
-                    s = ("{:." + str(numdigs) + "f}% \t errors: {}").format(perc, errorstr)
-                    s += " \t TGN: {:.5f}\t ".format(tgn)
+                    errorstr = " - ".join(["{:>10.10s}".format("{:.10g}".format(current_agg_error)) for current_agg_error in current_agg_errors])
+                    s = ("{:4.2f}%    errors: {}").format(perc, errorstr)
+                    s += "    TGN: {:>10.10s}    ".format("{:.10g}".format(tgn))
                     tt.live(s)
                     prevperc = perc
                 sampleinps, batsize = datafeeder.nextbatch(withbatchsize=True)
@@ -845,11 +845,13 @@ class ModelTrainer(object):
                 sampleinps = sampletransf(*sampleinps, phase=phase)
                 train_f_out = f(*sampleinps)
                 errors_current = train_f_out[:len(objectives)]
-                tgn = train_f_out[-1]
-                tgn = float(tgn)
-                if np.isnan(tgn):
-                    print "NAN totalnorm"
-                    embed()
+                other_outs = train_f_out[len(objectives):]
+                if len(other_outs) > 0:
+                    tgn = other_outs[0]
+                    tgn = float(tgn)
+                    if np.isnan(tgn):
+                        print "NAN totalnorm"
+                        embed()
                 for current_error, objective in zip(errors_current, objectives):
                     objective.update_agg(current_error, batsize)
                 c += 1
