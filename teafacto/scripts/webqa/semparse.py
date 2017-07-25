@@ -145,13 +145,13 @@ def run(p="webqa.data.loaded.pkl",
     glove = Glove(worddim)
 
     tt.tick("building nl reps")
-    nl_emb = get_nl_emb(nl_dic, glove=glove, dim=worddim, dropout=dropout)
+    nl_emb = get_nl_emb(nl_dic, glove=glove, dim=worddim)
     tt.tock("built nl reps")
 
     tt.tick("building fl reps")
     fl_emb = get_fl_emb(fl_dic, rel_dic, rel_mat, rel_mat_dic,
                         glove=glove, dim=fldim, worddim=worddim, dropout=dropout)
-    fl_smo = get_fl_smo_from_emb(fl_emb, dropout=dropout)
+    fl_smo = get_fl_smo_from_emb(fl_emb)
     tt.tock("built fl reps")
 
     #test_rel_smo(train_nl_mat, train_fl_mat, test_nl_mat, test_fl_mat,

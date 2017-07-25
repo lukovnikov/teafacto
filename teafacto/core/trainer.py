@@ -533,7 +533,7 @@ class ModelTrainer(object):
             #    grads.append(tensor.grad(cost, x.d))
             grads = tensor.grad(cost, [x.d for x in params])  # compute gradient
             self.tt.msg("computed gradients")
-            totalgradnorm = tensor.sqrt(sum(tensor.sum(grad ** 2) for grad in grads))
+            totalgradnorm = sum(tensor.sum(grad ** 2) for grad in grads)
             originalgrads = grads
             grads = self._gradconstrain(grads)
             for param, grad in zip(params, grads):
@@ -853,6 +853,7 @@ class ModelTrainer(object):
                 if len(other_outs) > 0:
                     tgn = other_outs[0]
                     tgn = float(tgn)
+                    tgn = np.sqrt(tgn)
                     if np.isnan(tgn):
                         print "NAN totalnorm"
                         embed()
