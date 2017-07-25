@@ -819,8 +819,10 @@ class ModelTrainer(object):
         elif phase == "VALID":
             objectives = self.validation_objectives
         numdigs = 2
+        this = self
 
         def batchloop():
+            thisthis = this
             c = 0
             number_examples = 0
             prevperc = -1.
