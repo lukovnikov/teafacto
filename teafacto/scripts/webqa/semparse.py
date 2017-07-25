@@ -171,7 +171,6 @@ def run(p="webqa.data.loaded.pkl",
         assert(encdim == decdim)
         attention = Attention().dot_gen()
 
-
     if not usezeropos:
         dec_state_init_block = Forward(encdim, decdim)
         dec_state_init = asblock(lambda x: dec_state_init_block(x[:, -1, :]))
