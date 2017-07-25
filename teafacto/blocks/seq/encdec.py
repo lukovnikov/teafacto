@@ -289,7 +289,10 @@ class EncDec(Block):    # EXPLICIT STATE TRANSFER (by init state gen)
         if self._return_attention_weights:
             att_weights = outputs[1].dimswap(1, 0)  # (batsize, outseqlen, inseqlen)
             out += [att_weights]
-        return out
+        if len(out) == 1:
+            return out[0]
+        else:
+            return tuple(out)
 
     @property
     def numstates(self):

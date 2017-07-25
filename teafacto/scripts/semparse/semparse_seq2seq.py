@@ -84,6 +84,10 @@ def run(numbats=50,
     tt.tick("loading data")
     maskid = 0
     qmat, amat, qdic, adic, qwc, awc = loadgeo(reverse=False)
+    assert maskid not in qdic.values()
+    assert maskid not in adic.values()
+    qdic["<MASK>"] = maskid
+    adic["<MASK>"] = maskid
     tt.tock("data loaded")
 
     def pp(i):
