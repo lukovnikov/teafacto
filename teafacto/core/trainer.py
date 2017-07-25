@@ -1021,6 +1021,7 @@ class InterleavedTrainer(object):
         this = self
 
         def batchloop():
+            thisthis = this
             c = 0
             prevperc = -1.
             terrs = [[0.0] if tf is not None else None for tf in trainfs]
