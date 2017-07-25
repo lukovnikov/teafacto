@@ -229,7 +229,7 @@ def run(p="webqa.data.loaded.pkl",
         while j < test_nl_mat.shape[0]:
             tt.progress(i, tot, live=True)
             j = min(i + step, test_nl_mat.shape[0])
-            testpred, pos = m.predict(test_nl_mat[i:j], test_fl_mat[i:j, :-1], test_vtn[i:j, :-1], test_e0_pos[i:j])
+            testpred = m.predict(test_nl_mat[i:j], test_fl_mat[i:j, :-1], test_vtn[i:j, :-1], test_e0_pos[i:j])
             testpred = np.argmax(testpred, axis=2)
             eqs = np.all(test_fl_mat[i:j, 1:] == testpred, axis=1)
             acc += eqs.sum()
