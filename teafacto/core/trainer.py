@@ -836,9 +836,9 @@ class ModelTrainer(object):
                 perc = round(c*100.*(10**numdigs)/datafeeder.getnumbats())/(10**numdigs)
                 if perc > prevperc:     # print errors
                     current_agg_errors = [obj.get_agg_error() for obj in objectives]
-                    errorstr = " - ".join(["{:>10.10s}".format("{:.10g}".format(current_agg_error)) for current_agg_error in current_agg_errors])
+                    errorstr = " - ".join(["{:10.10s}".format("{:.10g}".format(current_agg_error)) for current_agg_error in current_agg_errors])
                     s = ("{:4.2f}%    errors: {}").format(perc, errorstr)
-                    s += "    TGN: {:>10.10s}    ".format("{:.10g}".format(tgn))
+                    s += "    TGN: {:10.10s}    ".format("{:.10g}".format(tgn))
                     tt.live(s)
                     prevperc = perc
                 sampleinps, batsize = datafeeder.nextbatch(withbatchsize=True)
