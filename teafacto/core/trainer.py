@@ -853,7 +853,7 @@ class ModelTrainer(object):
                 if len(other_outs) > 0:
                     tgn = other_outs[0]
                     tgn = float(tgn)
-                    tgn = np.sqrt(tgn)
+                    tgn = np.sqrt(tgn)       # not doing the sqrt in trainfun
                     if np.isnan(tgn):
                         print "NAN totalnorm"
                         embed()
