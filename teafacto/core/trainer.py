@@ -534,6 +534,7 @@ class ModelTrainer(object):
             grads = tensor.grad(cost, [x.d for x in params])  # compute gradient
             self.tt.msg("computed gradients")
             totalgradnorm = tensor.sqrt(sum(tensor.sum(grad ** 2) for grad in grads))
+            originalgrads = grads
             grads = self._gradconstrain(grads)
             for param, grad in zip(params, grads):
                 upds = self.optimizer([grad], [param.d], self.get_learning_rate() * param.lrmul)
@@ -562,7 +563,7 @@ class ModelTrainer(object):
             allupdates = updates + scanupdates.items()
             trainf = theano.function(
                 inputs=finputs,
-                outputs=[cost]+losses[1:]+[totalgradnorm]+grads,
+                outputs=[cost]+losses[1:]+[totalgradnorm]+originalgrads,
                 updates=allupdates,
                 on_unused_input="warn",
                 #mode=theano.compile.MonitorMode(post_func=theano.compile.monitormode.detect_nan),
