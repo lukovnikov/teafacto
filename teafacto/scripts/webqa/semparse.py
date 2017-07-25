@@ -109,6 +109,7 @@ def run(p="webqa.data.loaded.pkl",
         mode="s2s",         # "s2s", "disappointer" # TODO
         usezeropos=False,
         notrainmask=False,  # don't use the dec out symbol mask during training
+        attention="forward",    # forward or dot
         ):
     tt = ticktock("script")
     (train_nl_mat, train_fl_mat, train_vtn), (test_nl_mat, test_fl_mat, test_vtn), \
@@ -164,7 +165,12 @@ def run(p="webqa.data.loaded.pkl",
         .addlayers(encdim, bidir=False, dropout_in=dropout, zoneout=dropout)\
         .make().all_outputs()
 
-    attention = Attention().forward_gen(encdim, decdim, decdim)
+    if attention == "forward":
+        attention = Attention().forward_gen(encdim, decdim, decdim)
+    elif attention == "dot":
+        assert(encdim == decdim)
+        attention = Attention().dot_gen()
+
 
     if not usezeropos:
         dec_state_init_block = Forward(encdim, decdim)
