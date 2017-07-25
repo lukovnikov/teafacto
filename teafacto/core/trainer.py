@@ -533,6 +533,7 @@ class ModelTrainer(object):
             #    grads.append(tensor.grad(cost, x.d))
             grads = tensor.grad(cost, [x.d for x in params])  # compute gradient
             self.tt.msg("computed gradients")
+            totalgradnorm = tensor.sqrt(sum(tensor.sum(grad ** 2) for grad in grads))
             grads = self._gradconstrain(grads)
             for param, grad in zip(params, grads):
                 upds = self.optimizer([grad], [param.d], self.get_learning_rate() * param.lrmul)
@@ -556,8 +557,6 @@ class ModelTrainer(object):
                             param.ema_value * self._exp_mov_avg_decay + newparamval * (1 - self._exp_mov_avg_decay)))
             #print updates
             #embed()
-
-            totalgradnorm = tensor.sqrt(sum(tensor.sum(grad ** 2) for grad in grads))
 
             finputs = [x.d for x in inputs]
             allupdates = updates + scanupdates.items()
@@ -846,6 +845,9 @@ class ModelTrainer(object):
                 train_f_out = f(*sampleinps)
                 errors_current = train_f_out[:len(objectives)]
                 totalgradnorm = train_f_out[-1]
+                if np.isnan(totalgradnorm):
+                    print "NAN totalnorm"
+                    embed()
                 for current_error, objective in zip(errors_current, objectives):
                     objective.update_agg(current_error, batsize)
                 c += 1
