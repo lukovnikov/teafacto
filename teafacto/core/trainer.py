@@ -846,6 +846,7 @@ class ModelTrainer(object):
                 train_f_out = f(*sampleinps)
                 errors_current = train_f_out[:len(objectives)]
                 tgn = train_f_out[-1]
+                tgn = float(tgn)
                 if np.isnan(tgn):
                     print "NAN totalnorm"
                     embed()
