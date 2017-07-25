@@ -201,6 +201,7 @@ def run(p="webqa.data.loaded.pkl",
         if usezeropos:
             dec_state_init.set_positions(e0_pos)
         deco, attention_weights = encdec(outseq, inpseq)
+        deco += T.sum(e0_pos) * 0.      # avoid unused input
         seqmask = deco.mask     # save seqmask from dec out
         deco.mask = outmask     # set forced action mask
         out = fl_smo(deco)     # compute output probs
