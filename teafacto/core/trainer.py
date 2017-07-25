@@ -556,11 +556,14 @@ class ModelTrainer(object):
                             param.ema_value * self._exp_mov_avg_decay + newparamval * (1 - self._exp_mov_avg_decay)))
             #print updates
             #embed()
+
+            totalgradnorm = T.sqrt(sum(T.sum(grad ** 2) for grad in grads))
+
             finputs = [x.d for x in inputs]
             allupdates = updates + scanupdates.items()
             trainf = theano.function(
                 inputs=finputs,
-                outputs=[cost]+losses[1:],
+                outputs=[cost]+losses[1:]+[totalgradnorm],
                 updates=allupdates,
                 on_unused_input="warn",
                 #mode=NanGuardMode(nan_is_error=True, inf_is_error=False, big_is_error=False)
@@ -839,7 +842,10 @@ class ModelTrainer(object):
                 number_examples += batsize
                 #embed()
                 sampleinps = sampletransf(*sampleinps, phase=phase)
-                errors_current = f(*sampleinps)
+                train_f_out = f(*sampleinps)
+                errors_current = train_f_out[:len(objectives)]
+                totalgradnorm = train_f_out[-1]
+                print "total grad norm: {}".format(totalgradnorm)
                 for current_error, objective in zip(errors_current, objectives):
                     objective.update_agg(current_error, batsize)
                 c += 1
