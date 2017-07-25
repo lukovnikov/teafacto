@@ -15,6 +15,8 @@ class AttGen(Block):
      gates are computed by forward layers from criterion fed into attgen
         gating vector is applied by distance used
     """
+    EPS = 1e-4
+
     def __init__(self, distance=None, normalizer=Softmax(),
                  sampler=None, sample_temperature=0.2, **kw):
         super(AttGen, self).__init__(**kw)
@@ -36,6 +38,7 @@ class AttGen(Block):
         if self._crit_trans is not None:
             criterion = self._crit_trans(criterion)
         o = self.dist(criterion, data, gates=distance_gating)
+        o += self.EPS
         o_out = self.normalizer(o, mask=mask)
         if self.sampler is not None:
             o_out = self.sampler(o_out, mask=mask)
