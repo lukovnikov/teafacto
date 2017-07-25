@@ -215,6 +215,7 @@ class EncDec(Block):    # EXPLICIT STATE TRANSFER (by init state gen)
                  inpembdim=None,    # decoder input embedder dim
                  indim=None,        # decoder input dim
                  innerdim=None,     # internal dim of dec rnn
+                 ctxdim=None,       # dim of context vectors (encoder's output dim by default)
                  rnu=GRU,           # dec rnn type
                  dropout_in=False,  # dropout dec rnn in
                  dropout_h=False,   # dropout dec rnn h
@@ -236,10 +237,11 @@ class EncDec(Block):    # EXPLICIT STATE TRANSFER (by init state gen)
         self.inpemb = inpemb
         innerdim = innerdim if issequence(innerdim) else [innerdim]
         self.outdim = innerdim[-1]
+        self.ctxdim = self.encoder.outdim if ctxdim is None else ctxdim
         if indim is None:
             indim = inpemb.outdim if inpembdim is None else inpembdim
             if self.inconcat:
-                indim += encoder.outdim
+                indim += self.ctxdim
         self.init_state_gen = init_state_gen
         paraminitstates = init_state_gen is None
         layers, lastdim = MakeRNU.fromdims([indim] + innerdim, rnu=rnu,
@@ -254,7 +256,7 @@ class EncDec(Block):    # EXPLICIT STATE TRANSFER (by init state gen)
         self.lastdim = lastdim
         self.outconcatdim = 0
         if self.stateconcat:        self.outconcatdim += lastdim
-        if self.outconcat:          self.outconcatdim += self.encoder.outdim
+        if self.outconcat:          self.outconcatdim += self.ctxdim
         if self.concatdecinptoout:  self.outconcatdim += indim
 
         self.transform_y_t = transform_y_t
@@ -376,6 +378,7 @@ class EncDec(Block):    # EXPLICIT STATE TRANSFER (by init state gen)
 
 
 class Disappointer(Block):      # TODO TEST !!!
+    # !!! override encdec's ctxdim in construction before passing in here
     def __init__(self, encdec, h_splits=None, attentions=tuple(), **kw):
         super(Disappointer, self).__init__(**kw)
         self.encdec = encdec
@@ -388,7 +391,7 @@ class Disappointer(Block):      # TODO TEST !!!
 
     def apply(self, decinp, encinp):
         ret, weights = self.encdec(decinp, encinp)
-        return ret, weights[:, :, 0], weights[:, :, 1]
+        return ret, weights
 
     def _get_ctx_t(self, ctx, h, x_t_emb, att, ctxmask):
         assert(ctx.ndim == 3)

@@ -2,7 +2,7 @@ import pickle, re, numpy as np
 from teafacto.util import argprun, ticktock, StringMatrix
 from IPython import embed
 from teafacto.blocks.word.wordvec import WordEmb, Glove
-from teafacto.core.base import Val, asblock
+from teafacto.core.base import Val, asblock, tensorops as T, Block
 from teafacto.blocks.basic import SMO, Forward
 from teafacto.blocks.seq import RNNSeqEncoder
 from teafacto.blocks.seq.encdec import EncDec
@@ -87,6 +87,10 @@ def loaddata(p="webqa.data.loaded.pkl"):
            (nl_dic, fl_dic, rel_dic), (rel_mat, rel_mat_dic)
 
 
+# TODO: initialize decoder state to encoding at first <E0> position
+# TODO: try bypass connections in RNNs
+# TODO: incorporate given entity linker results
+
 def run(p="webqa.data.loaded.pkl",
         worddim=50,
         fldim=50,
@@ -95,12 +99,15 @@ def run(p="webqa.data.loaded.pkl",
         numenclayers=1,
         numdeclayers=1,
         testpred=False,
+        inspectdata=False,
         lr=0.1,
         dropout=0.1,
         wreg=0.00000001,
         gradnorm=1.0,
         epochs=20,
         numbats=100,
+        mode="s2s",         # "s2s", "disappointer" # TODO
+        usezeropos=False,
         ):
     tt = ticktock("script")
     (train_nl_mat, train_fl_mat, train_vtn), (test_nl_mat, test_fl_mat, test_vtn), \
@@ -118,6 +125,20 @@ def run(p="webqa.data.loaded.pkl",
                                 train_vtn], axis=1)
     test_vtn = np.concatenate([vtn_e0_vec.repeat(test_vtn.shape[0], axis=0),
                                test_vtn], axis=1)
+    # find first position of <E0> in question
+    def find_e0_pos(x):
+        pos = np.zeros((x.shape[0],), dtype="int32")
+        for i in range(x.shape[0]):
+            for j in range(x.shape[1]):
+                if x[i, j] == nl_dic["<E0>"]:
+                    pos[i] = j
+                    break
+        return pos
+    train_e0_pos = find_e0_pos(train_nl_mat)
+    test_e0_pos = find_e0_pos(test_nl_mat)
+
+    if inspectdata:
+        embed()
 
     glove = Glove(worddim)
 
@@ -144,8 +165,17 @@ def run(p="webqa.data.loaded.pkl",
 
     attention = Attention().forward_gen(encdim, decdim, decdim)
 
-    dec_state_init_block = Forward(encdim, decdim)
-    dec_state_init = asblock(lambda x: dec_state_init_block(x[:, -1, :]))
+    if not usezeropos:
+        dec_state_init_block = Forward(encdim, decdim)
+        dec_state_init = asblock(lambda x: dec_state_init_block(x[:, -1, :]))
+    else:
+        class DecStateInit(Block):
+            def set_positions(self, x):
+                self.positions = x
+            def apply(self, enco):
+                ret = enco[T.arange(self.positions.shape[0]), self.positions]
+                return ret
+        dec_state_init = DecStateInit()
 
     trans_y_t_from_dim = encdim + decdim + fl_emb.outdim
     transform_y_t = Forward(trans_y_t_from_dim, fl_emb.outdim)
@@ -166,7 +196,10 @@ def run(p="webqa.data.loaded.pkl",
                     return_attention_weights=True,
                     )
 
-    def m_fun(inpseq, outseq, outmask):
+    def m_fun(inpseq, outseq, outmask, e0_pos, _trainmode=False):
+        print "trainmode: {}".format(_trainmode)
+        if usezeropos:
+            dec_state_init.set_positions(e0_pos)
         deco, attention_weights = encdec(outseq, inpseq)
         seqmask = deco.mask     # save seqmask from dec out
         deco.mask = outmask     # set forced action mask
@@ -187,18 +220,19 @@ def run(p="webqa.data.loaded.pkl",
         while j < test_nl_mat.shape[0]:
             tt.progress(i, tot, live=True)
             j = min(i + step, test_nl_mat.shape[0])
-            testpred = m.predict(test_nl_mat[i:j], test_fl_mat[i:j, :-1], test_vtn[i:j, :-1])
+            testpred, pos = m.predict(test_nl_mat[i:j], test_fl_mat[i:j, :-1], test_vtn[i:j, :-1], test_e0_pos[i:j])
             testpred = np.argmax(testpred, axis=2)
             eqs = np.all(test_fl_mat[i:j, 1:] == testpred, axis=1)
             acc += eqs.sum()
             if inspect:
-                def pp(q, g, a):
-                    for qe, ge, ae in zip(q, g, a):
+                def pp(q, g, a, p):
+                    for qe, ge, ae, pe in zip(q, g, a, p):
                         print "Question:\t {}".format(" ".join([rev_nl_dic[qex] for qex in qe if qex != 0]))
-                        print "Golden:\t {}".format(" ".join([rev_fl_dic[gex] for gex in ge if gex != 0]))
-                        print "Predicted:\t {}".format(" ".join([rev_fl_dic[aex] for aex in ae if aex != 0]))
-                pp(test_nl_mat[i:j], test_fl_mat[i:j], testpred[i:j])
-                k = raw_input("press to continue, (s) to stop")
+                        print "\tGolden:\t {}".format(" ".join([rev_fl_dic[gex] for gex in ge if gex != 0]))
+                        print "\tPredicted:\t {}".format(" ".join([rev_fl_dic[aex] for aex in ae if aex != 0]))
+                        print "Positions: {}".format(pe)
+                pp(test_nl_mat[i:j], test_fl_mat[i:j], testpred, pos)
+                k = raw_input("press to continue, (s) to stop\n>>")
                 if k == "s":
                     inspect = False
             i += step
@@ -210,17 +244,21 @@ def run(p="webqa.data.loaded.pkl",
         dev_inpseq = Val(train_nl_mat[:5])
         dev_outseq = Val(train_fl_mat[:5])
         dev_outmsk = Val(train_vtn[:5])
+        dev_e0pos = Val(train_e0_pos[:5])
         # outputs
         dev_inpenc = encoder(dev_inpseq)
+        if usezeropos:
+            encdec.init_state_gen.set_positions(dev_e0pos)
         dev_dec_init = encdec.init_state_gen(dev_inpenc)
         dev_decout, dev_m_att = encdec(dev_outseq[:, :-1], dev_inpseq)
-        dev_m_out = m(dev_inpseq, dev_outseq[:, :-1], dev_outmsk[:, :-1])
+        dev_m_out = m(dev_inpseq, dev_outseq[:, :-1], dev_outmsk[:, :-1], dev_e0pos)
+        r = runtest
         embed()
 
     if testpred:
         testpredictions()
 
-    m.train([train_nl_mat, train_fl_mat[:, :-1], train_vtn[:, :-1]], train_fl_mat[:, 1:])\
+    m.train([train_nl_mat, train_fl_mat[:, :-1], train_vtn[:, :-1], train_e0_pos], train_fl_mat[:, 1:])\
         .adadelta(lr=lr).seq_cross_entropy().seq_accuracy().grad_total_norm(gradnorm).l2(wreg)\
         .split_validate(splits=10)\
         .seq_cross_entropy().seq_accuracy()\
