@@ -830,12 +830,13 @@ class ModelTrainer(object):
             datafeeder.reset()
             for obj in objectives:
                 obj.reset_agg()
+            totalgradnorm = 0.
             while datafeeder.hasnextbatch():
                 perc = round(c*100.*(10**numdigs)/datafeeder.getnumbats())/(10**numdigs)
                 if perc > prevperc:     # print errors
                     current_agg_errors = [obj.get_agg_error() for obj in objectives]
                     errorstr = " - ".join(["{:.3f}".format(current_agg_error) for current_agg_error in current_agg_errors])
-                    s = ("{:." + str(numdigs) + "f}% \t errors: {}").format(perc, errorstr)
+                    s = ("{:." + str(numdigs) + "f}% \t errors: {} \t TGN: {}").format(perc, errorstr, totalgradnorm)
                     tt.live(s)
                     prevperc = perc
                 sampleinps, batsize = datafeeder.nextbatch(withbatchsize=True)
@@ -845,7 +846,6 @@ class ModelTrainer(object):
                 train_f_out = f(*sampleinps)
                 errors_current = train_f_out[:len(objectives)]
                 totalgradnorm = train_f_out[-1]
-                print "total grad norm: {}".format(totalgradnorm)
                 for current_error, objective in zip(errors_current, objectives):
                     objective.update_agg(current_error, batsize)
                 c += 1
