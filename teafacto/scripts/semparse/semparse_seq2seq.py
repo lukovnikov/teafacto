@@ -113,8 +113,8 @@ def run(numbats=50,
             print wordids2string(amat_train[i], {v: k for k, v in adic.items()}, 0)
         embed()
 
-    inpemb = WordEmb(worddic=qdic, maskid=maskid, dim=embdim)
-    outemb = WordEmb(worddic=adic, maskid=maskid, dim=embdim)
+    inpemb = WordEmb(worddic=qdic, dim=embdim)
+    outemb = WordEmb(worddic=adic, dim=embdim)
 
     if mode == "qrnn":
         encoder = RNNSeqEncoder.fluent()\
