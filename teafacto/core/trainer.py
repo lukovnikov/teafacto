@@ -836,7 +836,7 @@ class ModelTrainer(object):
                 if perc > prevperc:     # print errors
                     current_agg_errors = [obj.get_agg_error() for obj in objectives]
                     errorstr = " - ".join(["{:.3f}".format(current_agg_error) for current_agg_error in current_agg_errors])
-                    s = ("{:." + str(numdigs) + "f}% \t errors: {} \t TGN: {}").format(perc, errorstr, totalgradnorm)
+                    s = ("{:." + str(numdigs) + "f}% \t errors: {} \t TGN: {:.5f} ").format(perc, errorstr, totalgradnorm)
                     tt.live(s)
                     prevperc = perc
                 sampleinps, batsize = datafeeder.nextbatch(withbatchsize=True)
