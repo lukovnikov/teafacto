@@ -41,7 +41,7 @@ class AttGen(Block):
             criterion = self._crit_trans(criterion)
         o = self.dist(criterion, data, gates=distance_gating)
         #o += self.EPS
-        o = T.clip(o, -self._clip, +self._clip)
+        #o = T.clip(o, -self._clip, +self._clip)
         o_out = self.normalizer(o, mask=mask)
         if self.sampler is not None:
             o_out = self.sampler(o_out, mask=mask)
