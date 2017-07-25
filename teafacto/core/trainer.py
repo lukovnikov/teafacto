@@ -632,6 +632,7 @@ class ModelTrainer(object):
             ret = theano.function(inputs=[x.d for x in inputs],
                                   outputs=losses,
                                   updates=lossouts[0].allupdates,
+                                  on_unused_input="warn",
                                   #mode=NanGuardMode(nan_is_error=True, inf_is_error=False, big_is_error=True)  # same issue as training
                                   )
         else:
