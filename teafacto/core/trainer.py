@@ -562,6 +562,7 @@ class ModelTrainer(object):
                 inputs=finputs,
                 outputs=[cost]+losses[1:],
                 updates=allupdates,
+                on_unused_input="warn",
                 #mode=NanGuardMode(nan_is_error=True, inf_is_error=False, big_is_error=False)
                 # TODO: enabling NanGuard with Dropout doesn't work --> see Theano.git/issues/4823
             )

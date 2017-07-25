@@ -108,6 +108,7 @@ def run(p="webqa.data.loaded.pkl",
         numbats=100,
         mode="s2s",         # "s2s", "disappointer" # TODO
         usezeropos=False,
+        notrainmask=False,  # don't use the dec out symbol mask during training
         ):
     tt = ticktock("script")
     (train_nl_mat, train_fl_mat, train_vtn), (test_nl_mat, test_fl_mat, test_vtn), \
@@ -201,8 +202,10 @@ def run(p="webqa.data.loaded.pkl",
         if usezeropos:
             dec_state_init.set_positions(e0_pos)
         deco, attention_weights = encdec(outseq, inpseq)
-        deco += T.sum(e0_pos) * 0.      # avoid unused input
+        #deco += T.sum(e0_pos) * 0.      # avoid unused input
         seqmask = deco.mask     # save seqmask from dec out
+        if notrainmask:
+            outmask = T.ones_like(outmask)
         deco.mask = outmask     # set forced action mask
         out = fl_smo(deco)     # compute output probs
         out.mask = seqmask      # restore seqmask
