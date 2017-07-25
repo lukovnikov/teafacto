@@ -836,7 +836,7 @@ class ModelTrainer(object):
                     current_agg_errors = [obj.get_agg_error() for obj in objectives]
                     errorstr = " - ".join(["{:.3f}".format(current_agg_error) for current_agg_error in current_agg_errors])
                     s = ("{:." + str(numdigs) + "f}% \t errors: {}").format(perc, errorstr)
-                    s += " \t TGN: {:.5f} ".format(totalgradnorm)
+                    s += " \t TGN: {}\t ".format(totalgradnorm)
                     tt.live(s)
                     prevperc = perc
                 sampleinps, batsize = datafeeder.nextbatch(withbatchsize=True)
