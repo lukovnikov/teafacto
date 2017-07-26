@@ -144,6 +144,9 @@ class CrossEntropy(Loss):
         elif probs.ndim == 3 and gold.ndim == 2:    # sequences
             origprobshape = probs.shape
             origprobndim = probs.ndim
+            if mask is not None:
+                equaprobs = T.ones_like(probs) / probs.shape[-1]    # equal probabilities
+                probs = T.switch(mask.dimshuffle(0, 1, "x"), probs, equaprobs)  # masked sequence elements output uniform prob over vocabulary
             probs = probs.reshape((-1, probs.shape[-1]))
             gold = gold.reshape((-1,))
             seq_ces = T.nnet.categorical_crossentropy(probs, gold)

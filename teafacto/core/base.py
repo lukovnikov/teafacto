@@ -97,10 +97,14 @@ class TWrapper(type):
         if mask is None:
             z = tensorops.nnet.softmax(x)
         else:
-            o_exp = tensorops.exp(x - tensorops.max(x, axis=1).dimshuffle(0, 'x'))
+            x_mins = tensorops.min(x, axis=1, keepdims=True)
+            x -= x_mins
+            x *= mask
+            x += x_mins
+            o_exp = tensorops.exp(x - tensorops.max(x, axis=1, keepdims=True))  #.dimshuffle(0, 'x'))
             o_exp *= mask
-            o_exp_sum = tensorops.sum(o_exp, axis=1)
-            o_exp_sum = o_exp_sum.dimshuffle(0, 'x')
+            o_exp_sum = tensorops.sum(o_exp, axis=1, keepdims=True)
+            #o_exp_sum = o_exp_sum.dimshuffle(0, 'x')
             z = o_exp / o_exp_sum
         if xndim > 2:
             z = z.reshape(s)

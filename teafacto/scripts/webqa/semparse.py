@@ -203,7 +203,7 @@ def run(p="webqa.data.loaded.pkl",
                     )
 
     def m_fun(inpseq, outseq, outmask, e0_pos, _trainmode=False):
-        print "trainmode: {}".format(_trainmode)
+        #print "trainmode: {}".format(_trainmode)
         if usezeropos:
             dec_state_init.set_positions(e0_pos)
         deco, attention_weights = encdec(outseq, inpseq)

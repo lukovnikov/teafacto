@@ -498,16 +498,18 @@ class ModelTrainer(object):
 
     def buildtrainfun(self, model, batsize):
         self.tt.tick("training - autobuilding")
+        debugpred = True                        # TODO don't use in real training
         with model.trainmode(True):
             if self._model_gives_train_losses:
                 lossblock = model
                 assert(self.traingold is None)
-            else:   # TODO: disable preds
-                lossblock = self.apply_losses(model, [o.obj for o in self.training_objectives], inclout=True)
+            else:
+                lossblock = self.apply_losses(model, [o.obj for o in self.training_objectives], inclout=debugpred)
             concatdata = self.traindata + [self.traingold] if self.traingold is not None else self.traindata
             inps, lossouts = self.autobuild_model(lossblock, *concatdata, _trainmode=True, _batsize=batsize)
-            preds = lossouts[1]
-            lossouts = lossouts[0]
+            if debugpred:
+                preds = lossouts[1]
+                lossouts = lossouts[0]
             if not issequence(lossouts):
                 lossouts = [lossouts]
             primarylossout = lossouts[0]
@@ -546,7 +548,8 @@ class ModelTrainer(object):
             grads = tensor.grad(cost, [x.d for x in params])  # compute gradient
             self.tt.msg("computed gradients")
             totalgradnorm = sum(tensor.sum(grad ** 2) for grad in grads)
-            originalgrads = grads
+            if debugpred:
+                originalgrads = grads
             grads = self._gradconstrain(grads)
             for param, grad in zip(params, grads):
                 upds = self.optimizer([grad], [param.d], self.get_learning_rate() * param.lrmul)
@@ -573,10 +576,12 @@ class ModelTrainer(object):
 
             finputs = [x.d for x in inputs]
             allupdates = updates + scanupdates.items()
+            outlist = [cost]+losses[1:]+[totalgradnorm]
+            if debugpred:
+                outlist += [pred.d for pred in preds]+originalgrads
             trainf = theano.function(
                 inputs=finputs,
-                outputs=[cost]+losses[1:]
-                        + [totalgradnorm] + [pred.d for pred in preds]+originalgrads,
+                outputs=outlist,
                 updates=allupdates,
                 on_unused_input="warn",
                 #mode=theano.compile.MonitorMode(post_func=theano.compile.monitormode.detect_nan),
@@ -827,6 +832,7 @@ class ModelTrainer(object):
         '''
         returns the batch loop, loaded with the provided trainf training function and samplegen sample generator
         '''
+        debugpred = True
         sampletransf = self._transformsamples
         objectives = []
         if phase == "TRAIN":
@@ -851,7 +857,13 @@ class ModelTrainer(object):
                 perc = round(c*100.*(10**numdigs)/datafeeder.getnumbats())/(10**numdigs)
                 if perc > prevperc:     # print errors
                     current_agg_errors = [obj.get_agg_error() for obj in objectives]
-                    errorstr = " - ".join(["{:10.10s}".format("{:.10g}".format(current_agg_error)) for current_agg_error in current_agg_errors])
+                    errorstr = " - ".join(
+                        ["{:10.10s}".format(
+                            "{:10.5f}".format(current_agg_error)
+                                if current_agg_error < 1e9 and current_agg_error > 1e-5
+                                else "{:10.5g}".format(current_agg_error)
+                            )
+                        for current_agg_error in current_agg_errors])
                     s = ("{:4.2f}%    errors: {}").format(perc, errorstr)
                     s += "    TGN: {:10.10s}    ".format("{:.10g}".format(tgn))
                     tt.live(s)
@@ -863,13 +875,15 @@ class ModelTrainer(object):
                 train_f_out = f(*sampleinps)
                 errors_current = train_f_out[:len(objectives)]
                 other_outs = train_f_out[len(objectives):]
-                if len(other_outs) > 0:
-                    tgn = other_outs[0]
-                    tgn = float(tgn)
-                    tgn = np.sqrt(tgn)       # not doing the sqrt in trainfun
-                    if np.isnan(tgn):
-                        print "NAN totalnorm"
-                        embed()
+                # total grad norm
+                tgn = other_outs[0]
+                tgn = np.sqrt(float(tgn))
+                if np.isnan(tgn):
+                    print "NAN totalnorm"
+                    embed()
+                other_outs = other_outs[1:]
+                if not debugpred:
+                    assert(len(other_outs) == 0)
                 for current_error, objective in zip(errors_current, objectives):
                     objective.update_agg(current_error, batsize)
                 c += 1
