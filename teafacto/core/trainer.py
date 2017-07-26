@@ -498,7 +498,7 @@ class ModelTrainer(object):
 
     def buildtrainfun(self, model, batsize):
         self.tt.tick("training - autobuilding")
-        debugpred = True                        # TODO don't use in real training
+        debugpred = False
         with model.trainmode(True):
             if self._model_gives_train_losses:
                 lossblock = model
@@ -832,7 +832,7 @@ class ModelTrainer(object):
         '''
         returns the batch loop, loaded with the provided trainf training function and samplegen sample generator
         '''
-        debugpred = True
+        debugpred = False
         sampletransf = self._transformsamples
         objectives = []
         if phase == "TRAIN":
