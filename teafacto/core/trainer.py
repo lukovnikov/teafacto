@@ -547,9 +547,8 @@ class ModelTrainer(object):
             #    grads.append(tensor.grad(cost, x.d))
             grads = tensor.grad(cost, [x.d for x in params])  # compute gradient
             self.tt.msg("computed gradients")
-            totalgradnorm = sum(tensor.sum(grad ** 2) for grad in grads)
-            if debugpred:
-                originalgrads = grads
+            totalgradnorm = tensor.sqrt(sum(tensor.sum(grad ** 2) for grad in grads))
+            originalgrads = grads
             grads = self._gradconstrain(grads)
             for param, grad in zip(params, grads):
                 upds = self.optimizer([grad], [param.d], self.get_learning_rate() * param.lrmul)
@@ -576,7 +575,7 @@ class ModelTrainer(object):
 
             finputs = [x.d for x in inputs]
             allupdates = updates + scanupdates.items()
-            outlist = [cost]+losses[1:]+[totalgradnorm]
+            outlist = [cost] + losses[1:] + [totalgradnorm]
             if debugpred:
                 outlist += [pred.d for pred in preds]+originalgrads
             trainf = theano.function(
@@ -875,15 +874,15 @@ class ModelTrainer(object):
                 train_f_out = f(*sampleinps)
                 errors_current = train_f_out[:len(objectives)]
                 other_outs = train_f_out[len(objectives):]
-                # total grad norm
-                tgn = other_outs[0]
-                tgn = np.sqrt(float(tgn))
-                if np.isnan(tgn):
-                    print "NAN totalnorm"
-                    embed()
-                other_outs = other_outs[1:]
-                if not debugpred:
-                    assert(len(other_outs) == 0)
+                if len(other_outs) > 0:
+                    # total grad norm
+                    tgn = other_outs[0]
+                    if np.isnan(tgn):
+                        print "NAN totalnorm"
+                        embed()
+                    other_outs = other_outs[1:]
+                    if not debugpred:
+                        assert(len(other_outs) == 0)
                 for current_error, objective in zip(errors_current, objectives):
                     objective.update_agg(current_error, batsize)
                 c += 1
