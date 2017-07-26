@@ -576,7 +576,7 @@ class ModelTrainer(object):
             trainf = theano.function(
                 inputs=finputs,
                 outputs=[cost]+losses[1:]
-                        +[pred.d for pred in preds]+[totalgradnorm]+originalgrads,
+                        + [totalgradnorm] + [pred.d for pred in preds]+originalgrads,
                 updates=allupdates,
                 on_unused_input="warn",
                 #mode=theano.compile.MonitorMode(post_func=theano.compile.monitormode.detect_nan),
