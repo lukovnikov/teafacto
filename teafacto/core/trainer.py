@@ -876,7 +876,7 @@ class ModelTrainer(object):
                 other_outs = train_f_out[len(objectives):]
                 if len(other_outs) > 0:
                     # total grad norm
-                    tgn = other_outs[0]
+                    tgn = float(other_outs[0])
                     if np.isnan(tgn):
                         print "NAN totalnorm"
                         embed()

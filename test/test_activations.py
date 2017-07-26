@@ -100,14 +100,13 @@ class TestSoftmax(TestCase):
         print pred
 
     def test_masked_softmax_numerical_stability(self):
-        b = Softmax()
         d = Val(np.asarray([[-1e9, 1e9, 1], [-1e6, 1e6, 1], [-1e3, 1e3, 1], [-1e2, 1e2, 1], [-1e1, 1e1, 1], [-1, 1e2, 1], [1, 1e2, 1], [0.5, 1e2, 1]]))
         m = Val(np.asarray([[1,0,1],[1,0,1],[1,0,1],[1,0,1],[1,0,1],[1,0,1],[1,0,1],[1,0,1]]))
         d2 = d[:, [0, 2]]
         d.mask = m
-        o = b(d)
+        o = Softmax()(d)
         pred = o.eval()
-        pred2 = b(d2).eval()
+        pred2 = Softmax()(d2).eval()
         print pred
         print pred2
         self.assertTrue(np.allclose(pred[:, 1], np.zeros_like(pred[:, 1])))
