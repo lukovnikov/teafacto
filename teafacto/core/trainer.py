@@ -120,7 +120,7 @@ class LossesApplied(Block):
                 modelout = (modelout,)
             for modeloute in modelout:
                 retout.append(modeloute)
-                retout.append(modeloute.mask if modeloute.mask is not None else 0.)
+                retout.append(modeloute.mask if modeloute.mask is not None else T.zeros((1,3,3,7)))
             return acc, retout
         else:
             return tuple(acc)
