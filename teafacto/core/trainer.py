@@ -95,10 +95,11 @@ class ExternalFunctionObjective(ExternalObjective):
 
 
 class LossesApplied(Block):
-    def __init__(self, model, losses, **kw):
+    def __init__(self, model, losses, inclout=False, **kw):
         super(LossesApplied, self).__init__(**kw)
         self.model = model
         self.losses = losses
+        self.inclout = inclout
 
     def apply(self, *data, **kw):
         gold = data[-1]
@@ -113,7 +114,16 @@ class LossesApplied(Block):
             else:
                 assert(modelout.mask is None)
                 acc.append(loss(modelout, gold))
-        return tuple(acc)
+        if self.inclout:
+            retout = []
+            if not issequence(modelout):
+                modelout = (modelout,)
+            for modeloute in modelout:
+                retout.append(modeloute)
+                retout.append(modeloute.mask if modeloute.mask is not None else 0.)
+            return acc, retout
+        else:
+            return tuple(acc)
 
 
 class ModelTrainer(object):
@@ -482,8 +492,8 @@ class ModelTrainer(object):
     def autobuild_model(self, model, *data, **kw):
         return model.autobuild(*data, **kw)
 
-    def apply_losses(self, model, losses):
-        lossblock = LossesApplied(model, losses)
+    def apply_losses(self, model, losses, inclout=False):
+        lossblock = LossesApplied(model, losses, inclout=inclout)
         return lossblock
 
     def buildtrainfun(self, model, batsize):
@@ -492,10 +502,12 @@ class ModelTrainer(object):
             if self._model_gives_train_losses:
                 lossblock = model
                 assert(self.traingold is None)
-            else:
-                lossblock = self.apply_losses(model, [o.obj for o in self.training_objectives])
+            else:   # TODO: disable preds
+                lossblock = self.apply_losses(model, [o.obj for o in self.training_objectives], inclout=True)
             concatdata = self.traindata + [self.traingold] if self.traingold is not None else self.traindata
             inps, lossouts = self.autobuild_model(lossblock, *concatdata, _trainmode=True, _batsize=batsize)
+            preds = lossouts[1]
+            lossouts = lossouts[0]
             if not issequence(lossouts):
                 lossouts = [lossouts]
             primarylossout = lossouts[0]
@@ -563,7 +575,8 @@ class ModelTrainer(object):
             allupdates = updates + scanupdates.items()
             trainf = theano.function(
                 inputs=finputs,
-                outputs=[cost]+losses[1:]+[totalgradnorm]+originalgrads,
+                outputs=[cost]+losses[1:]
+                        +[pred.d for pred in preds]+[totalgradnorm]+originalgrads,
                 updates=allupdates,
                 on_unused_input="warn",
                 #mode=theano.compile.MonitorMode(post_func=theano.compile.monitormode.detect_nan),
