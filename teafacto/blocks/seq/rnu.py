@@ -59,6 +59,7 @@ class ReccableBlock(RecurrentBlock):  # exposes a rec function
 
     # FWD API IMPLEMENTATION USING REC API
     def innerapply(self, x, mask=None, initstates=None):
+        mask = x.mask if mask is None else mask
         assert (x.ndim == 3)
         assert (mask is None or mask.ndim == 2)
         if initstates is None:
@@ -68,59 +69,58 @@ class ReccableBlock(RecurrentBlock):  # exposes a rec function
             assert (issequence(infoarg))
         inputs = x.dimswap(1, 0)  # inputs is (seq_len, batsize, dim)
         init_info = self.get_init_info(infoarg)
-        if mask is None:
-            outputs = T.scan(fn=self.rec,
-                             sequences=inputs,
-                             outputs_info=[None] * self.numrecouts + init_info,
-                             go_backwards=self._reverse)
-        else:
-            # use self.rec to get info about the outputs
-            recout = self.rec(inputs[0], *init_info)
-            outs = recout[:self.numrecouts]
-            zero_init_outs = [T.zeros_like(out) for out in outs]
-            #rec_out_shapes = self.get_rec_out_shapes(x.shape[0])
-            #zero_init_outs = [T.zeros(rec_out_shape) for rec_out_shape in rec_out_shapes]
-            # use it in scan with mask
-            inputs.mask = mask.dimswap(1, 0)
-            outputs = T.scan(fn=self.recwmask,
-                             sequences=[inputs],
-                             outputs_info=zero_init_outs + init_info,
-                             go_backwards=self._reverse)
+        recfn = self.rec
+        if mask is not None:
+            inputsmask = mask.dimswap(1, 0)
+            inputs.mask = inputsmask
+            recfn = self.recwmask
+        outputs = T.scan(fn=recfn,
+                         sequences=inputs,
+                         outputs_info=[None] * self.numrecouts + init_info,
+                         go_backwards=self._reverse)
         if not issequence(outputs):
             outputs = [outputs]
-        outputs = [x.dimswap(1, 0) for x in outputs]
-        return [outputs[i][:, -1, :] for i in range(self.numrecouts)], \
-               [outputs[i] for i in range(self.numrecouts)], \
-               outputs[self.numrecouts:]
+        newouts = []
+        for output in outputs:
+            newout = output.dimswap(1, 0)
+            newout.mask = output.mask.dimswap(1, 0) if output.mask is not None else None
+            newouts.append(newout)
+        outputs = newouts
+        finals = []
+        fulls = []
+        for output in outputs[:self.numrecouts]:
+            # get last unmasked element
+            lastelemmask = mask[:, :-1] - mask[:, 1:]
+            lastelemmask = T.concatenate([lastelemmask, T.zeros((lastelemmask.shape[0], 1))], axis=1)
+            final = T.sum(output * lastelemmask.dimadd(2), axis=1)
+            finals.append(final)
+            fulls.append(output)
+        states = outputs[self.numrecouts:]
+        return finals, fulls, states
 
-    def recwmask(self, x_t, *prevoutsandstates):  # m_t: (batsize, ), x_t: (batsize, dim), states: (batsize, **somedim**)
+    def recwmask(self, x_t, *states):  # x_t: (batsize, dim), states: (batsize, **somedim**)
         # make sure masked elements do not affect state
         m_t = x_t.mask
-        prevouts, states = prevoutsandstates[:self.numrecouts], prevoutsandstates[self.numrecouts:]
+        #prevouts, states = prevoutsandstates[:self.numrecouts], prevoutsandstates[self.numrecouts:]
         recout = self.rec(x_t, *states)
         newouts, newstates = recout[0:self.numrecouts], recout[self.numrecouts:]
-        if len(newouts) > 0:
-            outs_out = [(newout.T * m_t + prevout.T * (1 - m_t)).T
-                        for newout, prevout in zip(newouts, prevouts)]
-        else:
-            outs_out = []
-        if len(states) > 0:
-            states_out = [(newstate.T * m_t + state.T * (1 - m_t)).T
-                          for newstate, state in zip(newstates, states)]
-        else:
-            states_out = []
-
+        #if len(newouts) > 0:
+        #    outs_out = [(newout.T * m_t + prevout.T * (1 - m_t)).T
+        #                for newout, prevout in zip(newouts, prevouts)]
+        #else:
+        #    outs_out = []
+        # set outs for masked elements to zero
+        outs_out = []
+        for newout in newouts:
+            newout = newout * m_t.dimadd(1)
+            newout.mask = m_t
+            outs_out.append(newout)
+        states_out = []
+        for newstate, state in zip(newstates, states):
+            newstate = newstate * m_t.dimadd(1) + state * (1 - m_t.dimadd(1))
+            newstate.mask = m_t
+            states_out.append(newstate)
         # TODO !!!!!!!! when masked, must return previous output
-        ''' TODO: WRONG!!! assumes previous output is first state; this is only for GRU
-        y_tm1 = states[0] if len(states) > 0 else None
-        if y_tm1 is not None:
-            y_t_out_a = y_t.T * m_t
-            y_t_out_b = y_tm1.T * (1 - m_t)
-            y_t_out = (y_t_out_a + y_t_out_b).T
-            states_out = [(a.T * m_t + b.T * (1 - m_t)).T for a, b in zip(newstates, states)]   # TODO: try replace with switch expression
-        else:
-            y_t_out = y_t
-            states_out = []     '''
         return outs_out + states_out
 
 

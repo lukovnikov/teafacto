@@ -76,16 +76,26 @@ class TestSeqEncoder(TestCase):
         dim = 7
         indim = 5
         m = SeqEncoder(IdxToOneHot(indim, maskid=0), GRU(dim=indim, innerdim=dim))\
-            .all_outputs().with_states()
+            .with_outputs().with_states()
         data = np.random.randint(1, indim, (batsize, seqlen)).astype("int32")
         data[:, 1] = 1
         ndata = np.ones_like(data) * 0
         data = np.concatenate([data, ndata], axis=1)
-        pred, states = m.predict(data)
+        data = Val(data)
+        finalvar, predvar, statevars = m(data)
+        final = finalvar.eval()
+        pred = predvar.eval()
+        predmask = predvar.mask.eval()
+        states = [statevar.eval() for statevar in statevars]
+        statemasks = [statevar.mask.eval() if statevar.mask is not None else None
+                      for statevar in statevars]
+        print predmask
+        print statemasks
         print pred.shape
         print states[0].shape, len(states)
         state = states[0]
         print pred[0, :, :3]
+        print final[0, :3]
         print state[0, :, :3]
         for i in range(1, state.shape[1]):
             print np.linalg.norm(state[:, i - 1, :] - state[:, i, :])
@@ -98,7 +108,7 @@ class TestSeqEncoder(TestCase):
             if i < seqlen:
                 self.assertTrue(not np.allclose(pred[:, i - 1, :], pred[:, i, :]))
             else:
-                self.assertTrue(np.allclose(pred[:, i - 1, :], pred[:, i, :]))
+                self.assertTrue(np.allclose(np.zeros_like(pred[:, i, :]), pred[:, i, :]))
 
     def test_mask_no_state_updates_multi_layer(self):
         batsize = 10
@@ -133,7 +143,7 @@ class TestSeqEncoder(TestCase):
             if i < seqlen:
                 self.assertTrue(not np.allclose(pred[:, i - 1, :], pred[:, i, :]))
             else:
-                self.assertTrue(np.allclose(pred[:, i - 1, :], pred[:, i, :]))
+                self.assertTrue(np.allclose(np.zeros_like(pred[:, i, :]), pred[:, i, :]))
 
     def test_mask_no_state_updates_multi_layer_bidir(self):
         batsize = 10

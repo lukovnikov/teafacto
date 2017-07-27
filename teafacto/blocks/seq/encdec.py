@@ -198,7 +198,12 @@ class EncDec(Block):    # EXPLICIT STATE TRANSFER (by init state gen)
     def __init__(self,
                  encoder=None,      # encoder block
                  attention=None,    # attention block
+                 smo=None,          # dec smo block
+                 init_state_gen=None,   # block that generates initial state of layers (assigned starting from the top)
+
                  attentiontransformer=None,  # transforms state to criterion vector used in attention
+                 transform_y_t=None,  # add a block before smo
+                 transform_o_t=None,  # transform o_t before it's concatenated to _y_t
 
                  inconcat=True,     # concat att context to decoder inp
                  inconcat_y_t=False,# concat _y_t instead of c_t into dec update, only with updatefirst=True
@@ -209,19 +214,17 @@ class EncDec(Block):    # EXPLICIT STATE TRANSFER (by init state gen)
                  concatdecinptoatt=False,
                  concatdecinptoout=False,
 
-                 transform_y_t=None,     # add a block before smo
-                 transform_o_t=None,     # transform o_t before it's concatenated to _y_t
                  inpemb=None,       # decoder input embedding block
                  inpembdim=None,    # decoder input embedder dim
                  indim=None,        # decoder input dim
                  innerdim=None,     # internal dim of dec rnn
                  ctxdim=None,       # dim of context vectors (encoder's output dim by default)
+
                  rnu=GRU,           # dec rnn type
                  dropout_in=False,  # dropout dec rnn in
                  dropout_h=False,   # dropout dec rnn h
                  zoneout=False,     # zoneout dec rnn
-                 smo=None,          # dec smo block
-                 init_state_gen=None,   # block that generates initial state of layers (assigned starting from the top)
+
                  return_outs=True,
                  return_attention_weights=False,
                  **kw):
