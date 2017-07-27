@@ -93,6 +93,7 @@ class ReccableBlock(RecurrentBlock):  # exposes a rec function
                 final = output[:, -1, :]
             else:
                 if mask is not None:
+                    mask = T.cast(mask, dtype="float32")
                     lastelemmask = mask[:, :-1] - mask[:, 1:]
                     lastelemmask = T.concatenate([lastelemmask, T.zeros((lastelemmask.shape[0], 1))], axis=1)
                     final = T.sum(output * lastelemmask.dimadd(2), axis=1)
