@@ -190,6 +190,7 @@ class SimpleSeqEncDecAtt(SeqEncDec):
 
 # BELOW NEW PARALLEL ENCDEC STUFF (see also rnn.py)
 from teafacto.blocks.seq.rnn import MakeRNU, RecStack
+from teafacto.blocks.seq.rnu import ReccableBlock
 
 
 class EncDec(Block):    # EXPLICIT STATE TRANSFER (by init state gen)
@@ -281,16 +282,16 @@ class EncDec(Block):    # EXPLICIT STATE TRANSFER (by init state gen)
             outinfos += [None]
 
         scanseq = decinpemb.dimswap(1, 0)
-        scanseqmask = mask.dimswap(1, 0)
-        scanseq.mask = scanseqmask
+        scanseq.mask = mask.dimswap(1, 0) if mask is not None else mask
 
-        outputs = T.scan(fn=self.inner_rec,
+        outputs = T.scan(fn=self.rec,
                          sequences=scanseq,
                          outputs_info=outinfos + init_info,     # first output is real result, second is attention weights
                          non_sequences=[ctx],
                          )
 
         ret = outputs[0].dimswap(1, 0)
+        ret.mask = outputs[0].mask.dimswap(1, 0) if outputs[0].mask is not None else None
         ret.mask = mask
         out = []
         if self._return_outs:
@@ -327,7 +328,7 @@ class EncDec(Block):    # EXPLICIT STATE TRANSFER (by init state gen)
     def get_init_info(self, initstates):
         return self.block.get_init_info(initstates)
 
-    def inner_rec(self, x_t_emb, ctx_tm1, *args):
+    def rec(self, x_t_emb, ctx_tm1, *args):
         ctx = args[-1]
         states_tm1 = args[:-1]
         y_tm1 = states_tm1[-1]
@@ -452,7 +453,7 @@ class MultiEncDec(Block):
         self._numnonseqs = len(nonseqs)
         decinpemb = self.inpemb(decinp)
         mask = decinpemb.mask
-        outputs = T.scan(fn=self.inner_rec,
+        outputs = T.scan(fn=self.rec,
                         sequences=decinpemb.dimswap(1, 0),
                         outputs_info=[None] + init_info,
                         non_sequences=nonseqs,
@@ -474,7 +475,7 @@ class MultiEncDec(Block):
             ctxmasks.append(ctxmask)
         return ctxs + ctxmasks
 
-    def inner_rec(self, x_t_emb, *args):
+    def rec(self, x_t_emb, *args):
         ctxs = args[-self._numnonseqs:-self._numnonseqs/2]
         ctxmasks = args[-self._numnonseqs/2:]
         states_tm1 = args[:-self._numnonseqs]

@@ -69,14 +69,13 @@ class ReccableBlock(RecurrentBlock):  # exposes a rec function
             assert (issequence(infoarg))
         inputs = x.dimswap(1, 0)  # inputs is (seq_len, batsize, dim)
         init_info = self.get_init_info(infoarg)
-        recfn = self.rec
+        out_info = [None] * self.numrecouts
         if mask is not None:
             inputsmask = mask.dimswap(1, 0)
             inputs.mask = inputsmask
-            recfn = self.recwmask
-        outputs = T.scan(fn=recfn,
+        outputs = T.scan(fn=self.recwrap,
                          sequences=inputs,
-                         outputs_info=[None] * self.numrecouts + init_info,
+                         outputs_info=out_info + init_info,
                          go_backwards=self._reverse)
         if not issequence(outputs):
             outputs = [outputs]
@@ -104,30 +103,34 @@ class ReccableBlock(RecurrentBlock):  # exposes a rec function
         states = outputs[self.numrecouts:]
         return finals, fulls, states
 
-    def recwmask(self, x_t, *states):  # x_t: (batsize, dim), states: (batsize, **somedim**)
+    def recwrap(self, x_t, *states):  # x_t: (batsize, dim), states: (batsize, **somedim**)
         # make sure masked elements do not affect state
         m_t = x_t.mask
-        #prevouts, states = prevoutsandstates[:self.numrecouts], prevoutsandstates[self.numrecouts:]
-        recout = self.rec(x_t, *states)
-        newouts, newstates = recout[0:self.numrecouts], recout[self.numrecouts:]
-        #if len(newouts) > 0:
-        #    outs_out = [(newout.T * m_t + prevout.T * (1 - m_t)).T
-        #                for newout, prevout in zip(newouts, prevouts)]
-        #else:
-        #    outs_out = []
-        # set outs for masked elements to zero
-        outs_out = []
-        for newout in newouts:
-            newout = newout * m_t.dimadd(1)
-            newout.mask = m_t
-            outs_out.append(newout)
-        states_out = []
-        for newstate, state in zip(newstates, states):
-            newstate = newstate * m_t.dimadd(1) + state * (1 - m_t.dimadd(1))
-            newstate.mask = m_t
-            states_out.append(newstate)
-        # TODO !!!!!!!! when masked, must return previous output
-        return outs_out + states_out
+        if m_t is None:
+            return self.rec(x_t, *states)
+        else:
+            #prevouts, states = prevoutsandstates[:self.numrecouts], prevoutsandstates[self.numrecouts:]
+            recout = self.rec(x_t, *states)
+            newouts, newstates = recout[:-len(states)], recout[-len(states):]
+            #newouts, newstates = recout[0:self.numrecouts], recout[self.numrecouts:]
+            #if len(newouts) > 0:
+            #    outs_out = [(newout.T * m_t + prevout.T * (1 - m_t)).T
+            #                for newout, prevout in zip(newouts, prevouts)]
+            #else:
+            #    outs_out = []
+            # set outs for masked elements to zero
+            outs_out = []
+            for newout in newouts:
+                newout = newout * m_t.dimadd(1)
+                newout.mask = m_t
+                outs_out.append(newout)
+            states_out = []
+            for newstate, state in zip(newstates, states):
+                newstate = newstate * m_t.dimadd(1) + state * (1 - m_t.dimadd(1))
+                newstate.mask = m_t
+                states_out.append(newstate)
+            # TODO !!!!!!!! when masked, must return previous output
+            return outs_out + states_out
 
 
 class ReccableWrapper(ReccableBlock):

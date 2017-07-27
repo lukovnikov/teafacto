@@ -44,6 +44,8 @@ class TestEncDec(TestCase):
         inpseq = Val(inpseq)
 
         outseq = np.random.randint(1, self.vocsize, (batsize, seqlen))
+        outseq[:, 4:] = 0
+        outseq[3, 3:] = 0
         outseq = Val(outseq)
 
         predvar, attvar = self.encdec(outseq[:, :-1], inpseq)
@@ -58,3 +60,7 @@ class TestEncDec(TestCase):
         print att[1:3, :, :]
         self.assertTrue(np.allclose(att[:, :, -2:], np.zeros_like(att[:, :, -2:])))
         self.assertTrue(np.allclose(att[2, :, -3:], np.zeros_like(att[2, :, -3:])))
+
+        print pred
+        maskpred = predvar.mask.eval()
+        print maskpred
