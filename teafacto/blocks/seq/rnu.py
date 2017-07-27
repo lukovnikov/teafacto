@@ -54,6 +54,9 @@ class ReccableBlock(RecurrentBlock):  # exposes a rec function
     def get_init_info(self, initstates):
         raise NotImplementedError("use subclass")
 
+    def get_rec_out_info(self, batsize):
+        raise NotImplementedError("use subclass")
+
     def get_inits(self, initstates):
         return self.get_init_info(initstates)
 
@@ -70,13 +73,20 @@ class ReccableBlock(RecurrentBlock):  # exposes a rec function
         inputs = x.dimswap(1, 0)  # inputs is (seq_len, batsize, dim)
         init_info = self.get_init_info(infoarg)
         out_info = [None] * self.numrecouts
-        if mask is not None:
+        if mask is None:
+            outputs = T.scan(fn=self.rec,
+                             sequences=inputs,
+                             outputs_info=out_info + init_info,
+                             go_backwards=self._reverse)
+        else:
             inputsmask = mask.dimswap(1, 0)
             inputs.mask = inputsmask
-        outputs = T.scan(fn=self.recwrap,
-                         sequences=inputs,
-                         outputs_info=out_info + init_info,
-                         go_backwards=self._reverse)
+            rec_out_shapes = self.get_rec_out_info(x.shape[0])
+            out_info = [T.zeros(rec_out_shape) for rec_out_shape in rec_out_shapes]
+            outputs = T.scan(fn=self.recwmask,
+                             sequences=inputs,
+                             outputs_info=out_info + init_info,
+                             go_backwards=self._reverse)
         if not issequence(outputs):
             outputs = [outputs]
         newouts = []
@@ -88,21 +98,34 @@ class ReccableBlock(RecurrentBlock):  # exposes a rec function
         finals = []
         fulls = []
         for output in outputs[:self.numrecouts]:
-            # get last unmasked element
-            if self._reverse:
-                final = output[:, -1, :]
-            else:
-                if mask is not None:
-                    mask = T.cast(mask, dtype="float32")
-                    lastelemmask = mask[:, :-1] - mask[:, 1:]
-                    lastelemmask = T.concatenate([lastelemmask, T.zeros((lastelemmask.shape[0], 1))], axis=1)
-                    final = T.sum(output * lastelemmask.dimadd(2), axis=1)
-                else:
+            final = output[:, -1, :]
+            """if False:
+                # get last unmasked element
+                if self._reverse:
                     final = output[:, -1, :]
+                else:
+                    if mask is not None:
+                        mask = T.cast(mask, dtype="float32")
+                        lastelemmask = mask[:, :-1] - mask[:, 1:]
+                        lastelemmask = T.concatenate([lastelemmask, T.zeros((lastelemmask.shape[0], 1))], axis=1)
+                        final = T.sum(output * lastelemmask.dimadd(2), axis=1)
+                    else:
+                        final = output[:, -1, :]"""
             finals.append(final)
             fulls.append(output)
         states = outputs[self.numrecouts:]
         return finals, fulls, states
+
+    def recwmask(self, x_t, *prevouts):
+        m_t = x_t.mask
+        states = prevouts[self.numrecouts:]
+        newouts = self.rec(x_t, *states)
+        outs = []
+        for newout, prevout in zip(newouts, prevouts[:len(newouts)]):
+            newout = newout * m_t.dimadd(1) + prevout * (1 - m_t.dimadd(1))
+            newout.mask = m_t
+            outs.append(newout)
+        return outs
 
     def recwrap(self, x_t, *states):  # x_t: (batsize, dim), states: (batsize, **somedim**)
         # make sure masked elements do not affect state
@@ -178,6 +201,9 @@ class RNUBase(ReccableBlock):
         self.dropout_in = Dropout(dropout_in)
         self.dropout_h = Dropout(dropout_h)
         self.zoneout = Dropout(zoneout)
+
+    def get_rec_out_info(self, batsize):
+        return [(batsize, self.innerdim)]
 
     '''
     def normalize_layer(self, vec):     # (batsize, hdim)

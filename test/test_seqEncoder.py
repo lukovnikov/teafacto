@@ -108,7 +108,7 @@ class TestSeqEncoder(TestCase):
             if i < seqlen:
                 self.assertTrue(not np.allclose(pred[:, i - 1, :], pred[:, i, :]))
             else:
-                self.assertTrue(np.allclose(np.zeros_like(pred[:, i, :]), pred[:, i, :]))
+                self.assertTrue(np.allclose(pred[:, i - 1, :], pred[:, i, :]))
 
     def test_mask_no_state_updates_multi_layer(self):
         batsize = 10
@@ -143,7 +143,7 @@ class TestSeqEncoder(TestCase):
             if i < seqlen:
                 self.assertTrue(not np.allclose(pred[:, i - 1, :], pred[:, i, :]))
             else:
-                self.assertTrue(np.allclose(np.zeros_like(pred[:, i, :]), pred[:, i, :]))
+                self.assertTrue(np.allclose(pred[:, i-1, :], pred[:, i, :]))
 
     def test_mask_no_state_updates_multi_layer_bidir(self):
         batsize = 10
@@ -181,8 +181,10 @@ class TestSeqEncoder(TestCase):
             #print np.linalg.norm(pred[:, i - 1, :] - pred[:, i, :])
             if i < seqlen:
                 self.assertTrue(not np.allclose(pred[:, i - 1, :], pred[:, i, :]))
+            elif i == seqlen:
+                pass
             else:
-                self.assertTrue(np.allclose(np.zeros_like(pred[:, i, :]), pred[:, i, :]))
+                self.assertTrue(np.allclose(pred[:, i-1, :], pred[:, i, :]))
 
     def test_mask_propagation_all_states(self):
         m = SeqEncoder(VectorEmbed(maskid=0, indim=100, dim=7),
