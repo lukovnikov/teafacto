@@ -702,11 +702,19 @@ class BiRNU(RecurrentBlock): # TODO: optimizer can't process this
         initstates = initstates[self.fwd.numstates:] if initstates is not None else initstates
         assert(initstates is None or len(initstates) == self.rew.numstates)
         initstatesrew = initstates
-        fwdfinals, fwdouts, fwdstates = self.fwd.innerapply(seq, mask=mask, initstates=initstatesfwd)   # (batsize, seqlen, innerdim)
-        rewfinals, rewouts, rewstates = self.rew.innerapply(seq, mask=mask, initstates=initstatesrew) # TODO: reverse?
+        fwdfinals, fwdouts, fwdstates = \
+            self.fwd.innerapply(seq, mask=mask, initstates=initstatesfwd)   # (batsize, seqlen, innerdim)
+        rewfinals, rewouts, rewstates = \
+            self.rew.innerapply(seq, mask=mask, initstates=initstatesrew) # TODO: reverse?
         # concatenate: fwdout, rewout: (batsize, seqlen, feats) ==> (batsize, seqlen, feats_fwd+feats_rew)
-        finalouts = [T.concatenate([fwdfinal, rewfinal], axis=1) for fwdfinal, rewfinal in zip(fwdfinals, rewfinals)]
-        outs = [T.concatenate([fwdout, rewout.reverse(1)], axis=2) for fwdout, rewout in zip(fwdouts, rewouts)]
+        finalouts = [T.concatenate([fwdfinal, rewfinal], axis=1)
+                     for fwdfinal, rewfinal
+                     in zip(fwdfinals, rewfinals)]
+        outs = []
+        for fwdout, rewout in zip(fwdouts, rewouts):
+            out = T.concatenate([fwdout, rewout.reverse(1)], axis=2)
+            out.mask = fwdout.mask
+            outs.append(out)
         states = []
         for fwdstate, rewstate in zip(fwdstates, rewstates):
             states.append(T.concatenate([fwdstate, rewstate], axis=2))      # for taking both final states, we need not reverse

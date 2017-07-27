@@ -147,7 +147,7 @@ class TestSeqEncoder(TestCase):
 
     def test_mask_no_state_updates_multi_layer_bidir(self):
         batsize = 10
-        seqlen = 3
+        seqlen = 4
         dim = 7
         indim = 5
         emb = IdxToOneHot(indim, maskid=0)
@@ -157,7 +157,7 @@ class TestSeqEncoder(TestCase):
             .make().with_outputs().with_states()
         data = np.random.randint(1, indim, (batsize, seqlen)).astype("int32")
         data[:, 1] = 1
-        ndata = np.ones_like(data) * 0
+        ndata = np.ones((batsize, seqlen-2), dtype="int32") * 0
         data = np.concatenate([data, ndata], axis=1)
         finals, pred, states = m.predict(data)
 
@@ -166,7 +166,7 @@ class TestSeqEncoder(TestCase):
         print np.concatenate([finals[0, :2], finals[0, -2:]], axis=-1)
         print np.concatenate([pred[0, :, :2], pred[0, :, -2:]], axis=-1)
         self.assertTrue(np.allclose(np.concatenate([finals[0, :2], finals[0, -2:]], axis=-1),
-                                    np.concatenate([pred[0, -1, :2], pred[0, 0, -2:]], axis=-1)))
+                                    np.concatenate([pred[0, seqlen-1, :2], pred[0, 0, -2:]], axis=-1)))
         print "states:"
         for state in states[::-1]:
             print state.shape
@@ -181,11 +181,8 @@ class TestSeqEncoder(TestCase):
             #print np.linalg.norm(pred[:, i - 1, :] - pred[:, i, :])
             if i < seqlen:
                 self.assertTrue(not np.allclose(pred[:, i - 1, :], pred[:, i, :]))
-            elif i == seqlen:
-                self.assertTrue(np.allclose(pred[:, i - 1, :pred.shape[2]/2], pred[:, i, :pred.shape[2]/2]))
-                self.assertTrue(np.allclose(pred[:, i, -pred.shape[2]/2:], np.zeros_like(pred[:, i, -pred.shape[2]/2:])))
             else:
-                self.assertTrue(np.allclose(pred[:, i - 1, :], pred[:, i, :]))
+                self.assertTrue(np.allclose(np.zeros_like(pred[:, i, :]), pred[:, i, :]))
 
     def test_mask_propagation_all_states(self):
         m = SeqEncoder(VectorEmbed(maskid=0, indim=100, dim=7),
@@ -210,13 +207,18 @@ class TestSeqEncoder(TestCase):
 
 class TestRNNSeqEncoder(TestCase):
     def test_bidir(self):
+        np.set_printoptions(precision=3, suppress=True)
         m = RNNSeqEncoder(indim=20, inpembdim=5, innerdim=(10, 10), bidir=True, maskid=0).with_outputs()
         xval = np.random.randint(1, 20, (7, 3))
         xval = np.concatenate([xval, np.zeros_like(xval)], axis=1)
         x = Val(xval)
         fmp, mp = m(x)
         fmpval, mpval = fmp.eval(), mp.eval()
-        self.assertTrue(np.allclose(fmpval[:, :10], mpval[:, -1, :10]))
+        print "finals"
+        print fmpval[:, [0,1,2,-3,-2,-1]]
+        print "outs"
+        print mpval[:, :, [0,1,2,-3,-2,-1]]
+        self.assertTrue(np.allclose(fmpval[:, :10], mpval[:, 2, :10]))
         self.assertTrue(np.allclose(fmpval[:, 10:], mpval[:, 0, 10:]))
         mpm = mp.mask
         self.assertEqual(np.sum(mpm.eval() - xval > 0), 0)

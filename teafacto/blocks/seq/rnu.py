@@ -90,9 +90,15 @@ class ReccableBlock(RecurrentBlock):  # exposes a rec function
         fulls = []
         for output in outputs[:self.numrecouts]:
             # get last unmasked element
-            lastelemmask = mask[:, :-1] - mask[:, 1:]
-            lastelemmask = T.concatenate([lastelemmask, T.zeros((lastelemmask.shape[0], 1))], axis=1)
-            final = T.sum(output * lastelemmask.dimadd(2), axis=1)
+            if self._reverse:
+                final = output[:, -1, :]
+            else:
+                if mask is not None:
+                    lastelemmask = mask[:, :-1] - mask[:, 1:]
+                    lastelemmask = T.concatenate([lastelemmask, T.zeros((lastelemmask.shape[0], 1))], axis=1)
+                    final = T.sum(output * lastelemmask.dimadd(2), axis=1)
+                else:
+                    final = output[:, -1, :]
             finals.append(final)
             fulls.append(output)
         states = outputs[self.numrecouts:]
