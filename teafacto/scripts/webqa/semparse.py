@@ -154,9 +154,9 @@ def run(p="webqa.data.loaded.pkl",
     fl_smo = get_fl_smo_from_emb(fl_emb)
     tt.tock("built fl reps")
 
-    #test_rel_smo(train_nl_mat, train_fl_mat, test_nl_mat, test_fl_mat,
-    #             nl_emb, fl_dic, fl_smo, encdim=encdim, dropout=dropout,
-    #             testpred=testpred, numbats=numbats, epochs=epochs, lr=lr)
+    # test_rel_smo(train_nl_mat, train_fl_mat, test_nl_mat, test_fl_mat,
+    #              nl_emb, fl_dic, fl_smo, encdim=encdim, dropout=dropout,
+    #              testpred=testpred, numbats=numbats, epochs=epochs, lr=lr)
 
     # MODEL :::::::::::::::::::::::::::::::::::::::::::::
     # encoder

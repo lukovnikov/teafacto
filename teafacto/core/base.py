@@ -1144,7 +1144,7 @@ class scan(Block):
                 ret.append(rese.d)
                 outmap.append("ret")
                 if rese.mask is None:
-                    msk = tensorops.zeros((1,), dtype=rese.dtype)
+                    msk = tensorops.zeros(rese.shape[:-1], dtype=rese.dtype)
                     outmap.append("nomask")
                 else:
                     msk = tensorops.cast(rese.mask, rese.dtype)
@@ -1193,7 +1193,10 @@ class scan(Block):
                         newoutinfo.append(None)     # add mask output
                     else:
                         newoutinfo.append(outinfo_e.d)
-                        outinfo_e_mask = outinfo_e.mask if outinfo_e.mask is not None else tensorops.ones((outinfo_e.shape[:-1]), outinfo_e.dtype)
+                        if outinfo_e.mask is None:
+                            outinfo_e_mask = tensorops.ones((outinfo_e.shape[:-1]), outinfo_e.dtype)
+                        else:
+                            outinfo_e_mask = outinfo_e.mask
                         outinfo_e_mask = outinfo_e_mask.d
                         newoutinfo.append(outinfo_e_mask)
                         statemap.append("out")
