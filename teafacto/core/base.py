@@ -1125,29 +1125,48 @@ class scan(Block):
         # set params
         self._recparams = set()
 
-    def fnwrap(self, fn): # enables writing fn in blocks level
+    def fnwrap(self, fn, argmap=None, outmap=None): # enables writing fn in blocks level
         scanblock = self
         def fwrapper(*args): # theano vars
-            trueargs = [Var(x, name="innerrecwrapvarwrap") for x in args]
+            if argmap is not None:
+                trueargs = argmap(*args)
+            else:
+                trueargs = [Var(x, name="innerrecwrapvarwrap") for x in args]
             res = fn(*trueargs) # has the params from inner rec
             updates = OrderedDict()
+            # updates
             retupdates = None
             if isinstance(res[-1], dict):
                 retupdates = res[-1]
                 res = res[0]
-            ret = recurmap(lambda x: x.d if hasattr(x, "d") else x, res)
+            # construct theano-space ret list, say which have masks and which don't
+            ret = []
+            for rese in res:
+                ret.append(rese.d)
+                outmap.append("ret")
+                if rese.mask is None:
+                    msk = tensorops.zeros((1,), dtype=rese.dtype)
+                    outmap.append("nomask")
+                else:
+                    msk = tensorops.cast(rese.mask, rese.dtype)
+                    outmap.append("msk")
+                ret.append(msk.d)
+            #ret = recurmap(lambda x: x.d if hasattr(x, "d") else x, res)
             if not issequence(ret):
                 ret = (ret,)
             if issequence(ret):
                 ret = tuple(ret)
+            # params prop
             outvars = recurfilter(lambda x: isinstance(x, Var), res)
             for var in outvars:
                 scanblock._recparams.update(var._params)
+            # more update prop
             for reswithupdates in recurfilter(lambda x: isinstance(x, Var), res):
                 updates.update(reswithupdates.allupdates)
             if retupdates is not None:
                 updatesupdate = {k.d: v.d for k, v in retupdates.items()}
                 updates.update(updatesupdate)
+            # return
             if len(updates) > 0:
                 return ret, updates
             else:
@@ -1155,11 +1174,54 @@ class scan(Block):
         return fwrapper
 
     def apply(self, fn, **kwargs):
+        truesequences, truenonseqs, outinfo, seqmap, nonseqmap, statemap, outmap \
+            = None, None, None, [], [], [], []
+        if "sequences" in kwargs:
+            sequences = kwargs["sequences"]; del kwargs["sequences"]
+            if sequences is not None:
+                truesequences, seqmap = self._map_sequences(sequences)
+        if "non_sequences" in kwargs:
+            nonseqs = kwargs["non_sequences"]; del kwargs["non_sequences"]
+            if nonseqs is not None:
+                truenonseqs, nonseqmap = self._map_sequences(nonseqs)
+        if "outputs_info" in kwargs:
+            outinfo = kwargs["outputs_info"]; del kwargs["outputs_info"]
+            newoutinfo = []
+            if outinfo is not None:
+                for outinfo_e in outinfo:
+                    if outinfo_e is None:
+                        newoutinfo.append(outinfo_e)
+                        newoutinfo.append(None)     # add mask output
+                    else:
+                        newoutinfo.append(outinfo_e.d)
+                        outinfo_e_mask = outinfo_e.mask if outinfo_e.mask is not None else tensorops.ones((outinfo_e.shape[:-1]), outinfo_e.dtype)
+                        outinfo_e_mask = outinfo_e_mask.d
+                        newoutinfo.append(outinfo_e_mask)
+                        statemap.append("out")
+                        statemap.append("msk")
+            outinfo = newoutinfo
+        totalmap = seqmap + statemap + nonseqmap
         trueargs = recurmap(lambda x: x.d if hasattr(x, "d") else x, kwargs)
         oldupdates = _get_updates_from(kwargs)
-        o, newupdates = theano.scan(self.fnwrap(fn), **trueargs)
+        o, newupdates = theano.scan(self.fnwrap(fn,
+                                                argmap=self._get_recarg_mapper(totalmap),
+                                                outmap=outmap),     # fnwrap modifies outmap --> use to set masks on outputs
+                                    sequences=truesequences,
+                                    non_sequences=truenonseqs,
+                                    outputs_info=outinfo,
+                                    **trueargs)
         o = [o] if not issequence(o) else o
-        ret = [Var(oe) for oe in o]
+        # reconstruct masks based on outmap modified by fnwrap
+        ret = []
+        rete = None
+        for oe, oe_spec in zip(o, outmap):
+            if oe_spec == "ret":
+                rete = Var(oe)
+                ret.append(rete)
+            elif oe_spec == "msk":
+                rete.mask = Var(oe)
+                rete = None
+        #ret = [Var(oe) for oe in o]
         for var in recurfilter(lambda x: isinstance(x, Var), ret):
             var.push_params(self._recparams)
             var.push_updates(oldupdates)
@@ -1167,6 +1229,37 @@ class scan(Block):
         if len(ret) == 1:
             ret = ret[0]
         return ret
+
+    def _map_sequences(self, seqs):     # list of possibly masked sequences
+        trueseqs = []
+        seqmap = []
+        if not issequence(seqs):
+            seqs = [seqs]
+        for seq in seqs:
+            trueseqs.append(seq.d)
+            seqmap.append("arg")
+            if seq.mask is not None:
+                trueseqs.append(seq.mask.d)
+                seqmap.append("msk")
+        return trueseqs, seqmap
+
+    def _get_recarg_mapper(self, seqmap):
+        def _map(*seqelems):
+            out = []
+            arg = None
+            for seqelem, seqspec in zip(seqelems, seqmap):
+                if seqspec == "arg":
+                    arg = Var(seqelem, name="recwrapvar")
+                    out.append(arg)
+                elif seqspec == "msk":      # mask for the previous arg
+                    msk = Var(seqelem, name="recwrapvar_mask")
+                    arg.mask = msk
+                    arg = None
+                elif seqspec == "out":
+                    arg = Var(seqelem, name="recstatewrap")
+                    out.append(arg)
+            return out
+        return _map
 
 
 def _get_updates_from(kwargs):

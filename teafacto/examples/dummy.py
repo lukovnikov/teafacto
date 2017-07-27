@@ -21,7 +21,6 @@ class Dummy(Block):
         return probs
 
 
-
 def run(
         epochs=1,
         dim=10,

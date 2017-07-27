@@ -79,8 +79,9 @@ class ReccableBlock(RecurrentBlock):  # exposes a rec function
             outs = recout[:self.numrecouts]
             zero_init_outs = [T.zeros_like(out) for out in outs]
             # use it in scan with mask
+            inputs.mask = mask.dimswap(1, 0)
             outputs = T.scan(fn=self.recwmask,
-                             sequences=[inputs, mask.dimswap(1, 0)],
+                             sequences=[inputs],
                              outputs_info=zero_init_outs + init_info,
                              go_backwards=self._reverse)
         if not issequence(outputs):
