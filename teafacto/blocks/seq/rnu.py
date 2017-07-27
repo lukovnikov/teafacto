@@ -78,6 +78,8 @@ class ReccableBlock(RecurrentBlock):  # exposes a rec function
             recout = self.rec(inputs[0], *init_info)
             outs = recout[:self.numrecouts]
             zero_init_outs = [T.zeros_like(out) for out in outs]
+            #rec_out_shapes = self.get_rec_out_shapes(x.shape[0])
+            #zero_init_outs = [T.zeros(rec_out_shape) for rec_out_shape in rec_out_shapes]
             # use it in scan with mask
             inputs.mask = mask.dimswap(1, 0)
             outputs = T.scan(fn=self.recwmask,
@@ -91,8 +93,9 @@ class ReccableBlock(RecurrentBlock):  # exposes a rec function
                [outputs[i] for i in range(self.numrecouts)], \
                outputs[self.numrecouts:]
 
-    def recwmask(self, x_t, m_t, *prevoutsandstates):  # m_t: (batsize, ), x_t: (batsize, dim), states: (batsize, **somedim**)
+    def recwmask(self, x_t, *prevoutsandstates):  # m_t: (batsize, ), x_t: (batsize, dim), states: (batsize, **somedim**)
         # make sure masked elements do not affect state
+        m_t = x_t.mask
         prevouts, states = prevoutsandstates[:self.numrecouts], prevoutsandstates[self.numrecouts:]
         recout = self.rec(x_t, *states)
         newouts, newstates = recout[0:self.numrecouts], recout[self.numrecouts:]

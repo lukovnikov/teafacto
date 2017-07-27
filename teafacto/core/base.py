@@ -1119,7 +1119,6 @@ def asblock(f):
 
 
 class scan(Block):
-    # TODO: add support for masks attached to sequences
     def __init__(self, **kw):
         super(scan, self).__init__(**kw)
         # set params

@@ -193,7 +193,7 @@ from teafacto.blocks.seq.rnn import MakeRNU, RecStack
 
 
 class EncDec(Block):    # EXPLICIT STATE TRANSFER (by init state gen)
-    # TODO: test
+    # (todo): make more tests
     # TODO: make officially Reccable
     def __init__(self,
                  encoder=None,      # encoder block
@@ -268,7 +268,7 @@ class EncDec(Block):    # EXPLICIT STATE TRANSFER (by init state gen)
     def apply(self, decinp, encinp):
         inpenc = self.encoder(encinp)   # 2D or 3D
         batsize = decinp.shape[0]
-        init_info, nonseqs = self.get_inits(batsize, inpenc)
+        init_info, ctx = self.get_inits(batsize, inpenc)
         decinpemb = self.inpemb(decinp)
         mask = decinpemb.mask
         outinfos = []
@@ -276,11 +276,17 @@ class EncDec(Block):    # EXPLICIT STATE TRANSFER (by init state gen)
             outinfos += [None]
         if self._return_attention_weights:
             outinfos += [None]
+
+        scanseq = decinpemb.dimswap(1, 0)
+        scanseqmask = mask.dimswap(1, 0)
+        scanseq.mask = scanseqmask
+
         outputs = T.scan(fn=self.inner_rec,
-                         sequences=decinpemb.dimswap(1, 0),
+                         sequences=scanseq,
                          outputs_info=outinfos + init_info,     # first output is real result, second is attention weights
-                         non_sequences=list(nonseqs),
+                         non_sequences=[ctx],
                          )
+
         ret = outputs[0].dimswap(1, 0)
         ret.mask = mask
         out = []
@@ -305,8 +311,7 @@ class EncDec(Block):    # EXPLICIT STATE TRANSFER (by init state gen)
             ctx_0 = T.zeros((batsize, ctx.shape[2]))
         else:
             ctx_0 = ctx
-        nonseqs = self.get_nonseqs(ctx)
-        return [ctx_0] + init_info, nonseqs
+        return [ctx_0] + init_info, ctx
 
     def _get_init_states(self, initstates, batsize):
         if initstates is None:
@@ -319,15 +324,9 @@ class EncDec(Block):    # EXPLICIT STATE TRANSFER (by init state gen)
     def get_init_info(self, initstates):
         return self.block.get_init_info(initstates)
 
-    def get_nonseqs(self, inpenc):
-        ctx = inpenc
-        ctxmask = ctx.mask if ctx.mask is not None else T.ones(ctx.shape[:2], dtype="float32")
-        return ctxmask, ctx
-
     def inner_rec(self, x_t_emb, ctx_tm1, *args):
         ctx = args[-1]
-        ctxmask = args[-2]
-        states_tm1 = args[:-2]
+        states_tm1 = args[:-1]
         y_tm1 = states_tm1[-1]
         if self.updatefirst:
             i_t = T.concatenate([x_t_emb, ctx_tm1], axis=1) if (self.inconcat or self.inconcat_y_t) else x_t_emb
@@ -335,9 +334,9 @@ class EncDec(Block):    # EXPLICIT STATE TRANSFER (by init state gen)
             o_t = rnuret[0]
             states_t = rnuret[1:]
             y_t = states_t[-1]      # !!! should be the same as o_t
-            ctx_t, att_weights_t = self._get_ctx_t(ctx, y_t, x_t_emb, self.attention, ctxmask)
+            ctx_t, att_weights_t = self._get_ctx_t(ctx, y_t, x_t_emb, self.attention)
         else:       # TODO inconcat _y_tm1 ??? <- what is output before smo is applied
-            ctx_t, att_weights_t = self._get_ctx_t(ctx, y_tm1, x_t_emb, self.attention, ctxmask)        # !!! y_tm1 should be the same as o_t in previous time step
+            ctx_t, att_weights_t = self._get_ctx_t(ctx, y_tm1, x_t_emb, self.attention)        # !!! y_tm1 should be the same as o_t in previous time step
             i_t = T.concatenate([x_t_emb, ctx_t], axis=1) if self.inconcat else x_t_emb
             rnuret = self.block.rec(i_t, *states_tm1)
             o_t = rnuret[0]
@@ -364,7 +363,7 @@ class EncDec(Block):    # EXPLICIT STATE TRANSFER (by init state gen)
         ret += states_t
         return ret
 
-    def _get_ctx_t(self, ctx, h, x_t_emb, att, ctxmask):
+    def _get_ctx_t(self, ctx, h, x_t_emb, att):
         # ctx: 3D if attention, 2D otherwise
         if ctx.ndim == 2:
             return ctx, 0      # no attention, return ctx as-is
@@ -375,8 +374,8 @@ class EncDec(Block):    # EXPLICIT STATE TRANSFER (by init state gen)
             h = T.concatenate([h, x_t_emb], axis=-1)
         if self.attentiontransformer is not None:
             h = self.attentiontransformer(h)
-        att_weights = att.get_attention_weights(h, ctx, mask=ctxmask)
-        ret = att.get_attention_results(ctx, att_weights, mask=ctxmask)
+        att_weights = att.get_attention_weights(h, ctx, mask=ctx.mask)
+        ret = att.get_attention_results(ctx, att_weights, mask=ctx.mask)
         return ret, att_weights
 
 
