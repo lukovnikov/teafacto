@@ -143,7 +143,6 @@ class Attention(Block):
         mask = data.mask if mask is None else mask
         addrdata = data if self.splitters is None else self.splitters[0](data)
         weights = self.attentiongenerator(criterion, addrdata, mask=mask)
-        weights.output_as("attention_weights")
         return weights
 
     def get_attention_results(self, data, weights, mask=None):

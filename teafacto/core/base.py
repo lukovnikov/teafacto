@@ -135,7 +135,6 @@ def wrapf(attr, root=None):
         if isinstance(root, Var):       # propagate params
             innerwrap.push_params(root._params)
             innerwrap.push_updates(root._updates)
-            innerwrap.push_extra_outs(root._extra_outs)
         elif isinstance(root, Parameter):
             innerwrap.push_params({root})
     else:
@@ -505,10 +504,6 @@ class Val(Elem, TensorWrapped, Masked):
         # TODO: clone?
         self.value.default_update = expr
 
-    @property
-    def all_extra_outs(self):
-        return {}
-
 
 class RVal(Elem, TensorWrapped, Masked):    # random value
     def __init__(self, seed=None, **kw):
@@ -568,10 +563,6 @@ class RVal(Elem, TensorWrapped, Masked):    # random value
     def allupdates(self):
         return {}
 
-    @property
-    def all_extra_outs(self):
-        return {}
-
 
 class Var(Elem, TensorWrapped, Masked): # result of applying a block on theano variables
     """ Var has params propagated from all the blocks used to compute it """
@@ -583,7 +574,6 @@ class Var(Elem, TensorWrapped, Masked): # result of applying a block on theano v
         self._shape = None
         self._params = set()            # params this variable may depend on
         self._updates = OrderedDict()
-        self._extra_outs = {}
 
     @property
     def shape(self):
@@ -620,18 +610,6 @@ class Var(Elem, TensorWrapped, Masked): # result of applying a block on theano v
     @property
     def allupdates(self):
         return self._updates
-
-    # extra outputs
-    def push_extra_outs(self, dictofvars):
-        self._extra_outs.update(dictofvars)
-
-    def output_as(self, name):      # adds itself to the extra outputs
-        self.push_extra_outs({name: self})
-        return self
-
-    @property
-    def all_extra_outs(self):
-        return self._extra_outs
 
     # stuff
     @property
@@ -838,10 +816,6 @@ class Block(Elem, Saveable): # block with parameters
         for var in recurfilter(lambda x: isinstance(x, Var), kwargs) + recurfilter(lambda x: isinstance(x, Var), args):
             paramstopush.update(var._params)
         updatestopush = _get_updates_from([args, kwargs])
-        # extra outs pushing
-        extraoutstopush = {}
-        for var in recurfilter(lambda x: isinstance(x, Var), kwargs) + recurfilter(lambda x: isinstance(x, Var), args):
-            extraoutstopush.update(var._extra_outs)
 
         if transform is not None and isfunction(transform):
             args, kwargs = transform(*args, **kwargs)
@@ -852,7 +826,6 @@ class Block(Elem, Saveable): # block with parameters
             p.push_params(paramstopush)
             p.push_params(self.ownparams)
             p.push_updates(updatestopush)
-            p.push_extra_outs(extraoutstopush)
             for k, v in self._param_settings_toprop.items():
                 for param in p.allparams.difference(paramstopush):
                     if hasattr(param, k):
@@ -988,12 +961,6 @@ class OpBlock(Block):
             paramstopush.update(self.root._params)
         # update pushing
         updatestopush = _get_updates_from([args, kwargs] + ([self.root] if self.root is not None and isinstance(self.root, Var) else []))   # gather all updates
-        # extra outs pushing
-        extraoutstopush = {}
-        for var in recurfilter(lambda x: isinstance(x, Var), args) + recurfilter(lambda x: isinstance(x, Var), kwargs):
-            extraoutstopush.update(var._extra_outs)
-        if self.root is not None and isinstance(self.root, Var):
-            extraoutstopush.update(self.root._extra_outs)
         # push all "own" params, params that are args or root
         params = recurfilter(lambda x: isinstance(x, Parameter), args)
         kwparams = recurfilter(lambda x: isinstance(x, Parameter), kwargs)
@@ -1025,7 +992,6 @@ class OpBlock(Block):
             p.push_params(paramstopush)
             p.push_params(ownparams)
             p.push_updates(updatestopush)
-            p.push_extra_outs(extraoutstopush)
             p._settings_toprop.update(settingstoprop)
         return ret
 
@@ -1158,7 +1124,6 @@ class scan(Block):
         super(scan, self).__init__(**kw)
         # set params
         self._recparams = set()
-        self._rec_extra_outs = []
 
     def fnwrap(self, fn): # enables writing fn in blocks level
         scanblock = self
@@ -1178,10 +1143,6 @@ class scan(Block):
             outvars = recurfilter(lambda x: isinstance(x, Var), res)
             for var in outvars:
                 scanblock._recparams.update(var._params)
-                for k, extra_out in sorted(var._extra_outs.items(), key=lambda (a, b): a):
-                    ret += (extra_out.d,)
-                    scanblock._rec_extra_outs.append(k)
-#                scanblock._rec_extra_outs.update(var._extra_outs)
             for reswithupdates in recurfilter(lambda x: isinstance(x, Var), res):
                 updates.update(reswithupdates.allupdates)
             if retupdates is not None:
@@ -1196,55 +1157,16 @@ class scan(Block):
     def apply(self, fn, **kwargs):
         trueargs = recurmap(lambda x: x.d if hasattr(x, "d") else x, kwargs)
         oldupdates = _get_updates_from(kwargs)
-        numouts, numberofextraargs = self.getnumberofextraargs(fn, **kwargs)
-        #numouts, numberofextraargs = None, None    # TODO switch this line to go back
-        if ("outputs_info" not in trueargs or trueargs["outputs_info"] is None)\
-                and numouts is not None:
-            trueargs["outputs_info"] = [None]*numouts
-        if numberofextraargs is not None:
-            trueargs["outputs_info"] += [None]*numberofextraargs
         o, newupdates = theano.scan(self.fnwrap(fn), **trueargs)
         o = [o] if not issequence(o) else o
         ret = [Var(oe) for oe in o]
-        extra_out = None
-        if numouts is not None and numberofextraargs is not None:
-            extra_out = ret[numouts:]
-            ret = ret[:numouts]
         for var in recurfilter(lambda x: isinstance(x, Var), ret):
             var.push_params(self._recparams)
             var.push_updates(oldupdates)
             var.push_updates(newupdates)
-            if extra_out is not None:
-                var.push_extra_outs(dict(zip(self._rec_extra_outs, extra_out)))
-        #print updates
         if len(ret) == 1:
             ret = ret[0]
         return ret
-
-    def getnumberofextraargs(self, fn, **kwargs):
-        seqs = kwargs["sequences"]
-        seqs = [] if seqs is None else seqs
-        seqs = [seqs] if not issequence(seqs) else seqs
-        seqs = [seq[0] for seq in seqs]
-        nonseqs = kwargs["non_sequences"] if "non_sequences" in kwargs else None
-        nonseqs = [] if nonseqs is None else nonseqs
-        nonseqs = [nonseqs] if not issequence(nonseqs) else nonseqs
-        initinfos = kwargs["outputs_info"] if "outputs_info" in kwargs else None
-        initinfos = [None]*len(seqs) if initinfos is None else initinfos
-        initinfos = [initinfos] if not issequence(initinfos) else initinfos
-        fnargs = seqs + filter(lambda x: x is not None, initinfos)
-        fnappl = fn(*(fnargs + nonseqs))
-        updates = None
-        if isinstance(fnappl[-1], dict):
-            updates = fnappl[-1]
-            fnappl = fnappl[0]
-        if not issequence(fnappl):
-            fnappl = [fnappl]
-        numouts = len(fnappl)
-        numextraouts = 0
-        for realout in fnappl:
-            numextraouts += len(realout.all_extra_outs)
-        return numouts, numextraouts
 
 
 def _get_updates_from(kwargs):
@@ -1277,7 +1199,6 @@ class BlockPredictor(object):
         self.block = block
         self.inps = []
         self.outs = []
-        self.extra_outs = None
         self._numouts = None
 
     def transform(self, f):
@@ -1286,44 +1207,18 @@ class BlockPredictor(object):
             self.transf = f if f is not None and isfunction(f) else self.transf
         return self
 
-    def _select_extra_outs(self, outp, extra_outs=False):
-        alloutvars = recurfilter(lambda x: isinstance(x, (Val, Var)), outp)
-        allextraouts = {}
-        for outpe in alloutvars:
-            allextraouts.update(outpe.all_extra_outs)
-        if extra_outs is False or extra_outs is None:
-            extra_outs = set()
-        elif extra_outs is True:
-            extra_outs = allextraouts.keys()
-        ret = {}
-        for extra_out in extra_outs:
-            ret[extra_out] = allextraouts[extra_out]
-        return ret
-
-    def return_extra_outs(self, extraouts=False):
-        self.extra_outs = extraouts
-        return self
-
     def __call__(self, *inputdata, **kwinputdata):  # do predict, take into account prediction settings set
         if self._predictf is None:  # or block._predictf._transform != self.transfZ:
             from teafacto.util import unstructurize, restructurize
             # if False or len(self.inputs) == 0 or self.output is None:
-            extra_outs = self.extra_outs
-            if "_extra_outs" in kwinputdata:
-                extra_outs = kwinputdata["_extra_outs"]
-                del kwinputdata["_extra_outs"]
             kwinpl = kwinputdata.items()
             if self.transf is not None:
                 kwinpl.append(("transform", self.transf))
             inps, outp = self.block.autobuild(*inputdata, **dict(kwinpl))
             self.inps, self.outs = inps, outp
-            extra_out_vars = self._select_extra_outs(outp, extra_outs)
             if hasattr(self.block, "_predict_postapply"):
                 outp = self.block._predict_postapply(outp)
-            #self._numouts = len(outp)
-            numextraouts = len(extra_out_vars)
-            out = {"ret": outp, "extra": extra_out_vars}
-            outstruct, flatouts = unstructurize(out)
+            outstruct, flatouts = unstructurize(outp)
             allupdates = OrderedDict()
             for x in flatouts:
                 allupdates.update(x.allupdates)
@@ -1333,10 +1228,6 @@ class BlockPredictor(object):
                                              on_unused_input="warn")
             self._predictf = lambda *largs: \
                 restructurize(outstruct, _predictf_sym(*largs))
-            """self._predictf = theano.function(outputs=[o.d for o in outp]
-                                                     +[e.d for k, e in sorted(extra_out_vars.items(), key=lambda (a, b): a)],
-                                             inputs=[x.d for x in inps],
-                                             on_unused_input="warn")"""
         args = []
 
         def _inner(x):
@@ -1353,14 +1244,8 @@ class BlockPredictor(object):
         allinputdata = inputdata + tuple(kwn)
         allinputdata = filter(lambda x: x is not None, allinputdata)
         args = map(_inner, allinputdata)
-        ret = self._predictf(*args)
-        extra_ret = ret["extra"]    #
-        valret = ret["ret"]         #
+        valret = self._predictf(*args)
         #extra_ret = valret[self._numouts:]
         #valret = valret[:self._numouts]
         ret = valret[0] if len(valret) == 1 else tuple(valret)
-        if len(extra_ret) > 0:          #
-            return ret, extra_ret       #
-#        if len(extra_ret) > 0:
-#            return ret, dict(zip(sorted(extra_out_vars.keys()), extra_ret))
         return ret

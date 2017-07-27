@@ -17,7 +17,6 @@ class Dummy(Block):
     def apply(self, inptensor):
         emb = self.W(inptensor)
         out = T.dot(emb, self.O)
-        out.output_as("out")
         probs = Softmax()(out)
         return probs
 

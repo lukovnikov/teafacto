@@ -98,17 +98,9 @@ class MemNN(Block):
 
         # memory change interface
         mem_t_addr = self._get_addr_weights(h_t, mem_tm1_sum)  # float-(batsize, outseqlen)
-        if self._debug:
-            mem_t_addr.output_as("mem_t_addr")
         mem_t_write = self._get_write_weights(h_t)  # (batsize, memvocsize)
-        if self._debug:
-            mem_t_write.output_as("mem_t_write")
         e_t = self._get_erase(h_t)  # (0..1)-(batsize,)
-        if self._debug:
-            e_t.output_as("e_t")
         c_t = self._get_change(h_t)  # (0..1)-(batsize,)
-        if self._debug:
-            c_t.output_as("c_t")
 
         # e_t = T.zeros_like(e_t)     # DEBUG
 
@@ -116,11 +108,7 @@ class MemNN(Block):
         can_mem_t = mem_tm1
         can_mem_t = can_mem_t - e_t.dimshuffle(0, 'x', 'x') * \
                         can_mem_t * mem_t_addr.dimshuffle(0, 1, 'x')  # erase where we addressed
-        if self._debug:
-            can_mem_t.output_as("can_mem_t_after_erase")
         can_mem_t = can_mem_t + T.batched_tensordot(mem_t_addr, mem_t_write, axes=0)  # write new value
-        if self._debug:
-            can_mem_t.output_as("can_mem_t_after_addition")
         c_t = c_t.dimshuffle(0, 'x', 'x')
         mem_t = (1 - c_t) * mem_tm1 + c_t * can_mem_t  # interpolate between old and new value
 
