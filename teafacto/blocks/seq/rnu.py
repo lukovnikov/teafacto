@@ -179,10 +179,11 @@ class ReccableWrapper(ReccableBlock):
 
 
 class RNUBase(ReccableBlock):
+    layernormalize = True
     def __init__(self, dim=20, innerdim=20, wreg=0.0, noinput=False,
                  initmult=0.1, nobias=False, paraminit="glorotuniform", biasinit="uniform",
                  dropout_in=False, dropout_h=False, zoneout=False,
-                 **kw):  # layernormalize=False): # dim is input dimensions, innerdim = dimension of internal elements
+                 layernormalize=None, **kw): # dim is input dimensions, innerdim = dimension of internal elements
         super(RNUBase, self).__init__(**kw)
         self.indim = dim
         self.innerdim = innerdim
@@ -192,11 +193,11 @@ class RNUBase(ReccableBlock):
         self.noinput = noinput
         self.paraminit = paraminit
         self.biasinit = biasinit
-        '''self.layernormalize = layernormalize
+        self.layernormalize = layernormalize if layernormalize is not None else self.layernormalize
         if self.layernormalize:
             self.layernorm_gain = param((innerdim,), name="layer_norm_gain").uniform()
             self.layernorm_bias = param((innerdim,), name="layer_norm_bias").uniform()
-            #self.nobias = True'''
+        #self.nobias = True'''
         self.rnuparams = {}
         self.dropout_in = Dropout(dropout_in)
         self.dropout_h = Dropout(dropout_h)
@@ -205,7 +206,6 @@ class RNUBase(ReccableBlock):
     def get_rec_out_info(self, batsize):
         return [(batsize, self.innerdim)]
 
-    '''
     def normalize_layer(self, vec):     # (batsize, hdim)
         if self.layernormalize:
             fshape = T.cast(vec.shape[1], "float32")
@@ -216,7 +216,6 @@ class RNUBase(ReccableBlock):
         else:
             ret = vec
         return ret
-    '''
 
     @property
     def outdim(self):
@@ -366,7 +365,7 @@ class GRU(GatedRNU):
         canh = self.outpactivation(canh)
         mgate = self.zoneout(mgate)
         h = (1 - mgate) * h_tm1_i + mgate * canh
-        # h = self.normalize_layer(h)
+        h = self.normalize_layer(h)
         return [h, h]
 
 
