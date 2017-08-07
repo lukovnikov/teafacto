@@ -351,17 +351,17 @@ class GRU(GatedRNU):
         else:
             self.b, self.bm, self.bhf = 0, 0, 0
         if self.layernormalize:
-            self.layernorm_m_gain = param((self.innerdim,), name="m_ln_gain").uniform()
-            self.layernorm_m_bias = param((self.innerdim,), name="m_ln_bias").uniform()
-            self.layernorm_hf_gain = param((self.innerdim,), name="hf_ln_gain").uniform()
-            self.layernorm_hf_bias = param((self.innerdim,), name="hf_ln_bias").uniform()
-            self.layernorm_canh_gain = param((self.innerdim,), name="canh_ln_gain").uniform()
-            self.layernorm_canh_bias = param((self.innerdim,), name="canh_ln_bias").uniform()
+            self.layernorm_m_gain = param((self.innerdim,), name="m_ln_gain").constant(1.0)
+            self.layernorm_m_bias = param((self.innerdim,), name="m_ln_bias").constant(0.0)
+            self.layernorm_hf_gain = param((self.innerdim,), name="hf_ln_gain").constant(1.0)
+            self.layernorm_hf_bias = param((self.innerdim,), name="hf_ln_bias").constant(0.0)
+            self.layernorm_canh_gain = param((self.innerdim,), name="canh_ln_gain").constant(1.0)
+            self.layernorm_canh_bias = param((self.innerdim,), name="canh_ln_bias").constant(0.0)
         else:
             self.layernorm_m_gain, self.layernorm_m_bias, \
             self.layernorm_hf_gain, self.layernorm_hf_bias, \
             self.layernorm_canh_gain, self.layernorm_canh_bias = \
-                0, 1, 0, 1, 0, 1
+                1, 0, 1, 0, 1, 0
 
     def rec(self, x_t, h_tm1):
         '''
