@@ -210,9 +210,9 @@ class RNUBase(ReccableBlock):
     def normalize_layer(self, vec, gain, bias):     # (batsize, hdim)
         if self.layernormalize:
             fshape = T.cast(vec.shape[1], "float32")
-            mean = (T.sum(vec, axis=1) / fshape).dimshuffle(0, "x")
-            sigma = (T.sqrt(T.sum((vec - mean)**2, axis=1) / fshape)).dimshuffle(0, "x")
-            ret = (gain / sigma) * (vec - mean) + bias
+            mean = (T.sum(vec, axis=1, keepdims=True) / fshape)
+            sigma = (T.sqrt(T.sum((vec - mean)**2, axis=1, keepdims=True) / fshape))
+            ret = (gain.dimshuffle("x", 0) / sigma) * (vec - mean) + bias.dimshuffle("x", 0)
             #ret = T.cast(ret, "float32")
         else:
             ret = vec
