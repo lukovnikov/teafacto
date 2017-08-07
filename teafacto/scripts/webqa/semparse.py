@@ -363,4 +363,6 @@ def test_rel_smo(train_nl_mat, train_fl_mat, test_nl_mat, test_fl_mat,
     embed()
 
 if __name__ == "__main__":
+    import theano
+    print(theano.__version__)
     argprun(run)

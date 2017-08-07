@@ -179,7 +179,7 @@ class ReccableWrapper(ReccableBlock):
 
 
 class RNUBase(ReccableBlock):
-    layernormalize = True
+    layernormalize = False
     def __init__(self, dim=20, innerdim=20, wreg=0.0, noinput=False,
                  initmult=0.1, nobias=False, paraminit="glorotuniform", biasinit="uniform",
                  dropout_in=False, dropout_h=False, zoneout=False,
