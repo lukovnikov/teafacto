@@ -7,6 +7,7 @@ from teafacto.blocks.basic import SMO, Forward
 from teafacto.blocks.seq import RNNSeqEncoder
 from teafacto.blocks.seq.encdec import EncDec
 from teafacto.blocks.seq.attention import Attention
+from teafacto.blocks.seq.rnu import GRU
 
 
 def loaddata(p="webqa.data.loaded.pkl"):
@@ -110,7 +111,9 @@ def run(p="webqa.data.loaded.pkl",
         usezeropos=False,
         notrainmask=False,  # don't use the dec out symbol mask during training
         attention="forward",    # forward or dot
+        layernorm=False,
         ):
+    GRU.layernormalize = layernorm
     tt = ticktock("script")
     (train_nl_mat, train_fl_mat, train_vtn), (test_nl_mat, test_fl_mat, test_vtn), \
     (nl_dic, fl_dic, rel_dic), (rel_mat, rel_mat_dic) = loaddata(p)
