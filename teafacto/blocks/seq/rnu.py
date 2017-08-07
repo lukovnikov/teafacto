@@ -194,9 +194,10 @@ class RNUBase(ReccableBlock):
         self.paraminit = paraminit
         self.biasinit = biasinit
         self.layernormalize = layernormalize if layernormalize is not None else self.layernormalize
-        if self.layernormalize:
-            self.layernorm_gain = param((innerdim,), name="layer_norm_gain").uniform()
-            self.layernorm_bias = param((innerdim,), name="layer_norm_bias").uniform()
+        # if self.layernormalize:
+        #     print "layernorm on (rnu.py, L198)"
+        #     self.layernorm_gain = param((innerdim,), name="layer_norm_gain").uniform()
+        #     self.layernorm_bias = param((innerdim,), name="layer_norm_bias").uniform()
         #self.nobias = True'''
         self.rnuparams = {}
         self.dropout_in = Dropout(dropout_in)
@@ -206,12 +207,12 @@ class RNUBase(ReccableBlock):
     def get_rec_out_info(self, batsize):
         return [(batsize, self.innerdim)]
 
-    def normalize_layer(self, vec):     # (batsize, hdim)
+    def normalize_layer(self, vec, gain, bias):     # (batsize, hdim)
         if self.layernormalize:
             fshape = T.cast(vec.shape[1], "float32")
             mean = (T.sum(vec, axis=1) / fshape).dimshuffle(0, "x")
             sigma = (T.sqrt(T.sum((vec - mean)**2, axis=1) / fshape)).dimshuffle(0, "x")
-            ret = (self.layernorm_gain / sigma) * (vec - mean) + self.layernorm_bias
+            ret = (gain / sigma) * (vec - mean) + bias
             #ret = T.cast(ret, "float32")
         else:
             ret = vec
@@ -349,6 +350,18 @@ class GRU(GatedRNU):
             self.bhf = param((self.innerdim,), name="bhf").init(self.biasinit)
         else:
             self.b, self.bm, self.bhf = 0, 0, 0
+        if self.layernormalize:
+            self.layernorm_m_gain = param((self.innerdim,), name="m_ln_gain").uniform()
+            self.layernorm_m_bias = param((self.innerdim,), name="m_ln_bias").uniform()
+            self.layernorm_hf_gain = param((self.innerdim,), name="hf_ln_gain").uniform()
+            self.layernorm_hf_bias = param((self.innerdim,), name="hf_ln_bias").uniform()
+            self.layernorm_canh_gain = param((self.innerdim,), name="canh_ln_gain").uniform()
+            self.layernorm_canh_bias = param((self.innerdim,), name="canh_ln_bias").uniform()
+        else:
+            self.layernorm_m_gain, self.layernorm_m_bias, \
+            self.layernorm_hf_gain, self.layernorm_hf_bias, \
+            self.layernorm_canh_gain, self.layernorm_canh_bias = \
+                0, 1, 0, 1, 0, 1
 
     def rec(self, x_t, h_tm1):
         '''
@@ -358,14 +371,19 @@ class GRU(GatedRNU):
         '''
         x_t = self.dropout_in(x_t) if not self.noinput else T.zeros_like(x_t)
         h_tm1_i = self.dropout_h(h_tm1)
-        mgate = self.gateactivation(T.dot(h_tm1_i, self.um) + T.dot(x_t, self.wm) + self.bm)
-        hfgate = self.gateactivation(T.dot(h_tm1_i, self.uhf) + T.dot(x_t, self.whf) + self.bhf)
+        mgate = T.dot(h_tm1_i, self.um) + T.dot(x_t, self.wm) + self.bm
+        mgate = self.normalize_layer(mgate, self.layernorm_m_gain, self.layernorm_m_bias)
+        mgate = self.gateactivation(mgate)
+        hfgate = T.dot(h_tm1_i, self.uhf) + T.dot(x_t, self.whf) + self.bhf
+        hfgate = self.normalize_layer(hfgate, self.layernorm_hf_gain, self.layernorm_hf_bias)
+        hfgate = self.gateactivation(hfgate)
         canh = T.dot(h_tm1_i * hfgate, self.u) + T.dot(x_t, self.w) + self.b
         '''canh = self.normalize_layer(canh)'''
+        canh = self.normalize_layer(canh, self.layernorm_canh_gain, self.layernorm_canh_bias)
         canh = self.outpactivation(canh)
         mgate = self.zoneout(mgate)
         h = (1 - mgate) * h_tm1_i + mgate * canh
-        h = self.normalize_layer(h)
+        #h = self.normalize_layer(h)
         return [h, h]
 
 
