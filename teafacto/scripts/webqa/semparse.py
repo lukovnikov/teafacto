@@ -112,6 +112,7 @@ def run(p="webqa.data.loaded.pkl",
         notrainmask=False,  # don't use the dec out symbol mask during training
         attention="forward",    # forward or dot
         layernorm=False,
+        validontest=False,
         ):
     GRU.layernormalize = layernorm
     tt = ticktock("script")
@@ -270,11 +271,18 @@ def run(p="webqa.data.loaded.pkl",
     if testpred:
         testpredictions()
 
-    m.train([train_nl_mat, train_fl_mat[:, :-1], train_vtn[:, :-1], train_e0_pos], train_fl_mat[:, 1:])\
-        .adadelta(lr=lr).seq_cross_entropy().seq_accuracy().grad_total_norm(gradnorm).l2(wreg)\
-        .split_validate(splits=10)\
-        .seq_cross_entropy().seq_accuracy()\
-        .train(numbats=numbats, epochs=epochs)
+    if validontest:
+        m.train([train_nl_mat, train_fl_mat[:, :-1], train_vtn[:, :-1], train_e0_pos], train_fl_mat[:, 1:])\
+            .adadelta(lr=lr).seq_cross_entropy().seq_accuracy().grad_total_norm(gradnorm).l2(wreg)\
+            .validate_on([test_nl_mat, test_fl_mat[:, :-1], test_vtn[:, :-1], test_e0_pos], test_fl_mat[:, 1:], splits=10)\
+            .seq_cross_entropy().seq_accuracy()\
+            .train(numbats=numbats, epochs=epochs)
+    else:
+        m.train([train_nl_mat, train_fl_mat[:, :-1], train_vtn[:, :-1], train_e0_pos], train_fl_mat[:, 1:]) \
+            .adadelta(lr=lr).seq_cross_entropy().seq_accuracy().grad_total_norm(gradnorm).l2(wreg) \
+            .split_validate(splits=10) \
+            .seq_cross_entropy().seq_accuracy() \
+            .train(numbats=numbats, epochs=epochs)
 
     embed()
 
