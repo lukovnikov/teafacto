@@ -35,7 +35,10 @@ def extract_core_chain(query, validtokens, noreverse=True):
     vtn_chain = [validtokens[0]]
     stack = []
     hasE0 = False
-    filterfn = lambda x: x[0] == ":" and x[:8] != ":reverse"
+    if noreverse:
+        filterfn = lambda x: x[0] == ":" and x[:8] != ":reverse"
+    else:
+        filterfn = lambda x: x[0] == ":"
     for i, token in enumerate(tokens):
         if token == "<E0>" and not hasE0:     # goes into core
             assert(token in vtn_chain[-1])
