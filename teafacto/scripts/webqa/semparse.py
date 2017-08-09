@@ -28,36 +28,29 @@ def get_core_chains(textsm, formsm, validnexttokenses, exampleids, t_ub_ents, sp
     return textsm, newformsm, newvtns, exampleids, t_ub_ents, splitid
 
 
-def extract_core_chain(query, validtokens):
+def extract_core_chain(query, validtokens, noreverse=True):
     # !!! ASSUMES query starts with first and main occurence of <E0>
     tokens = query.split()
     chain = []
     vtn_chain = [validtokens[0]]
     stack = []
     hasE0 = False
+    filterfn = lambda x: x[0] == ":" and x[:8] != ":reverse"
     for i, token in enumerate(tokens):
         if token == "<E0>" and not hasE0:     # goes into core
-            try:
-                assert(token in vtn_chain[-1])
-            except AssertionError, e:
-                print query
-                embed()
+            assert(token in vtn_chain[-1])
             stack.append(token)      # push onto branch start stack
             chain.append(token)
-            vtn_chain.append(set(filter(lambda x: x[0] == ":", validtokens[i+1])))
+            vtn_chain.append(set(filter(filterfn, validtokens[i+1])))
             vtn_chain[-1].add("<RETURN>")
             hasE0 = True
         elif token[0] == ":":     # relation
             if len(stack) == 1 and stack[0] == "<E0>":      # in core path
                 if token not in vtn_chain[-1]:
                     vtn_chain[-1].add(token)
-                try:
-                    assert(token in vtn_chain[-1])
-                except AssertionError, e:
-                    print query
-                    embed()
+                assert(token in vtn_chain[-1])
                 chain.append(token)
-                vtn_chain.append(set(filter(lambda x: x[0] == ":", validtokens[i+1])))
+                vtn_chain.append(set(filter(filterfn, validtokens[i+1])))
                 vtn_chain[-1].add("<RETURN>")
         elif token == "<JOIN>":
             del stack[-1]
