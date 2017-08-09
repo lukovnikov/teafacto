@@ -8,15 +8,81 @@ from teafacto.blocks.seq import RNNSeqEncoder
 from teafacto.blocks.seq.encdec import EncDec
 from teafacto.blocks.seq.attention import Attention
 from teafacto.blocks.seq.rnu import GRU
+import sys
 
 
-def loaddata(p="webqa.data.loaded.pkl"):
+def get_core_chains(textsm, formsm, validnexttokenses, exampleids, t_ub_ents, splitid):
+    print("extracting core chains from loaded data")
+    newformsm = StringMatrix(indicate_start_end=False, freqcutoff=0)
+    newformsm.tokenize = lambda x: x.split()
+    newvtns = []
+    for i in range(len(formsm.matrix)):
+        query = formsm.pp(formsm.matrix[i])
+        # extra core chain from one query
+        corechain, validtokens = extract_core_chain(query, validnexttokenses[i])
+        #print("{}\n\t{}".format(query, corechain))
+        newformsm.add(corechain)
+        newvtns.append(validtokens)
+    newformsm.finalize()
+    #embed()
+    return textsm, newformsm, newvtns, exampleids, t_ub_ents, splitid
+
+
+def extract_core_chain(query, validtokens):
+    # !!! ASSUMES query starts with first and main occurence of <E0>
+    tokens = query.split()
+    chain = []
+    vtn_chain = [validtokens[0]]
+    stack = []
+    hasE0 = False
+    for i, token in enumerate(tokens):
+        if token == "<E0>" and not hasE0:     # goes into core
+            try:
+                assert(token in vtn_chain[-1])
+            except AssertionError, e:
+                print query
+                embed()
+            stack.append(token)      # push onto branch start stack
+            chain.append(token)
+            vtn_chain.append(set(filter(lambda x: x[0] == ":", validtokens[i+1])))
+            vtn_chain[-1].add("<RETURN>")
+            hasE0 = True
+        elif token[0] == ":":     # relation
+            if len(stack) == 1 and stack[0] == "<E0>":      # in core path
+                if token not in vtn_chain[-1]:
+                    vtn_chain[-1].add(token)
+                try:
+                    assert(token in vtn_chain[-1])
+                except AssertionError, e:
+                    print query
+                    embed()
+                chain.append(token)
+                vtn_chain.append(set(filter(lambda x: x[0] == ":", validtokens[i+1])))
+                vtn_chain[-1].add("<RETURN>")
+        elif token == "<JOIN>":
+            del stack[-1]
+        elif token == "<RETURN>":
+            assert(len(stack) == 1)
+            assert(token in vtn_chain[-1])
+            chain.append("<RETURN>")
+            vtn_chain.append({"<MASK>"})
+        else:
+            stack.append(token)
+    return " ".join(chain), vtn_chain
+
+
+
+
+def loaddata(p="webqa.data.loaded.pkl", corechainonly=False):
     tt = ticktock("loader")
     # region 1. load data
     tt.tick("loading data")
     data = pickle.load(open(p))
     textsm, formsm, validnexttokenses, exampleids, t_ub_ents, splitid = \
         [data[k] for k in "textsm formsm validnexttokenses exampleids t_ub_ents traintestsplit".split()]
+    if corechainonly:
+        textsm, formsm, validnexttokenses, exampleids, t_ub_ents, splitid = \
+            get_core_chains(textsm, formsm, validnexttokenses, exampleids, t_ub_ents, splitid)
     tt.tock("data loaded")
     # endregion
     # region 2. split train test
@@ -113,11 +179,13 @@ def run(p="webqa.data.loaded.pkl",
         attention="forward",    # forward or dot
         layernorm=False,
         validontest=False,
+        corechainonly=False,    # only core chain
         ):
     GRU.layernormalize = layernorm
     tt = ticktock("script")
     (train_nl_mat, train_fl_mat, train_vtn), (test_nl_mat, test_fl_mat, test_vtn), \
-    (nl_dic, fl_dic, rel_dic), (rel_mat, rel_mat_dic) = loaddata(p)
+    (nl_dic, fl_dic, rel_dic), (rel_mat, rel_mat_dic) = loaddata(p, corechainonly=corechainonly)
+    print("train_fl_mat.shape: {}".format(train_fl_mat.shape))
     # add starts
     train_fl_mat = np.concatenate([
         np.ones_like(train_fl_mat[:, 0:1]) * fl_dic["<START>"],
