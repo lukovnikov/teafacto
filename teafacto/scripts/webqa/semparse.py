@@ -69,16 +69,13 @@ def extract_core_chain(query, validtokens, noreverse=True):
 
 
 
-def loaddata(p="webqa.data.loaded.pkl", corechainonly=False):
+def loaddata(p="webqa.data.loaded.pkl"):
     tt = ticktock("loader")
     # region 1. load data
     tt.tick("loading data")
     data = pickle.load(open(p))
     textsm, formsm, validnexttokenses, exampleids, t_ub_ents, splitid = \
         [data[k] for k in "textsm formsm validnexttokenses exampleids t_ub_ents traintestsplit".split()]
-    if corechainonly:
-        textsm, formsm, validnexttokenses, exampleids, t_ub_ents, splitid = \
-            get_core_chains(textsm, formsm, validnexttokenses, exampleids, t_ub_ents, splitid)
     tt.tock("data loaded")
     # endregion
     # region 2. split train test
@@ -154,8 +151,7 @@ def loaddata(p="webqa.data.loaded.pkl", corechainonly=False):
 # TODO: try bypass connections in RNNs
 # TODO: incorporate given entity linker results
 
-def run(p="webqa.data.loaded.pkl",
-        worddim=50,
+def run(worddim=50,
         fldim=50,
         encdim=50,
         decdim=50,
@@ -175,12 +171,16 @@ def run(p="webqa.data.loaded.pkl",
         attention="forward",    # forward or dot
         layernorm=False,
         validontest=False,
-        corechainonly=False,    # only core chain
+        corechain=True,    # only core chain
         ):
     GRU.layernormalize = layernorm
     tt = ticktock("script")
+    if corechain:
+        p = "webqa.chains.loaded.pkl"
+    else:
+        p = "webqa.data.loaded.pkl"
     (train_nl_mat, train_fl_mat, train_vtn), (test_nl_mat, test_fl_mat, test_vtn), \
-    (nl_dic, fl_dic, rel_dic), (rel_mat, rel_mat_dic) = loaddata(p, corechainonly=corechainonly)
+    (nl_dic, fl_dic, rel_dic), (rel_mat, rel_mat_dic) = loaddata(p)
     print("train_fl_mat.shape: {}".format(train_fl_mat.shape))
     # add starts
     train_fl_mat = np.concatenate([

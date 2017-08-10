@@ -261,7 +261,7 @@ class Traverser(object):
     def argmin(self, src, rel):
         return self.argmaxmin(src, rel, mode="min")
 
-    def traverse_tree_subq(self, tree, entdic=None):
+    def traverse_tree_subq(self, tree, entdic=None, incl_rev=True):
         """ consumes tree-lin query token by token, queries endpoint after every token
             to get intermediate result and next valid relations"""
         # higher-level code, maintains stack of partial or sub-queries
@@ -278,7 +278,7 @@ class Traverser(object):
                 qstack[-1].append(token)
                 if not inargmaxer:
                     result, validrelses = self.exec_tree_and_get_relations(" ".join(qstack[-1]),
-                                                    incl_reverse=True, noresult=token!="<RETURN>")
+                                                    incl_reverse=incl_rev, noresult=token!="<RETURN>")
                     if token == "<RETURN>":
                         validrelses = set()
                     else:
@@ -300,13 +300,13 @@ class Traverser(object):
                     validrelses.add("reverse:None")
                 else:
                     result = {token}
-                    validrelses = self.get_relations_of({token}, incl_reverse=True)
+                    validrelses = self.get_relations_of({token}, incl_reverse=incl_rev)
             elif token == "<JOIN>":
                 if inargmaxer:
                     inargmaxer = False
                 qstack[-1] = qstack[-2] + qstack[-1] + [token]
                 del qstack[-2]
-                result, validrelses = self.exec_tree_and_get_relations(" ".join(qstack[-1]), incl_reverse=True)
+                result, validrelses = self.exec_tree_and_get_relations(" ".join(qstack[-1]), incl_reverse=incl_rev)
             else:
                 raise Exception("unrecognized token {}".format(token))
             validrels.append(validrelses)

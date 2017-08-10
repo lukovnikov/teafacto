@@ -1,3 +1,5 @@
+from __future__ import print_function
+from __future__ import print_function
 from teafacto.util import argprun, tokenize
 import json, re
 from nltk.corpus import stopwords
@@ -201,8 +203,8 @@ def buildgraph_from_fish(parse):
             ent = EntityNode(arg, name)
             try:
                 edge = RelationEdge(spinenodes[pos], ent, pred)
-            except IndexError, e:
-                print parse["ParseId"]
+            except IndexError as e:
+                print(parse["ParseId"])
                 break
                 #raise e
             spinenodes[pos].append_edge(edge)
@@ -213,8 +215,8 @@ def buildgraph_from_fish(parse):
             intervar = VariableNode()
             try:
                 edge = RelationEdge(spinenodes[pos], intervar, pred)
-            except IndexError, e:
-                print parse["ParseId"]
+            except IndexError as e:
+                print(parse["ParseId"])
                 break
             spinenodes[pos].append_edge(edge)
             intervar.append_edge(edge)
