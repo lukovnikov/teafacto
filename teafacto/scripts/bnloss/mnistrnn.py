@@ -19,6 +19,7 @@ def main(
     num_classes = 10,
     epochs = 2,
     hidden_size=128,
+    num_layers = 2,
     ):
 
     # input image dimensions
@@ -45,7 +46,8 @@ def main(
 
     model = Sequential()
     model.add(GRU(hidden_size, return_sequences=True, input_shape=input_shape))
-    model.add(GRU(hidden_size))
+    for i in range(num_layers-1):
+        model.add(GRU(hidden_size))
     model.add(Dense(num_classes, activation='softmax'))
 
     model.compile(loss=keras.losses.categorical_crossentropy,
