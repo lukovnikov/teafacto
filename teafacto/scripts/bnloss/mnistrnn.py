@@ -26,6 +26,7 @@ img_rows, img_cols = 28, 28
 
 x_train = x_train.reshape(x_train.shape[0], img_rows, img_cols)
 x_test = x_test.reshape(x_test.shape[0], img_rows, img_cols)
+input_shape = (img_rows, img_cols)
 
 x_train = x_train.astype('float32')
 x_test = x_test.astype('float32')
@@ -40,7 +41,7 @@ y_train = keras.utils.to_categorical(y_train, num_classes)
 y_test = keras.utils.to_categorical(y_test, num_classes)
 
 model = Sequential()
-model.add(GRU(128, return_sequences=True))
+model.add(GRU(128, return_sequences=True, input_shape=input_shape))
 model.add(GRU(128))
 model.add(Dense(num_classes, activation='softmax'))
 
