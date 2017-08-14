@@ -18,6 +18,7 @@ def main(
     batch_size = 100,
     num_classes = 10,
     epochs = 2,
+    hidden_size=128,
     ):
 
     # input image dimensions
@@ -43,8 +44,8 @@ def main(
     y_test = keras.utils.to_categorical(y_test, num_classes)
 
     model = Sequential()
-    model.add(GRU(128, return_sequences=True, input_shape=input_shape))
-    model.add(GRU(128))
+    model.add(GRU(hidden_size, return_sequences=True, input_shape=input_shape))
+    model.add(GRU(hidden_size))
     model.add(Dense(num_classes, activation='softmax'))
 
     model.compile(loss=keras.losses.categorical_crossentropy,
