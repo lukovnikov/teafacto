@@ -47,7 +47,8 @@ def main(
     model = Sequential()
     model.add(GRU(hidden_size, return_sequences=True, input_shape=input_shape))
     for i in range(num_layers-1):
-        model.add(GRU(hidden_size))
+        returnseqs = i < (num_layers - 2)
+        model.add(GRU(hidden_size, return_sequences=returnseqs))
     model.add(Dense(num_classes, activation='softmax'))
 
     model.compile(loss=keras.losses.categorical_crossentropy,
